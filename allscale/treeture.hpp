@@ -85,12 +85,14 @@ namespace allscale
             this->get_gid();
             gid_.then(
                 hpx::util::bind(
-                    hpx::util::one_shot([](hpx::shared_future<hpx::id_type> const & gid, T && u)
-                    {
-                        hpx::apply<set_value_action>(
-                            gid.get(), std::move(u)
-                        );
-                    }),
+                    hpx::util::one_shot(
+                        [](hpx::shared_future<hpx::id_type> const & gid, T && u)
+                        {
+                            hpx::apply<set_value_action>(
+                                gid.get(), std::move(u)
+                            );
+                        }
+                    ),
                     hpx::util::placeholders::_1,
                     std::move(t)
                 )

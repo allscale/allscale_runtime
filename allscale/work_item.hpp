@@ -60,11 +60,13 @@ namespace allscale
     struct work_item
     {
         struct work_item_impl_base
+          : boost::enable_shared_from_this<work_item_impl_base>
         {
             virtual ~work_item_impl_base()
             {}
 
             virtual void execute()=0;
+            virtual bool valid()=0;
 
             template <typename Archive>
             void serialize(Archive & ar, unsigned)
@@ -83,8 +85,14 @@ namespace allscale
         template <typename WorkItemDescription, typename Closure>
         struct work_item_impl<WorkItemDescription, Closure, true>
           : work_item_impl_base
-          , boost::enable_shared_from_this<work_item_impl<WorkItemDescription, Closure, true>>
         {
+            boost::shared_ptr<work_item_impl> shared_this()
+            {
+                return
+                    boost::static_pointer_cast<work_item_impl>(
+                        this->shared_from_this()
+                    );
+            }
 
             using result_type = typename WorkItemDescription::result_type;
             using closure_type = Closure;
@@ -114,6 +122,11 @@ namespace allscale
                 );
             }
 
+            bool valid()
+            {
+                return bool(this->shared_from_this());
+            }
+
             void execute()
             {
                 execute(
@@ -128,35 +141,36 @@ namespace allscale
                 void (work_item_impl::*f)(
                     typename hpx::util::decay<decltype(hpx::util::get<Is>(closure_))>::type...
                 ) = &work_item_impl::execute_impl;
+                HPX_ASSERT(valid());
                 hpx::dataflow(
                     f
-                  , this->shared_from_this()
+                  , shared_this()
                   , std::move(hpx::util::get<Is>(closure_))...
-                );
+                ).get();
             }
 
-            template <typename, typename> friend
-            struct ::hpx::serialization::detail::register_class_name;
-
-            static std::string hpx_serialization_get_name_impl()
-            {
-                hpx::serialization::detail::register_class_name<
-                    work_item_impl>::instance.instantiate();
-                return WorkItemDescription::name();
-            }
-            virtual std::string hpx_serialization_get_name() const
-            {
-                return work_item_impl::hpx_serialization_get_name_impl();
-            }
+//             template <typename, typename> friend
+//             struct ::hpx::serialization::detail::register_class_name;
+//
+//             static std::string hpx_serialization_get_name_impl()
+//             {
+//                 hpx::serialization::detail::register_class_name<
+//                     work_item_impl>::instance.instantiate();
+//                 return WorkItemDescription::split_variant::name();
+//             }
+//             virtual std::string hpx_serialization_get_name() const
+//             {
+//                 return work_item_impl::hpx_serialization_get_name_impl();
+//             }
 
             template <typename Archive>
             void serialize(Archive &ar, unsigned)
             {
                 ar & hpx::serialization::base_object<work_item_impl_base>(*this);
-                ar & hpx::serialization::base_object<boost::enable_shared_from_this<work_item_impl>>(*this);
                 ar & tres_;
                 ar & closure_;
             }
+            HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(work_item_impl);
 
             treeture<result_type> tres_;
             closure_type closure_;
@@ -165,8 +179,15 @@ namespace allscale
         template <typename WorkItemDescription, typename Closure>
         struct work_item_impl<WorkItemDescription, Closure, false>
           : work_item_impl_base
-          , boost::enable_shared_from_this<work_item_impl<WorkItemDescription, Closure, false>>
         {
+            boost::shared_ptr<work_item_impl> shared_this()
+            {
+                return
+                    boost::static_pointer_cast<work_item_impl>(
+                        this->shared_from_this()
+                    );
+            }
+
             using result_type = typename WorkItemDescription::result_type;
             using closure_type = Closure;
 
@@ -195,6 +216,11 @@ namespace allscale
                 );
             }
 
+            bool valid()
+            {
+                return bool(this->shared_from_this());
+            }
+
             void execute()
             {
                 execute(
@@ -209,35 +235,36 @@ namespace allscale
                 void (work_item_impl::*f)(
                     typename hpx::util::decay<decltype(hpx::util::get<Is>(closure_))>::type...
                 ) = &work_item_impl::execute_impl;
+                HPX_ASSERT(valid());
                 hpx::dataflow(
                     f
-                  , this->shared_from_this()
+                  , shared_this()
                   , std::move(hpx::util::get<Is>(closure_))...
-                );
+                ).get();
             }
 
-            template <typename, typename> friend
-            struct ::hpx::serialization::detail::register_class_name;
-
-            static std::string hpx_serialization_get_name_impl()
-            {
-                hpx::serialization::detail::register_class_name<
-                    work_item_impl>::instance.instantiate();
-                return WorkItemDescription::name();
-            }
-            virtual std::string hpx_serialization_get_name() const
-            {
-                return work_item_impl::hpx_serialization_get_name_impl();
-            }
+//             template <typename, typename> friend
+//             struct ::hpx::serialization::detail::register_class_name;
+//
+//             static std::string hpx_serialization_get_name_impl()
+//             {
+//                 hpx::serialization::detail::register_class_name<
+//                     work_item_impl>::instance.instantiate();
+//                 return WorkItemDescription::process_variant::name();
+//             }
+//             virtual std::string hpx_serialization_get_name() const
+//             {
+//                 return work_item_impl::hpx_serialization_get_name_impl();
+//             }
 
             template <typename Archive>
             void serialize(Archive &ar, unsigned)
             {
                 ar & hpx::serialization::base_object<work_item_impl_base>(*this);
-                ar & hpx::serialization::base_object<boost::enable_shared_from_this<work_item_impl>>(*this);
                 ar & tres_;
                 ar & closure_;
             }
+            HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(work_item_impl);
 
             treeture<result_type> tres_;
             closure_type closure_;
@@ -282,15 +309,26 @@ namespace allscale
             return *this;
         }
 
+        bool valid() const
+        {
+            if(impl_)
+                return true;
+            return false;
+        }
+
         void execute()
         {
+            HPX_ASSERT(valid());
+            HPX_ASSERT(impl_->valid());
             impl_->execute();
+            impl_.reset();
         }
 
         template <typename Archive>
         void serialize(Archive & ar, unsigned)
         {
             ar & impl_;
+            HPX_ASSERT(impl_->valid());
         }
 
         boost::shared_ptr<work_item_impl_base> impl_;

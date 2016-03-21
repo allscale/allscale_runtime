@@ -38,6 +38,7 @@ namespace allscale { namespace components {
         boost::atomic<bool> stopped_;
         hpx::id_type left_;
         hpx::id_type right_;
+        boost::atomic<std::size_t> count_;
 
         mutex_type work_queue_mtx_;
         hpx::lcos::local::condition_variable work_queue_cv_;

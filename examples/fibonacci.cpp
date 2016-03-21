@@ -101,8 +101,10 @@ struct split_variant
     template <typename Closure>
     static allscale::treeture<std::int64_t> execute(Closure const& closure)
     {
-        if(hpx::util::get<0>(closure) <= 2)
-            return allscale::treeture<std::int64_t>{1};
+        if(hpx::util::get<0>(closure) <= 10)
+            return allscale::treeture<std::int64_t>{
+                fib_ser(hpx::util::get<0>(closure))
+            };
 
         return allscale::spawn<add_work>(
             allscale::spawn<fibonacci_work>(
@@ -119,6 +121,11 @@ struct process_variant
 {
     static constexpr bool valid = true;
     using result_type = std::int64_t;
+
+    static const char* name()
+    {
+        return "fib_process_variant";
+    }
 
     // The split variant requires nothing ...
 //     template <typename Closure>
@@ -149,7 +156,7 @@ int main()
 
     if(hpx::get_locality_id() == 0)
     {
-        std::int64_t n = 50;
+        std::int64_t n = 20;
         std::cout
             << "fib(" << n << ") = "
             << allscale::spawn<fibonacci_work>(n).get()
