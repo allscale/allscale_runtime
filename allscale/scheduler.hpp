@@ -5,7 +5,7 @@
 #include <hpx/config.hpp>
 #include <allscale/work_item.hpp>
 
-#include <boost/shared_ptr.hpp>
+#include <memory>
 
 namespace allscale
 {
@@ -22,12 +22,12 @@ namespace allscale
 
     private:
         static std::size_t rank_;
-        static boost::shared_ptr<components::scheduler> & get_ptr();
+        static std::shared_ptr<components::scheduler> & get_ptr();
         static components::scheduler & get();
 
         scheduler(std::size_t rank);
 
-        boost::shared_ptr<components::scheduler> component_;
+        std::shared_ptr<components::scheduler> component_;
     };
 }
 

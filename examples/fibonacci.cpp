@@ -153,15 +153,16 @@ int main()
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
 
-
     if(hpx::get_locality_id() == 0)
     {
-        std::int64_t n = 20;
+        std::int64_t n = 10;
+        allscale::treeture<std::int64_t> fib
+            = allscale::spawn<fibonacci_work>(n);
+
         std::cout
             << "fib(" << n << ") = "
-            << allscale::spawn<fibonacci_work>(n).get()
+            << fib.get_result()
             << "\n";
-
         allscale::scheduler::stop();
     }
 

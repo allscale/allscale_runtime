@@ -20,16 +20,19 @@ namespace allscale
         using result_type = T;
         using future_type = hpx::future<T>;
 
-        using base_type::gid_;
-
         using set_value_action =
             typename components::treeture<T>::set_value_action;
         using get_future_action =
             typename components::treeture<T>::get_future_action;
 
         treeture()
-          : base_type(hpx::new_<components::treeture<T>>(hpx::find_here()))
         {}
+
+        treeture(hpx::id_type loc)
+          : base_type(hpx::new_<components::treeture<T>>(loc))
+        {
+            this->get_gid();
+        }
 
         template <
             typename F,
@@ -42,15 +45,14 @@ namespace allscale
         explicit treeture(F f)
           : base_type(hpx::new_<components::treeture<T>>(hpx::find_here()))
         {
-            this->get_gid();
-            hpx::when_all(gid_, std::move(f)).then(
-                [](hpx::shared_future<hpx::id_type> const & gid, F f)
+            f.then(
+                [this](F f)
                 {
                     hpx::apply<set_value_action>(
-                        gid.get(), f.get()
+                        this->get_id(), f.get()
                     );
                 }
-            );
+            ).get();
         }
 
         template <
@@ -64,58 +66,52 @@ namespace allscale
         explicit treeture(U && u)
           : base_type(hpx::new_<components::treeture<T>>(hpx::find_here(), std::forward<U>(u)))
         {
+            this->get_gid();
         }
 
         treeture(treeture && o)
-          : base_type(std::move(o.gid_))
-        {}
+          : base_type(std::move(o))
+        {
+            this->get_gid();
+        }
 
         treeture(treeture const& o)
-          : base_type(o.gid_)
-        {}
+          : base_type(o)
+        {
+            this->get_gid();
+        }
 
         explicit treeture(hpx::future<treeture> && f)
           : base_type(std::move(f))
         {
-            HPX_ASSERT(gid_.valid());
+            this->get_gid();
+            HPX_ASSERT(this->get_id().valid());
         }
 
         void set_value(T && t)
         {
-            this->get_gid();
-            gid_.then(
-                hpx::util::bind(
-                    hpx::util::one_shot(
-                        [](hpx::shared_future<hpx::id_type> const & gid, T && u)
-                        {
-                            hpx::apply<set_value_action>(
-                                gid.get(), std::move(u)
-                            );
-                        }
-                    ),
-                    hpx::util::placeholders::_1,
-                    std::move(t)
-                )
+            hpx::apply<set_value_action>(
+                this->get_id(), std::move(t)
             );
 //             this->reset();
         }
 
         hpx::future<T> get_future()
         {
-            this->get_gid();
 //             hpx::shared_future<hpx::id_type> g = gid_;
 //             this->reset();
-            return gid_.then(
-                [](hpx::shared_future<hpx::id_type> gid)
-                {
-                    return hpx::async<get_future_action>(gid.get());
-                }
-            );
+            return hpx::async<get_future_action>(this->get_id());
         }
 
-        T get()
+        T get_result()
         {
             return get_future().get();
+        }
+
+        template <typename Archive>
+        void serialize(Archive & ar, unsigned)
+        {
+            ar & hpx::serialization::base_object<base_type>(*this);
         }
     };
 

@@ -146,7 +146,7 @@ namespace allscale
                     f
                   , shared_this()
                   , std::move(hpx::util::get<Is>(closure_))...
-                ).get();
+                );
             }
 
 //             template <typename, typename> friend
@@ -240,7 +240,7 @@ namespace allscale
                     f
                   , shared_this()
                   , std::move(hpx::util::get<Is>(closure_))...
-                ).get();
+                );
             }
 
 //             template <typename, typename> friend
@@ -325,11 +325,21 @@ namespace allscale
         }
 
         template <typename Archive>
-        void serialize(Archive & ar, unsigned)
+        void load(Archive & ar, unsigned)
         {
             ar & impl_;
             HPX_ASSERT(impl_->valid());
         }
+
+        template <typename Archive>
+        void save(Archive & ar, unsigned) const
+        {
+            HPX_ASSERT(impl_->valid());
+            ar & impl_;
+            HPX_ASSERT(impl_->valid());
+        }
+
+        HPX_SERIALIZATION_SPLIT_MEMBER()
 
         boost::shared_ptr<work_item_impl_base> impl_;
     };

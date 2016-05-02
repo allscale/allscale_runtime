@@ -38,7 +38,7 @@ namespace allscale
         return *get_ptr();
     }
 
-    boost::shared_ptr<components::scheduler> &scheduler::get_ptr()
+    std::shared_ptr<components::scheduler> &scheduler::get_ptr()
     {
         static scheduler s(rank_);
         return s.component_;
