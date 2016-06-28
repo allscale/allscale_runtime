@@ -17,6 +17,8 @@ namespace allscale
             work_item(WorkItemDescription(), tres, std::forward<Ts>(vs)...)
         );
 
+        HPX_ASSERT(tres.valid());
+
         return tres;
     }
 }

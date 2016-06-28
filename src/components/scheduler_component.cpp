@@ -25,8 +25,10 @@ namespace allscale { namespace components {
     void scheduler::init()
     {
         // Find neighbors...
-        std::uint64_t left_id = rank_ == 0 ? num_localities_ - 1 : rank_ - 1;
-        std::uint64_t right_id = rank_ == num_localities_ - 1 ? 0 : rank_ + 1;
+        std::uint64_t left_id =
+            rank_ == 0 ? num_localities_ - 1 : rank_ - 1;
+        std::uint64_t right_id =
+            rank_ == num_localities_ - 1 ? 0 : rank_ + 1;
 
         hpx::future<hpx::id_type> right_future =
             hpx::find_from_basename("allscale/scheduler", right_id);
@@ -40,7 +42,9 @@ namespace allscale { namespace components {
             right_ = right_future.get();
 
         timer_.start();
-        std::cout << "Scheduler with rank " << rank_ << " created (" << left_ << " " << right_ << ")!\n";
+        std::cout
+            << "Scheduler with rank "
+            << rank_ << " created (" << left_ << " " << right_ << ")!\n";
     }
 
     void scheduler::enqueue(work_item work)
@@ -76,6 +80,7 @@ namespace allscale { namespace components {
                 HPX_ASSERT(false);
         }
         HPX_ASSERT(schedule_id);
+        HPX_ASSERT(work.valid());
         hpx::apply<enqueue_action>(schedule_id, work);
     }
 
@@ -140,7 +145,7 @@ namespace allscale { namespace components {
                 while(work_queue_.empty() && !stopped_)
                 {
                     work_queue_cv_.wait(l);
-                    std::cout << "rank(" << rank_ << "): got notified ... " << work_queue_.size() << " (" << count_ << ")\n";
+//                     std::cout << "rank(" << rank_ << "): got notified ... " << work_queue_.size() << " (" << count_ << ")\n";
                 }
                 if(stopped_ && work_queue_.empty())
                 {

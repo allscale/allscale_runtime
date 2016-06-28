@@ -31,7 +31,7 @@ namespace allscale
         treeture(hpx::id_type loc)
           : base_type(hpx::new_<components::treeture<T>>(loc))
         {
-            this->get_gid();
+            HPX_ASSERT(this->valid());
         }
 
         template <
@@ -40,11 +40,14 @@ namespace allscale
                 typename std::enable_if<
                     hpx::traits::is_future<F>::value
                  && !std::is_same<typename hpx::util::decay<F>::type, treeture>::value
+                 && !std::is_same<typename hpx::util::decay<F>::type, hpx::future<treeture>>::value
+                 && !std::is_same<typename hpx::util::decay<F>::type, hpx::future<hpx::id_type>>::value
                 >::type
         >
         explicit treeture(F f)
           : base_type(hpx::new_<components::treeture<T>>(hpx::find_here()))
         {
+            HPX_ASSERT(this->valid());
             f.then(
                 [this](F f)
                 {
@@ -52,7 +55,8 @@ namespace allscale
                         this->get_id(), f.get()
                     );
                 }
-            ).get();
+            );
+            HPX_ASSERT(this->valid());
         }
 
         template <
@@ -61,35 +65,44 @@ namespace allscale
                 typename std::enable_if<
                     !hpx::traits::is_future<U>::value
                  && !std::is_same<typename hpx::util::decay<U>::type, treeture>::value
+                 && !std::is_same<typename hpx::util::decay<U>::type, hpx::future<treeture>>::value
+                 && !std::is_same<typename hpx::util::decay<U>::type, hpx::future<hpx::id_type>>::value
                 >::type
         >
         explicit treeture(U && u)
           : base_type(hpx::new_<components::treeture<T>>(hpx::find_here(), std::forward<U>(u)))
         {
-            this->get_gid();
+            HPX_ASSERT(this->valid());
         }
 
         treeture(treeture && o)
           : base_type(std::move(o))
         {
-            this->get_gid();
+            HPX_ASSERT(this->valid());
         }
 
         treeture(treeture const& o)
           : base_type(o)
         {
-            this->get_gid();
+            HPX_ASSERT(this->valid());
         }
 
         explicit treeture(hpx::future<treeture> && f)
           : base_type(std::move(f))
         {
-            this->get_gid();
+            HPX_ASSERT(this->valid());
             HPX_ASSERT(this->get_id().valid());
+        }
+
+        explicit treeture(hpx::future<hpx::id_type> && f)
+          : base_type(std::move(f))
+        {
+            HPX_ASSERT(this->valid());
         }
 
         void set_value(T && t)
         {
+            HPX_ASSERT(this->valid());
             hpx::apply<set_value_action>(
                 this->get_id(), std::move(t)
             );
@@ -98,6 +111,7 @@ namespace allscale
 
         hpx::future<T> get_future()
         {
+            HPX_ASSERT(this->valid());
 //             hpx::shared_future<hpx::id_type> g = gid_;
 //             this->reset();
             return hpx::async<get_future_action>(this->get_id());
@@ -105,14 +119,26 @@ namespace allscale
 
         T get_result()
         {
+            HPX_ASSERT(this->valid());
             return get_future().get();
         }
 
-        template <typename Archive>
-        void serialize(Archive & ar, unsigned)
-        {
-            ar & hpx::serialization::base_object<base_type>(*this);
-        }
+//         template <typename Archive>
+//         void load(Archive & ar, unsigned)
+//         {
+//             ar & hpx::serialization::base_object<base_type>(*this);
+//             HPX_ASSERT(this->valid());
+//         }
+//
+//         template <typename Archive>
+//         void save(Archive & ar, unsigned) const
+//         {
+//             HPX_ASSERT(this->valid());
+//             ar & hpx::serialization::base_object<base_type>(*this);
+//             HPX_ASSERT(this->valid());
+//         }
+//
+//         HPX_SERIALIZATION_SPLIT_MEMBER();
     };
 
     namespace traits
@@ -126,7 +152,7 @@ namespace allscale
 
 #define ALLSCALE_REGISTER_TREETURE_TYPE_(T, NAME)                               \
     using NAME =                                                                \
-        ::hpx::components::component<                                           \
+        ::hpx::components::managed_component<                                   \
             ::allscale::components::treeture< T >                               \
         >;                                                                      \
     HPX_REGISTER_COMPONENT(NAME)                                                \

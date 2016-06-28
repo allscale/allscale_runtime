@@ -53,7 +53,7 @@ struct add_variant
 //         return std::tuple<>{};
 //     }
 
-    // It spawns two new tasks, fib(n-1) and fib(n-2)
+    // Just perform the addition, no extra tasks are spawned
     template <typename Closure>
     static allscale::treeture<std::int64_t> execute(Closure const& closure)
     {
@@ -134,7 +134,7 @@ struct process_variant
 //         return std::tuple<>{};
 //     }
 
-    // It spawns two new tasks, fib(n-1) and fib(n-2)
+    // Execute fibonacci serially
     template <typename Closure>
     static allscale::treeture<std::int64_t> execute(Closure const& closure)
     {
@@ -146,6 +146,7 @@ struct process_variant
 };
 
 #include <hpx/hpx_main.hpp>
+#include <hpx/util/high_resolution_timer.hpp>
 #include <iostream>
 
 int main()
@@ -155,17 +156,18 @@ int main()
 
     if(hpx::get_locality_id() == 0)
     {
-        std::int64_t n = 10;
+        hpx::util::high_resolution_timer t;
+        std::int64_t n = 30;
         allscale::treeture<std::int64_t> fib
             = allscale::spawn<fibonacci_work>(n);
-
+        std::int64_t res = fib.get_result();
+        double elapsed = t.elapsed();
         std::cout
             << "fib(" << n << ") = "
-            << fib.get_result()
-            << "\n";
+            << res
+            << " taking " << elapsed << "seconds\n";
         allscale::scheduler::stop();
     }
-
 
     return 0;
 }

@@ -7,8 +7,10 @@
 namespace allscale { namespace components {
     template <typename T>
     struct treeture
-      : hpx::components::component_base<treeture<T> >
+      : hpx::components::managed_component_base<treeture<T> >
     {
+//         typedef hpx::components::managed_component_base<treeture<T> > base_type;
+
         treeture()
         {}
 
@@ -28,6 +30,9 @@ namespace allscale { namespace components {
             return promise_.get_future();
         }
         HPX_DEFINE_COMPONENT_ACTION(treeture, get_future);
+
+//         using base_type::set_back_ptr;
+//         using base_type::get_base_gid;
 
     private:
         hpx::lcos::local::promise<T> promise_;

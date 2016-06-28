@@ -104,7 +104,9 @@ namespace allscale
             work_item_impl(treeture<result_type> tres, Ts&&... vs)
               : tres_(std::move(tres))
               , closure_(std::forward<Ts>(vs)...)
-            {}
+            {
+                HPX_ASSERT(tres_.valid());
+            }
 
             template <typename ...Ts>
             void execute_impl(Ts...vs)
@@ -198,7 +200,9 @@ namespace allscale
             work_item_impl(treeture<result_type> tres, Ts&&... vs)
               : tres_(std::move(tres))
               , closure_(std::forward<Ts>(vs)...)
-            {}
+            {
+                HPX_ASSERT(tres_.valid());
+            }
 
             template <typename ...Ts>
             void execute_impl(Ts...vs)
@@ -218,7 +222,7 @@ namespace allscale
 
             bool valid()
             {
-                return bool(this->shared_from_this());
+                return tres_.valid() && bool(this->shared_from_this());
             }
 
             void execute()
@@ -312,7 +316,7 @@ namespace allscale
         bool valid() const
         {
             if(impl_)
-                return true;
+                return impl_->valid();
             return false;
         }
 
@@ -321,7 +325,7 @@ namespace allscale
             HPX_ASSERT(valid());
             HPX_ASSERT(impl_->valid());
             impl_->execute();
-            impl_.reset();
+//             impl_.reset();
         }
 
         template <typename Archive>
@@ -335,7 +339,15 @@ namespace allscale
         void save(Archive & ar, unsigned) const
         {
             HPX_ASSERT(impl_->valid());
-            ar & impl_;
+
+            if(ar.is_future_awaiting())
+            {
+                impl_->save(ar, 0);
+            }
+            else
+            {
+                ar & impl_;
+            }
             HPX_ASSERT(impl_->valid());
         }
 
