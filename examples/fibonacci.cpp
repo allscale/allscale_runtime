@@ -157,7 +157,7 @@ int main()
     if(hpx::get_locality_id() == 0)
     {
         hpx::util::high_resolution_timer t;
-        std::int64_t n = 30;
+        std::int64_t n = 20;
         allscale::treeture<std::int64_t> fib
             = allscale::spawn<fibonacci_work>(n);
         std::int64_t res = fib.get_result();
@@ -165,7 +165,7 @@ int main()
         std::cout
             << "fib(" << n << ") = "
             << res
-            << " taking " << elapsed << "seconds\n";
+            << " taking " << elapsed << " seconds\n";
         allscale::scheduler::stop();
     }
 

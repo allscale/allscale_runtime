@@ -115,7 +115,7 @@ namespace allscale { namespace components {
                 std::vector<work_item> items = f.get();
                 if(!items.empty())
                 {
-                    std::cout << "rank(" << rank_ << ") stole work\n";
+//                     std::cout << "rank(" << rank_ << ") stole work\n";
                     {
                         std::unique_lock<mutex_type> l(work_queue_mtx_);
                         for(auto && work : items)
@@ -157,7 +157,7 @@ namespace allscale { namespace components {
                 work_queue_.pop_front();
             }
             HPX_ASSERT(work.valid());
-            work.execute();
+            hpx::apply(&work_item::execute, std::move(work));
             ++count_;
         }
         work_queue_cv_.notify_all();

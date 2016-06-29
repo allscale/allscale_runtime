@@ -25,14 +25,14 @@ namespace allscale { namespace components {
         void init();
 
         void enqueue(work_item work);
-        HPX_DEFINE_COMPONENT_ACTION(scheduler, enqueue);
+        HPX_DEFINE_COMPONENT_DIRECT_ACTION(scheduler, enqueue);
         std::vector<work_item> dequeue();
-        HPX_DEFINE_COMPONENT_ACTION(scheduler, dequeue);
+        HPX_DEFINE_COMPONENT_DIRECT_ACTION(scheduler, dequeue);
 
         bool steal_work();
         void run();
         void stop();
-        HPX_DEFINE_COMPONENT_ACTION(scheduler, stop);
+        HPX_DEFINE_COMPONENT_DIRECT_ACTION(scheduler, stop);
 
     private:
         std::uint64_t num_localities_;
