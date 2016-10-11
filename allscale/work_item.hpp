@@ -340,7 +340,7 @@ namespace allscale
         {
             HPX_ASSERT(impl_->valid());
 
-            if(ar.is_future_awaiting())
+            if(ar.is_preprocessing())
             {
                 impl_->save(ar, 0);
             }
