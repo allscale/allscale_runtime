@@ -9,3 +9,9 @@ include_directories(${CMAKE_SOURCE_DIR})
 
 add_subdirectory(src)
 add_subdirectory(examples)
+
+if(ALLSCALE_WITH_TESTS)
+  add_subdirectory(tests)
+endif()
+
+
