@@ -85,6 +85,8 @@ namespace allscale
 
             virtual void execute()=0;
             virtual bool valid()=0;
+            virtual this_work_item::id& id() const=0;
+            virtual const char* name() const=0;
 
             template <typename Archive>
             void serialize(Archive & ar, unsigned)
@@ -190,6 +192,16 @@ namespace allscale
 //             {
 //                 return work_item_impl::hpx_serialization_get_name_impl();
 //             }
+
+            this_work_item::id& id() const
+            {
+                return id_;
+            }
+
+            const char* name() const
+            {
+                return WorkItemDescription::name();
+            }
 
             template <typename Archive>
             void serialize(Archive &ar, unsigned)
@@ -310,6 +322,11 @@ namespace allscale
                 return id_;
             }
 
+            const char* name() const
+            {
+                return WorkItemDescription::name();
+            }
+
             treeture<result_type> tres_;
             closure_type closure_;
             this_work_item::id id_;
@@ -363,6 +380,20 @@ namespace allscale
             if(impl_)
                 return impl_->valid();
             return false;
+        }
+
+        this_work_item::id& id() const
+        {
+            if(impl_)
+                return impl_->id();
+            return this_work_item::get_id();
+        }
+
+        const char* name() const
+        {
+            if(impl_)
+                return impl_->name();
+            return "";
         }
 
         void execute()
