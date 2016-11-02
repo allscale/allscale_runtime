@@ -3,6 +3,8 @@
 #define ALLSCALE_WORK_ITEM_HPP
 
 #include <allscale/treeture.hpp>
+#include <allscale/monitor.hpp>
+#include <allscale/this_work_item.hpp>
 #include <allscale/traits/is_treeture.hpp>
 #include <allscale/traits/treeture_traits.hpp>
 
@@ -59,8 +61,24 @@ namespace allscale
 //     template <typename WorkitemDescription, typename Closure>
     struct work_item
     {
+        struct set_id
+        {
+            set_id(this_work_item::id& id)
+              : old_id_(this_work_item::get_id())
+            {
+                this_work_item::set_id(id);
+            }
+
+            ~set_id()
+            {
+                this_work_item::set_id(old_id_);
+            }
+
+            this_work_item::id& old_id_;
+        };
+
         struct work_item_impl_base
-          : boost::enable_shared_from_this<work_item_impl_base>
+          : std::enable_shared_from_this<work_item_impl_base>
         {
             virtual ~work_item_impl_base()
             {}
@@ -86,10 +104,10 @@ namespace allscale
         struct work_item_impl<WorkItemDescription, Closure, true>
           : work_item_impl_base
         {
-            boost::shared_ptr<work_item_impl> shared_this()
+            std::shared_ptr<work_item_impl> shared_this()
             {
                 return
-                    boost::static_pointer_cast<work_item_impl>(
+                    std::static_pointer_cast<work_item_impl>(
                         this->shared_from_this()
                     );
             }
@@ -112,14 +130,21 @@ namespace allscale
             void execute_impl(Ts...vs)
             {
                 treeture<result_type> tres = tres_;
+
+                std::shared_ptr<work_item_impl> this_(shared_this());
+                monitor::signal(monitor::work_item_execution_started, work_item(this_));
+                set_id si(this->id_);
+
                 WorkItemDescription::split_variant::execute(
                     hpx::util::make_tuple(
                         detail::unwrap_if(std::move(vs))...
                     )
                 ).get_future().then(
-                    [tres](hpx::future<result_type> ff) mutable
+                    [tres, this_](hpx::future<result_type> ff) mutable
                     {
+                        set_id si(this_->id_);
                         tres.set_value(ff.get());
+                        monitor::signal(monitor::work_item_execution_finished, work_item(this_));
                     }
                 );
             }
@@ -131,6 +156,7 @@ namespace allscale
 
             void execute()
             {
+
                 execute(
                     typename hpx::util::detail::make_index_pack<
                         hpx::util::tuple_size<closure_type>::type::value
@@ -176,16 +202,17 @@ namespace allscale
 
             treeture<result_type> tres_;
             closure_type closure_;
+            this_work_item::id id_;
         };
 
         template <typename WorkItemDescription, typename Closure>
         struct work_item_impl<WorkItemDescription, Closure, false>
           : work_item_impl_base
         {
-            boost::shared_ptr<work_item_impl> shared_this()
+            std::shared_ptr<work_item_impl> shared_this()
             {
                 return
-                    boost::static_pointer_cast<work_item_impl>(
+                    std::static_pointer_cast<work_item_impl>(
                         this->shared_from_this()
                     );
             }
@@ -208,14 +235,22 @@ namespace allscale
             void execute_impl(Ts...vs)
             {
                 treeture<result_type> tres = tres_;
+                std::shared_ptr<work_item_impl> this_(shared_this());
+
+                monitor::signal(monitor::work_item_execution_started, work_item(this_));
+                set_id si(this->id_);
+
+
                 WorkItemDescription::process_variant::execute(
                     hpx::util::make_tuple(
                         detail::unwrap_if(std::move(vs))...
                     )
                 ).get_future().then(
-                    [tres](hpx::future<result_type> ff) mutable
+                    [tres, this_](hpx::future<result_type> ff) mutable
                     {
+                        set_id si(this_->id_);
                         tres.set_value(ff.get());
+                        monitor::signal(monitor::work_item_execution_finished, work_item(this_));
                     }
                 );
             }
@@ -270,8 +305,14 @@ namespace allscale
             }
             HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(work_item_impl);
 
+            this_work_item::id& id() const
+            {
+                return id_;
+            }
+
             treeture<result_type> tres_;
             closure_type closure_;
+            this_work_item::id id_;
         };
 
         work_item()
@@ -291,6 +332,10 @@ namespace allscale
                     std::move(tre), detail::futurize_if(std::forward<Ts>(vs))...
                 )
             )
+        {}
+
+        explicit work_item(std::shared_ptr<work_item_impl_base> impl)
+          : impl_(impl)
         {}
 
         work_item(work_item const& other)
@@ -353,7 +398,7 @@ namespace allscale
 
         HPX_SERIALIZATION_SPLIT_MEMBER()
 
-        boost::shared_ptr<work_item_impl_base> impl_;
+        std::shared_ptr<work_item_impl_base> impl_;
     };
 }
 

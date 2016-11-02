@@ -1,5 +1,6 @@
 
 #include <allscale/components/scheduler.hpp>
+#include <allscale/monitor.hpp>
 
 #include <hpx/util/scoped_unlock.hpp>
 
@@ -68,6 +69,7 @@ namespace allscale { namespace components {
                 }
             case 0:
                 {
+                    monitor::signal(monitor::work_item_enqueued, work);
                     {
                         std::unique_lock<mutex_type> l(work_queue_mtx_);
                         work_queue_.push_back(std::move(work));
@@ -96,7 +98,9 @@ namespace allscale { namespace components {
         while(res.size() < n)
         {
             if(work_queue_.empty()) break;
-            res.push_back(std::move(work_queue_.back()));
+            work_item& work = work_queue_.back();
+            monitor::signal(monitor::work_item_dequeued, work);
+            res.push_back(std::move(work));
             work_queue_.pop_back();
         }
         return res;
@@ -120,6 +124,7 @@ namespace allscale { namespace components {
                         std::unique_lock<mutex_type> l(work_queue_mtx_);
                         for(auto && work : items)
                         {
+                            monitor::signal(monitor::work_item_enqueued, work);
                             work_queue_.push_back(std::move(work));
                         }
                     }
