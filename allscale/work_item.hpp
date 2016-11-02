@@ -85,7 +85,7 @@ namespace allscale
 
             virtual void execute()=0;
             virtual bool valid()=0;
-            virtual this_work_item::id& id() const=0;
+            virtual this_work_item::id& id()=0;
             virtual const char* name() const=0;
 
             template <typename Archive>
@@ -193,7 +193,7 @@ namespace allscale
 //                 return work_item_impl::hpx_serialization_get_name_impl();
 //             }
 
-            this_work_item::id& id() const
+            this_work_item::id& id()
             {
                 return id_;
             }
@@ -317,7 +317,7 @@ namespace allscale
             }
             HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(work_item_impl);
 
-            this_work_item::id& id() const
+            this_work_item::id& id()
             {
                 return id_;
             }
@@ -382,7 +382,7 @@ namespace allscale
             return false;
         }
 
-        this_work_item::id& id() const
+        this_work_item::id& id()
         {
             if(impl_)
                 return impl_->id();
