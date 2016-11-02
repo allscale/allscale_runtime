@@ -6,6 +6,8 @@ namespace allscale
 {
     struct data_item_base
     {
+        virtual ~data_item_base()
+        {}
     };
 
 }

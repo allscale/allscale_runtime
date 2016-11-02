@@ -23,40 +23,40 @@ namespace allscale
     {
         public:
         using base_type = hpx::components::client_base<data_item_manager_server, components::data_item_manager_server >;
-        
+
         data_item_manager_server ()
         {
         }
-        
+
         data_item_manager_server(hpx::id_type loc)
             : base_type(hpx::new_<components::data_item_manager_server > (loc))
         {
             servers_home_locality = loc;
         }
-       
 
 
-        // create a data_item on the locality where this data_item_manager_server lives on ( this->get_id()) 
-        // uses future continuation, but does still block right now due to the f2.get() 
+
+        // create a data_item on the locality where this data_item_manager_server lives on ( this->get_id())
+        // uses future continuation, but does still block right now due to the f2.get()
         template <typename DataItemDescription>
-        allscale::data_item<DataItemDescription>  create_data_item (DataItemDescription arg)
+        allscale::data_item<DataItemDescription> create_data_item (DataItemDescription arg)
         {
             HPX_ASSERT(this->valid());
             using data_item_type = typename  allscale::data_item<DataItemDescription>;
             using action_type = typename components::data_item_manager_server::create_data_item_async_action<DataItemDescription>;
-            hpx::future<data_item_type> ret_val = hpx::async<action_type>(this->get_id(),arg);
-            hpx::future<data_item_type> f2 = ret_val.then(
-                [this](hpx::future<data_item_type> f) -> data_item_type
-                {
-                       return f.get();        
-                }); 
-            return f2.get();
+            data_item_type ret_val = hpx::async<action_type>(this->get_id(),arg);
+//             hpx::future<data_item_type> f2 = ret_val.then(
+//                 [this](hpx::future<data_item_type> f) -> data_item_type
+//                 {
+//                        return f.get();
+//                 });
+            return ret_val;
         }
 
 
 
 
-            
+
 
         template <typename DataItemDescription>
         void destroy (data_item<DataItemDescription> item)

@@ -11,6 +11,8 @@ add_subdirectory(src)
 add_subdirectory(examples)
 
 if(ALLSCALE_WITH_TESTS)
+  enable_testing()
+  include(CTest)
   add_subdirectory(tests)
 endif()
 

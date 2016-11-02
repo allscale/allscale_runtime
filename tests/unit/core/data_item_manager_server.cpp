@@ -53,12 +53,12 @@ int hpx_main(int argc, char* argv[])
     std::vector< loc_server_pair > dms;
     std::vector<hpx::naming::id_type> localities = hpx::find_all_localities();
     if(hpx::get_locality_id() == 0){
-        
+
         for(hpx::naming::id_type const& node : localities) {
             std::cout << "Cycling thru localities, Locality: " << node << std::endl;
             auto tmp = my_data_item_manager_server(node);
             dms.push_back(std::make_pair(node, tmp));
-        
+
         }
 
 
@@ -74,14 +74,14 @@ int hpx_main(int argc, char* argv[])
         }
 
     }
-    
-        
+
+
     return hpx::finalize();
 }
 
 int main(int argc, char* argv[])
 {
-    return hpx::init(argc, argv); 
+    return hpx::init(argc, argv);
 }
 
 

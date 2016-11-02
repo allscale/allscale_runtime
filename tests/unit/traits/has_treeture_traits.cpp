@@ -21,7 +21,7 @@ typename std::enable_if<
     typename allscale::traits::treeture_traits<F>::future_type
     >::type
 do_shit(F & f){
-    
+
     typedef typename allscale::traits::treeture_traits<F>::future_type my_type;
     my_type k;
     check_point = true;
@@ -43,15 +43,15 @@ do_shit(F & f){
 
 
 template<typename T>
-bool check(T first)
+bool check(T& first)
 {
-    
+
     //typedef typename allscale::traits::treeture_traits<T>::future_type my_type;
-    
+
     do_shit(first);
    // std::cout << typeid(k).name() << std::endl;
     return check_point;
-    /*    
+    /*
     if(allscale::traits::is_treeture<T>::value){
         //std::cout<<"allscale::traits::is_treeture<T>::value==TRUE"<<std::endl;
         return true;
@@ -64,31 +64,31 @@ bool check(T first)
 }
 
 int main() {
-    
-    
+
+
     // TEST 1: positive check for treeture
     typedef allscale::treeture<int> int_treeture;
-    int_treeture b; 
-    check(b); 
-    
+    int_treeture b;
+    check(b);
 
-   
+
+
 
     if(check(b)){
-        std::cout<<"Test 1 PASSED: treeture_traits gives TRUE if called with a treeture" << std::endl; 
+        std::cout<<"Test 1 PASSED: treeture_traits gives TRUE if called with a treeture" << std::endl;
     }
     else{
-        std::cout<<"Test 1 FAILED: argument is a treeture but treeture_traits gives FALSE" << std::endl; 
+        std::cout<<"Test 1 FAILED: argument is a treeture but treeture_traits gives FALSE" << std::endl;
     }
-   
+
     //TEST 2: negative test
     std::string k("mulligan");
 
     if(!check(k)){
-        std::cout<<"Test 2 PASSED: is_treeture gives FALSE if called with a std::string" << std::endl; 
+        std::cout<<"Test 2 PASSED: is_treeture gives FALSE if called with a std::string" << std::endl;
     }
     else{
-        std::cout<<"Test 2 FAILED: argument is not treeture but is_treeture gives TRUE" << std::endl; 
+        std::cout<<"Test 2 FAILED: argument is not treeture but is_treeture gives TRUE" << std::endl;
     }
 
     return 0;

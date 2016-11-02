@@ -40,6 +40,14 @@ namespace allscale
                 HPX_ASSERT(this->valid());
             }
 
+            data_item(hpx::future<hpx::naming::id_type> id)
+              : base_type(std::move(id))
+            {}
+
+            data_item(hpx::shared_future<hpx::naming::id_type> id)
+              : base_type(id)
+            {}
+
 
 /*
             data_item(const data_item &obj)
@@ -49,13 +57,13 @@ namespace allscale
             }
 */
             /*
-            data_item(data_item&& d) noexcept : parent_loc(std::move(d.parent_loc)) 
-            
-            { 
-            
+            data_item(data_item&& d) noexcept : parent_loc(std::move(d.parent_loc))
+
+            {
+
             }
             */
-            
+
             hpx::id_type parent_loc;
     };
 
