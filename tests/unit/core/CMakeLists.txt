@@ -1,4 +1,4 @@
-set(tests data_item data_item_manager_server)
+set(tests data_item data_item_manager_server this_work_item)
 
 foreach(test ${tests})
     set(sources ${test}.cpp)
