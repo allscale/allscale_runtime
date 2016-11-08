@@ -5,6 +5,7 @@
 #include <allscale/data_item_description.hpp>
 #include <allscale/components/data_item_manager_server.hpp>
 #include <allscale/data_item_base.hpp>
+#include <allscale/requirement.hpp>
 
 #include <hpx/include/future.hpp>
 #include <hpx/include/lcos.hpp>
@@ -15,6 +16,14 @@
 //#include <boost/pointer_cast.hpp>
 #include <memory>
 #include <unordered_map>
+
+
+
+typedef allscale::region<int> my_region;
+typedef allscale::data_item_description<my_region,int,int> descr;
+typedef allscale::data_item<descr> test_item;
+typedef allscale::requirement<descr> test_requirement;
+
 
 namespace allscale
 {
@@ -53,10 +62,43 @@ namespace allscale
             return ret_val;
         }
 
+        template<typename DataItemDescription>
+        //hpx::future<std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> > >
+        void
+        locate ( allscale::requirement<DataItemDescription>   requirement )
+        //locate ( allscDataItemDescription requirement )
+        {
+            HPX_ASSERT(this->valid());
+            descr test_descr;        
+            hpx::lcos::local::promise<int> promise;
+            hpx::future<int> fut = promise.get_future();
+            using action_type = typename components::data_item_manager_server::locate_async_action<DataItemDescription>;
+            std::vector<descr> k;
+            allscale::requirement<descr> test_req;
+         //   auto ret_val = hpx::async<action_type>(this->get_id(),fut);
+            auto ret_val = hpx::async<action_type>(this->get_id(),test_req);
 
+            //return ret_val;
 
+        }
 
+        /*
+        template<typename DataItemDescription>
+//        hpx::future<std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> > >
+        void
+            locate ( allscale::requirement<DataItemDescription>  requirement )
+        {
+            HPX_ASSERT(this->valid());
+            using action_type = typename components::data_item_manager_server::locate_async_action<DataItemDescription>;
+            
+            using future_type = hpx::future<std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> > >;
+            
+            future_type ret_val = hpx::async<action_type>(this->get_id(),requirement);
+            //future_type ret_val = hpx::async<action_type>(this->get_id(),requirement);
 
+        }
+
+*/
 
         template <typename DataItemDescription>
         void destroy (data_item<DataItemDescription> item)
