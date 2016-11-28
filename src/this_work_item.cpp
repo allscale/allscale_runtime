@@ -27,9 +27,9 @@ namespace allscale { namespace this_work_item {
         return **get_id_impl();
     }
 
-    void set_id(id& id)
+    void set_id(id const& id_)
     {
-        *get_id_impl() = &id;
+        *get_id_impl() = const_cast<id *>(&id_);
     }
 
     std::string id::name() const
