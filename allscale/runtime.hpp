@@ -70,7 +70,7 @@ using combine =
     allscale::work_item_description<
         std::result_of_t<Op(A,B)>,
         combine_name,
-        allscale::no_split<std::int64_t>,
+        allscale::no_split<std::result_of_t<Op(A,B)>>,
         combine_operation<A,B,Op>
     >;
 
