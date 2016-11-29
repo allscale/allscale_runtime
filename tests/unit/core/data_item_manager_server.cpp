@@ -63,29 +63,44 @@ bool test_creation_of_data_item_manager_server_components(){
 
 bool test_creation_of_data_items()
 {
+
+    //create a bunch of data items with a simple region on all the localities
+    int c = 0;
     for(loc_server_pair & server_entry : dms)
-    {
-        my_region test_region;
-        descr test_descr;
+    {   
         for(int i = 0; i < 10; ++i){
+            my_region test_region((c*10)+i);
+            descr test_descr(test_region,0,0);
             auto test = server_entry.second.create_data_item<descr>(test_descr);
-             //std::cout<<"test item global id: " << test.get_gid() << std::endl;
+            //std::cout<<"test item global id: " << test.get_gid() << std::endl;
         }
+        ++c;
     }
     return true;
 }
 
 
 
-
+// locate the data item of a simple region on the localites
 bool test_locate_method()
 {
-    test_requirement my_req;
-    descr test_descr;
+
+    my_region search_region(2);
+    descr test_descr(search_region,0,0);
+
+    test_requirement my_req(test_descr);
+    decltype(dms[0].second.locate<descr>(my_req)) f1;
+    
     for(loc_server_pair & server_entry : dms)
     {
-        server_entry.second.locate<descr>(my_req);
+        f1 =  server_entry.second.locate<descr>(my_req);
+        auto results = f1.get();
+        if(results.size() > 0 ){
+            std::cout << results[0].first.region_ << "     " << results[0].second << std::endl;
+        }
+    
     }
+    
     return true;
 }
 

@@ -63,22 +63,21 @@ namespace allscale
         }
 
         template<typename DataItemDescription>
-        //hpx::future<std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> > >
-        void
+        hpx::future<std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> > >
         locate ( allscale::requirement<DataItemDescription>   requirement )
         //locate ( allscDataItemDescription requirement )
         {
             HPX_ASSERT(this->valid());
-            descr test_descr;        
-            hpx::lcos::local::promise<int> promise;
-            hpx::future<int> fut = promise.get_future();
+            //descr test_descr;        
+            //hpx::lcos::local::promise<int> promise;
+            //hpx::future<int> fut = promise.get_future();
             using action_type = typename components::data_item_manager_server::locate_async_action<DataItemDescription>;
-            std::vector<descr> k;
-            allscale::requirement<descr> test_req;
+            
+            //allscale::requirement<descr> test_req;
          //   auto ret_val = hpx::async<action_type>(this->get_id(),fut);
-            auto ret_val = hpx::async<action_type>(this->get_id(),test_req);
+            auto ret_val = hpx::async<action_type>(this->get_id(),requirement);
 
-            //return ret_val;
+            return ret_val;
 
         }
 

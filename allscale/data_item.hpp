@@ -40,6 +40,21 @@ namespace allscale
                 HPX_ASSERT(this->valid());
             }
 
+
+
+            data_item(hpx::id_type loc, DataItemDescription descr)
+              : base_type(hpx::new_<components::data_item<DataItemDescription> >(loc))
+            {
+                //std::cout<<"Creatidg data item with data item description and region: " << descr.r_.region_ << "on loc: " << loc <<  std::endl;
+                region_ = descr.r_;
+                parent_loc = loc;
+                HPX_ASSERT(this->valid());
+            }
+
+
+
+
+
             data_item(hpx::future<hpx::naming::id_type> id)
               : base_type(std::move(id))
             {}
