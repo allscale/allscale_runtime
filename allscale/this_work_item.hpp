@@ -10,7 +10,7 @@ namespace allscale { namespace this_work_item {
     struct id;
 
     id& get_id();
-    void set_id(id& id);
+    void set_id(id const& id);
 
     struct id
     {

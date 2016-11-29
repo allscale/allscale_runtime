@@ -35,7 +35,7 @@ namespace allscale
             data_item(hpx::id_type loc)
               : base_type(hpx::new_<components::data_item<DataItemDescription> >(loc))
             {
-                std::cout<<"Creating data item on locality: " << loc << std::endl;
+                //std::cout<<"Creating data item on locality: " << loc << std::endl;
                 parent_loc = loc;
                 HPX_ASSERT(this->valid());
             }
@@ -63,7 +63,9 @@ namespace allscale
 
             }
             */
+            
 
+            region_type region_;
             hpx::id_type parent_loc;
     };
 
