@@ -206,9 +206,11 @@ namespace allscale
             template <typename Archive>
             void serialize(Archive &ar, unsigned)
             {
+/*
                 ar & hpx::serialization::base_object<work_item_impl_base>(*this);
                 ar & tres_;
                 ar & closure_;
+*/
             }
             HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(work_item_impl);
 
