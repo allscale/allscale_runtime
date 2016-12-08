@@ -14,9 +14,22 @@ namespace allscale {
     {
         region()
         {
+            T tmp;
+            region_ = tmp;
         }
         
-    
+        region(T r) : region_(r) {}
+
+
+        bool operator==(region const & r1){
+            if(this->region_ == r1.region_){
+                return true;
+            }
+            else{
+                return false;
+            }
+        }
+
         region merge(region const & region1, region const & region2){
             //TODO fill with useful stuff
             return region1; 
@@ -40,13 +53,22 @@ namespace allscale {
            // HPX_ASSERT(impl_->valid());
 
         }
-        
-    
+
+        std::string to_string()
+        {
+            return "to string method called";
+        }
+
+        template <typename Archive>
+        void serialize(Archive & ar, unsigned)
+        {
+            ar & region_;
+        }
+
+        T region_;
     };
 
-    
-
-  
+ 
 
 
     namespace traits

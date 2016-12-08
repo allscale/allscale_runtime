@@ -18,8 +18,15 @@ namespace allscale { namespace components {
         {
             using data_item_type = allscale::data_item<T>;
             hpx::lcos::local::promise<hpx::naming::id_type>  promise_;
+            
+//            std::cout << "creating data item with region: " << arg.r_.region_ << std::endl;
+            
+            
+            //std::shared_ptr<data_item_base> ptr (new data_item_type(hpx::find_here()));
+            std::shared_ptr<data_item_base> ptr (new data_item_type(hpx::find_here(),arg));
 
-            std::shared_ptr<data_item_base> ptr (new data_item_type(hpx::find_here()));
+
+
             local_data_items.push_back(ptr);
             data_item_type k = *(std::static_pointer_cast<data_item_type>(ptr));
             promise_.set_value(k.get_id());
@@ -66,16 +73,31 @@ namespace allscale { namespace components {
         hpx::future<std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> > >
         locate_async( allscale::requirement<DataItemDescription>  requirement){
             using future_type = std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> > ;
+            using pair_type   = std::pair<typename DataItemDescription::region_type, hpx::naming::id_type>;
+
             hpx::lcos::local::promise<future_type> promise_;
-                        
-           auto target_region = requirement.region_;
-           //
-           // for( std::shared_ptr<data_item_base> base_item : local_data_items )
-           // {
-           //     std::cout<< "djkkawjdkdaw" << std::endl;
-           // }
-           // future_type res;
-           // 
+            using data_item_type = allscale::data_item<DataItemDescription>;
+
+            auto target_region = requirement.region_;
+            future_type tmp2;
+            //std::cout << "target region is : " << target_region.region_ << std::endl;
+            pair_type *target_pair;
+            for( std::shared_ptr<data_item_base> base_item : local_data_items )
+            {
+                data_item_type tmp = *(std::static_pointer_cast<data_item_type>(base_item)); 
+                if (tmp.region_.region_ == target_region.region_)
+                {
+            //        std::cout<< "Found the data item on locality: " << tmp.parent_loc  << std::endl;
+                    target_pair = new pair_type(tmp.region_,tmp.parent_loc);
+                    tmp2.push_back(*(target_pair));
+                }
+            }
+//            std::cout << tmp2[0].second << "    " << tmp2[0].first.region_ << std::endl;
+            
+            promise_.set_value(tmp2);
+            
+
+            //future_type res;
             return promise_.get_future();
         }
 
