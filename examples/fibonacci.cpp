@@ -57,6 +57,7 @@ struct add_variant
     template <typename Closure>
     static allscale::treeture<std::int64_t> execute(Closure const& closure)
     {
+        std::cout << allscale::this_work_item::get_id().name() << " add ... \n";
         return
             allscale::treeture<std::int64_t>{
                 hpx::util::get<0>(closure) + hpx::util::get<1>(closure)
@@ -101,6 +102,7 @@ struct split_variant
     template <typename Closure>
     static allscale::treeture<std::int64_t> execute(Closure const& closure)
     {
+        std::cout << allscale::this_work_item::get_id().name() << " fib ... \n";
         if(hpx::util::get<0>(closure) <= 10)
             return allscale::treeture<std::int64_t>{
                 fib_ser(hpx::util::get<0>(closure))
@@ -148,16 +150,18 @@ struct process_variant
 #include <hpx/hpx_main.hpp>
 #include <hpx/util/high_resolution_timer.hpp>
 #include <iostream>
+#include <thread>
 
 int main()
 {
+    hpx::this_thread::set_thread_data(90);
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
 
     if(hpx::get_locality_id() == 0)
     {
         hpx::util::high_resolution_timer t;
-        std::int64_t n = 20;
+        std::int64_t n = 11;
         allscale::treeture<std::int64_t> fib
             = allscale::spawn<fibonacci_work>(n);
         std::int64_t res = fib.get_result();

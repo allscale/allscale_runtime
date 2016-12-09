@@ -1,35 +1,35 @@
 
 #include <allscale/this_work_item.hpp>
 
+#include <hpx/include/threads.hpp>
 
 namespace allscale { namespace this_work_item {
 
-    id** get_id_impl()
+    id* get_id_impl()
     {
-        static thread_local id* id_ = nullptr;
-        return &id_;
+        return reinterpret_cast<id*>(hpx::this_thread::get_thread_data());
+    }
+
+    void set_id_impl(id const& id_)
+    {
+        hpx::this_thread::set_thread_data(reinterpret_cast<std::size_t>(&id_));
     }
 
     id::id()
       : id_(get_id().id_)
       , next_id_(0)
     {
-        id_.push_back((*get_id_impl())->next_id_++);
+        id_.push_back(get_id().next_id_++);
     }
 
     id& get_id()
     {
-        static id main_id(0);
-        if (*get_id_impl() == nullptr)
-        {
-            set_id(main_id);
-        }
-        return **get_id_impl();
+        return *get_id_impl();
     }
 
     void set_id(id const& id_)
     {
-        *get_id_impl() = const_cast<id *>(&id_);
+        set_id_impl(id_);
     }
 
     std::string id::name() const

@@ -46,6 +46,8 @@ namespace allscale
 
     scheduler::scheduler(std::size_t rank)
     {
+        static this_work_item::id main_id(0);
+        this_work_item::set_id(main_id);
         hpx::id_type gid =
             hpx::new_<components::scheduler>(hpx::find_here(), rank).get();
 
