@@ -137,16 +137,20 @@ namespace allscale
                 monitor::signal(monitor::work_item_execution_started, work_item(this_));
                 set_id si(this->id_);
 
-                WorkItemDescription::split_variant::execute(
+                auto fut = WorkItemDescription::split_variant::execute(
                     hpx::util::make_tuple(
                         detail::unwrap_if(std::move(vs))...
                     )
-                ).get_future().then(
+                ).get_future();
+
+                monitor::signal(monitor::work_item_execution_finished, work_item(this_));
+
+                fut.then(
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
                         tres.set_value(ff.get());
-                        monitor::signal(monitor::work_item_execution_finished, work_item(this_));
+                        monitor::signal(monitor::work_item_result_propagated, work_item(this_));
                     }
                 );
             }

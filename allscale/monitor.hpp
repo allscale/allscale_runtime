@@ -17,7 +17,8 @@ namespace allscale {
             work_item_dequeued = 1,
             work_item_execution_started = 2,
             work_item_execution_finished = 3,
-            last_ = 4
+            work_item_result_propagated = 4,
+            last_ = 5
         };
 
         typedef
