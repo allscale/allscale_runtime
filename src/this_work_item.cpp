@@ -48,6 +48,16 @@ namespace allscale { namespace this_work_item {
         return std::hash<std::string>()(name());
     }
 
+    id id::parent() const
+    {
+        id res(*this);
+
+        res.next_id_ = 0;
+        res.id_.pop_back();
+
+        return res;
+    }
+
     bool operator==(id const& lhs, id const& rhs)
     {
         return lhs.name() == rhs.name();
