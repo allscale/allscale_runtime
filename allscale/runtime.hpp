@@ -12,8 +12,10 @@
 #include <allscale/no_split.hpp>
 #include <allscale/spawn.hpp>
 #include <allscale/work_item_description.hpp>
+#include <allscale/components/monitor.hpp>
 
 #include <hpx/hpx_main.hpp>
+#include <hpx/util/invoke_fused.hpp>
 
 namespace allscale {
 namespace runtime {
@@ -24,10 +26,12 @@ namespace runtime {
  */
 template<typename MainWorkItem, typename ... Args>
 int main_wrapper(const Args& ... args) {
+    // include monitoring support
+    allscale::components::monitor_component_init();
 
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
-    
+
     // trigger first work item on first node
     int res = 0;
     if (hpx::get_locality_id() == 0) {
@@ -49,35 +53,35 @@ struct combine_name {
     }
 };
 
-template<typename A, typename B, typename Op>
+template<typename Result>
 struct combine_operation {
 
     static constexpr bool valid = true;
-    using result_type = std::result_of_t<Op(A,B)>;
+    using result_type = Result;
 
     // Just perform the addition, no extra tasks are spawned
     template <typename Closure>
     static allscale::treeture<result_type> execute(Closure const& closure) {
         return
             allscale::treeture<result_type>{
-                Op()(hpx::util::get<0>(closure),hpx::util::get<1>(closure))
+                hpx::util::invoke(hpx::util::get<2>(closure), hpx::util::get<0>(closure), hpx::util::get<1>(closure))
             };
     }
 };
 
-template<typename A, typename B, typename Op>
-using combine = 
+template<typename Result>
+using combine =
     allscale::work_item_description<
-        std::result_of_t<Op(A,B)>,
+        Result,
         combine_name,
-        allscale::no_split<std::result_of_t<Op(A,B)>>,
-        combine_operation<A,B,Op>
+        allscale::no_split<Result>,
+        combine_operation<Result>
     >;
 
 
 template<typename A, typename B, typename Op, typename R = std::result_of_t<Op(A,B)>>
-allscale::treeture<R> treeture_combine(const allscale::treeture<A>&& a, const allscale::treeture<B>& b, const Op&) {
-    return allscale::spawn<combine<A,B,Op>>(a,b);
+allscale::treeture<R> treeture_combine(allscale::treeture<A>&& a, allscale::treeture<B>&& b, Op op) {
+    return allscale::spawn<combine<R>>(std::move(a),std::move(b), op);
 }
 
 
