@@ -47,10 +47,10 @@ int main()
         hpx::find_all_localities();
     for(hpx::naming::id_type const& node : localities)
     {
-//        test_item tmp(node);
-  //      tvector.push_back(tmp);
+        test_item tmp(node);
+        tvector.push_back(tmp);
 
-   //     std::cout<<"item:  " << tmp.parent_loc << std::endl;  
+        std::cout<<"item:  " << tmp.parent_loc << std::endl;  
     }
 
     /*
