@@ -10,14 +10,14 @@ namespace allscale { namespace components {
       , rank_(rank)
       , schedule_rank_(0)
       , stopped_(false)
-      , count_(0)
+//       , count_(0)
       , timer_(
             hpx::util::bind(
-                &scheduler::steal_work,
+                &scheduler::collect_counters,
                 this
             ),
-            100,
-            "scheduler::steal_work",
+            1000,
+            "scheduler::collect_counters",
             true
         )
     {
@@ -41,6 +41,35 @@ namespace allscale { namespace components {
         }
         if(num_localities_ > 1)
             right_ = right_future.get();
+
+        static const char * queue_counter_name = "/threadqueue{locality#%d/worker-thread#%d}/length";
+        static const char * idle_counter_name = "/threads{locality#%d/worker-thread#%d}/idle-rate";
+
+        std::size_t num_threads = hpx::get_num_worker_threads();
+        idle_rates_counters_.reserve(num_threads);
+        idle_rates_.reserve(num_threads);
+        queue_length_counters_.reserve(num_threads);
+        queue_length_.reserve(num_threads);
+
+        for (std::size_t num_thread = 0; num_thread != num_threads; ++num_thread)
+        {
+            const std::uint32_t prefix = hpx::get_locality_id();
+            const std::size_t worker_tid = hpx::get_worker_thread_num();
+
+            hpx::id_type queue_counter_id = hpx::performance_counters::get_counter(
+                boost::str(boost::format(queue_counter_name) % prefix % worker_tid));
+
+            hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, queue_counter_id);
+            queue_length_counters_.push_back(queue_counter_id);
+
+            hpx::id_type idle_counter_id = hpx::performance_counters::get_counter(
+                boost::str(boost::format(idle_counter_name) % prefix % worker_tid));
+            hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_counter_id);
+
+            idle_rates_counters_.push_back(idle_counter_id);
+        }
+
+        collect_counters();
 
         timer_.start();
         std::cout
@@ -70,12 +99,16 @@ namespace allscale { namespace components {
             case 0:
                 {
                     monitor::signal(monitor::work_item_enqueued, work);
+
+                    if (do_split(work))
                     {
-                        std::unique_lock<mutex_type> l(work_queue_mtx_);
-                        work_queue_.push_back(std::move(work));
-                        //std::cout << "rank(" << rank_ << "): enqueue ... " << work_queue_.size() << " (" << count_ << ")\n";
+                        hpx::apply(&work_item::split, std::move(work));
                     }
-                    work_queue_cv_.notify_all();
+                    else
+                    {
+                        hpx::apply(&work_item::process, std::move(work));
+                    }
+
                     return;
                 }
             default:
@@ -86,86 +119,51 @@ namespace allscale { namespace components {
         hpx::apply<enqueue_action>(schedule_id, work);
     }
 
-    std::vector<work_item> scheduler::dequeue()
+    bool scheduler::do_split(work_item const& w)
     {
-        std::unique_lock<mutex_type> l(work_queue_mtx_);
-        std::vector<work_item> res;
-        if(work_queue_.empty()) return res;
-
-        std::size_t n = work_queue_.size() - 1;
-        res.reserve(n);
-
-        while(res.size() < n)
+        std::unique_lock<mutex_type> l(counters_mtx_);
+        hpx::util::ignore_while_checking<std::unique_lock<mutex_type>> il(&l);
+        std::size_t num_threads = hpx::get_num_worker_threads();
+        // Do we have enough tasks in the system?
+        if (total_length_ < num_threads * 10)
         {
-            if(work_queue_.empty()) break;
-            work_item& work = work_queue_.back();
-            monitor::signal(monitor::work_item_dequeued, work);
-            res.push_back(std::move(work));
-            work_queue_.pop_back();
+//             std::cout << total_length_ << " " << total_idle_rate_ << "\n";
+            return total_idle_rate_ >= 10.0;
         }
-        return res;
+
+        return total_idle_rate_ < 10.0;
     }
 
-    bool scheduler::steal_work()
+    bool scheduler::collect_counters()
     {
+        std::size_t num_threads = hpx::get_num_worker_threads();
+
+        std::unique_lock<mutex_type> l(counters_mtx_);
+        hpx::util::ignore_while_checking<std::unique_lock<mutex_type>> il(&l);
+
+        total_idle_rate_ = 0.0;
+        total_length_ = 0;
+
+        for (std::size_t num_thread = 0; num_thread != num_threads; ++num_thread)
         {
-            std::unique_lock<mutex_type> l(work_queue_mtx_);
-            if(!work_queue_.empty())
-                return true;
+            auto idle_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                    hpx::launch::sync, idle_rates_counters_[num_thread]);
+            auto length_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                    hpx::launch::sync, queue_length_counters_[num_thread]);
+
+            idle_rates_[num_thread] = idle_value.get_value<double>() * 0.01;
+            queue_length_[num_thread] = length_value.get_value<std::size_t>();
+
+            total_idle_rate_ += idle_rates_[num_thread];
+            total_length_ += queue_length_[num_thread];
+
+//             std::cout << "Collecting[" << num_thread << "] " << idle_rates_[num_thread] << " " << queue_length_[num_thread] << "\n";
         }
-        auto completion_handler =
-            [this](hpx::future<std::vector<work_item>> f)
-            {
-                std::vector<work_item> items = f.get();
-                if(!items.empty())
-                {
-//                     std::cout << "rank(" << rank_ << ") stole work\n";
-                    {
-                        std::unique_lock<mutex_type> l(work_queue_mtx_);
-                        for(auto && work : items)
-                        {
-                            monitor::signal(monitor::work_item_enqueued, work);
-                            work_queue_.push_back(std::move(work));
-                        }
-                    }
-                    work_queue_cv_.notify_all();
-                }
-            };
-        if(left_)
-            hpx::async<dequeue_action>(left_).then(completion_handler);
-        if(right_)
-            hpx::async<dequeue_action>(right_).then(completion_handler);
+
+        total_idle_rate_ = total_idle_rate_ / num_threads;
+        total_length_ = total_length_ / num_threads;
 
         return true;
-    }
-
-    void scheduler::run()
-    {
-        while (true)
-        {
-            work_item work;
-            {
-                std::unique_lock<mutex_type> l(work_queue_mtx_);
-//                 std::cout << "rank(" << rank_ << "): running ... " << work_queue_.size() << " (" << count_ << ")\n";
-                while(work_queue_.empty() && !stopped_)
-                {
-                    work_queue_cv_.wait(l);
-//                     std::cout << "rank(" << rank_ << "): got notified ... " << work_queue_.size() << " (" << count_ << ")\n";
-                }
-                if(stopped_ && work_queue_.empty())
-                {
-                    std::cout << "rank(" << rank_ << "): scheduler stopped ...\n";
-                    return;
-                }
-                HPX_ASSERT(!work_queue_.empty());
-                work = std::move(work_queue_.front());
-                work_queue_.pop_front();
-            }
-            HPX_ASSERT(work.valid());
-            hpx::apply(&work_item::execute, std::move(work));
-            ++count_;
-        }
-        work_queue_cv_.notify_all();
     }
 
     void scheduler::stop()
@@ -175,8 +173,8 @@ namespace allscale { namespace components {
             return;
 
         stopped_ = true;
-        work_queue_cv_.notify_all();
-        std::cout << "rank(" << rank_ << "): scheduled " << count_ << "\n";
+//         work_queue_cv_.notify_all();
+//         std::cout << "rank(" << rank_ << "): scheduled " << count_ << "\n";
 
         hpx::future<void> stop_left;
         if(left_)
@@ -185,15 +183,15 @@ namespace allscale { namespace components {
         if(right_)
             hpx::future<void> stop_right = hpx::async<stop_action>(right_);
 
-        {
-            std::unique_lock<mutex_type> l(work_queue_mtx_);
-            while(!work_queue_.empty())
-            {
-                std::cout << "rank(" << rank_ << "): waiting to become empty " << work_queue_.size() << "\n";
-                work_queue_cv_.wait(l);
-            }
-            std::cout << "rank(" << rank_ << "): done. " << count_ << "\n";
-        }
+//         {
+//             std::unique_lock<mutex_type> l(work_queue_mtx_);
+//             while(!work_queue_.empty())
+//             {
+//                 std::cout << "rank(" << rank_ << "): waiting to become empty " << work_queue_.size() << "\n";
+//                 work_queue_cv_.wait(l);
+//             }
+//             std::cout << "rank(" << rank_ << "): done. " << count_ << "\n";
+//         }
         if(stop_left.valid())
             stop_left.get();
         if(stop_right.valid())

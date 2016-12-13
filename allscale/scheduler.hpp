@@ -17,7 +17,7 @@ namespace allscale
     struct scheduler
     {
         static void schedule(work_item work);
-        static void run(std::size_t rank);
+        static components::scheduler* run(std::size_t rank);
         static void stop();
 
     private:

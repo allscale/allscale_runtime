@@ -26,11 +26,7 @@ namespace allscale { namespace components {
 
         void enqueue(work_item work);
         HPX_DEFINE_COMPONENT_DIRECT_ACTION(scheduler, enqueue);
-        std::vector<work_item> dequeue();
-        HPX_DEFINE_COMPONENT_DIRECT_ACTION(scheduler, dequeue);
 
-        bool steal_work();
-        void run();
         void stop();
         HPX_DEFINE_COMPONENT_DIRECT_ACTION(scheduler, stop);
 
@@ -41,13 +37,21 @@ namespace allscale { namespace components {
         boost::atomic<bool> stopped_;
         hpx::id_type left_;
         hpx::id_type right_;
-        boost::atomic<std::size_t> count_;
 
-        mutex_type work_queue_mtx_;
-        hpx::lcos::local::condition_variable_any work_queue_cv_;
-        std::deque<work_item> work_queue_;
+        bool do_split(work_item const& work);
+
+        bool collect_counters();
 
         hpx::util::interval_timer timer_;
+
+        mutex_type counters_mtx_;
+        std::vector<hpx::id_type> idle_rates_counters_;
+        std::vector<double> idle_rates_;
+        double total_idle_rate_;
+
+        std::vector<hpx::id_type> queue_length_counters_;
+        std::vector<std::size_t> queue_length_;
+        std::size_t total_length_;
     };
 }}
 

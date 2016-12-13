@@ -83,7 +83,8 @@ namespace allscale
             virtual ~work_item_impl_base()
             {}
 
-            virtual void execute()=0;
+            virtual void process()=0;
+            virtual void split()=0;
             virtual bool valid()=0;
             virtual this_work_item::id const& id() const=0;
             virtual const char* name() const=0;
@@ -129,7 +130,7 @@ namespace allscale
             }
 
             template <typename ...Ts>
-            void execute_impl(Ts...vs)
+            void split_impl(Ts...vs)
             {
                 treeture<result_type> tres = tres_;
 
@@ -155,26 +156,76 @@ namespace allscale
                 );
             }
 
+            template <typename ...Ts>
+            void process_impl(Ts...vs)
+            {
+                treeture<result_type> tres = tres_;
+
+                std::shared_ptr<work_item_impl> this_(shared_this());
+                monitor::signal(monitor::work_item_execution_started, work_item(this_));
+                set_id si(this->id_);
+
+                auto fut = WorkItemDescription::process_variant::execute(
+                    hpx::util::make_tuple(
+                        detail::unwrap_if(std::move(vs))...
+                    )
+                ).get_future();
+
+                monitor::signal(monitor::work_item_execution_finished, work_item(this_));
+
+                fut.then(
+                    [tres, this_](hpx::future<result_type> ff) mutable
+                    {
+                        set_id si(this_->id_);
+                        tres.set_value(ff.get());
+                        monitor::signal(monitor::work_item_result_propagated, work_item(this_));
+                    }
+                );
+            }
+
             bool valid()
             {
                 return bool(this->shared_from_this());
             }
 
-            void execute()
+            void split()
             {
 
-                execute(
+                split(
                     typename hpx::util::detail::make_index_pack<
                         hpx::util::tuple_size<closure_type>::type::value
                     >::type()
                 );
             }
             template <std::size_t... Is>
-            void execute(hpx::util::detail::pack_c<std::size_t, Is...>)
+            void split(hpx::util::detail::pack_c<std::size_t, Is...>)
             {
                 void (work_item_impl::*f)(
                     typename hpx::util::decay<decltype(hpx::util::get<Is>(closure_))>::type...
-                ) = &work_item_impl::execute_impl;
+                ) = &work_item_impl::split_impl;
+                HPX_ASSERT(valid());
+                hpx::dataflow(
+                    f
+                  , shared_this()
+                  , std::move(hpx::util::get<Is>(closure_))...
+                );
+            }
+
+            void process()
+            {
+
+                process(
+                    typename hpx::util::detail::make_index_pack<
+                        hpx::util::tuple_size<closure_type>::type::value
+                    >::type()
+                );
+            }
+            template <std::size_t... Is>
+            void process(hpx::util::detail::pack_c<std::size_t, Is...>)
+            {
+                void (work_item_impl::*f)(
+                    typename hpx::util::decay<decltype(hpx::util::get<Is>(closure_))>::type...
+                ) = &work_item_impl::process_impl;
                 HPX_ASSERT(valid());
                 hpx::dataflow(
                     f
@@ -281,7 +332,7 @@ namespace allscale
                 return tres_.valid() && bool(this->shared_from_this());
             }
 
-            void execute()
+            void process()
             {
                 execute(
                     typename hpx::util::detail::make_index_pack<
@@ -289,6 +340,11 @@ namespace allscale
                     >::type()
                 );
             }
+            void split()
+            {
+                process();
+            }
+
             template <std::size_t... Is>
             void execute(hpx::util::detail::pack_c<std::size_t, Is...>)
             {
@@ -405,11 +461,19 @@ namespace allscale
             return "";
         }
 
-        void execute()
+        void split()
         {
             HPX_ASSERT(valid());
             HPX_ASSERT(impl_->valid());
-            impl_->execute();
+            impl_->split();
+//             impl_.reset();
+        }
+
+        void process()
+        {
+            HPX_ASSERT(valid());
+            HPX_ASSERT(impl_->valid());
+            impl_->process();
 //             impl_.reset();
         }
 

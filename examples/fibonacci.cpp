@@ -6,6 +6,9 @@
 #include <allscale/work_item_description.hpp>
 
 #include <hpx/include/unordered_map.hpp>
+#include <hpx/include/performance_counters.hpp>
+
+#include <unistd.h>
 
 typedef std::int64_t int_type;
 ALLSCALE_REGISTER_TREETURE_TYPE(int_type);
@@ -57,7 +60,7 @@ struct add_variant
     template <typename Closure>
     static allscale::treeture<std::int64_t> execute(Closure const& closure)
     {
-        std::cout << allscale::this_work_item::get_id().name() << " add ... \n";
+//         std::cout << allscale::this_work_item::get_id().name() << " add ... \n";
         return
             allscale::treeture<std::int64_t>{
                 hpx::util::get<0>(closure) + hpx::util::get<1>(closure)
@@ -102,11 +105,12 @@ struct split_variant
     template <typename Closure>
     static allscale::treeture<std::int64_t> execute(Closure const& closure)
     {
-        std::cout << allscale::this_work_item::get_id().name() << " fib ... \n";
-        if(hpx::util::get<0>(closure) <= 10)
-            return allscale::treeture<std::int64_t>{
-                fib_ser(hpx::util::get<0>(closure))
-            };
+//         std::cout << allscale::this_work_item::get_id().name() << " fib ... \n";
+//         if(hpx::util::get<0>(closure) == 11) sleep(4);
+//         if(hpx::util::get<0>(closure) <= 10)
+//             return allscale::treeture<std::int64_t>{
+//                 fib_ser(hpx::util::get<0>(closure))
+//             };
 
         return allscale::spawn<add_work>(
             allscale::spawn<fibonacci_work>(
@@ -152,16 +156,19 @@ struct process_variant
 #include <iostream>
 #include <thread>
 
+#include <allscale/components/monitor.hpp>
+
 int main()
 {
-    hpx::this_thread::set_thread_data(90);
+    allscale::components::monitor_component_init();
+
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
 
     if(hpx::get_locality_id() == 0)
     {
         hpx::util::high_resolution_timer t;
-        std::int64_t n = 11;
+        std::int64_t n = 42;
         allscale::treeture<std::int64_t> fib
             = allscale::spawn<fibonacci_work>(n);
         std::int64_t res = fib.get_result();
