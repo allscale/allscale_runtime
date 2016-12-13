@@ -16,9 +16,12 @@ namespace allscale { namespace this_work_item {
     }
 
     id::id()
-      : id_(get_id().id_)
-      , next_id_(0)
+    {}
+
+    void id::set(id const& parent)
     {
+        next_id_ = 0;
+        id_ = parent.id_;
         id_.push_back(get_id().next_id_++);
     }
 

@@ -83,6 +83,8 @@ namespace allscale
             virtual ~work_item_impl_base()
             {}
 
+            virtual void set_this_id()=0;
+
             virtual void process()=0;
             virtual void split()=0;
             virtual bool valid()=0;
@@ -120,6 +122,11 @@ namespace allscale
 
             work_item_impl()
             {}
+
+            void set_this_id()
+            {
+                id_.set(this_work_item::get_id());
+            }
 
             template <typename ...Ts>
             work_item_impl(treeture<result_type> tres, Ts&&... vs)
@@ -261,11 +268,10 @@ namespace allscale
             template <typename Archive>
             void serialize(Archive &ar, unsigned)
             {
-/*
                 ar & hpx::serialization::base_object<work_item_impl_base>(*this);
                 ar & tres_;
                 ar & closure_;
-*/
+                ar & id_;
             }
             HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(work_item_impl);
 
@@ -291,6 +297,11 @@ namespace allscale
 
             work_item_impl()
             {}
+
+            void set_this_id()
+            {
+                id_.set(this_work_item::get_id());
+            }
 
             template <typename ...Ts>
             work_item_impl(treeture<result_type> tres, Ts&&... vs)
@@ -379,6 +390,7 @@ namespace allscale
                 ar & hpx::serialization::base_object<work_item_impl_base>(*this);
                 ar & tres_;
                 ar & closure_;
+                ar & id_;
             }
             HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(work_item_impl);
 
@@ -414,7 +426,9 @@ namespace allscale
                     std::move(tre), detail::futurize_if(std::forward<Ts>(vs))...
                 )
             )
-        {}
+        {
+            impl_->set_this_id();
+        }
 
         explicit work_item(std::shared_ptr<work_item_impl_base> impl)
           : impl_(impl)
@@ -480,13 +494,16 @@ namespace allscale
         template <typename Archive>
         void load(Archive & ar, unsigned)
         {
+#ifndef ALLSCALE_SHARED_MEMORY_ONLY
             ar & impl_;
             HPX_ASSERT(impl_->valid());
+#endif
         }
 
         template <typename Archive>
         void save(Archive & ar, unsigned) const
         {
+#ifndef ALLSCALE_SHARED_MEMORY_ONLY
             HPX_ASSERT(impl_->valid());
 
             if(ar.is_preprocessing())
@@ -498,6 +515,7 @@ namespace allscale
                 ar & impl_;
             }
             HPX_ASSERT(impl_->valid());
+#endif
         }
 
         HPX_SERIALIZATION_SPLIT_MEMBER()

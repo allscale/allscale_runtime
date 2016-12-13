@@ -158,7 +158,7 @@ struct process_variant
 
 #include <allscale/components/monitor.hpp>
 
-int main()
+int main(int argc, char **argv)
 {
     allscale::components::monitor_component_init();
 
@@ -168,7 +168,7 @@ int main()
     if(hpx::get_locality_id() == 0)
     {
         hpx::util::high_resolution_timer t;
-        std::int64_t n = 42;
+        std::int64_t n = argc == 2 ? std::stoul(std::string(argv[1])) : 10;
         allscale::treeture<std::int64_t> fib
             = allscale::spawn<fibonacci_work>(n);
         std::int64_t res = fib.get_result();
