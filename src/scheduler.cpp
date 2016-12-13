@@ -15,7 +15,7 @@ namespace allscale
 
     void scheduler::schedule(work_item work)
     {
-        get().enqueue(work);
+        get().enqueue(work, false);
     }
 
     components::scheduler* scheduler::run(std::size_t rank)

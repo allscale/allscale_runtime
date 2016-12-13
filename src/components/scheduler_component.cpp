@@ -42,6 +42,7 @@ namespace allscale { namespace components {
         if(num_localities_ > 1)
             right_ = right_future.get();
 
+        // setup performance counter to use to decide on split/process
         static const char * queue_counter_name = "/threadqueue{locality#%d/worker-thread#%d}/length";
         static const char * idle_counter_name = "/threads{locality#%d/worker-thread#%d}/idle-rate";
 
@@ -77,9 +78,12 @@ namespace allscale { namespace components {
             << rank_ << " created (" << left_ << " " << right_ << ")!\n";
     }
 
-    void scheduler::enqueue(work_item work)
+    void scheduler::enqueue(work_item work, bool remote)
     {
-        std::uint64_t schedule_rank = schedule_rank_.fetch_add(1) % 3;
+
+        std::uint64_t schedule_rank = 0;
+        if (!remote)
+            schedule_rank = schedule_rank_.fetch_add(1) % 3;
 
         hpx::id_type schedule_id;
         switch (schedule_rank)
@@ -116,7 +120,7 @@ namespace allscale { namespace components {
         }
         HPX_ASSERT(schedule_id);
         HPX_ASSERT(work.valid());
-        hpx::apply<enqueue_action>(schedule_id, work);
+        hpx::apply<enqueue_action>(schedule_id, work, true);
     }
 
     bool scheduler::do_split(work_item const& w)

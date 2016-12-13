@@ -24,11 +24,11 @@ namespace allscale { namespace components {
         scheduler(std::uint64_t rank);
         void init();
 
-        void enqueue(work_item work);
-        HPX_DEFINE_COMPONENT_DIRECT_ACTION(scheduler, enqueue);
+        void enqueue(work_item work, bool remote);
+        HPX_DEFINE_COMPONENT_ACTION(scheduler, enqueue);
 
         void stop();
-        HPX_DEFINE_COMPONENT_DIRECT_ACTION(scheduler, stop);
+        HPX_DEFINE_COMPONENT_ACTION(scheduler, stop);
 
     private:
         std::uint64_t num_localities_;
