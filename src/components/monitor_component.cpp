@@ -5,63 +5,68 @@
 #include <allscale/profile.hpp>
 #include <allscale/util/graph_colouring.hpp>
 
+#include <hpx/include/lcos.hpp>
+
 #include <unistd.h>
 #include <unordered_map>
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <mutex>
+#include <memory>
 
 // Performance profiles per work item
-std::unordered_map<std::string, allscale::profile *> profiles;
-std::mutex work_map_mutex;
+std::unordered_map<std::string, std::shared_ptr<allscale::profile>> profiles;
+
+typedef hpx::lcos::local::spinlock mutex_type;
+mutex_type work_map_mutex;
 
 // For graph creation
 std::unordered_map<std::string, std::string> w_names; // Maps work_item name and ID for nice graph node labelling
-std::list < allscale::work_item_dependency *> w_graph;
+std::list <std::shared_ptr<allscale::work_item_dependency>> w_graph;
 
 // Measuring total execution time
 std::chrono::steady_clock::time_point execution_start;
 std::chrono::steady_clock::time_point execution_end;
 double wall_clock;
 
- 
+
 namespace allscale { namespace components {
 
    void w_exec_start_wrapper(allscale::work_item const& w)
    {
-      allscale::profile *p;
-      allscale::work_item_dependency *wd;
       allscale::this_work_item::id my_wid = w.id();
-   
-      p = new profile();
-      wd = new allscale::work_item_dependency(my_wid.parent().name(), my_wid.name());
+      std::shared_ptr<allscale::profile> p(new profile());
+      std::shared_ptr<allscale::work_item_dependency> wd(
+          new allscale::work_item_dependency(my_wid.parent().name(), my_wid.name()));
 
-      std::lock_guard<std::mutex> lock(work_map_mutex);
+
+      std::lock_guard<mutex_type> lock(work_map_mutex);
       w_names.insert(std::make_pair(my_wid.name(), w.name()));
       profiles.insert(std::make_pair(my_wid.name(), p));
       w_graph.push_back(wd);
- 
+
 /*      std::cout
           << "Start work item "
           << w.name()
           << " "
           << my_wid.name()
           << " my parent "
-          << my_wid.parent().name() 
+          << my_wid.parent().name()
           << std::endl;
 */
-     
+
    }
 
    void w_exec_finish_wrapper(allscale::work_item const& w)
    {
       allscale::this_work_item::id my_wid = w.id();
-      allscale::profile *p;
+      std::shared_ptr<allscale::profile> p;
 
+      std::lock_guard<mutex_type> lock(work_map_mutex);
       p = profiles[my_wid.name()];
 
-      p->end = std::chrono::steady_clock::now(); 
+      p->end = std::chrono::steady_clock::now();
 
 /*
       std::cout
@@ -77,8 +82,9 @@ namespace allscale { namespace components {
    void w_result_propagated_wrapper(allscale::work_item const& w)
    {
       allscale::this_work_item::id my_wid = w.id();
-      allscale::profile *p;
+      std::shared_ptr<allscale::profile> p;
 
+      std::lock_guard<mutex_type> lock(work_map_mutex);
       p = profiles[my_wid.name()];
 
       p->result_ready = std::chrono::steady_clock::now();
@@ -111,8 +117,8 @@ namespace allscale { namespace components {
 
    }
 
-   // Get papi counter 
- 
+   // Get papi counter
+
    void process_profiles() {
 
    }
@@ -120,6 +126,7 @@ namespace allscale { namespace components {
    // Create task graph
    // TODO make it shorter and more structured
    void create_work_item_graph() {
+      std::lock_guard<mutex_type> lock(work_map_mutex);
       double excl_elapsed, incl_elapsed;
       std::ofstream myfile;
       myfile.open("treeture.dot");
@@ -131,7 +138,7 @@ namespace allscale { namespace components {
       myfile << "digraph {\n";
 
       // Print graph attributes
-      myfile << "node [\n" 
+      myfile << "node [\n"
              << "fillcolor=white,\n"
              << "fontsize=11,\n"
              << "shape=box,\n"
@@ -153,8 +160,8 @@ namespace allscale { namespace components {
 
          unsigned color = allscale::components::util::intensity_to_rgb(excl_elapsed, wall_clock);
          auto it = w_names.find(nodes->first);
-         
-         myfile << "  \"" << nodes->first << " " << it->second   
+
+         myfile << "  \"" << nodes->first << " " << it->second
                 << label <<"\"     [ fillcolor=\"#" << std::hex << color << "\" ]" << std::endl;
       }
 
@@ -167,7 +174,7 @@ namespace allscale { namespace components {
           else label1 = (*w_dep)->parent;
 
           auto it2 = profiles.find((*w_dep)->parent);
-          if(it2 != profiles.end()) { 
+          if(it2 != profiles.end()) {
           	excl_elapsed = (it2->second)->get_exclusive_time();
           	incl_elapsed = (it2->second)->get_inclusive_time();
 
@@ -180,10 +187,10 @@ namespace allscale { namespace components {
                 label1 += std::string("\\n Tincl = ") + stream.str();
 
           }
- 
+
           it = w_names.find((*w_dep)->child);
           if(it != w_names.end()) label2 = (*w_dep)->child + ' ' + it->second;
-          else label2 = (*w_dep)->child;      
+          else label2 = (*w_dep)->child;
 
           it2 = profiles.find((*w_dep)->child);
           if(it2 != profiles.end()) {
@@ -201,7 +208,6 @@ namespace allscale { namespace components {
           }
 
           myfile << "  \"" << label1 << "\" -> \"" << label2 << "\"" << std::endl;
-	  delete (*w_dep);
       }
 
       myfile << "}\n";
@@ -209,34 +215,35 @@ namespace allscale { namespace components {
       myfile.close();
    }
 
- 
+
    void monitor_component_output() {
+      std::lock_guard<mutex_type> lock(work_map_mutex);
 
 
       std::cout << "\nWall-clock time: " << wall_clock << std::endl;
-      std::cout << "\nWork Item		Exclusive time  |  % Total  |  Inclusive time  |  % Total"		
+      std::cout << "\nWork Item		Exclusive time  |  % Total  |  Inclusive time  |  % Total"
                 << "\n----------------------------------------------------------------------------------------\n";
 
       std::vector<std::string> w_id;
-      // sort work_item names 
+      // sort work_item names
       for(auto it : profiles) {
          std::string name = it.first;
          w_id.push_back(name);
          }
 
       std::sort(w_id.begin(), w_id.end());
-      // iterate over the profiles 
+      // iterate over the profiles
       for(std::string i : w_id) {
-        profile * p = profiles[i];
+          std::shared_ptr<profile> p = profiles[i];
         if (p) {
             double excl_elapsed = p->get_exclusive_time();
-            double perc_excl_elapsed = (excl_elapsed/wall_clock) * 100; 
+            double perc_excl_elapsed = (excl_elapsed/wall_clock) * 100;
             double incl_elapsed = p->get_inclusive_time();
             double perc_incl_elapsed = (incl_elapsed/wall_clock) * 100;
 
             std::cout.precision(5);
             std::cout << std::scientific << "   " << i + ' ' + w_names[i] << "\t\t " << excl_elapsed << "\t\t";
-            std::cout.precision(2); 
+            std::cout.precision(2);
             std::cout << std::fixed << perc_excl_elapsed;
             std::cout.precision(5);
             std::cout << std::scientific << "\t" << incl_elapsed << "\t\t";
@@ -248,7 +255,7 @@ namespace allscale { namespace components {
     }
 
 
- 
+
    void monitor_component_finalize() {
 
       execution_end = std::chrono::steady_clock::now();
