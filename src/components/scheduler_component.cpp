@@ -4,6 +4,7 @@
 
 #include <hpx/util/scoped_unlock.hpp>
 
+
 namespace allscale { namespace components {
     scheduler::scheduler(std::uint64_t rank)
       : num_localities_(hpx::get_num_localities().get())
@@ -20,6 +21,15 @@ namespace allscale { namespace components {
             "scheduler::collect_counters",
             true
         )
+ /*     , throttle_timer_(
+           hpx::util::bind(
+           &scheduler::periodic_throttle,
+           this),
+           1000000, //microsec   
+           "scheduler::periodic_throttle",
+           true
+        )
+*/
     {
     }
 
@@ -71,7 +81,17 @@ namespace allscale { namespace components {
         }
 
         collect_counters();
-
+/*
+        numa_domains = hpx::compute::host::numa_domains();
+        auto num_numa_domains = numa_domains.size();
+        executors.reserve(num_numa_domains);
+        for (hpx::compute::host::target const & domain : numa_domains) {
+            auto num_pus = domain.num_pus();
+            //Create executor per numa domain
+            executors.emplace_back(num_pus.first, num_pus.second);
+            std::cout << "Numa num_pus.first: " << num_pus.first << ", num_pus.second: " << num_pus.second << ". Total numa domains: " << numa_domains.size() << std::endl;
+        }
+*/
         timer_.start();
         std::cout
             << "Scheduler with rank "
@@ -104,13 +124,15 @@ namespace allscale { namespace components {
                 {
                     monitor::signal(monitor::work_item_enqueued, work);
 
+//                    std::size_t current_numa_domain = ++current_ % executors.size();
+
                     if (do_split(work))
                     {
-                        hpx::apply(&work_item::split, std::move(work));
+                        hpx::apply(/*executors.at(current_numa_domain),*/ &work_item::split, std::move(work));
                     }
                     else
                     {
-                        hpx::apply(&work_item::process, std::move(work));
+                        hpx::apply(/*executors.at(current_numa_domain),*/ &work_item::process, std::move(work));
                     }
 
                     return;
@@ -170,6 +192,43 @@ namespace allscale { namespace components {
         return true;
     }
 
+/*
+    bool :periodic_throttle()
+    {
+       try {
+           const std::size_t num_threads = hpx::get_os_thread_count();
+           const std::size_t worker_tid = hpx::get_worker_thread_num();
+
+           std::cout << boost::format("Thread queue length on this locality: %d, OS threads: %d, TID: %d, HW: %d") %
+                        queue_length_[worker_tid] % num_threads % worker_tid % hpx::threads::hardware_concurrency() << std::endl;
+
+           if (sched_obj == allscale.resource_util) {
+              if ( total_length_ < 10 * num_threads ) {
+                  if ( queue_length_[worker_tid] <  && idle_rates_[worker_tid] > 10.0 )  {
+                     suspend(worker_tid);
+                     std::cout << "Suspend candidate: " << worker_tid <<  ", Num suspended: " << blocked_os_threads_.count()  << std::endl;
+              }
+
+
+             if ( ( blocked_os_threads_.any() && queue_length_[worker_tid] >  ) || ( blocked_os_threads_.count() == num_threads ) ) {
+                 std::cout << "Resuming all. " << ", Num suspended: " << blocked_os_threads_.count() << std::endl;
+                 resume(worker_tid); 
+             }
+
+           }
+
+       }
+       catch(hpx::exception const& e) {
+           std::cerr
+                << "periodic_throttle: caught exception: "
+                << e.what() << std::endl;
+       }
+
+
+       return true;
+    }
+*/
+
     void scheduler::stop()
     {
         timer_.stop();
@@ -203,4 +262,106 @@ namespace allscale { namespace components {
         left_ = hpx::id_type();
         right_ = hpx::id_type();
     }
+
+ 
+// Methods for thread throttling
+    void scheduler::suspend(std::size_t shepherd)
+    {
+        // If the current thread is not the requested one, re-schedule a new
+        // PX thread in order to retry.
+        std::size_t thread_num = hpx::get_worker_thread_num();
+        if (thread_num != shepherd) {
+            register_suspend_thread(shepherd);
+            return;
+        }
+
+        std::lock_guard<mutex_type> l(throttle_mtx_);
+
+        if (shepherd >= blocked_os_threads_.size()) {
+            HPX_THROW_EXCEPTION(hpx::bad_parameter, "scheduler::suspend",
+                "invalid thread number");
+        }
+
+        bool is_suspended = blocked_os_threads_[shepherd];
+        if (!is_suspended) {
+            blocked_os_threads_[shepherd] = true;
+            register_thread(shepherd);
+        }
+    }
+
+    void scheduler::resume(std::size_t shepherd)
+    {
+        std::lock_guard<mutex_type> l(throttle_mtx_);
+
+        if (shepherd >= blocked_os_threads_.size()) {
+            HPX_THROW_EXCEPTION(hpx::bad_parameter, "scheduler::resume",
+                "invalid thread number");
+        }
+
+        blocked_os_threads_[shepherd] = false;   // re-activate shepherd
+    }
+
+
+        void scheduler::resume_all()
+    {
+        std::lock_guard<mutex_type> l(throttle_mtx_);
+
+        if (blocked_os_threads_.any())
+           for (int i=0; i<blocked_os_threads_.size(); i++)
+               if (blocked_os_threads_[i])
+                  blocked_os_threads_[i] = false;
+    }
+
+
+       // do the requested throttling
+    void scheduler::throttle_controller(std::size_t shepherd)
+    {
+        std::unique_lock<mutex_type> l(throttle_mtx_);
+        if (!blocked_os_threads_[shepherd])
+            return;     // nothing more to do
+
+        {
+            // put this shepherd thread to sleep for 100ms
+            hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+
+            boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
+        }
+
+        // if this thread still needs to be suspended, re-schedule this routine
+        // which will give the thread manager some cycles to tend to the high
+        // priority tasks which might have arrived
+        if (blocked_os_threads_[shepherd])
+            register_thread(shepherd);
+    }
+
+    // schedule a high priority task on the given shepherd thread
+    void scheduler::register_thread(std::size_t shepherd)
+    {
+        std::string description("throttle controller for shepherd thread (" +
+            std::to_string(shepherd) + ")");
+
+        hpx::applier::register_thread(
+            hpx::util::bind(&scheduler::throttle_controller, this, shepherd),
+            description.c_str(),
+            hpx::threads::pending, true,
+            hpx::threads::thread_priority_critical,
+            shepherd);
+    }
+
+  
+       // schedule a high priority task on the given shepherd thread to suspend
+    void scheduler::register_suspend_thread(std::size_t shepherd)
+    {
+        std::string description("suspend shepherd thread (" +
+            std::to_string(shepherd) + ")");
+
+        hpx::applier::register_thread(
+            hpx::util::bind(&scheduler::suspend, this, shepherd),
+            description.c_str(),
+            hpx::threads::pending, true,
+            hpx::threads::thread_priority_critical,
+            shepherd);
+    }
+
+
 }}

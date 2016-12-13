@@ -152,10 +152,48 @@ struct process_variant
 #include <iostream>
 #include <thread>
 
+#include <boost/atomic.hpp>
+
 #include <allscale/components/monitor.hpp>
+
+boost::atomic<std::int64_t> fib_elapsed(0);
+
+
+std::int64_t fib_performance_data(bool reset)
+{
+    return hpx::util::get_and_reset_value(fib_elapsed, reset);
+}
+
+
+void register_counter_type()
+{
+    // Call the HPX API function to register the counter type.
+    hpx::performance_counters::install_counter_type(
+        "/allscale/examples/fib_time",
+        // counter type name
+        &fib_performance_data,
+        // function providing counter data
+        "returns time spent on calculation of the fib"
+        // description text
+    );
+}
+
+
+std::int64_t fib_runner(std::int64_t n)
+{
+   allscale::treeture<std::int64_t> fib = allscale::spawn<fibonacci_work>(n);
+   std::int64_t res = fib.get_result();
+
+   return res;
+}
+
 
 int main(int argc, char **argv)
 {
+//    hpx::init(argc, argv);
+
+//    hpx::register_startup_function(&register_counter_type);
+
     allscale::components::monitor_component_init();
 
     // start allscale scheduler ...
@@ -163,16 +201,17 @@ int main(int argc, char **argv)
 
     if(hpx::get_locality_id() == 0)
     {
-        hpx::util::high_resolution_timer t;
         std::int64_t n = argc == 2 ? std::stoi(std::string(argv[1])) : 10;
-        allscale::treeture<std::int64_t> fib
-            = allscale::spawn<fibonacci_work>(n);
-        std::int64_t res = fib.get_result();
-        double elapsed = t.elapsed();
-        std::cout
-            << "fib(" << n << ") = "
-            << res
-            << " taking " << elapsed << " seconds\n";
+        std::int64_t iters = argc == 3 ? std::stoi(std::string(argv[2])) : 1;
+        std::int64_t elapsed;
+
+        for(int i=0; i<iters; i++) {
+           hpx::util::high_resolution_timer t;
+           std::int64_t res = fib_runner(n);
+           elapsed = t.elapsed_microseconds();
+           std::cout << "fib(" << n << ") = " << res << " taking " << elapsed << " microseconds\n";
+        }
+        fib_elapsed.store(elapsed);
         allscale::scheduler::stop();
     }
 
