@@ -54,6 +54,7 @@ namespace allscale {
 
         }
 
+
         std::string to_string()
         {
             return "to string method called";
@@ -66,6 +67,8 @@ namespace allscale {
         }
 
         T region_;
+        
+    
     };
 
  

@@ -26,6 +26,8 @@ namespace allscale { namespace this_work_item {
 
         std::size_t hash() const;
 
+        id parent() const;
+
     private:
         friend bool operator==(id const& lhs, id const& rhs);
         friend bool operator!=(id const& lhs, id const& rhs);
