@@ -7,7 +7,7 @@
 #include <hpx/include/components.hpp>
 #include <hpx/util/interval_timer.hpp>
 
-//#include <hpx/compute/host.hpp>
+#include <hpx/compute/host.hpp>
 #include <hpx/compute/host/target.hpp>
 #include <hpx/runtime/threads/executors/thread_pool_attached_executors.hpp>
 
@@ -62,12 +62,16 @@ namespace allscale { namespace components {
         std::vector<std::size_t> queue_length_;
         std::size_t total_length_;
 
+        hpx::id_type threads_total_counter_id;
+//        std::vector<std::pair<std::int64_t, double>> threads_time;
+        double total_threads_time;
 
         std::vector<hpx::compute::host::target> numa_domains;
         std::vector<executor_type> executors;
         boost::atomic<std::size_t> current_;
 
         void resume(std::size_t shepherd);
+	void resume_one();
         void resume_all();
         void suspend(std::size_t shepherd);
         bool is_suspended(std::size_t shepherd) const;
@@ -79,6 +83,12 @@ namespace allscale { namespace components {
 
         boost::dynamic_bitset<> blocked_os_threads_;
         mutable mutex_type throttle_mtx_;
+        mutable mutex_type resize_mtx_;
+
+        std::pair<std::int64_t, double> thread_time_diff;
+	double last_thread_time_diff;
+	double last_thread_time;
+
     };
 }}
 

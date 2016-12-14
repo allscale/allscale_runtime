@@ -190,19 +190,17 @@ std::int64_t fib_runner(std::int64_t n)
 
 int main(int argc, char **argv)
 {
-//    hpx::init(argc, argv);
-
 //    hpx::register_startup_function(&register_counter_type);
 
-    allscale::components::monitor_component_init();
+//    allscale::components::monitor_component_init();
 
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
 
     if(hpx::get_locality_id() == 0)
     {
-        std::int64_t n = argc == 2 ? std::stoi(std::string(argv[1])) : 10;
-        std::int64_t iters = argc == 3 ? std::stoi(std::string(argv[2])) : 1;
+        std::int64_t n = argc >= 2 ? std::stoi(std::string(argv[1])) : 10;
+        std::int64_t iters = argc >= 3 ? std::stoi(std::string(argv[2])) : 1;
         std::int64_t elapsed;
 
         for(int i=0; i<iters; i++) {
@@ -217,3 +215,8 @@ int main(int argc, char **argv)
 
     return 0;
 }
+
+
+
+
+
