@@ -12,9 +12,6 @@ namespace allscale { namespace components {
       , schedule_rank_(0)
       , stopped_(false)
 //       , count_(0)
-      , thread_time_diff(0, 0.0)
-      , last_thread_time_diff(0.0)
-      , last_thread_time(0.0)
       , timer_(
             hpx::util::bind(
                 &scheduler::collect_counters,
@@ -59,7 +56,8 @@ namespace allscale { namespace components {
         // setup performance counter to use to decide on split/process
         static const char * queue_counter_name = "/threadqueue{locality#%d/worker-thread#%d}/length";
         static const char * idle_counter_name = "/threads{locality#%d/worker-thread#%d}/idle-rate";
-        static const char * threads_time_total = "/threads{locality#*/total}/time/overall";
+        //static const char * threads_time_total = "/threads{locality#*/total}/time/overall";
+	static const char * allscale_app_counter_name = "/allscale{locality#*/total}/examples/fib_time";
 
         std::size_t num_threads = hpx::get_num_worker_threads();
         idle_rates_counters_.reserve(num_threads);
@@ -85,8 +83,8 @@ namespace allscale { namespace components {
             idle_rates_counters_.push_back(idle_counter_id);
         }
 
-        threads_total_counter_id = hpx::performance_counters::get_counter(threads_time_total);
-        hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, threads_total_counter_id);
+        allscale_app_counter_id = hpx::performance_counters::get_counter(allscale_app_counter_name);
+	hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, allscale_app_counter_id);
 
         collect_counters();
 
@@ -210,43 +208,40 @@ namespace allscale { namespace components {
 
         if ( num_threads > 1 ) {
 
-		std::size_t neighbour = 0;
-
-		auto total_threads_counter = hpx::performance_counters::stubs::performance_counter::get_value(
-                                                hpx::launch::sync, threads_total_counter_id);
+		auto allscale_app_counter = hpx::performance_counters::stubs::performance_counter::get_value(
+						hpx::launch::sync, allscale_app_counter_id);
 
 		{
 		        std::unique_lock<mutex_type> l(resize_mtx_);
 
-        		total_threads_time = total_threads_counter.get_value<double>() * 0.001; //ns -> ms
-		        thread_time_diff.second = total_threads_time - last_thread_time;
+			allscale_app_time = allscale_app_counter.get_value<std::int64_t>();
 
-			neighbour = (worker_tid < num_threads - 1) ? worker_tid + 1 : worker_tid - 1;
+			std::int64_t neighbour = std::rand() %  num_threads ;  //(worker_tid < num_threads - 1) ? worker_tid + 1 : worker_tid - 1;
 
+//			if ( allscale_app_time > last_thread_time )
+//  			   std::cout << "wtid = " << worker_tid << ", allscale_app_time = " 
+//				<< allscale_app_time << ", last_thread_time = " << last_thread_time << ", neighbour = "<< neighbour << std::endl;
 
-        	if ( !blocked_os_threads_[neighbour] && ( thread_time_diff.first > 1 && thread_time_diff.second * 10 < last_thread_time_diff ) ) {
-	             std::cout << "Suspend attempt: tid = " << neighbour << ", ct=" << thread_time_diff.first << ", total = " << total_threads_time 
-				<< ", thread_time_diff = " << thread_time_diff.second << ", last_metric = " << last_thread_time 
-				<< ", last_thread_time_diff = " << last_thread_time_diff << std::endl;
-		   
-		    hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
-    	            suspend(neighbour);  
-        	} else if ( blocked_os_threads_.any() && (thread_time_diff.first > 1 && thread_time_diff.second > last_thread_time_diff ) ) {
-                    std::cout << "Resume attempt: tid = " << neighbour << ", ct=" << thread_time_diff.first << ", total = " << total_threads_time
-                                << ", thread_time_diff = " << thread_time_diff.second << ", last_metric = " << last_thread_time
-                                << ", last_thread_time_diff = " << last_thread_time_diff << std::endl;
-
-		    hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
-		    resume_one();
-		}
+			if ( allscale_app_time > 0 ) 
+			  if ( last_thread_time ==0 || allscale_app_time < last_thread_time ) {
+			     if ( neighbour != worker_tid ) {
+//			           std::cout << "Suspend attempt: tid = " << neighbour << ", allscale_app_time = " 
+//			 		<< allscale_app_time << ", last_tt = " << last_thread_time << ", wtid = " << worker_tid << std::endl;
+//			 	  hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+                                  suspend(neighbour);
+			     }
+			  } else if ( blocked_os_threads_.any() && allscale_app_time > last_thread_time ) {
+//	                       std::cout << "Resume attempt: tid = " << neighbour << ", allscale_app_time = " 
+//			 		<< allscale_app_time << ", last_tt = " << last_thread_time << ", wtid = " << worker_tid << std::endl;
+//         	              hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+                    	      resume_one();
+	                  } 
 
 		}
 
 		{
-	      	    std::unique_lock<mutex_type> l(resize_mtx_); 
-		    last_thread_time = total_threads_time;
-        	    last_thread_time_diff = thread_time_diff.second;
-	            thread_time_diff.first += 1;
+//	      	    std::unique_lock<mutex_type> l(resize_mtx_); 
+		    last_thread_time = allscale_app_time;
 		}
         }
 

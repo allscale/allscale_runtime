@@ -66,6 +66,9 @@ namespace allscale { namespace components {
 //        std::vector<std::pair<std::int64_t, double>> threads_time;
         double total_threads_time;
 
+	hpx::id_type allscale_app_counter_id;
+	double allscale_app_time;
+
         std::vector<hpx::compute::host::target> numa_domains;
         std::vector<executor_type> executors;
         boost::atomic<std::size_t> current_;
@@ -83,12 +86,10 @@ namespace allscale { namespace components {
 
         boost::dynamic_bitset<> blocked_os_threads_;
         mutable mutex_type throttle_mtx_;
+
         mutable mutex_type resize_mtx_;
 
-        std::pair<std::int64_t, double> thread_time_diff;
-	double last_thread_time_diff;
 	double last_thread_time;
-
     };
 }}
 

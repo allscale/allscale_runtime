@@ -12,6 +12,7 @@
 
 #include <unistd.h>
 
+
 typedef std::int64_t int_type;
 ALLSCALE_REGISTER_TREETURE_TYPE(int_type);
 
@@ -151,7 +152,7 @@ struct process_variant
     }
 };
 
-#include <hpx/hpx_main.hpp>
+#include <hpx/hpx_init.hpp>
 #include <hpx/util/high_resolution_timer.hpp>
 #include <iostream>
 #include <thread>
@@ -160,7 +161,8 @@ struct process_variant
 
 #include <allscale/components/monitor.hpp>
 
-boost::atomic<std::int64_t> fib_elapsed(0);
+
+std::int64_t fib_elapsed = 0;
 
 
 std::int64_t fib_performance_data(bool reset)
@@ -171,6 +173,9 @@ std::int64_t fib_performance_data(bool reset)
 
 void register_counter_type()
 {
+
+    std::cout << "Registering allscale counter" << std::endl;
+
     // Call the HPX API function to register the counter type.
     hpx::performance_counters::install_counter_type(
         "/allscale/examples/fib_time",
@@ -183,6 +188,18 @@ void register_counter_type()
 }
 
 
+
+bool get_startup(hpx::startup_function_type& startup_func, bool& pre_startup)
+{
+    // return our startup-function if performance counters are required
+    startup_func = register_counter_type;   // function to run during startup
+    pre_startup = true;       // run 'startup' as pre-startup function
+    return true;
+}
+
+
+
+
 std::int64_t fib_runner(std::int64_t n)
 {
    allscale::treeture<std::int64_t> fib = allscale::spawn<fibonacci_work>(n);
@@ -192,9 +209,8 @@ std::int64_t fib_runner(std::int64_t n)
 }
 
 
-int main(int argc, char **argv)
+int hpx_main(int argc, char **argv)
 {
-//    hpx::register_startup_function(&register_counter_type);
 
 //    allscale::components::monitor_component_init();
 
@@ -205,22 +221,24 @@ int main(int argc, char **argv)
     {
         std::int64_t n = argc >= 2 ? std::stoi(std::string(argv[1])) : 10;
         std::int64_t iters = argc >= 3 ? std::stoi(std::string(argv[2])) : 1;
-        std::int64_t elapsed;
 
         for(int i=0; i<iters; i++) {
+	   std::cout << "Starting fib(" << n << "), " << "Iter: " << i << "\n";
            hpx::util::high_resolution_timer t;
            std::int64_t res = fib_runner(n);
-           elapsed = t.elapsed_microseconds();
-           std::cout << "fib(" << n << ") = " << res << " taking " << elapsed << " microseconds\n";
+           fib_elapsed = t.elapsed_microseconds();
+           std::cout << "fib(" << n << ") = " << res << " taking " << fib_elapsed << " microseconds. Iter: " << i << "\n";
         }
-        fib_elapsed.store(elapsed);
         allscale::scheduler::stop();
     }
 
-    return 0;
+    return hpx::finalize();
 }
 
+int main(int argc, char **argv)
+{
+    hpx::register_pre_startup_function(&register_counter_type);
 
-
-
+    return hpx::init(argc, argv);
+}
 
