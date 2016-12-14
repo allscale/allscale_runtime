@@ -480,6 +480,12 @@ namespace allscale
             work_item_impl()
             {}
 
+
+            void set_this_id()
+            {
+                id_.set(this_work_item::get_id());
+            }
+            
             template <typename ...Ts>
             work_item_impl(treeture<result_type> tres, Ts&&... vs)
               : tres_(std::move(tres))
