@@ -10,13 +10,14 @@ namespace allscale
         typename Result,
         typename Name,
         typename SplitVariant,
+        typename SerVariant,
         typename ProcessVariant,
         typename ...WorkItemVariant
     >
     struct work_item_description
     {
         using result_type = Result;
-
+        using ser_variant = SerVariant;
         using split_variant = SplitVariant;
         using process_variant = ProcessVariant;
         using work_items = std::tuple<WorkItemVariant...>;

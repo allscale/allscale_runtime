@@ -99,12 +99,13 @@ namespace allscale
         template <
             typename WorkItemDescription,
             typename Closure,
-            bool Split = WorkItemDescription::split_variant::valid
+            bool Split = WorkItemDescription::split_variant::valid,
+            bool Serialization = WorkItemDescription::ser_variant::activated
         >
         struct work_item_impl;
 
         template <typename WorkItemDescription, typename Closure>
-        struct work_item_impl<WorkItemDescription, Closure, true>
+        struct work_item_impl<WorkItemDescription, Closure, true, false>
           : work_item_impl_base
         {
             std::shared_ptr<work_item_impl> shared_this()
@@ -261,6 +262,7 @@ namespace allscale
             template <typename Archive>
             void serialize(Archive &ar, unsigned)
             {
+                HPX_ASSERT(false);
 /*
                 ar & hpx::serialization::base_object<work_item_impl_base>(*this);
                 ar & tres_;
@@ -275,7 +277,178 @@ namespace allscale
         };
 
         template <typename WorkItemDescription, typename Closure>
-        struct work_item_impl<WorkItemDescription, Closure, false>
+        struct work_item_impl<WorkItemDescription, Closure, true, true>
+          : work_item_impl_base
+        {
+            std::shared_ptr<work_item_impl> shared_this()
+            {
+                return
+                    std::static_pointer_cast<work_item_impl>(
+                        this->shared_from_this()
+                    );
+            }
+
+            using result_type = typename WorkItemDescription::result_type;
+            using closure_type = Closure;
+
+            work_item_impl()
+            {}
+
+            template <typename ...Ts>
+            work_item_impl(treeture<result_type> tres, Ts&&... vs)
+              : tres_(std::move(tres))
+              , closure_(std::forward<Ts>(vs)...)
+            {
+                HPX_ASSERT(tres_.valid());
+            }
+
+            template <typename ...Ts>
+            void split_impl(Ts...vs)
+            {
+                treeture<result_type> tres = tres_;
+
+                std::shared_ptr<work_item_impl> this_(shared_this());
+                monitor::signal(monitor::work_item_execution_started, work_item(this_));
+                set_id si(this->id_);
+
+                auto fut = WorkItemDescription::split_variant::execute(
+                    hpx::util::make_tuple(
+                        detail::unwrap_if(std::move(vs))...
+                    )
+                ).get_future();
+
+                monitor::signal(monitor::work_item_execution_finished, work_item(this_));
+
+                fut.then(
+                    [tres, this_](hpx::future<result_type> ff) mutable
+                    {
+                        set_id si(this_->id_);
+                        tres.set_value(ff.get());
+                        monitor::signal(monitor::work_item_result_propagated, work_item(this_));
+                    }
+                );
+            }
+
+            template <typename ...Ts>
+            void process_impl(Ts...vs)
+            {
+                treeture<result_type> tres = tres_;
+
+                std::shared_ptr<work_item_impl> this_(shared_this());
+                monitor::signal(monitor::work_item_execution_started, work_item(this_));
+                set_id si(this->id_);
+
+                auto fut = WorkItemDescription::process_variant::execute(
+                    hpx::util::make_tuple(
+                        detail::unwrap_if(std::move(vs))...
+                    )
+                ).get_future();
+
+                monitor::signal(monitor::work_item_execution_finished, work_item(this_));
+
+                fut.then(
+                    [tres, this_](hpx::future<result_type> ff) mutable
+                    {
+                        set_id si(this_->id_);
+                        tres.set_value(ff.get());
+                        monitor::signal(monitor::work_item_result_propagated, work_item(this_));
+                    }
+                );
+            }
+
+            bool valid()
+            {
+                return bool(this->shared_from_this());
+            }
+
+            void split()
+            {
+
+                split(
+                    typename hpx::util::detail::make_index_pack<
+                        hpx::util::tuple_size<closure_type>::type::value
+                    >::type()
+                );
+            }
+            template <std::size_t... Is>
+            void split(hpx::util::detail::pack_c<std::size_t, Is...>)
+            {
+                void (work_item_impl::*f)(
+                    typename hpx::util::decay<decltype(hpx::util::get<Is>(closure_))>::type...
+                ) = &work_item_impl::split_impl;
+                HPX_ASSERT(valid());
+                hpx::dataflow(
+                    f
+                  , shared_this()
+                  , std::move(hpx::util::get<Is>(closure_))...
+                );
+            }
+
+            void process()
+            {
+
+                process(
+                    typename hpx::util::detail::make_index_pack<
+                        hpx::util::tuple_size<closure_type>::type::value
+                    >::type()
+                );
+            }
+            template <std::size_t... Is>
+            void process(hpx::util::detail::pack_c<std::size_t, Is...>)
+            {
+                void (work_item_impl::*f)(
+                    typename hpx::util::decay<decltype(hpx::util::get<Is>(closure_))>::type...
+                ) = &work_item_impl::process_impl;
+                HPX_ASSERT(valid());
+                hpx::dataflow(
+                    f
+                  , shared_this()
+                  , std::move(hpx::util::get<Is>(closure_))...
+                );
+            }
+
+//             template <typename, typename> friend
+//             struct ::hpx::serialization::detail::register_class_name;
+//
+//             static std::string hpx_serialization_get_name_impl()
+//             {
+//                 hpx::serialization::detail::register_class_name<
+//                     work_item_impl>::instance.instantiate();
+//                 return WorkItemDescription::split_variant::name();
+//             }
+//             virtual std::string hpx_serialization_get_name() const
+//             {
+//                 return work_item_impl::hpx_serialization_get_name_impl();
+//             }
+
+            this_work_item::id const& id() const
+            {
+                return id_;
+            }
+
+            const char* name() const
+            {
+                return WorkItemDescription::name();
+            }
+
+            template <typename Archive>
+            void serialize(Archive &ar, unsigned)
+            {
+                ar & hpx::serialization::base_object<work_item_impl_base>(*this);
+                ar & tres_;
+                ar & closure_;
+            }
+            HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(work_item_impl);
+
+            treeture<result_type> tres_;
+            closure_type closure_;
+            this_work_item::id id_;
+        };
+
+
+
+        template <typename WorkItemDescription, typename Closure>
+        struct work_item_impl<WorkItemDescription, Closure, false, true>
           : work_item_impl_base
         {
             std::shared_ptr<work_item_impl> shared_this()
@@ -396,6 +569,143 @@ namespace allscale
             closure_type closure_;
             this_work_item::id id_;
         };
+
+
+        template <typename WorkItemDescription, typename Closure>
+        struct work_item_impl<WorkItemDescription, Closure, false, false>
+          : work_item_impl_base
+        {
+            std::shared_ptr<work_item_impl> shared_this()
+            {
+                return
+                    std::static_pointer_cast<work_item_impl>(
+                        this->shared_from_this()
+                    );
+            }
+
+            using result_type = typename WorkItemDescription::result_type;
+            using closure_type = Closure;
+
+            work_item_impl()
+            {}
+
+            template <typename ...Ts>
+            work_item_impl(treeture<result_type> tres, Ts&&... vs)
+              : tres_(std::move(tres))
+              , closure_(std::forward<Ts>(vs)...)
+            {
+                HPX_ASSERT(tres_.valid());
+            }
+
+            template <typename ...Ts>
+            void execute_impl(Ts...vs)
+            {
+                treeture<result_type> tres = tres_;
+
+                std::shared_ptr<work_item_impl> this_(shared_this());
+                monitor::signal(monitor::work_item_execution_started, work_item(this_));
+                set_id si(this->id_);
+
+                auto fut = WorkItemDescription::process_variant::execute(
+                    hpx::util::make_tuple(
+                        detail::unwrap_if(std::move(vs))...
+                    )
+                ).get_future();
+
+                monitor::signal(monitor::work_item_execution_finished, work_item(this_));
+
+                fut.then(
+                    [tres, this_](hpx::future<result_type> ff) mutable
+                    {
+                        set_id si(this_->id_);
+                        tres.set_value(ff.get());
+                        monitor::signal(monitor::work_item_result_propagated, work_item(this_));
+                    }
+                );
+            }
+
+            bool valid()
+            {
+                return tres_.valid() && bool(this->shared_from_this());
+            }
+
+            void process()
+            {
+                execute(
+                    typename hpx::util::detail::make_index_pack<
+                        hpx::util::tuple_size<closure_type>::type::value
+                    >::type()
+                );
+            }
+            void split()
+            {
+                process();
+            }
+
+            template <std::size_t... Is>
+            void execute(hpx::util::detail::pack_c<std::size_t, Is...>)
+            {
+                void (work_item_impl::*f)(
+                    typename hpx::util::decay<decltype(hpx::util::get<Is>(closure_))>::type...
+                ) = &work_item_impl::execute_impl;
+                HPX_ASSERT(valid());
+                hpx::dataflow(
+                    f
+                  , shared_this()
+                  , std::move(hpx::util::get<Is>(closure_))...
+                );
+            }
+
+//             template <typename, typename> friend
+//             struct ::hpx::serialization::detail::register_class_name;
+//
+//             static std::string hpx_serialization_get_name_impl()
+//             {
+//                 hpx::serialization::detail::register_class_name<
+//                     work_item_impl>::instance.instantiate();
+//                 return WorkItemDescription::process_variant::name();
+//             }
+//             virtual std::string hpx_serialization_get_name() const
+//             {
+//                 return work_item_impl::hpx_serialization_get_name_impl();
+//             }
+
+            template <typename Archive>
+            void serialize(Archive &ar, unsigned)
+            {
+                HPX_ASSERT(false);
+            }
+            HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(work_item_impl);
+
+            this_work_item::id const& id() const
+            {
+                return id_;
+            }
+
+            const char* name() const
+            {
+                return WorkItemDescription::name();
+            }
+
+            treeture<result_type> tres_;
+            closure_type closure_;
+            this_work_item::id id_;
+        };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         work_item()
         {}
