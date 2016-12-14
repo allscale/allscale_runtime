@@ -18,12 +18,13 @@ namespace allscale { namespace detail {
     template <
         typename WorkItemDescription,
         typename Closure,
-        bool Split = WorkItemDescription::split_variant::valid
+        bool Split = WorkItemDescription::serialization_variant::activated.
+        bool Split = WorkItemDescription::split_variant::valid,
     >
     struct work_item_impl;
 
     template <typename WorkItemDescription, typename Closure>
-    struct work_item_impl<WorkItemDescription, Closure, true>
+    struct work_item_impl<WorkItemDescription, Closure, true,false>
       : work_item_impl_base
     {
         std::shared_ptr<work_item_impl> shared_this()
@@ -137,7 +138,7 @@ namespace allscale { namespace detail {
     };
 
     template <typename WorkItemDescription, typename Closure>
-    struct work_item_impl<WorkItemDescription, Closure, false>
+    struct work_item_impl<WorkItemDescription, Closure, false, false>
       : work_item_impl_base
     {
         std::shared_ptr<work_item_impl> shared_this()

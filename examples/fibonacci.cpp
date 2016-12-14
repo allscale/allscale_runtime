@@ -1,5 +1,7 @@
 
 #include <allscale/no_split.hpp>
+#include <allscale/no_serialization.hpp>
+#include <allscale/do_serialization.hpp>
 #include <allscale/treeture.hpp>
 #include <allscale/spawn.hpp>
 #include <allscale/scheduler.hpp>
@@ -41,6 +43,7 @@ using add_work =
         std::int64_t,
         add_name,
         allscale::no_split<std::int64_t>,
+        allscale::do_serialization,
         add_variant
     >;
 
@@ -86,6 +89,7 @@ using fibonacci_work =
         std::int64_t,
         fib_name,
         split_variant,
+        allscale::no_serialization,
         process_variant
     >;
 
