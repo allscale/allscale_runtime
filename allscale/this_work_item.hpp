@@ -6,6 +6,9 @@
 #include <list>
 #include <string>
 
+#include <hpx/include/serialization.hpp>
+#include <hpx/runtime/serialization/list.hpp>
+
 namespace allscale { namespace this_work_item {
     struct id;
 
@@ -21,6 +24,8 @@ namespace allscale { namespace this_work_item {
         }
 
         id();
+
+        void set(id const& id);
 
         std::string name() const;
 
@@ -38,6 +43,14 @@ namespace allscale { namespace this_work_item {
 
         std::list<std::size_t> id_;
         std::size_t next_id_;
+
+        friend class hpx::serialization::access;
+        template <typename Archive>
+        void serialize(Archive& ar, unsigned)
+        {
+            ar & id_;
+            ar & next_id_;
+        }
     };
 }}
 
