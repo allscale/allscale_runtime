@@ -9,8 +9,8 @@ namespace allscale
     template <
         typename Result,
         typename Name,
-        typename SplitVariant,
         typename SerVariant,
+        typename SplitVariant,
         typename ProcessVariant,
         typename ...WorkItemVariant
     >
