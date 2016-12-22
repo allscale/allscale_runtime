@@ -13,6 +13,8 @@
 #include <allscale/spawn.hpp>
 #include <allscale/work_item_description.hpp>
 #include <allscale/components/monitor.hpp>
+#include <allscale/do_serialization.hpp>
+#include <allscale/no_serialization.hpp>
 
 #include <hpx/hpx_main.hpp>
 #include <hpx/util/invoke_fused.hpp>
@@ -74,6 +76,7 @@ using combine =
     allscale::work_item_description<
         Result,
         combine_name,
+        allscale::no_serialization,
         allscale::no_split<Result>,
         combine_operation<Result>
     >;

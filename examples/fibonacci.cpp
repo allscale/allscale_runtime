@@ -43,8 +43,8 @@ using add_work =
     allscale::work_item_description<
         std::int64_t,
         add_name,
-        allscale::no_split<std::int64_t>,
         allscale::do_serialization,
+        allscale::no_split<std::int64_t>,
         add_variant
     >;
 
@@ -89,8 +89,8 @@ using fibonacci_work =
     allscale::work_item_description<
         std::int64_t,
         fib_name,
-        split_variant,
         allscale::no_serialization,
+        split_variant,
         process_variant
     >;
 
