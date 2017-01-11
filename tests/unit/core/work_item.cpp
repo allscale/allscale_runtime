@@ -94,8 +94,8 @@ using simple_work_item_descr =
     allscale::work_item_description<
         std::int64_t,
         simple_name,
-        allscale::no_split<std::int64_t>,
         allscale::no_serialization,
+        allscale::no_split<std::int64_t>,
         simple_variant
     >;
 

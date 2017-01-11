@@ -17,6 +17,12 @@ namespace allscale { namespace components {
         {
         }
 
+
+        data_item(data_item const& other)
+        {
+        }
+
+
     };
 }}
 

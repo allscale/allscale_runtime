@@ -31,11 +31,45 @@ namespace allscale
             data_item()
             {
             }
+            
+            data_item( data_item const& other)
+            : base_type(hpx::new_<components::data_item<DataItemDescription> >(other.parent_loc)),
+                parent_loc(other.parent_loc),
+                region_(other.region_),
+                fragment_(other.fragment_)
+            {
+                std::cout<<" copy ctor " << std::endl;
+                HPX_ASSERT(this->valid());
+            }
+
+            data_item( data_item && other)
+
+            : base_type(hpx::new_<components::data_item<DataItemDescription> >(std::move(other.parent_loc))),
+                parent_loc(std::move(other.parent_loc)),
+                region_(std::move(other.region_)),
+                fragment_(std::move(other.fragment_)) 
+            {
+                std::cout<<" move ctor " << std::endl;
+                HPX_ASSERT(this->valid());
+            }
+
+
+            data_item& operator=(const data_item& other)
+            
+            {
+                region_ = other.region_;
+                parent_loc = other.parent_loc;
+                fragment_ = other.fragment_;
+                HPX_ASSERT(this->valid());
+                return *this;
+            }
+
+
+
 
             data_item(hpx::id_type loc)
               : base_type(hpx::new_<components::data_item<DataItemDescription> >(loc))
             {
-                //std::cout<<"Creating data item on locality: " << loc << std::endl;
                 parent_loc = loc;
                 HPX_ASSERT(this->valid());
             }
@@ -45,11 +79,23 @@ namespace allscale
             data_item(hpx::id_type loc, DataItemDescription descr)
               : base_type(hpx::new_<components::data_item<DataItemDescription> >(loc))
             {
-                //std::cout<<"Creatidg data item with data item description and region: " << descr.r_.region_ << "on loc: " << loc <<  std::endl;
                 region_ = descr.r_;
                 parent_loc = loc;
                 HPX_ASSERT(this->valid());
             }
+
+
+            data_item(hpx::id_type loc, DataItemDescription descr, fragment_type frag)
+              : base_type(hpx::new_<components::data_item<DataItemDescription> >(loc))
+            {
+                //std::cout<<"Creatidg data item with data item description and region: " << descr.r_.region_ << "on loc: " << loc <<  std::endl;
+                region_ = descr.r_;
+                parent_loc = loc;
+                fragment_ = frag;
+                HPX_ASSERT(this->valid());
+            }
+
+
 
 
 
@@ -79,7 +125,7 @@ namespace allscale
             }
             */
             
-
+            fragment_type fragment_;
             region_type region_;
             hpx::id_type parent_loc;
     };
