@@ -104,7 +104,7 @@ namespace allscale { namespace components {
 	double last_thread_time;
 
         std::string sched_objective;        
-	static const std::map<std::string, Objectives> objectiveMap;
+	static std::map<std::string, Objectives> objectiveMap;
     };
 }}
 
