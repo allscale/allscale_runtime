@@ -212,7 +212,7 @@ std::int64_t fib_runner(std::int64_t n)
 int hpx_main(int argc, char **argv)
 {
 
-//    allscale::components::monitor_component_init();
+    allscale::components::monitor_component_init();
 
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
@@ -228,6 +228,7 @@ int hpx_main(int argc, char **argv)
            std::int64_t res = fib_runner(n);
            fib_elapsed = t.elapsed_microseconds();
            std::cout << "fib(" << n << ") = " << res << " taking " << fib_elapsed << " microseconds. Iter: " << i << "\n";
+           usleep(2000000);
         }
         allscale::scheduler::stop();
     }
