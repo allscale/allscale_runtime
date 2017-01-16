@@ -81,7 +81,6 @@ namespace allscale { namespace components {
         static const char * queue_counter_name = "/threadqueue{locality#%d/worker-thread#%d}/length";
         static const char * idle_counter_name = "/threads{locality#%d/worker-thread#%d}/idle-rate";
         //static const char * threads_time_total = "/threads{locality#*/total}/time/overall";
-	static const char * allscale_app_counter_name = "/allscale{locality#*/total}/examples/fib_time";
 
         std::size_t num_threads = hpx::get_num_worker_threads();
         idle_rates_counters_.reserve(num_threads);
@@ -106,9 +105,6 @@ namespace allscale { namespace components {
             hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_counter_id);
             idle_rates_counters_.push_back(idle_counter_id);
         }
-
-        allscale_app_counter_id = hpx::performance_counters::get_counter(allscale_app_counter_name);
-	hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, allscale_app_counter_id);
 
         collect_counters();
 
