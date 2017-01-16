@@ -14,6 +14,7 @@
 #include <sstream>
 #include <mutex>
 #include <memory>
+#include <cstdlib>
 
 // Performance profiles per work item
 std::unordered_map<std::string, std::shared_ptr<allscale::profile>> profiles;
@@ -265,7 +266,10 @@ namespace allscale { namespace components {
       wall_clock = total_time_elapsed.count();
 
       monitor_component_output();
-      create_work_item_graph();
+      
+      if(std::getenv("ALLSCALE_DUMP_WORK_ITEM_GRAPH")) {
+          create_work_item_graph();
+      }
 
    }
 
