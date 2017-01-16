@@ -17,6 +17,18 @@
 using executor_type = hpx::threads::executors::local_priority_queue_attached_executor;
 
 namespace allscale { namespace components {
+
+    enum Objectives {
+           TIME = 1,
+           RESOURCE,
+           ENERGY,
+           TIME_RESOURCE,
+           TIME_ENERGY,
+           RESOURCE_ENERGY,
+           TIME_RESOURCE_ENERGY
+    };
+
+
     struct scheduler
       : hpx::components::component_base<scheduler>
     {
@@ -90,6 +102,9 @@ namespace allscale { namespace components {
         mutable mutex_type resize_mtx_;
 
 	double last_thread_time;
+
+        std::string sched_objective;        
+	static const std::map<std::string, Objectives> objectiveMap;
     };
 }}
 
