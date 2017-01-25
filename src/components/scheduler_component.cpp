@@ -6,7 +6,7 @@
 
 
 namespace allscale { namespace components {
-   
+
      std::map<std::string, Objectives> scheduler::objectiveMap = {
                 {"time", Objectives::TIME},
                 {"resource", Objectives::RESOURCE},
@@ -39,7 +39,7 @@ namespace allscale { namespace components {
                &scheduler::periodic_throttle,
                this
            ),
-           10000, //0.1 sec 
+           10000, //0.1 sec
            "scheduler::periodic_throttle",
            true
         )
@@ -67,10 +67,10 @@ namespace allscale { namespace components {
             right_ = right_future.get();
 
         sched_objective = hpx::get_config_entry("allscale.objective", scheduler::objectiveMap.begin()->first);
-        
+
         if ( scheduler::objectiveMap.find(sched_objective) == scheduler::objectiveMap.end() ) {
             std::string all_keys = "";
-            for (std::map<std::string, Objectives>::iterator it = scheduler::objectiveMap.begin(); it != std::prev(scheduler::objectiveMap.end()); it++) 
+            for (std::map<std::string, Objectives>::iterator it = scheduler::objectiveMap.begin(); it != std::prev(scheduler::objectiveMap.end()); it++)
 		all_keys += it->first + ", ";
 	    all_keys += prev(scheduler::objectiveMap.end())->first;
             HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init", boost::str(boost::format("Wrong objective: %s, Valid values: [%s]") % sched_objective % all_keys));
@@ -149,6 +149,8 @@ namespace allscale { namespace components {
                 }
             case 0:
                 {
+                    if (work.is_first())
+                        monitor::signal(monitor::work_item_first, work);
                     monitor::signal(monitor::work_item_enqueued, work);
 
                     std::size_t current_numa_domain = ++current_ % executors.size();
@@ -227,7 +229,7 @@ namespace allscale { namespace components {
 
         total_idle_rate_ = total_idle_rate_ / num_threads;
         total_length_ = total_length_ / num_threads;
-        
+
         return true;
     }
 
@@ -250,25 +252,25 @@ namespace allscale { namespace components {
 
 			std::int64_t neighbour = std::rand() %  num_threads ;  //(worker_tid < num_threads - 1) ? worker_tid + 1 : worker_tid - 1;
 
-			if ( allscale_app_time > 0 ) 
+			if ( allscale_app_time > 0 )
 			  if ( last_thread_time ==0 || allscale_app_time < last_thread_time ) {
 			     if ( neighbour != worker_tid ) {
-			           std::cout << "Suspend attempt: tid = " << neighbour << ", allscale_app_time = " 
+			           std::cout << "Suspend attempt: tid = " << neighbour << ", allscale_app_time = "
 			 		<< allscale_app_time << ", last_tt = " << last_thread_time << ", wtid = " << worker_tid << std::endl;
 			 	  hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                                   suspend(neighbour);
 			     }
 			  } else if ( blocked_os_threads_.any() && allscale_app_time > 10 * last_thread_time ) {
-	                       std::cout << "Resume attempt: tid = " << neighbour << ", allscale_app_time = " 
+	                       std::cout << "Resume attempt: tid = " << neighbour << ", allscale_app_time = "
 			 		<< allscale_app_time << ", last_tt = " << last_thread_time << ", wtid = " << worker_tid << std::endl;
          	              hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                     	      resume_one();
-	                  } 
+	                  }
 
 		}
 
 		{
-	      	    std::unique_lock<mutex_type> l(resize_mtx_); 
+	      	    std::unique_lock<mutex_type> l(resize_mtx_);
 		    last_thread_time = allscale_app_time;
 		}
         }
@@ -285,8 +287,8 @@ namespace allscale { namespace components {
         if(stopped_)
             return;
 
-        //Resume all sleeping threads     
-	resume_all(); 
+        //Resume all sleeping threads
+	resume_all();
 
         stopped_ = true;
 //         work_queue_cv_.notify_all();
@@ -316,11 +318,11 @@ namespace allscale { namespace components {
         right_ = hpx::id_type();
     }
 
- 
+
 // Methods for thread throttling
     void scheduler::suspend(std::size_t shepherd)
     {
-       
+
         if (blocked_os_threads_.size() - blocked_os_threads_.count() < 2 ) {
             std::cout << "Not enough running threads to suspend. size: " << blocked_os_threads_.size() << ", count: " << blocked_os_threads_.count() << std::endl;
 	    return;
@@ -361,17 +363,17 @@ namespace allscale { namespace components {
         blocked_os_threads_[shepherd] = false;   // re-activate shepherd
     }
 
-    
+
     void scheduler::resume_one()
     {
        std::lock_guard<mutex_type> l(throttle_mtx_);
        if (blocked_os_threads_.any())
-          for (int i=0; i<blocked_os_threads_.size(); i++) 
+          for (int i=0; i<blocked_os_threads_.size(); i++)
 	      if (blocked_os_threads_[i]) {
                  blocked_os_threads_[i] = false;
-                 return;  
+                 return;
               }
-    } 
+    }
 
     void scheduler::resume_all()
     {
@@ -419,7 +421,7 @@ namespace allscale { namespace components {
             shepherd);
     }
 
-  
+
        // schedule a high priority task on the given shepherd thread to suspend
     void scheduler::register_suspend_thread(std::size_t shepherd)
     {

@@ -18,6 +18,7 @@ namespace allscale {
             work_item_execution_started = 2,
             work_item_execution_finished = 3,
             work_item_result_propagated = 4,
+            work_item_first = 4,
             last_ = 5
         };
 

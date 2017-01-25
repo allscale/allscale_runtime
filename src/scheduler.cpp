@@ -1,5 +1,6 @@
 
 #include <allscale/scheduler.hpp>
+#include <allscale/monitor.hpp>
 #include <allscale/components/scheduler.hpp>
 
 #include <hpx/include/components.hpp>

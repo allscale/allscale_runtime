@@ -480,12 +480,11 @@ namespace allscale
             work_item_impl()
             {}
 
-
             void set_this_id()
             {
                 id_.set(this_work_item::get_id());
             }
-            
+
             template <typename ...Ts>
             work_item_impl(treeture<result_type> tres, Ts&&... vs)
               : tres_(std::move(tres))
@@ -718,26 +717,12 @@ namespace allscale
             this_work_item::id id_;
         };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         work_item()
+          : is_first_(false)
         {}
 
         template <typename WorkItemDescription, typename Treeture, typename ...Ts>
-        work_item(WorkItemDescription, Treeture tre, Ts&&... vs)
+        work_item(bool is_first, WorkItemDescription, Treeture tre, Ts&&... vs)
           : impl_(
                 new work_item_impl<
                     WorkItemDescription,
@@ -750,8 +735,14 @@ namespace allscale
                     std::move(tre), detail::futurize_if(std::forward<Ts>(vs))...
                 )
             )
+          , is_first_(is_first)
         {
             impl_->set_this_id();
+        }
+
+        bool is_first()
+        {
+            return is_first_;
         }
 
         explicit work_item(std::shared_ptr<work_item_impl_base> impl)
@@ -822,6 +813,7 @@ namespace allscale
             ar & impl_;
             HPX_ASSERT(impl_->valid());
 #endif
+            ar & is_first_;
         }
 
         template <typename Archive>
@@ -840,11 +832,13 @@ namespace allscale
             }
             HPX_ASSERT(impl_->valid());
 #endif
+            ar & is_first_;
         }
 
         HPX_SERIALIZATION_SPLIT_MEMBER()
 
         std::shared_ptr<work_item_impl_base> impl_;
+        bool is_first_;
     };
 }
 
