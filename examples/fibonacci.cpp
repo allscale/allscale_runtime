@@ -202,7 +202,7 @@ bool get_startup(hpx::startup_function_type& startup_func, bool& pre_startup)
 
 std::int64_t fib_runner(std::int64_t n)
 {
-   allscale::treeture<std::int64_t> fib = allscale::spawn<true, fibonacci_work>(n);
+   allscale::treeture<std::int64_t> fib = allscale::spawn_first<fibonacci_work>(n);
    std::int64_t res = fib.get_result();
 
    return res;
@@ -211,7 +211,6 @@ std::int64_t fib_runner(std::int64_t n)
 
 int hpx_main(int argc, char **argv)
 {
-
 //    allscale::components::monitor_component_init();
 
     // start allscale scheduler ...

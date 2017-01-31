@@ -182,7 +182,6 @@ namespace allscale { namespace components {
         // Do we have enough tasks in the system?
         if (total_length_ < num_threads * 10)
         {
-//             std::cout << total_length_ << " " << total_idle_rate_ << "\n";
             return total_idle_rate_ >= 10.0;
         }
 

@@ -22,14 +22,14 @@ namespace allscale
         return tres;
     }
 
-    template <bool IsFirst, typename WorkItemDescription, typename ...Ts>
+    template <typename WorkItemDescription, typename ...Ts>
     treeture<typename WorkItemDescription::result_type>
-    spawn(Ts&&...vs)
+    spawn_first(Ts&&...vs)
     {
         allscale::treeture<typename WorkItemDescription::result_type> tres(hpx::find_here());
 
         scheduler::schedule(
-            work_item(IsFirst, WorkItemDescription(), tres, std::forward<Ts>(vs)...)
+            work_item(true, WorkItemDescription(), tres, std::forward<Ts>(vs)...)
         );
 
         HPX_ASSERT(tres.valid());

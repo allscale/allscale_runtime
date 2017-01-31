@@ -751,21 +751,25 @@ namespace allscale
 
         work_item(work_item const& other)
           : impl_(other.impl_)
+          , is_first_(other.is_first_)
         {}
 
         work_item(work_item && other)
           : impl_(std::move(other.impl_))
+          , is_first_(other.is_first_)
         {}
 
         work_item &operator=(work_item const& other)
         {
             impl_ = other.impl_;
+            is_first_ = other.is_first_;
             return *this;
         }
 
         work_item &operator=(work_item && other)
         {
             impl_ = std::move(other.impl_);
+            is_first_ = other.is_first_;
             return *this;
         }
 
