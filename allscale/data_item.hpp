@@ -15,6 +15,9 @@
 
 namespace allscale
 {
+    
+
+
     template <typename DataItemDescription>
     struct data_item
     : hpx::components::client_base<data_item<DataItemDescription>, components::data_item<DataItemDescription> > , data_item_base
@@ -26,7 +29,7 @@ namespace allscale
 
 
             using base_type = hpx::components::client_base<data_item<DataItemDescription>, components::data_item<DataItemDescription> >;
-
+            using future_type = hpx::future<DataItemDescription>;
 
             data_item()
             {

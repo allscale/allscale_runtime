@@ -98,7 +98,7 @@ struct simple_variant_simple_class
     {
 //        A k  = hpx::util::get<0>(closure);
         test_data_item td_one = hpx::util::get<1>(closure);
-        std::cout<<"value of fragment is " << td_one.parent_loc << std::endl;
+        std::cout<<"value of fragment is " << *(td_one.fragment_.ptr_) << std::endl;
         return allscale::treeture<std::int64_t>{ hpx::util::get<0>(closure) };
             
     }

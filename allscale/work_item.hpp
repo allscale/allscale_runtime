@@ -7,25 +7,58 @@
 #include <allscale/this_work_item.hpp>
 #include <allscale/traits/is_treeture.hpp>
 #include <allscale/traits/treeture_traits.hpp>
-
+#include <allscale/traits/is_data_item.hpp>
+#include <allscale/traits/data_item_traits.hpp>
 #include <hpx/dataflow.hpp>
 #include <hpx/include/serialization.hpp>
 
 #include <utility>
-
+#include <iostream>
 namespace allscale
 {
     namespace detail
     {
         template <typename F>
         typename std::enable_if<
-            hpx::traits::is_future<F>::value,
+            hpx::traits::is_future<F>::value && !allscale::traits::is_data_item<F>::value,
             typename hpx::traits::future_traits<F>::result_type
         >::type
         unwrap_if(F && f)
         {
             return f.get();
         }
+
+
+
+
+        template <typename F>
+        typename std::enable_if<
+            hpx::traits::is_future<F>::value && allscale::traits::is_data_item<F>::value,
+            typename std::remove_reference<F>::type &&
+        >::type
+        unwrap_if(F && f)
+        {
+            return std::move(f);
+        }
+
+
+
+
+
+
+
+        /*
+        template <typename D>
+        typename std::enable_if<
+            hpx::traits::is_future<D>::value && allscale::traits::is_data_item<D>::value,
+            typename hpx::traits::future_traits<D>::result_type
+        >::type
+        unwrap_if(D && d)
+        {
+            std::cout<<"checking if  i should unrwap data_item" << std::endl;
+            return d;
+        }
+    */
 
         template <typename F>
         typename std::enable_if<
@@ -34,6 +67,7 @@ namespace allscale
         >::type
         unwrap_if(F && f)
         {
+            std::cout<<"not a future thus not unwrapping"<<std::endl;
             return std::move(f);
         }
 
