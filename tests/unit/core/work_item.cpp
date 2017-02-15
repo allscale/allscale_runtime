@@ -84,11 +84,7 @@ bool test_work_item(){
     HPX_ASSERT(trs.valid());
     auto res = trs.get_result();
     
-
-
-    
     return (known_result==res);
-
 }
 
 
