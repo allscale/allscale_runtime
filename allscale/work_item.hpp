@@ -67,7 +67,6 @@ namespace allscale
         >::type
         unwrap_if(F && f)
         {
-            std::cout<<"not a future thus not unwrapping"<<std::endl;
             return std::move(f);
         }
 

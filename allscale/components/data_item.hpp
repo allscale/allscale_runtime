@@ -12,19 +12,16 @@ namespace allscale { namespace components {
 
         data_item()
         {
-            std::cout<<"djakjdwwad" << std::endl;
         }
 
 
         data_item(hpx::id_type loc)
         {
-            std::cout<<"constructor with locality"  << std::endl;
         }
 
 
         data_item(T t)
         {
-            std::cout<<"ctor with T" << std::endl;
         }
 
 
