@@ -4,4 +4,7 @@ add_hpx_executable(
   SOURCES fibonacci.cpp
   COMPONENT_DEPENDENCIES allscale
 )
+
+add_subdirectory(pfor)
 add_subdirectory(uts)
+
