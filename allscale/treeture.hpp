@@ -100,6 +100,11 @@ namespace allscale
             HPX_ASSERT(this->valid());
         }
 
+        treeture& operator=(treeture&& other) {
+            base_type::operator=(std::move(other));
+            return *this;
+        }
+
         void set_value(T && t)
         {
             HPX_ASSERT(this->valid());
@@ -121,6 +126,16 @@ namespace allscale
         {
             HPX_ASSERT(this->valid());
             return get_future().get();
+        }
+
+        treeture getLeftChild() const {
+            // TODO: actually provide a reference to left child
+            return *this;
+        }
+
+        treeture getRightChild() const {
+            // TODO: actually provide a reference to right child
+            return *this;
         }
 
 //         template <typename Archive>

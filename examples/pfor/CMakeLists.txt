@@ -12,3 +12,10 @@ add_hpx_executable(
     chain.cpp
   COMPONENT_DEPENDENCIES allscale
 )
+
+add_hpx_executable(
+  fine_grained
+  SOURCES
+    fine_grained.cpp
+  COMPONENT_DEPENDENCIES allscale
+)

@@ -23,14 +23,32 @@ static int data[MAX_SIZE];
 
 
 struct simple_body {
-    void operator()(std::int64_t i) const {
-        if (i<MAX_SIZE) data[i] = 1;
+    void operator()(std::int64_t i, const hpx::util::tuple<std::int64_t>& extra) const {
+
+        // limit size
+        if (i >= MAX_SIZE) return;
+
+        // get current time step
+        auto t = hpx::util::get<0>(extra);        
+
+        // check old data state
+        if (data[i] != t) {
+            std::cout << "Error in update: data[" << i << "] != " << t << "\n";
+            exit(32);
+        }
+
+        // update state
+        data[i]++;
     }
 };
 
 
 int hpx_main(int argc, char **argv)
 {
+    // initialize the data array
+    for(int i=0; i<MAX_SIZE; i++) {
+        data[i] = 0;
+    }
 
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
@@ -43,7 +61,7 @@ int hpx_main(int argc, char **argv)
         for(int i=0; i<iters; i++) {
             std::cout << "Starting pfor(0.." << n << "), " << "Iter: " << i << "\n";
             hpx::util::high_resolution_timer t;
-            pfor<simple_body>(0,n);
+            pfor<simple_body>(0,n,i);
             auto elapsed = t.elapsed_microseconds();
             std::cout << "pfor(0.." << n << ") taking " << elapsed << " microseconds. Iter: " << i << "\n";
         }

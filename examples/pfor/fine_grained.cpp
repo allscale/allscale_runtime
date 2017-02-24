@@ -56,11 +56,6 @@ struct simple_stencil_body {
 int hpx_main(int argc, char **argv)
 {
 
-    // initialize the data array
-    for(int i=0; i<MAX_SIZE; i++) {
-        dataA[i] = 0;
-    }
-
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
 
@@ -73,9 +68,14 @@ int hpx_main(int argc, char **argv)
         for(int i=0; i<iters; i++) {
             std::cout << "Starting " << steps << "x pfor(0.." << n << "), " << "Iter: " << i << "\n";
             hpx::util::high_resolution_timer t;
-            for(int t=0; t<steps; t++) {
-                pfor<simple_stencil_body>(0,n,t,n);
+
+            {
+                pfor_loop_handle last;
+                for(int t=0; t<steps; t++) {
+                    last = pfor_neighbor_sync<simple_stencil_body>(last,0,n,t,n);
+                }
             }
+
             auto elapsed = t.elapsed_microseconds();
             std::cout << "pfor(0.." << n << ") taking " << elapsed << " microseconds. Iter: " << i << "\n";
         }
