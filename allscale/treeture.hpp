@@ -12,6 +12,23 @@
 
 namespace allscale
 {
+
+    // a naive version of a task reference, TODO: improve
+    struct task_reference {
+
+        // a function to wait for the completion of the referenced task
+        const std::function<void()> wait;
+
+        // a function to obtain a reference to the left child (which might only exist in the future)
+        const std::function<task_reference()> get_left_child;
+
+        // a function to obtain a reference to the right child (which might only exist in the future)
+        const std::function<task_reference()> get_right_child;
+
+    };
+
+
+
     template <typename T>
     struct treeture
       : hpx::components::client_base<treeture<T>, components::treeture<T>>
@@ -128,14 +145,36 @@ namespace allscale
             return get_future().get();
         }
 
-        treeture getLeftChild() const {
-            // TODO: actually provide a reference to left child
-            return *this;
+        void wait()
+        {
+            // TODO: this fails in the fine_grained cases since the future has been retrieved before
+            // How else can I wait for the completion of the task?            
+
+            get_future().wait();     // TODO: provide replacement
         }
 
-        treeture getRightChild() const {
-            // TODO: actually provide a reference to right child
-            return *this;
+        task_reference to_task_reference() const {
+            treeture copy = *this;
+            return task_reference{
+                // wait for the task completion
+                [copy]() mutable { copy.wait(); },
+                // get the left child - TODO: provide actual support for this
+                [copy](){ return copy.to_task_reference(); },
+                // get the right child - TODO: provide actual support for this
+                [copy](){ return copy.to_task_reference(); }
+            };
+        }
+
+        operator task_reference() const {
+            return to_task_reference();
+        }
+
+        task_reference get_left_child() const {
+            return to_task_reference().get_left_child();
+        }
+
+        task_reference get_right_child() const {
+            return to_task_reference().get_right_child();
         }
 
 //         template <typename Archive>

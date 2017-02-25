@@ -32,7 +32,7 @@ public:
     pfor_loop_handle(pfor_loop_handle&&) = default;
 
     ~pfor_loop_handle() {
-        if (treeture.valid()) treeture.get_result();
+        if (treeture.valid()) treeture.wait();
     }
     
     pfor_loop_handle& operator=(const pfor_loop_handle&) = delete;
@@ -42,6 +42,10 @@ public:
 
     const allscale::treeture<pfor_res_type>& getTreeture() const {
         return treeture;
+    }
+
+    allscale::task_reference to_task_reference() const {
+        return treeture.to_task_reference();
     }
 
 };
@@ -159,9 +163,9 @@ pfor_loop_handle pfor(int a, int b, const ExtraParams& ... params) {
 
 
 using loop_dependencies = hpx::util::tuple<
-    allscale::treeture<pfor_res_type>,          // < left
-    allscale::treeture<pfor_res_type>,          // < center
-    allscale::treeture<pfor_res_type>           // < right
+    allscale::task_reference,          // < left
+    allscale::task_reference,          // < center
+    allscale::task_reference           // < right
 >;
 
 
@@ -216,19 +220,23 @@ struct pfor_neighbor_sync_split_variant
 
         // refine dependencies
         auto dl = hpx::util::get<0>(deps);
-        auto dc = hpx::util::get<0>(deps);
-        auto dr = hpx::util::get<0>(deps);
+        auto dc = hpx::util::get<1>(deps);
+        auto dr = hpx::util::get<2>(deps);
 
         // refine dependencies
-        auto dlr = dl.getRightChild();
-        auto dcl = dc.getLeftChild();
-        auto dcr = dc.getRightChild();
-        auto drl = dr.getLeftChild();
+        auto dlr = dl.get_right_child();
+        auto dcl = dc.get_left_child();
+        auto dcr = dc.get_right_child();
+        auto drl = dr.get_left_child();
+
+        // create the dependencies
+        auto depsL = allscale::after(dlr,dcl,dcr    );
+        auto depsR = allscale::after(    dcl,dcr,drl);
 
         // spawn two new sub-tasks
         return allscale::runtime::treeture_combine(
-            allscale::spawn<pfor_work<Body,ExtraParams...>>( begin, mid, extra, hpx::util::make_tuple(dlr,dcl,dcr)),
-            allscale::spawn<pfor_work<Body,ExtraParams...>>( mid,   end, extra, hpx::util::make_tuple(dcl,dcr,drl)),
+            allscale::spawn_after<pfor_work<Body,ExtraParams...>>( depsL, begin, mid, extra, hpx::util::make_tuple(dlr,dcl,dcr)),
+            allscale::spawn_after<pfor_work<Body,ExtraParams...>>( depsR, mid,   end, extra, hpx::util::make_tuple(dcl,dcr,drl)),
             std::plus<result_type>()
         );
     }
@@ -254,14 +262,6 @@ struct pfor_neighbor_sync_process_variant
         auto end   = hpx::util::get<1>(closure);
         auto extra = hpx::util::get<2>(closure);
 
-        // extract the dependencies
-        auto deps  = hpx::util::get<3>(closure);
-
-        // make sure all of them are done
-        hpx::util::get<0>(deps).get_result();
-        hpx::util::get<1>(deps).get_result();
-        hpx::util::get<2>(deps).get_result();
-
         // get a body instance
         Body body;
 
@@ -279,10 +279,12 @@ struct pfor_neighbor_sync_process_variant
 template<typename Body, typename ... ExtraParams>
 pfor_loop_handle pfor_neighbor_sync(const pfor_loop_handle& loop, int a, int b, const ExtraParams& ... params) {
     allscale::treeture<pfor_res_type> done(1);
-    return allscale::spawn_first<pfor_work<Body,ExtraParams...>>(
+    auto deps = allscale::after(done.to_task_reference(),loop.to_task_reference(),done.to_task_reference());
+    return allscale::spawn_first_after<pfor_neighbor_sync_work<Body,ExtraParams...>>(
+        deps,
         a,b,                                                    // the range
         hpx::util::make_tuple(params...),                       // the body parameters
-        hpx::util::make_tuple(done,loop.getTreeture(),done)     // initial dependencies
+        hpx::util::make_tuple(done.to_task_reference(),loop.to_task_reference(),done.to_task_reference())     // initial dependencies
     );
 }
 
