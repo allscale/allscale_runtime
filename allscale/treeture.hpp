@@ -159,9 +159,9 @@ namespace allscale
                 // wait for the task completion
                 [copy]() mutable { copy.wait(); },
                 // get the left child - TODO: provide actual support for this
-                [copy](){ return copy.to_task_reference(); },
+                [copy](){ return copy.get_left_child(); },
                 // get the right child - TODO: provide actual support for this
-                [copy](){ return copy.to_task_reference(); }
+                [copy](){ return copy.get_right_child(); }
             };
         }
 
