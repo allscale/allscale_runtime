@@ -14,7 +14,7 @@
 
 #include <unistd.h>
 
-#include "pfor.h"
+#include "pfor.hpp"
 
 
 static const int MAX_SIZE = 256 * 1024 * 1024;
@@ -29,7 +29,7 @@ struct simple_body {
         if (i >= MAX_SIZE) return;
 
         // get current time step
-        auto t = hpx::util::get<0>(extra);        
+        auto t = hpx::util::get<0>(extra);
 
         // check old data state
         if (data[i] != t) {

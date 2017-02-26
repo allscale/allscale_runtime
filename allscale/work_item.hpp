@@ -41,12 +41,6 @@ namespace allscale
             return std::move(f);
         }
 
-
-
-
-
-
-
         /*
         template <typename D>
         typename std::enable_if<
@@ -58,7 +52,7 @@ namespace allscale
             std::cout<<"checking if  i should unrwap data_item" << std::endl;
             return d;
         }
-    */
+        */
 
         template <typename F>
         typename std::enable_if<
@@ -88,6 +82,18 @@ namespace allscale
         futurize_if(F && f)
         {
             return std::forward<F>(f);
+        }
+
+        template <typename T>
+        inline void set_treeture(treeture<T>& t, hpx::future<T>&& f)
+        {
+            t.set_value(f.get());
+        }
+
+        inline void set_treeture(treeture<void>& t, hpx::future<void>&& f)
+        {
+            f.get(); // exception propagation
+            t.set_value();
         }
     }
 
@@ -191,7 +197,7 @@ namespace allscale
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
-                        tres.set_value(ff.get());
+                        detail::set_treeture(tres, std::move(ff));
                         monitor::signal(monitor::work_item_result_propagated, work_item(this_));
                     }
                 );
@@ -218,7 +224,7 @@ namespace allscale
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
-                        tres.set_value(ff.get());
+                        detail::set_treeture(tres, std::move(ff));
                         monitor::signal(monitor::work_item_result_propagated, work_item(this_));
                     }
                 );
@@ -369,7 +375,7 @@ namespace allscale
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
-                        tres.set_value(ff.get());
+                        detail::set_treeture(tres , std::move(ff));
                         monitor::signal(monitor::work_item_result_propagated, work_item(this_));
                     }
                 );
@@ -396,7 +402,7 @@ namespace allscale
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
-                        tres.set_value(ff.get());
+                        detail::set_treeture(tres , std::move(ff));
                         monitor::signal(monitor::work_item_result_propagated, work_item(this_));
                     }
                 );
@@ -547,7 +553,7 @@ namespace allscale
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
-                        tres.set_value(ff.get());
+                        detail::set_treeture(tres , std::move(ff));
                         monitor::signal(monitor::work_item_result_propagated, work_item(this_));
                     }
                 );
@@ -676,7 +682,7 @@ namespace allscale
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
-                        tres.set_value(ff.get());
+                        detail::set_treeture(tres , std::move(ff));
                         monitor::signal(monitor::work_item_result_propagated, work_item(this_));
                     }
                 );

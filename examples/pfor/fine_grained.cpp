@@ -14,7 +14,7 @@
 
 #include <unistd.h>
 
-#include "pfor.h"
+#include "pfor.hpp"
 
 
 static const int MAX_SIZE = 128 * 1024 * 1024;
@@ -25,7 +25,7 @@ static int dataB[MAX_SIZE];
 
 struct simple_stencil_body {
     void operator()(std::int64_t i, const hpx::util::tuple<std::int64_t,std::int64_t>& params) const {
-        
+
         // limit maximum range
         if (i >= MAX_SIZE) return;
 
@@ -36,7 +36,7 @@ struct simple_stencil_body {
         // figure out in which way to move the data
         int* A = (t%2) ? dataA : dataB;
         int* B = (t%2) ? dataB : dataA;
-        
+
         // check current state
         if ((i > 0 && A[i-1] != A[i]) || (i < n-1 && A[i] != A[i+1])) {
                 std::cout << "Error in synchronization!\n";

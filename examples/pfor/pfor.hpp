@@ -12,20 +12,16 @@
 #include <unistd.h>
 
 
-typedef std::int64_t pfor_res_type;
-ALLSCALE_REGISTER_TREETURE_TYPE(pfor_res_type);
-
-
 // a handle for loop iterations
 class pfor_loop_handle {
 
-    allscale::treeture<pfor_res_type> treeture;
+    allscale::treeture<void> treeture;
 
 public:
 
     pfor_loop_handle() : treeture(1) {}
 
-    pfor_loop_handle(allscale::treeture<pfor_res_type>&& treeture)
+    pfor_loop_handle(allscale::treeture<void>&& treeture)
         : treeture(std::move(treeture)) {}
 
     pfor_loop_handle(const pfor_loop_handle&) = delete;
@@ -34,13 +30,13 @@ public:
     ~pfor_loop_handle() {
         if (treeture.valid()) treeture.wait();
     }
-    
+
     pfor_loop_handle& operator=(const pfor_loop_handle&) = delete;
     pfor_loop_handle& operator=(pfor_loop_handle&& other) {
         treeture = std::move(other.treeture);
     }
 
-    const allscale::treeture<pfor_res_type>& getTreeture() const {
+    const allscale::treeture<void>& getTreeture() const {
         return treeture;
     }
 
@@ -76,7 +72,7 @@ struct pfor_name
 template<typename Body, typename ... ExtraParams>
 using pfor_work =
     allscale::work_item_description<
-        pfor_res_type,
+        void,
         pfor_name,
         allscale::no_serialization,
         pfor_split_variant<Body,ExtraParams...>,
@@ -87,19 +83,19 @@ template<typename Body, typename ... ExtraParams>
 struct pfor_split_variant
 {
     static constexpr bool valid = true;
-    using result_type = pfor_res_type;
+    using result_type = void;
 
 
     // It spawns two new tasks, processing each half the iterations
     template <typename Closure>
-    static allscale::treeture<result_type> execute(Closure const& closure)
+    static allscale::treeture<void> execute(Closure const& closure)
     {
-        auto begin = hpx::util::get<0>(closure);        
+        auto begin = hpx::util::get<0>(closure);
         auto end   = hpx::util::get<1>(closure);
         auto extra = hpx::util::get<2>(closure);
 
         // check whether there are iterations left
-        if (begin >= end) return allscale::treeture<result_type>(1);
+        if (begin >= end) return allscale::make_ready_treeture();
 
         // compute the middle
         auto mid = begin + (end - begin) / 2;
@@ -107,8 +103,7 @@ struct pfor_split_variant
         // spawn two new sub-tasks
         return allscale::runtime::treeture_combine(
             allscale::spawn<pfor_work<Body,ExtraParams...>>(begin,mid,extra),
-            allscale::spawn<pfor_work<Body,ExtraParams...>>(mid,end,extra),
-            std::plus<result_type>()
+            allscale::spawn<pfor_work<Body,ExtraParams...>>(mid,end,extra)
         );
     }
 };
@@ -117,7 +112,7 @@ template<typename Body, typename ... ExtraParams>
 struct pfor_process_variant
 {
     static constexpr bool valid = true;
-    using result_type = pfor_res_type;
+    using result_type = void;
 
     static const char* name()
     {
@@ -126,9 +121,9 @@ struct pfor_process_variant
 
     // Execute for serial
     template <typename Closure>
-    static allscale::treeture<result_type> execute(Closure const& closure)
+    static allscale::treeture<void> execute(Closure const& closure)
     {
-        auto begin = hpx::util::get<0>(closure);        
+        auto begin = hpx::util::get<0>(closure);
         auto end   = hpx::util::get<1>(closure);
         auto extra = hpx::util::get<2>(closure);
 
@@ -141,7 +136,7 @@ struct pfor_process_variant
         }
 
         // done
-        return allscale::treeture<result_type>(1);
+        return allscale::make_ready_treeture();
     }
 };
 
@@ -186,7 +181,7 @@ struct pfor_neighbor_sync_name
 template<typename Body, typename ... ExtraParams>
 using pfor_neighbor_sync_work =
     allscale::work_item_description<
-        pfor_res_type,
+        void,
         pfor_name,
         allscale::no_serialization,
         pfor_neighbor_sync_split_variant<Body,ExtraParams...>,
@@ -197,15 +192,15 @@ template<typename Body, typename ... ExtraParams>
 struct pfor_neighbor_sync_split_variant
 {
     static constexpr bool valid = true;
-    using result_type = pfor_res_type;
+    using result_type = void;
 
 
     // It spawns two new tasks, processing each half the iterations
     template <typename Closure>
-    static allscale::treeture<result_type> execute(Closure const& closure)
+    static allscale::treeture<void> execute(Closure const& closure)
     {
         // extract parameters
-        auto begin = hpx::util::get<0>(closure);        
+        auto begin = hpx::util::get<0>(closure);
         auto end   = hpx::util::get<1>(closure);
         auto extra = hpx::util::get<2>(closure);
 
@@ -213,7 +208,7 @@ struct pfor_neighbor_sync_split_variant
         auto deps  = hpx::util::get<3>(closure);
 
         // check whether there are iterations left
-        if (begin >= end) return allscale::treeture<result_type>(1);
+        if (begin >= end) return allscale::make_ready_treeture();
 
         // compute the middle
         auto mid = begin + (end - begin) / 2;
@@ -236,8 +231,7 @@ struct pfor_neighbor_sync_split_variant
         // spawn two new sub-tasks
         return allscale::runtime::treeture_combine(
             allscale::spawn_after<pfor_work<Body,ExtraParams...>>( depsL, begin, mid, extra, hpx::util::make_tuple(dlr,dcl,dcr)),
-            allscale::spawn_after<pfor_work<Body,ExtraParams...>>( depsR, mid,   end, extra, hpx::util::make_tuple(dcl,dcr,drl)),
-            std::plus<result_type>()
+            allscale::spawn_after<pfor_work<Body,ExtraParams...>>( depsR, mid,   end, extra, hpx::util::make_tuple(dcl,dcr,drl))
         );
     }
 };
@@ -246,7 +240,7 @@ template<typename Body, typename ... ExtraParams>
 struct pfor_neighbor_sync_process_variant
 {
     static constexpr bool valid = true;
-    using result_type = pfor_res_type;
+    using result_type = void;
 
     static const char* name()
     {
@@ -258,7 +252,7 @@ struct pfor_neighbor_sync_process_variant
     static allscale::treeture<result_type> execute(Closure const& closure)
     {
         // extract parameters
-        auto begin = hpx::util::get<0>(closure);        
+        auto begin = hpx::util::get<0>(closure);
         auto end   = hpx::util::get<1>(closure);
         auto extra = hpx::util::get<2>(closure);
 
@@ -271,14 +265,14 @@ struct pfor_neighbor_sync_process_variant
         }
 
         // done
-        return allscale::treeture<result_type>(1);
+        return allscale::make_ready_treeture();
     }
 };
 
 
 template<typename Body, typename ... ExtraParams>
 pfor_loop_handle pfor_neighbor_sync(const pfor_loop_handle& loop, int a, int b, const ExtraParams& ... params) {
-    allscale::treeture<pfor_res_type> done(1);
+    allscale::treeture<void> done = allscale::make_ready_treeture();
     auto deps = allscale::after(done.to_task_reference(),loop.to_task_reference(),done.to_task_reference());
     return allscale::spawn_first_after<pfor_neighbor_sync_work<Body,ExtraParams...>>(
         deps,
