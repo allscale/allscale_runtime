@@ -21,6 +21,7 @@ namespace allscale { namespace components {
 
     scheduler::scheduler(std::uint64_t rank)
       : num_localities_(hpx::get_num_localities().get())
+      , num_threads_(hpx::get_num_worker_threads())
       , rank_(rank)
       , schedule_rank_(0)
       , stopped_(false)
@@ -82,13 +83,12 @@ namespace allscale { namespace components {
         static const char * idle_counter_name = "/threads{locality#%d/worker-thread#%d}/idle-rate";
         //static const char * threads_time_total = "/threads{locality#*/total}/time/overall";
 
-        std::size_t num_threads = hpx::get_num_worker_threads();
-        idle_rates_counters_.reserve(num_threads);
-        idle_rates_.reserve(num_threads);
-        queue_length_counters_.reserve(num_threads);
-        queue_length_.reserve(num_threads);
+        idle_rates_counters_.reserve(num_threads_);
+        idle_rates_.reserve(num_threads_);
+        queue_length_counters_.reserve(num_threads_);
+        queue_length_.reserve(num_threads_);
 
-        for (std::size_t num_thread = 0; num_thread != num_threads; ++num_thread)
+        for (std::size_t num_thread = 0; num_thread != num_threads_; ++num_thread)
         {
             const std::uint32_t prefix = hpx::get_locality_id();
             const std::size_t worker_tid = hpx::get_worker_thread_num();
@@ -177,10 +177,8 @@ namespace allscale { namespace components {
     bool scheduler::do_split(work_item const& w)
     {
         std::unique_lock<mutex_type> l(counters_mtx_);
-//        hpx::util::ignore_while_checking<std::unique_lock<mutex_type>> il(&l);
-        std::size_t num_threads = hpx::get_num_worker_threads();
         // Do we have enough tasks in the system?
-        if (total_length_ < num_threads * 10)
+        if (total_length_ < num_threads_ * 10)
         {
             return total_idle_rate_ >= 10.0;
         }
@@ -190,35 +188,29 @@ namespace allscale { namespace components {
 
     bool scheduler::collect_counters()
     {
-        std::size_t num_threads = hpx::get_num_worker_threads();
-
-//        std::unique_lock<mutex_type> l(counters_mtx_);
-        //hpx::util::ignore_while_checking<std::unique_lock<mutex_type>> il(&l);
-
-        total_idle_rate_ = 0.0;
-        total_length_ = 0;
-
-
-        hpx::performance_counters::counter_value idle_value;
- 	hpx::performance_counters::counter_value length_value;
-        for (std::size_t num_thread = 0; num_thread != num_threads; ++num_thread)
+        std::vector<hpx::performance_counters::counter_value> idle_value(num_threads_);
+        std::vector<hpx::performance_counters::counter_value> length_value(num_threads_);
+        for (std::size_t num_thread = 0; num_thread != num_threads_; ++num_thread)
         {
-            idle_value = hpx::performance_counters::stubs::performance_counter::get_value(
+            idle_value[num_thread] = hpx::performance_counters::stubs::performance_counter::get_value(
                     hpx::launch::sync, idle_rates_counters_[num_thread]);
-            length_value = hpx::performance_counters::stubs::performance_counter::get_value(
+            length_value[num_thread] = hpx::performance_counters::stubs::performance_counter::get_value(
                     hpx::launch::sync, queue_length_counters_[num_thread]);
         }
 
         std::unique_lock<mutex_type> l(counters_mtx_);
-        for (std::size_t num_thread = 0; num_thread != num_threads; ++num_thread)
+        total_idle_rate_ = 0.0;
+        total_length_ = 0;
+
+        for (std::size_t num_thread = 0; num_thread != num_threads_; ++num_thread)
         {
         //    auto idle_value = hpx::performance_counters::stubs::performance_counter::get_value(
         //            hpx::launch::sync, idle_rates_counters_[num_thread]);
         //    auto length_value = hpx::performance_counters::stubs::performance_counter::get_value(
         //            hpx::launch::sync, queue_length_counters_[num_thread]);
 
-            idle_rates_[num_thread] = idle_value.get_value<double>() * 0.01;
-            queue_length_[num_thread] = length_value.get_value<std::size_t>();
+            idle_rates_[num_thread] = idle_value[num_thread].get_value<double>() * 0.01;
+            queue_length_[num_thread] = length_value[num_thread].get_value<std::size_t>();
 
             total_idle_rate_ += idle_rates_[num_thread];
             total_length_ += queue_length_[num_thread];
@@ -226,8 +218,8 @@ namespace allscale { namespace components {
            //  std::cout << "Collecting[" << num_thread << "] " << idle_rates_[num_thread] << " " << queue_length_[num_thread] << "\n";
         }
 
-        total_idle_rate_ = total_idle_rate_ / num_threads;
-        total_length_ = total_length_ / num_threads;
+        total_idle_rate_ = total_idle_rate_ / num_threads_;
+        total_length_ = total_length_ / num_threads_;
 
         return true;
     }
@@ -235,11 +227,10 @@ namespace allscale { namespace components {
 
     bool scheduler::periodic_throttle()
     {
-        const std::size_t num_threads = hpx::get_os_thread_count();
         const std::size_t worker_tid = hpx::get_worker_thread_num();
 
 
-        if ( num_threads > 1 && scheduler::objectiveMap.find(sched_objective)->second == Objectives::TIME_RESOURCE ) {
+        if ( num_threads_ > 1 && scheduler::objectiveMap.find(sched_objective)->second == Objectives::TIME_RESOURCE ) {
 
 		auto allscale_app_counter = hpx::performance_counters::stubs::performance_counter::get_value(
 						hpx::launch::sync, allscale_app_counter_id);
@@ -249,7 +240,7 @@ namespace allscale { namespace components {
 
 			allscale_app_time = allscale_app_counter.get_value<std::int64_t>();
 
-			std::int64_t neighbour = std::rand() %  num_threads ;  //(worker_tid < num_threads - 1) ? worker_tid + 1 : worker_tid - 1;
+			std::int64_t neighbour = std::rand() %  num_threads_;  //(worker_tid < num_threads - 1) ? worker_tid + 1 : worker_tid - 1;
 
 			if ( allscale_app_time > 0 )
 			  if ( last_thread_time ==0 || allscale_app_time < last_thread_time ) {

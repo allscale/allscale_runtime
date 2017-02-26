@@ -19,7 +19,7 @@ class pfor_loop_handle {
 
 public:
 
-    pfor_loop_handle() : treeture(1) {}
+    pfor_loop_handle() : treeture(allscale::make_ready_treeture()) {}
 
     pfor_loop_handle(allscale::treeture<void>&& treeture)
         : treeture(std::move(treeture)) {}
@@ -32,9 +32,7 @@ public:
     }
 
     pfor_loop_handle& operator=(const pfor_loop_handle&) = delete;
-    pfor_loop_handle& operator=(pfor_loop_handle&& other) {
-        treeture = std::move(other.treeture);
-    }
+    pfor_loop_handle& operator=(pfor_loop_handle&& other) = default;
 
     const allscale::treeture<void>& get_treeture() const {
         return treeture;
@@ -126,7 +124,7 @@ struct pfor_process_variant
         Body body;
 
         // do some computation
-        for(auto i = begin; i<end; i++) {
+        for(auto i = begin; i<end; ++i) {
             body(i,extra);
         }
 
@@ -194,6 +192,8 @@ struct pfor_neighbor_sync_split_variant
         // check whether there are iterations left
         if (begin >= end) return allscale::make_ready_treeture();
 
+
+
         // compute the middle
         auto mid = begin + (end - begin) / 2;
 
@@ -209,10 +209,14 @@ struct pfor_neighbor_sync_split_variant
         auto drl = dr.get_left_child();
 
         // spawn two new sub-tasks
-        return allscale::runtime::treeture_combine(
-            allscale::spawn<pfor_work<Body,ExtraParams...>>(begin, mid, extra, dlr,dcl,dcr),
-            allscale::spawn<pfor_work<Body,ExtraParams...>>(mid,   end, extra, dcl,dcr,drl)
-        );
+        auto left = allscale::spawn<pfor_neighbor_sync_work<Body,ExtraParams...>>(begin, mid, extra, hpx::util::make_tuple(dlr,dcl,dcr));
+        auto right = allscale::spawn<pfor_neighbor_sync_work<Body,ExtraParams...>>(mid,   end, extra, hpx::util::make_tuple(dcl,dcr,drl));
+
+        return
+            allscale::treeture<void>(
+                hpx::when_all(
+                    left.get_future(), right.get_future(),
+                    dl.get_future(), dc.get_future(), dr.get_future()));
     }
 };
 
@@ -231,21 +235,37 @@ struct pfor_neighbor_sync_process_variant
     template <typename Closure>
     static allscale::treeture<result_type> execute(Closure const& closure)
     {
-        // extract parameters
-        auto begin = hpx::util::get<0>(closure);
-        auto end   = hpx::util::get<1>(closure);
-        auto extra = hpx::util::get<2>(closure);
+        // extract the dependencies
+        auto deps  = hpx::util::get<3>(closure);
 
-        // get a body instance
-        Body body;
+        // refine dependencies
+        auto dl = hpx::util::get<0>(deps);
+        auto dc = hpx::util::get<1>(deps);
+        auto dr = hpx::util::get<2>(deps);
 
-        // do some computation
-        for(auto i = begin; i<end; i++) {
-            body(i,extra);
-        }
+        return allscale::treeture<void>(
+            hpx::dataflow(hpx::launch::sync,
+                hpx::util::unwrapped(
+                    [closure]()
+                    {
+                        // extract parameters
+                        auto begin = hpx::util::get<0>(closure);
+                        auto end   = hpx::util::get<1>(closure);
+                        auto extra = hpx::util::get<2>(closure);
 
-        // done
-        return allscale::make_ready_treeture();
+                        // get a body instance
+                        Body body;
+
+                        // do some computation
+                        for(auto i = begin; i<end; i++) {
+                            body(i,extra);
+                        }
+                    }
+                ),
+                dl.get_future(),
+                dc.get_future(),
+                dr.get_future()
+            ));
     }
 };
 

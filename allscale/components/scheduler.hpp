@@ -50,6 +50,7 @@ namespace allscale { namespace components {
 
     private:
         std::uint64_t num_localities_;
+        std::uint64_t num_threads_;
         std::uint64_t rank_;
         boost::atomic<std::uint64_t> schedule_rank_;
         boost::atomic<bool> stopped_;
@@ -103,7 +104,7 @@ namespace allscale { namespace components {
 
 	double last_thread_time;
 
-        std::string sched_objective;        
+        std::string sched_objective;
 	static std::map<std::string, Objectives> objectiveMap;
     };
 }}

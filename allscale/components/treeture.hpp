@@ -18,7 +18,8 @@ namespace allscale { namespace components {
 
         treeture()
           : shared_state_(new shared_state())
-        {}
+        {
+        }
 
         treeture(T t)
           : shared_state_(new shared_state())

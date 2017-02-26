@@ -13,6 +13,19 @@
 namespace allscale
 {
     template <typename T>
+    struct treeture;
+}
+
+namespace hpx { namespace traits {
+    template <typename R>
+    struct is_future< ::allscale::treeture<R>>
+      : std::false_type
+    {};
+}}
+
+namespace allscale
+{
+    template <typename T>
     struct treeture
       : hpx::components::client_base<treeture<T>, components::treeture<T>>
     {
@@ -48,11 +61,12 @@ namespace allscale
           : base_type(hpx::new_<components::treeture<T>>(hpx::find_here()))
         {
             HPX_ASSERT(this->valid());
+            hpx::id_type this_id = this->get_id();
             f.then(
-                [this](F f)
+                [this_id](F f)
                 {
                     hpx::apply<set_value_action>(
-                        this->get_id(), f.get()
+                        this_id, f.get()
                     );
                 }
             );
@@ -204,11 +218,12 @@ namespace allscale
           : base_type(hpx::find_here())
         {
             HPX_ASSERT(this->valid());
+            hpx::id_type this_id = this->get_id();
             f.then(
-                [this](F f)
+                [this_id](F f)
                 {
                     hpx::apply<set_value_action>(
-                        this->get_id(), hpx::util::unused_type()
+                        this_id, hpx::util::unused_type()
                     );
                 }
             );
