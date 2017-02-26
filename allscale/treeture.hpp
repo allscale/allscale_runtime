@@ -25,9 +25,14 @@ namespace hpx { namespace traits {
 
 namespace allscale
 {
+    struct treeture_base
+    {
+        virtual ~treeture_base() {}
+    };
     template <typename T>
     struct treeture
-      : hpx::components::client_base<treeture<T>, components::treeture<T>>
+      : hpx::components::client_base<treeture<T>, components::treeture<T>>,
+        treeture_base
     {
         using base_type = hpx::components::client_base<treeture<T>, components::treeture<T>>;
         using result_type = T;
@@ -37,12 +42,18 @@ namespace allscale
             typename components::treeture<T>::set_value_action;
         using get_future_action =
             typename components::treeture<T>::get_future_action;
+        using get_left_neighbor_action =
+            typename components::treeture<T>::get_left_neighbor_action;
+        using get_right_neighbor_action =
+            typename components::treeture<T>::get_right_neighbor_action;
+        using set_child_action =
+            typename components::treeture<T>::set_child_action;
 
         treeture()
         {}
 
-        treeture(hpx::id_type loc)
-          : base_type(hpx::new_<components::treeture<T>>(loc))
+        treeture(hpx::id_type loc, hpx::id_type parent = hpx::invalid_id)
+          : base_type(hpx::new_<components::treeture<T>>(loc, parent))
         {
             HPX_ASSERT(this->valid());
         }
@@ -57,8 +68,8 @@ namespace allscale
                  && !std::is_same<typename hpx::util::decay<F>::type, hpx::future<hpx::id_type>>::value
                 >::type
         >
-        explicit treeture(F f)
-          : base_type(hpx::new_<components::treeture<T>>(hpx::find_here()))
+        explicit treeture(F f, hpx::id_type parent = hpx::invalid_id)
+          : base_type(hpx::new_<components::treeture<T>>(hpx::find_here(), parent))
         {
             HPX_ASSERT(this->valid());
             hpx::id_type this_id = this->get_id();
@@ -83,8 +94,8 @@ namespace allscale
                  && !std::is_same<typename hpx::util::decay<U>::type, hpx::future<hpx::id_type>>::value
                 >::type
         >
-        explicit treeture(U && u)
-          : base_type(hpx::new_<components::treeture<T>>(hpx::find_here(), std::forward<U>(u)))
+        explicit treeture(U && u, hpx::id_type parent = hpx::invalid_id)
+          : base_type(hpx::new_<components::treeture<T>>(hpx::find_here(), std::forward<U>(u), parent))
         {
             HPX_ASSERT(this->valid());
         }
@@ -150,12 +161,19 @@ namespace allscale
             get_future().wait();     // TODO: provide replacement
         }
 
+        void set_child(std::size_t idx, hpx::id_type child)
+        {
+            hpx::apply<set_child_action>(this->get_id(), idx, child);
+        }
+
         treeture get_left_child() const {
-            return *this;
+            return treeture(
+                hpx::async<get_left_neighbor_action>(this->get_id()));
         }
 
         treeture get_right_child() const {
-            return *this;
+            return treeture(
+                hpx::async<get_right_neighbor_action>(this->get_id()));
         }
 
 //         template <typename Archive>
@@ -194,12 +212,18 @@ namespace allscale
             typename components::treeture<hpx::util::unused_type>::set_value_action;
         using get_future_action =
             typename components::treeture<hpx::util::unused_type>::get_future_action;
+        using get_left_neighbor_action =
+            typename components::treeture<hpx::util::unused_type>::get_left_neighbor_action;
+        using get_right_neighbor_action =
+            typename components::treeture<hpx::util::unused_type>::get_right_neighbor_action;
+        using set_child_action =
+            typename components::treeture<hpx::util::unused_type>::set_child_action;
 
         treeture()
         {}
 
-        treeture(hpx::id_type loc)
-          : base_type(loc)
+        treeture(hpx::id_type loc, hpx::id_type parent = hpx::invalid_id)
+          : base_type(loc, parent)
         {
             HPX_ASSERT(this->valid());
         }
@@ -214,8 +238,8 @@ namespace allscale
                  && !std::is_same<typename hpx::util::decay<F>::type, hpx::future<hpx::id_type>>::value
                 >::type
         >
-        explicit treeture(F f)
-          : base_type(hpx::find_here())
+        explicit treeture(F f, hpx::id_type parent = hpx::invalid_id)
+          : base_type(hpx::find_here(), parent)
         {
             HPX_ASSERT(this->valid());
             hpx::id_type this_id = this->get_id();
@@ -230,8 +254,8 @@ namespace allscale
             HPX_ASSERT(this->valid());
         }
 
-        explicit treeture(hpx::util::unused_type)
-          : base_type(hpx::util::unused_type())
+        explicit treeture(hpx::util::unused_type, hpx::id_type parent = hpx::invalid_id)
+          : base_type(hpx::util::unused_type(), parent)
         {
             HPX_ASSERT(this->valid());
         }
@@ -297,12 +321,19 @@ namespace allscale
             get_future().wait();     // TODO: provide replacement
         }
 
+        void set_child(std::size_t idx, hpx::id_type child)
+        {
+            hpx::apply<set_child_action>(this->get_id(), idx, child);
+        }
+
         treeture get_left_child() const {
-            return *this;
+            return treeture(
+                hpx::async<get_left_neighbor_action>(this->get_id()));
         }
 
         treeture get_right_child() const {
-            return *this;
+            return treeture(
+                hpx::async<get_right_neighbor_action>(this->get_id()));
         }
     };
 

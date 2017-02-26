@@ -203,7 +203,13 @@ namespace allscale
             virtual ~work_item_impl_base()
             {}
 
+            work_item_impl_base() {};
+            work_item_impl_base(work_item_impl_base const&) = delete;
+            work_item_impl_base& operator=(work_item_impl_base const&) = delete;
+
             virtual void set_this_id()=0;
+
+            virtual treeture_base& get_treeture() = 0;
 
             virtual void process()=0;
             virtual void split()=0;
@@ -246,7 +252,7 @@ namespace allscale
 
             void set_this_id()
             {
-                id_.set(this_work_item::get_id());
+                id_.set(this_work_item::get_id(), this);
             }
 
             template <typename ...Ts>
@@ -255,6 +261,11 @@ namespace allscale
               , closure_(std::forward<Ts>(vs)...)
             {
                 HPX_ASSERT(tres_.valid());
+            }
+
+            treeture_base& get_treeture()
+            {
+                return static_cast<treeture_base&>(tres_);
             }
 
             template <typename ...Ts>
@@ -420,7 +431,7 @@ namespace allscale
 
             void set_this_id()
             {
-                id_.set(this_work_item::get_id());
+                id_.set(this_work_item::get_id(), this);
             }
 
             template <typename ...Ts>
@@ -429,6 +440,11 @@ namespace allscale
               , closure_(std::forward<Ts>(vs)...)
             {
                 HPX_ASSERT(tres_.valid());
+            }
+
+            treeture_base& get_treeture()
+            {
+                return static_cast<treeture_base&>(tres_);
             }
 
             template <typename ...Ts>
@@ -594,7 +610,7 @@ namespace allscale
 
             void set_this_id()
             {
-                id_.set(this_work_item::get_id());
+                id_.set(this_work_item::get_id(), this);
             }
 
             template <typename ...Ts>
@@ -603,6 +619,11 @@ namespace allscale
               , closure_(std::forward<Ts>(vs)...)
             {
                 HPX_ASSERT(tres_.valid());
+            }
+
+            treeture_base& get_treeture()
+            {
+                return static_cast<treeture_base&>(tres_);
             }
 
             template <typename ...Ts>
@@ -722,14 +743,20 @@ namespace allscale
 
  			void set_this_id()
             {
-                id_.set(this_work_item::get_id());
+                id_.set(this_work_item::get_id(), this);
             }
+
             template <typename ...Ts>
             work_item_impl(treeture<result_type> tres, Ts&&... vs)
               : tres_(std::move(tres))
               , closure_(std::forward<Ts>(vs)...)
             {
                 HPX_ASSERT(tres_.valid());
+            }
+
+            treeture_base& get_treeture()
+            {
+                return static_cast<treeture_base&>(tres_);
             }
 
             template <typename ...Ts>
@@ -854,7 +881,7 @@ namespace allscale
         }
 
         explicit work_item(std::shared_ptr<work_item_impl_base> impl)
-          : impl_(impl)
+          : impl_(std::move(impl))
         {}
 
         work_item(work_item const& other)
@@ -900,6 +927,12 @@ namespace allscale
             if(impl_)
                 return impl_->name();
             return "";
+        }
+
+        template <typename R>
+        treeture<R> get_treeture()
+        {
+            return static_cast<treeture<R> const&>(impl_->get_treeture());
         }
 
         void split()
@@ -952,6 +985,18 @@ namespace allscale
         std::shared_ptr<work_item_impl_base> impl_;
         bool is_first_;
     };
+
+    namespace this_work_item {
+        inline work_item get()
+        {
+            typedef work_item::work_item_impl_base* type;
+            type wi(reinterpret_cast<type>(get_id().get_work_item()));
+            if (wi == nullptr)
+                return work_item();
+
+            return work_item(wi->shared_from_this());
+        }
+    }
 }
 
 #endif
