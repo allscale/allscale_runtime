@@ -12,21 +12,6 @@
 
 namespace allscale
 {
-
-    // a naive version of a task reference, TODO: improve
-    struct task_reference {
-
-        // a function to wait for the completion of the referenced task
-        const std::function<void()> wait;
-
-        // a function to obtain a reference to the left child (which might only exist in the future)
-        const std::function<task_reference()> get_left_child;
-
-        // a function to obtain a reference to the right child (which might only exist in the future)
-        const std::function<task_reference()> get_right_child;
-
-    };
-
     template <typename T>
     struct treeture
       : hpx::components::client_base<treeture<T>, components::treeture<T>>
@@ -151,28 +136,12 @@ namespace allscale
             get_future().wait();     // TODO: provide replacement
         }
 
-        task_reference to_task_reference() const {
-            treeture copy = *this;
-            return task_reference{
-                // wait for the task completion
-                [copy]() mutable { copy.wait(); },
-                // get the left child - TODO: provide actual support for this
-                [copy](){ return copy.get_left_child(); },
-                // get the right child - TODO: provide actual support for this
-                [copy](){ return copy.get_right_child(); }
-            };
+        treeture get_left_child() const {
+            return *this;
         }
 
-        operator task_reference() const {
-            return to_task_reference();
-        }
-
-        task_reference get_left_child() const {
-            return to_task_reference().get_left_child();
-        }
-
-        task_reference get_right_child() const {
-            return to_task_reference().get_right_child();
+        treeture get_right_child() const {
+            return *this;
         }
 
 //         template <typename Archive>
@@ -313,28 +282,12 @@ namespace allscale
             get_future().wait();     // TODO: provide replacement
         }
 
-        task_reference to_task_reference() const {
-            treeture copy = *this;
-            return task_reference{
-                // wait for the task completion
-                [copy]() mutable { copy.wait(); },
-                // get the left child - TODO: provide actual support for this
-                [copy](){ return copy.get_left_child(); },
-                // get the right child - TODO: provide actual support for this
-                [copy](){ return copy.get_right_child(); }
-            };
+        treeture get_left_child() const {
+            return *this;
         }
 
-        operator task_reference() const {
-            return to_task_reference();
-        }
-
-        task_reference get_left_child() const {
-            return to_task_reference().get_left_child();
-        }
-
-        task_reference get_right_child() const {
-            return to_task_reference().get_right_child();
+        treeture get_right_child() const {
+            return *this;
         }
     };
 
@@ -342,6 +295,9 @@ namespace allscale
     {
         return treeture<void>(hpx::util::unused_type());
     }
+
+    template <typename R>
+    using task_reference = treeture<R>;
 
     namespace traits
     {

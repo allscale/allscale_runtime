@@ -20,7 +20,9 @@ namespace allscale
     {
         template <typename F>
         typename std::enable_if<
-            hpx::traits::is_future<F>::value && !allscale::traits::is_data_item<F>::value,
+            hpx::traits::is_future<F>::value &&
+            !std::is_same<void, typename hpx::traits::future_traits<F>::type>::value &&
+            !allscale::traits::is_data_item<F>::value,
             typename hpx::traits::future_traits<F>::result_type
         >::type
         unwrap_if(F && f)
@@ -28,8 +30,16 @@ namespace allscale
             return f.get();
         }
 
-
-
+        template <typename F>
+        typename std::enable_if<
+            hpx::traits::is_future<F>::value &&
+            std::is_same<void, typename hpx::traits::future_traits<F>::type>::value &&
+            !allscale::traits::is_data_item<F>::value
+        >::type
+        unwrap_if(F && f)
+        {
+            f.get(); // propagate exceptions...
+        }
 
         template <typename F>
         typename std::enable_if<
@@ -63,6 +73,77 @@ namespace allscale
         {
             return std::move(f);
         }
+
+        template <
+            typename Indices,
+            typename Tuple,
+            typename T,
+            typename UnwrapResult =
+                typename std::decay<decltype(unwrap_if(std::forward<T>(std::declval<T>())))>::type,
+            typename Enable = void
+        >
+        struct unwrap_tuple_impl;
+
+        template <typename T, typename UnwrapResult, std::size_t ...Is, typename ...Ts>
+        struct unwrap_tuple_impl<
+            hpx::util::detail::pack_c<std::size_t, Is...>,
+            hpx::util::tuple<Ts...>,
+            T, UnwrapResult,
+            typename std::enable_if<!std::is_same<void, UnwrapResult>::value>::type
+        >
+        {
+            typedef
+                hpx::util::tuple<typename std::decay<Ts>::type..., UnwrapResult>
+                result_type;
+
+            template <typename Tuple>
+            static result_type call(Tuple&& tuple, T&& t)
+            {
+                return result_type(
+                    std::move(hpx::util::get<Is>(tuple))..., unwrap_if(std::forward<T>(t)));
+            }
+        };
+
+        template <typename Indices, typename Tuple, typename T, typename UnwrapResult>
+        struct unwrap_tuple_impl<Indices, Tuple, T, UnwrapResult,
+            typename std::enable_if<std::is_same<void, UnwrapResult>::value>::type
+        >
+        {
+            typedef Tuple result_type;
+
+            static result_type&& call(Tuple&& tuple, T&& t)
+            {
+                unwrap_if(std::forward<T>(t));
+                return std::forward<Tuple>(tuple);
+            }
+        };
+
+        template <typename Tuple, typename T>
+        auto unwrap_tuple(Tuple&& tuple, T&& t)
+        {
+            return
+                unwrap_tuple_impl<
+                    typename hpx::util::detail::make_index_pack<
+                        hpx::util::tuple_size<Tuple>::value>::type,
+                    Tuple, T>::call(
+                    std::forward<Tuple>(tuple),
+                    std::forward<T>(t));
+        }
+
+        template <typename Tuple, typename Head, typename... Ts>
+        auto unwrap_tuple(Tuple&& tuple, Head&& head, Ts&&... ts)
+        {
+            return
+                unwrap_tuple(
+                    unwrap_tuple_impl<
+                        typename hpx::util::detail::make_index_pack<
+                            hpx::util::tuple_size<Tuple>::value>::type,
+                        Tuple, Head>::call(
+                        std::forward<Tuple>(tuple),
+                        std::forward<Head>(head)),
+                    std::forward<Ts>(ts)...);
+        }
+
 
         template <typename F>
         typename std::enable_if<
@@ -186,9 +267,7 @@ namespace allscale
                 set_id si(this->id_);
 
                 auto fut = WorkItemDescription::split_variant::execute(
-                    hpx::util::make_tuple(
-                        detail::unwrap_if(std::move(vs))...
-                    )
+                    detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
                 ).get_future();
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));
@@ -213,9 +292,7 @@ namespace allscale
                 set_id si(this->id_);
 
                 auto fut = WorkItemDescription::process_variant::execute(
-                    hpx::util::make_tuple(
-                        detail::unwrap_if(std::move(vs))...
-                    )
+                    detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
                 ).get_future();
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));
@@ -364,9 +441,7 @@ namespace allscale
                 set_id si(this->id_);
 
                 auto fut = WorkItemDescription::split_variant::execute(
-                    hpx::util::make_tuple(
-                        detail::unwrap_if(std::move(vs))...
-                    )
+                    detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
                 ).get_future();
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));
@@ -391,9 +466,7 @@ namespace allscale
                 set_id si(this->id_);
 
                 auto fut = WorkItemDescription::process_variant::execute(
-                    hpx::util::make_tuple(
-                        detail::unwrap_if(std::move(vs))...
-                    )
+                    detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
                 ).get_future();
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));
@@ -542,9 +615,7 @@ namespace allscale
                 set_id si(this->id_);
 
                 auto fut = WorkItemDescription::process_variant::execute(
-                    hpx::util::make_tuple(
-                        detail::unwrap_if(std::move(vs))...
-                    )
+                    detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
                 ).get_future();
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));
@@ -671,9 +742,7 @@ namespace allscale
                 set_id si(this->id_);
 
                 auto fut = WorkItemDescription::process_variant::execute(
-                    hpx::util::make_tuple(
-                        detail::unwrap_if(std::move(vs))...
-                    )
+                    detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
                 ).get_future();
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));

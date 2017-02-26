@@ -15,7 +15,7 @@
 
 namespace allscale
 {
-    
+
 
 
     template <typename DataItemDescription>
@@ -34,35 +34,51 @@ namespace allscale
             data_item()
             {
             }
-            
+
             data_item( data_item const& other)
-            : base_type(other.get_id()),
+            : base_type(other),
                 parent_loc(other.parent_loc),
                 region_(other.region_),
                 fragment_(other.fragment_)
             {
-                HPX_ASSERT(this->valid());
             }
 
             data_item( data_item && other)
-            : base_type( std::move(other.get_id())),
-                parent_loc(std::move(other.parent_loc)),
-                region_(std::move(other.region_)),
-                fragment_(std::move(other.fragment_)) 
-                
-                {
-                    //std::cout << " move operator: other id is " << other.get_id() << " my id is " << this->get_id() <<  std::endl;
-                    HPX_ASSERT(this->valid());
-                }
+            : base_type(std::move(other)),
+              parent_loc(std::move(other.parent_loc)),
+              region_(std::move(other.region_)),
+              fragment_(std::move(other.fragment_))
+            {
+                //std::cout << " move operator: other id is " << other.get_id() << " my id is " << this->get_id() <<  std::endl;
+//                 HPX_ASSERT(this->valid());
+//                 HPX_ASSERT(!other.valid());
+            }
 
 
             data_item& operator=(const data_item& other)
-            
             {
-                region_ = other.region_;
-                parent_loc = other.parent_loc;
-                fragment_ = other.fragment_;
-                HPX_ASSERT(this->valid());
+                if (other.valid())
+                {
+                  this->base_type::operator=(static_cast<base_type const&>(other));
+                  region_ = other.region_;
+                  parent_loc = other.parent_loc;
+                  fragment_ = other.fragment_;
+                  HPX_ASSERT(this->valid());
+                }
+                return *this;
+            }
+
+            data_item& operator=(data_item&& other)
+            {
+                if (other.valid())
+                {
+                  this->base_type::operator=(std::move(static_cast<base_type&&>(other)));
+                  region_ = std::move(other.region_);
+                  parent_loc = std::move(other.parent_loc);
+                  fragment_ = std::move(other.fragment_);
+                  HPX_ASSERT(this->valid());
+                  HPX_ASSERT(!other.valid());
+                }
                 return *this;
             }
 
@@ -72,7 +88,6 @@ namespace allscale
             {
                 HPX_ASSERT(this->valid());
             }
-
 
             data_item(hpx::id_type loc, DataItemDescription descr)
               : base_type(hpx::new_<components::data_item<DataItemDescription> >(loc))
@@ -106,8 +121,6 @@ namespace allscale
                 std::cout<<"TEST2" << std::endl;
             }
 
-
-            
             fragment_type fragment_;
             region_type region_;
             hpx::id_type parent_loc;
