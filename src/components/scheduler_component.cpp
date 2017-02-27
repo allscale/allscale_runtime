@@ -178,12 +178,20 @@ namespace allscale { namespace components {
     {
         std::unique_lock<mutex_type> l(counters_mtx_);
         // Do we have enough tasks in the system?
-        if (total_length_ < num_threads_ * 10)
+        if (total_length_ < num_threads_ * 5)
         {
             return total_idle_rate_ >= 10.0;
         }
+        if (total_length_ < num_threads_ * 10)
+        {
+            return total_idle_rate_ < 10.0;
+        }
+        if (total_length_ < num_threads_ * 20)
+        {
+            return total_idle_rate_ < 5.0;
+        }
 
-        return total_idle_rate_ < 10.0;
+        return total_idle_rate_ < 2.0;
     }
 
     bool scheduler::collect_counters()
