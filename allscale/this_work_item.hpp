@@ -31,7 +31,7 @@ namespace allscale { namespace this_work_item {
 
         id();
 
-        void set(id const& id, void* impl);
+        void set(id const& id, void* impl = nullptr);
 
         std::string name() const;
         std::size_t last() const;
