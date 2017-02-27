@@ -31,7 +31,7 @@ namespace allscale { namespace components {
                 &scheduler::collect_counters,
                 this
             ),
-            2000,
+            1000,
             "scheduler::collect_counters",
             true
         )
@@ -119,7 +119,7 @@ namespace allscale { namespace components {
         }
 
         timer_.start();
-        //throttle_timer_.start();
+        throttle_timer_.start();
         std::cout
             << "Scheduler with rank "
             << rank_ << " created (" << left_ << " " << right_ << ")!\n";
@@ -184,13 +184,10 @@ namespace allscale { namespace components {
         }
         if (total_length_ < num_threads_ * 10)
         {
-            //std::cout << total_length_ << " " << total_idle_rate_ << "\n";
-            //return total_idle_rate_ >= 10.0;
             return total_idle_rate_ < 10.0;
         }
         if (total_length_ < num_threads_ * 20)
         {
-            //std::cout << total_length_ << " " << total_idle_rate_ << "\n";
             return total_idle_rate_ < 5.0;
         }
 
@@ -226,7 +223,7 @@ namespace allscale { namespace components {
             total_idle_rate_ += idle_rates_[num_thread];
             total_length_ += queue_length_[num_thread];
 
-             //std::cout << "Collecting[" << num_thread << "] " << idle_rates_[num_thread] << " " << queue_length_[num_thread] << "\n";
+           //  std::cout << "Collecting[" << num_thread << "] " << idle_rates_[num_thread] << " " << queue_length_[num_thread] << "\n";
         }
 
         total_idle_rate_ = total_idle_rate_ / num_threads_;
