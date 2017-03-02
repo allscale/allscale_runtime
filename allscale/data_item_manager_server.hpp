@@ -98,7 +98,10 @@ namespace allscale
         }
 
 */
-
+        //TODO: function returning mask to data_item usw
+        // get_access(data_item_id, region r)
+        //
+        // data item selber liegt in der closure
         template <typename DataItemDescription>
         void destroy (data_item<DataItemDescription> item)
         {

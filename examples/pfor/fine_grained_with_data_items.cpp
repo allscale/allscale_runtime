@@ -14,7 +14,7 @@
 
 #include <unistd.h>
 
-#include "pfor.hpp"
+#include "pfor_with_data_items.hpp"
 
 
 static const int DEFAULT_SIZE = 128 * 1024 * 1024;
@@ -54,12 +54,14 @@ struct simple_stencil_body {
 
 int hpx_main(int argc, char **argv)
 {
+
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
 
     std::int64_t n = argc >= 2 ? std::stoi(std::string(argv[1])) : DEFAULT_SIZE;
     std::int64_t steps = argc >= 3 ? std::stoi(std::string(argv[2])) : 1000;
-    std::int64_t iters = argc >= 4 ? std::stoi(std::string(argv[3])) : 1;
+    std::int64_t iters = argc >= 4 ? std::stoi(std::string(argv[2])) : 1;
+
     // initialize the data array
     dataA.resize(n, 0);
     dataB.resize(n, 0);
@@ -82,7 +84,7 @@ int hpx_main(int argc, char **argv)
         }
         allscale::scheduler::stop();
     }
-    
+
     return hpx::finalize();
 }
 

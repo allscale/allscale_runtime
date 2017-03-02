@@ -10,12 +10,12 @@ namespace allscale { namespace components {
 
      std::map<std::string, Objectives> scheduler::objectiveMap = {
                 {"time", Objectives::TIME},
-                {"resource", Objectives::RESOURCE},
+           /*     {"resource", Objectives::RESOURCE},
                 {"energy", Objectives::ENERGY},
                 {"time_resource", Objectives::TIME_RESOURCE},
                 {"time_energy", Objectives::TIME_ENERGY},
                 {"resource_energy", Objectives::RESOURCE_ENERGY},
-                {"time_resource_energy", Objectives::TIME_RESOURCE_ENERGY}
+                {"time_resource_energy", Objectives::TIME_RESOURCE_ENERGY}*/
      };
 
 
@@ -46,7 +46,8 @@ namespace allscale { namespace components {
            true
         )
     {
-	    blocked_os_threads_.resize(hpx::get_os_thread_count());
+        std::cout<<"fickschwein"<<std::endl;
+	blocked_os_threads_.resize(hpx::get_os_thread_count());
     }
 
     void scheduler::init()
@@ -57,6 +58,7 @@ namespace allscale { namespace components {
         std::uint64_t right_id =
             rank_ == num_localities_ - 1 ? 0 : rank_ + 1;
         
+        std::cout<< "leftid " << left_id << " rightid " << right_id << std::endl;
         hpx::future<hpx::id_type> right_future =
             hpx::find_from_basename("allscale/scheduler", right_id);
         if(left_id != right_id)
@@ -88,6 +90,7 @@ namespace allscale { namespace components {
         idle_rates_.reserve(num_threads_);
         queue_length_counters_.reserve(num_threads_);
         queue_length_.reserve(num_threads_);
+        std::cout<<num_threads_<<std::endl;
         for (std::size_t num_thread = 0; num_thread != num_threads_; ++num_thread)
         {
             const std::uint32_t prefix = hpx::get_locality_id();
@@ -119,7 +122,10 @@ namespace allscale { namespace components {
         }
         timer_.start();
         
+        sleep(2000);
         throttle_timer_.start();
+        
+        sleep(2000);
         std::cout
             << "Scheduler with rank "
             << rank_ << " created (" << left_ << " " << right_ << ")!\n";
@@ -127,6 +133,8 @@ namespace allscale { namespace components {
 
     void scheduler::enqueue(work_item work, bool remote)
     {
+
+        std::cout<<"blubberrino"<<std::endl;
         std::uint64_t schedule_rank = 0;
         if (!remote)
             schedule_rank = schedule_rank_.fetch_add(1) % 3;
@@ -153,6 +161,7 @@ namespace allscale { namespace components {
                     monitor::signal(monitor::work_item_enqueued, work);
 
                     std::size_t current_numa_domain = ++current_ % executors.size();
+
                     if (do_split(work))
                     {
                         hpx::apply(executors.at(current_numa_domain), &work_item::split, std::move(work));
@@ -174,25 +183,13 @@ namespace allscale { namespace components {
 
     bool scheduler::do_split(work_item const& w)
     {
-        //FIXME: should probably insert a lock here, but locking
-        //counters_mtx_ could lead to a potential dead_lock situatione
-        //when more than one enque action is active (this can be the case due 
-        //to hpx apply), and the thread holding the lock is suspended and the
-        //others start burning up cpu time by spinning to get the lock
-        //as for now, we remove the lock alltogether, other than potentially
-        //having some slight error in total_length or num_threads, because of
-        //outdated data (in case more threads got assigned after the counters
-        //where read) this wont do too much harm i guess ???
-        //std::unique_lock<mutex_type> l(counters_mtx_);
+        std::unique_lock<mutex_type> l(counters_mtx_);
         // Do we have enough tasks in the system?
         if (total_length_ < num_threads_ * 10)
         {
-
-			//hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
             return total_idle_rate_ >= 10.0;
         }
 
-		//hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
         return total_idle_rate_ < 10.0;
     }
 
@@ -231,7 +228,6 @@ namespace allscale { namespace components {
         total_idle_rate_ = total_idle_rate_ / num_threads_;
         total_length_ = total_length_ / num_threads_;
 
-	    hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
         return true;
     }
 
@@ -283,6 +279,8 @@ namespace allscale { namespace components {
 
     void scheduler::stop()
     {
+
+        std::cout<<"throittling" << std::endl;
         timer_.stop();
         throttle_timer_.stop();
         if(stopped_)
