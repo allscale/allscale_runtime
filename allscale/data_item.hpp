@@ -41,6 +41,7 @@ namespace allscale
                 region_(other.region_),
                 fragment_(other.fragment_)
             {
+            	std::cout<<"copy called" << std::endl;
             }
 
             data_item( data_item && other)

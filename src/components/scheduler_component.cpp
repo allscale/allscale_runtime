@@ -155,10 +155,12 @@ namespace allscale { namespace components {
                     std::size_t current_numa_domain = ++current_ % executors.size();
                     if (do_split(work))
                     {
+                    	std::cout<<"splitting \n";
                         hpx::apply(executors.at(current_numa_domain), &work_item::split, std::move(work));
                     }
                     else
                     {
+                    	std::cout<<"processing \n";
                         hpx::apply(executors.at(current_numa_domain), &work_item::process, std::move(work));
                     }
 
@@ -183,16 +185,14 @@ namespace allscale { namespace components {
         //having some slight error in total_length or num_threads, because of
         //outdated data (in case more threads got assigned after the counters
         //where read) this wont do too much harm i guess ???
-        //std::unique_lock<mutex_type> l(counters_mtx_);
+        std::unique_lock<mutex_type> l(counters_mtx_);
         // Do we have enough tasks in the system?
         if (total_length_ < num_threads_ * 10)
         {
-
-			//hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+			hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
             return total_idle_rate_ >= 10.0;
         }
-
-		//hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+		hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
         return total_idle_rate_ < 10.0;
     }
 
