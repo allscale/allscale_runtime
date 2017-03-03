@@ -20,7 +20,6 @@
 
 
 
-
 typedef allscale::region<int> my_region;
 using my_fragment = allscale::fragment<my_region,std::vector<int>>;
 typedef allscale::data_item_description<my_region,my_fragment,int> descr;
@@ -207,7 +206,7 @@ struct pfor_neighbor_sync_split_variant
 
         // extract the dependencies
         auto deps  = hpx::util::get<3>(closure);
-      ;
+
 
         // check whether there are iterations left
         if (begin >= end) return allscale::make_ready_treeture();
@@ -216,7 +215,7 @@ struct pfor_neighbor_sync_split_variant
 
         // compute the middle
         auto mid = begin + (end - begin) / 2;
-
+//        std::cout<<"SPLIT VARIANT executing, mid is: " << mid << std::endl;
         // refine dependencies
         auto dl = hpx::util::get<0>(deps);
         auto dc = hpx::util::get<1>(deps);
@@ -229,6 +228,7 @@ struct pfor_neighbor_sync_split_variant
         auto drl = dr.get_left_child();
 
         // spawn two new sub-tasks
+        std::cout<<"SPAWNING 2 new work items: " << begin<<" to " << mid << " and " << mid << " to " << end << std::endl;
 
         auto left = allscale::spawn<pfor_neighbor_sync_work<Body,ExtraParams...>>(begin, mid, extra, hpx::util::make_tuple(dlr,dcl,dcr));
         auto right = allscale::spawn<pfor_neighbor_sync_work<Body,ExtraParams...>>(mid,   end, extra, hpx::util::make_tuple(dcl,dcr,drl));
@@ -277,6 +277,7 @@ struct pfor_neighbor_sync_process_variant
                         auto end   = hpx::util::get<1>(closure);
                         auto extra = hpx::util::get<2>(closure);
 
+                       // std::cout<<"PROCESSING  work item: " << begin<<" to " << end << std::endl;
 
                         // get a body instance
                         Body body;

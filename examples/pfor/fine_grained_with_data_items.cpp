@@ -95,7 +95,7 @@ int hpx_main(int argc, char **argv) {
 	allscale::scheduler::run(hpx::get_locality_id());
 
 	std::int64_t n = argc >= 2 ? std::stoi(std::string(argv[1])) : DEFAULT_SIZE;
-	std::int64_t steps = argc >= 3 ? std::stoi(std::string(argv[2])) : 5;
+	std::int64_t steps = argc >= 3 ? std::stoi(std::string(argv[2])) : 1000;
 	std::int64_t iters = argc >= 4 ? std::stoi(std::string(argv[3])) : 1;
 
 	// initialize the data array
@@ -143,10 +143,10 @@ int hpx_main(int argc, char **argv) {
 		allscale::scheduler::stop();
 	}
 
-	auto k = (std::vector<int>) * (td.fragment_.ptr_);
-	for(auto el : k){
-		std::cout<<el<<" "<<std::endl;
-	}
+//	auto k = (std::vector<int>) * (td.fragment_.ptr_);
+//	for(auto el : k){
+//		std::cout<<el<<" "<<std::endl;
+//	}
 
 
 	return hpx::finalize();

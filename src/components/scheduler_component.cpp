@@ -155,12 +155,13 @@ namespace allscale { namespace components {
                     std::size_t current_numa_domain = ++current_ % executors.size();
                     if (do_split(work))
                     {
-                    	std::cout<<"splitting \n";
+//                    	std::cout<<"need more splitting, because i got back true from do_split, so ill split more" << std::endl;
                         hpx::apply(executors.at(current_numa_domain), &work_item::split, std::move(work));
                     }
                     else
                     {
-                    	std::cout<<"processing \n";
+//                    	std::cout<<"no more splitting now we process" << std::endl;
+
                         hpx::apply(executors.at(current_numa_domain), &work_item::process, std::move(work));
                     }
 
@@ -176,23 +177,26 @@ namespace allscale { namespace components {
 
     bool scheduler::do_split(work_item const& w)
     {
-        //FIXME: should probably insert a lock here, but locking
+        //FIXME: think about if locking
         //counters_mtx_ could lead to a potential dead_lock situatione
         //when more than one enque action is active (this can be the case due 
         //to hpx apply), and the thread holding the lock is suspended and the
         //others start burning up cpu time by spinning to get the lock
-        //as for now, we remove the lock alltogether, other than potentially
-        //having some slight error in total_length or num_threads, because of
-        //outdated data (in case more threads got assigned after the counters
-        //where read) this wont do too much harm i guess ???
-        //std::unique_lock<mutex_type> l(counters_mtx_);
+        std::unique_lock<mutex_type> l(counters_mtx_);
         // Do we have enough tasks in the system?
-        if (total_length_ < num_threads_ * 10)
+        if (total_length_ < num_threads_ * 10 )
         {
-			//hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
-            return total_idle_rate_ >= 10.0;
+			hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);//unlock, otherwise it will be done when end of scope is reached
+//        	std::cout<<"not enough tasks and total_idlerate: " << total_idle_rate_ << " queue length " << total_length_ << std::endl;
+        	//TODO: Think of some smart way to solve this, as of now, having new split workitems spawned
+        	// in system that does not have many tasks with idle_Rate>=x and x being to low can lead to endless loops:
+        	// as new items get spawned, they are too fine  granular, leading to them being not further processed,but
+        	// due to short queue length and too low idle rate requirement for NOT splitting anymore, splitting keeps going on
+            return total_idle_rate_ >= 35.0;
         }
-		//hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+//    	std::cout<<"enough tasks and total_idlerate: " << total_idle_rate_ << " queue length " << total_length_ << std::endl;
+
+		hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l); //again with the unlock business
         return total_idle_rate_ < 10.0;
     }
 

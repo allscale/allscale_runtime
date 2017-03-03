@@ -190,7 +190,11 @@ struct pfor_neighbor_sync_split_variant
         auto deps  = hpx::util::get<3>(closure);
 
         // check whether there are iterations left
-        if (begin >= end) return allscale::make_ready_treeture();
+        if (begin >= end) {
+            std::cout<<"no  iterations left, abandoning this one: " << begin << " to " << end << std::endl;
+
+        	return allscale::make_ready_treeture();
+        }
 
 
 
@@ -207,6 +211,7 @@ struct pfor_neighbor_sync_split_variant
         auto dcl = dc.get_left_child();
         auto dcr = dc.get_right_child();
         auto drl = dr.get_left_child();
+        //std::cout<<"SPAWNING 2 new work items: " << begin<< " to " << end << std::endl;
 
         // spawn two new sub-tasks
         auto left = allscale::spawn<pfor_neighbor_sync_work<Body,ExtraParams...>>(begin, mid, extra, hpx::util::make_tuple(dlr,dcl,dcr));
@@ -255,9 +260,11 @@ struct pfor_neighbor_sync_process_variant
 
                         // get a body instance
                         Body body;
+                        std::cout<<"PROCESSING ON: " << begin<< " to " << end << std::endl;
 
                         // do some computation
                         for(auto i = begin; i<end; i++) {
+
                             body(i,extra);
                         }
                     }
