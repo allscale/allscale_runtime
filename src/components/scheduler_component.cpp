@@ -185,14 +185,14 @@ namespace allscale { namespace components {
         //having some slight error in total_length or num_threads, because of
         //outdated data (in case more threads got assigned after the counters
         //where read) this wont do too much harm i guess ???
-        std::unique_lock<mutex_type> l(counters_mtx_);
+        //std::unique_lock<mutex_type> l(counters_mtx_);
         // Do we have enough tasks in the system?
         if (total_length_ < num_threads_ * 10)
         {
-			hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+			//hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
             return total_idle_rate_ >= 10.0;
         }
-		hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+		//hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
         return total_idle_rate_ < 10.0;
     }
 
