@@ -396,13 +396,13 @@ namespace allscale
             template <typename Archive>
             void serialize(Archive &ar, unsigned)
             {
-				HPX_ASSERT(false);
-                /*
+            	std::cout<<"serialization was CALLEDDDDD 22222222222222 " <<  std::endl;
+
+				//HPX_ASSERT(false);
 				ar & hpx::serialization::base_object<work_item_impl_base>(*this);
                 ar & tres_;
                 ar & closure_;
                 ar & id_;
-				*/
             }
             HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(work_item_impl);
 
@@ -575,11 +575,11 @@ namespace allscale
             template <typename Archive>
             void serialize(Archive &ar, unsigned)
             {
+            	std::cout<<"serialization was CALLEDDDDD " <<  std::endl;
                 ar & hpx::serialization::base_object<work_item_impl_base>(*this);
-                ar & tres_;
+                //ar & tres_;
                 ar & closure_;
                 ar & id_;
-
             }
             HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(work_item_impl);
 
@@ -700,6 +700,8 @@ namespace allscale
             template <typename Archive>
             void serialize(Archive &ar, unsigned)
             {
+            	std::cout<<"serialization was CALLEDDDDD 111 " <<  std::endl;
+
                 ar & hpx::serialization::base_object<work_item_impl_base>(*this);
                 ar & tres_;
                 ar & closure_;
@@ -833,7 +835,8 @@ namespace allscale
             template <typename Archive>
             void serialize(Archive &ar, unsigned)
             {
-                HPX_ASSERT(false);
+
+                //HPX_ASSERT(false);
             }
             HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(work_item_impl);
 

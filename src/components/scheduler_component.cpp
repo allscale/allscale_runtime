@@ -57,6 +57,7 @@ namespace allscale { namespace components {
         std::uint64_t right_id =
             rank_ == num_localities_ - 1 ? 0 : rank_ + 1;
         
+
         hpx::future<hpx::id_type> right_future =
             hpx::find_from_basename("allscale/scheduler", right_id);
         if(left_id != right_id)
@@ -128,10 +129,12 @@ namespace allscale { namespace components {
     void scheduler::enqueue(work_item work, bool remote)
     {
         std::uint64_t schedule_rank = 0;
+        //std::cout<<"remote is " << remote << std::endl;
         if (!remote)
             schedule_rank = schedule_rank_.fetch_add(1) % 3;
 
         hpx::id_type schedule_id;
+
         switch (schedule_rank)
         {
             case 1:
@@ -151,8 +154,8 @@ namespace allscale { namespace components {
                     if (work.is_first())
                         monitor::signal(monitor::work_item_first, work);
                     monitor::signal(monitor::work_item_enqueued, work);
-
                     std::size_t current_numa_domain = ++current_ % executors.size();
+                    //std::cout<< "im on locality : " << hpx::get_locality_id() << " at domain " << current_numa_domain << " executor id : " <<  executors.at(current_numa_domain).get_id()<< std::endl;
                     if (do_split(work))
                     {
 //                    	std::cout<<"need more splitting, because i got back true from do_split, so ill split more" << std::endl;
@@ -172,6 +175,8 @@ namespace allscale { namespace components {
         }
         HPX_ASSERT(schedule_id);
         HPX_ASSERT(work.valid());
+    	//std::cout<< "schedule rank : " <<  schedule_rank << std::endl;
+
         hpx::apply<enqueue_action>(schedule_id, work, true);
     }
 

@@ -176,22 +176,25 @@ namespace allscale
                 hpx::async<get_right_neighbor_action>(this->get_id()));
         }
 
-//         template <typename Archive>
-//         void load(Archive & ar, unsigned)
-//         {
-//             ar & hpx::serialization::base_object<base_type>(*this);
-//             HPX_ASSERT(this->valid());
-//         }
-//
-//         template <typename Archive>
-//         void save(Archive & ar, unsigned) const
-//         {
-//             HPX_ASSERT(this->valid());
-//             ar & hpx::serialization::base_object<base_type>(*this);
-//             HPX_ASSERT(this->valid());
-//         }
-//
-//         HPX_SERIALIZATION_SPLIT_MEMBER();
+         template <typename Archive>
+         void load(Archive & ar, unsigned)
+         {
+        	 std::cout<<"treeee load" << std::endl;
+             ar & hpx::serialization::base_object<base_type>(*this);
+             HPX_ASSERT(this->valid());
+         }
+
+         template <typename Archive>
+         void save(Archive & ar, unsigned) const
+         {
+        	 std::cout<<"treeee save" << std::endl;
+
+             HPX_ASSERT(this->valid());
+             ar & hpx::serialization::base_object<base_type>(*this);
+             HPX_ASSERT(this->valid());
+         }
+
+         HPX_SERIALIZATION_SPLIT_MEMBER();
     };
 
     template <typename T>

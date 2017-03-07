@@ -13,6 +13,7 @@
 
 #include <unistd.h>
 
+
 #include "pfor_with_data_items.hpp"
 
 #include <allscale/data_item.hpp>
@@ -21,6 +22,8 @@
 #include <allscale/region.hpp>
 #include <allscale/fragment.hpp>
 
+
+
 static const int DEFAULT_SIZE = 128 * 1024 * 1024;
 
 static std::vector<int> dataA;
@@ -28,17 +31,17 @@ static std::vector<int> dataB;
 
 struct simple_stencil_body {
 	void operator()(std::int64_t i,
-			const hpx::util::tuple<std::int64_t, std::int64_t, test_data_item*,
-					test_data_item*>& params) const {
+			const hpx::util::tuple<std::int64_t, std::int64_t, std::shared_ptr<test_data_item>,
+					std::shared_ptr<test_data_item>>& params) const {
 		// extract parameters
 		auto t = hpx::util::get<0>(params);
 		auto n = hpx::util::get<1>(params);
 
-		test_data_item *td_one = (test_data_item*) hpx::util::get<2>(params);
-		test_data_item *td_two = (test_data_item*) hpx::util::get<3>(params);
+		auto td_one = (std::shared_ptr<test_data_item>) hpx::util::get<2>(params);
+		auto td_two = (std::shared_ptr<test_data_item>) hpx::util::get<3>(params);
 
 		auto a = ((*td_one).fragment_.ptr_);
-		auto b = ((*td_one).fragment_.ptr_);
+		auto b = ((*td_two).fragment_.ptr_);
 
 		//auto b = (std::vector<int>*)  ((*td_two).fragment_.ptr_);
 
@@ -73,16 +76,16 @@ struct simple_stencil_body {
 
 
 		// check current state
-        /*
+
 		if ((i > 0 && A[i - 1] != A[i]) || (i < n - 1 && A[i] != A[i + 1])) {
 			std::cout << "Error in synchronization!\n";
 			std::cout << "  for i=" << i << "\n";
 			std::cout << "  A[i-1]=" << A[i - 1] << "\n";
 			std::cout << "  A[ i ]=" << A[i] << "\n";
 			std::cout << "  A[i+1]=" << A[i + 1] << "\n";
-			exit(42);
+			//exit(42);
 		}
-        */
+
 		// update B
 		B[i] = A[i] + 1;
 
@@ -90,6 +93,8 @@ struct simple_stencil_body {
 };
 
 int hpx_main(int argc, char **argv) {
+
+	std::cout<<"fick deine mutdder\n";
 
 	// start allscale scheduler ...
 	allscale::scheduler::run(hpx::get_locality_id());
@@ -102,8 +107,9 @@ int hpx_main(int argc, char **argv) {
 	dataA.resize(n, 0);
 	dataB.resize(n, 0);
 
-	std::vector<int> a(n, 0);
-	std::vector<int> b(n, 0);
+	auto a = std::make_shared<std::vector<int>>(std::vector<int> (n, 0));
+	auto b = std::make_shared<std::vector<int>>(std::vector<int> (n, 0));
+
 
 
 	std::vector<hpx::naming::id_type> localities = hpx::find_all_localities();
@@ -112,15 +118,16 @@ int hpx_main(int argc, char **argv) {
 	my_region test_region(2);
 //    my_fragment frag(test_region,7);
 
-	my_fragment frag(test_region, std::make_shared<std::vector<int>>(a));
-	test_data_item td(localities[0], test_descr, frag);
+	my_fragment frag(test_region, a);
+	auto td = std::make_shared<test_data_item>(test_data_item(localities[0], test_descr, frag));
 
 	descr test_descr2;
 	my_region test_region2(2);
-	my_fragment frag2(test_region, std::make_shared<std::vector<int>>(b));
+	my_fragment frag2(test_region, b);
     //my_fragment frag2(test_region,7);
+	auto td2 = std::make_shared<test_data_item>(test_data_item(localities[0], test_descr2, frag2));
 
-	test_data_item td2(localities[0], test_descr2, frag2);
+	//test_data_item td2(localities[0], test_descr2, frag2);
 
 	if (hpx::get_locality_id() == 0) {
 		for (int i = 0; i < iters; i++) {
@@ -131,8 +138,9 @@ int hpx_main(int argc, char **argv) {
 			{
 				pfor_loop_handle last;
 				for (int t = 0; t < steps; t++) {
+					std::cout<<"calling pfor_neighbor_sync";
 					last = pfor_neighbor_sync<simple_stencil_body>(last, 0, n,
-							t, n, &td, &td2);
+							t, n, td, td2);
 				}
 			}
 

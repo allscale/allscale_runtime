@@ -165,7 +165,7 @@ using pfor_neighbor_sync_work =
     allscale::work_item_description<
         void,
         pfor_name,
-        allscale::no_serialization,
+        allscale::do_serialization,
         pfor_neighbor_sync_split_variant<Body,ExtraParams...>,
         pfor_neighbor_sync_process_variant<Body,ExtraParams...>
     >;
@@ -191,7 +191,7 @@ struct pfor_neighbor_sync_split_variant
 
         // check whether there are iterations left
         if (begin >= end) {
-            std::cout<<"no  iterations left, abandoning this one: " << begin << " to " << end << std::endl;
+//            std::cout<<"no  iterations left, abandoning this one: " << begin << " to " << end << std::endl;
 
         	return allscale::make_ready_treeture();
         }
@@ -211,7 +211,8 @@ struct pfor_neighbor_sync_split_variant
         auto dcl = dc.get_left_child();
         auto dcr = dc.get_right_child();
         auto drl = dr.get_left_child();
-        //std::cout<<"SPAWNING 2 new work items: " << begin<< " to " << end << std::endl;
+        std::cout<<"SPAWNING 2 new work items: " << begin<< " to " << end << std::endl;
+        //std::cout<<"im doing a split  on " << hpx::get_locality_id() << std::endl;
 
         // spawn two new sub-tasks
         auto left = allscale::spawn<pfor_neighbor_sync_work<Body,ExtraParams...>>(begin, mid, extra, hpx::util::make_tuple(dlr,dcl,dcr));
@@ -243,6 +244,12 @@ struct pfor_neighbor_sync_process_variant
         // extract the dependencies
         auto deps  = hpx::util::get<3>(closure);
 
+        auto begin = hpx::util::get<0>(closure);
+        auto end   = hpx::util::get<1>(closure);
+    	std::cout<<"doing a processing on locality " << hpx::get_locality_id()<< " " << begin<< " to " << end << std::endl;
+
+
+
         // refine dependencies
         auto dl = hpx::util::get<0>(deps);
         auto dc = hpx::util::get<1>(deps);
@@ -260,7 +267,6 @@ struct pfor_neighbor_sync_process_variant
 
                         // get a body instance
                         Body body;
-                        std::cout<<"PROCESSING ON: " << begin<< " to " << end << std::endl;
 
                         // do some computation
                         for(auto i = begin; i<end; i++) {
@@ -268,10 +274,11 @@ struct pfor_neighbor_sync_process_variant
                             body(i,extra);
                         }
                     }
-                ),
+                )
+        		,
                 dl.get_future(),
                 dc.get_future(),
-                dr.get_future()
+				dr.get_future()
             ));
     }
 };

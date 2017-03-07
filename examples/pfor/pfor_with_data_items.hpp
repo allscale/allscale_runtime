@@ -228,7 +228,7 @@ struct pfor_neighbor_sync_split_variant
         auto drl = dr.get_left_child();
 
         // spawn two new sub-tasks
-        std::cout<<"SPAWNING 2 new work items: " << begin<<" to " << mid << " and " << mid << " to " << end << std::endl;
+//        std::cout<<"SPAWNING 2 new work items: " << begin<<" to " << mid << " and " << mid << " to " << end << std::endl;
 
         auto left = allscale::spawn<pfor_neighbor_sync_work<Body,ExtraParams...>>(begin, mid, extra, hpx::util::make_tuple(dlr,dcl,dcr));
         auto right = allscale::spawn<pfor_neighbor_sync_work<Body,ExtraParams...>>(mid,   end, extra, hpx::util::make_tuple(dcl,dcr,drl));
@@ -277,7 +277,7 @@ struct pfor_neighbor_sync_process_variant
                         auto end   = hpx::util::get<1>(closure);
                         auto extra = hpx::util::get<2>(closure);
 
-                       // std::cout<<"PROCESSING  work item: " << begin<<" to " << end << std::endl;
+                        //std::cout<<"PROCESSING  work item: " << begin<<" to " << end << std::endl;
 
                         // get a body instance
                         Body body;
