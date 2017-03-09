@@ -179,7 +179,6 @@ namespace allscale
          template <typename Archive>
          void load(Archive & ar, unsigned)
          {
-        	 std::cout<<"treeee load" << std::endl;
              ar & hpx::serialization::base_object<base_type>(*this);
              HPX_ASSERT(this->valid());
          }
@@ -187,8 +186,6 @@ namespace allscale
          template <typename Archive>
          void save(Archive & ar, unsigned) const
          {
-        	 std::cout<<"treeee save" << std::endl;
-
              HPX_ASSERT(this->valid());
              ar & hpx::serialization::base_object<base_type>(*this);
              HPX_ASSERT(this->valid());

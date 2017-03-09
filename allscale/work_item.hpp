@@ -396,9 +396,6 @@ namespace allscale
             template <typename Archive>
             void serialize(Archive &ar, unsigned)
             {
-            	std::cout<<"serialization was CALLEDDDDD 22222222222222 " <<  std::endl;
-
-				//HPX_ASSERT(false);
 				ar & hpx::serialization::base_object<work_item_impl_base>(*this);
                 ar & tres_;
                 ar & closure_;
@@ -575,9 +572,8 @@ namespace allscale
             template <typename Archive>
             void serialize(Archive &ar, unsigned)
             {
-            	std::cout<<"serialization was CALLEDDDDD " <<  std::endl;
                 ar & hpx::serialization::base_object<work_item_impl_base>(*this);
-                //ar & tres_;
+                ar & tres_;
                 ar & closure_;
                 ar & id_;
             }
@@ -700,8 +696,6 @@ namespace allscale
             template <typename Archive>
             void serialize(Archive &ar, unsigned)
             {
-            	std::cout<<"serialization was CALLEDDDDD 111 " <<  std::endl;
-
                 ar & hpx::serialization::base_object<work_item_impl_base>(*this);
                 ar & tres_;
                 ar & closure_;
