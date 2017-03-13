@@ -42,7 +42,7 @@ namespace allscale { namespace components {
         scheduler(std::uint64_t rank);
         void init();
 
-        void enqueue(work_item work, bool remote);
+        void enqueue(work_item work, this_work_item::id const&);
         HPX_DEFINE_COMPONENT_ACTION(scheduler, enqueue);
 
         void stop();

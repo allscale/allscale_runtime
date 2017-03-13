@@ -252,7 +252,7 @@ namespace allscale
 
             void set_this_id()
             {
-                id_.set(this_work_item::get_id(), this);
+                id_.set(this_work_item::get_id(), tres_.get_id());
             }
 
             template <typename ...Ts>
@@ -428,7 +428,7 @@ namespace allscale
 
             void set_this_id()
             {
-                id_.set(this_work_item::get_id(), this);
+                id_.set(this_work_item::get_id(), tres_.get_id());
             }
 
             template <typename ...Ts>
@@ -606,7 +606,7 @@ namespace allscale
 
             void set_this_id()
             {
-                id_.set(this_work_item::get_id(), this);
+                id_.set(this_work_item::get_id(), tres_.get_id());
             }
 
             template <typename ...Ts>
@@ -739,7 +739,7 @@ namespace allscale
 
  			void set_this_id()
             {
-                id_.set(this_work_item::get_id(), this);
+                id_.set(this_work_item::get_id(), tres_.get_id());
             }
 
             template <typename ...Ts>
@@ -982,18 +982,6 @@ namespace allscale
         std::shared_ptr<work_item_impl_base> impl_;
         bool is_first_;
     };
-
-    namespace this_work_item {
-        inline work_item get()
-        {
-            typedef work_item::work_item_impl_base* type;
-            type wi(reinterpret_cast<type>(get_id().get_work_item()));
-            if (wi == nullptr)
-                return work_item();
-
-            return work_item(wi->shared_from_this());
-        }
-    }
 }
 
 #endif

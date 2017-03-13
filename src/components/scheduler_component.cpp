@@ -4,7 +4,7 @@
 
 #include <hpx/util/scoped_unlock.hpp>
 
-#include <stdlib.h>    
+#include <stdlib.h>
 
 namespace allscale { namespace components {
 
@@ -56,7 +56,7 @@ namespace allscale { namespace components {
             rank_ == 0 ? num_localities_ - 1 : rank_ - 1;
         std::uint64_t right_id =
             rank_ == num_localities_ - 1 ? 0 : rank_ + 1;
-        
+
 
         hpx::future<hpx::id_type> right_future =
             hpx::find_from_basename("allscale/scheduler", right_id);
@@ -119,19 +119,21 @@ namespace allscale { namespace components {
             std::cout << "Numa num_pus.first: " << num_pus.first << ", num_pus.second: " << num_pus.second << ". Total numa domains: " << numa_domains.size() << std::endl;
         }
         timer_.start();
-        
+
         throttle_timer_.start();
         std::cout
             << "Scheduler with rank "
             << rank_ << " created (" << left_ << " " << right_ << ")!\n";
     }
 
-    void scheduler::enqueue(work_item work, bool remote)
+    void scheduler::enqueue(work_item work, this_work_item::id const& id)
     {
         std::uint64_t schedule_rank = 0;
         //std::cout<<"remote is " << remote << std::endl;
-        if (!remote)
+        if (!id)
             schedule_rank = schedule_rank_.fetch_add(1) % 3;
+        else
+            this_work_item::set_id(id);
 
         hpx::id_type schedule_id;
 
@@ -177,14 +179,14 @@ namespace allscale { namespace components {
         HPX_ASSERT(work.valid());
     	//std::cout<< "schedule rank : " <<  schedule_rank << std::endl;
 
-        hpx::apply<enqueue_action>(schedule_id, work, true);
+        hpx::apply<enqueue_action>(schedule_id, work, this_work_item::get_id());
     }
 
     bool scheduler::do_split(work_item const& w)
     {
         //FIXME: think about if locking
         //counters_mtx_ could lead to a potential dead_lock situatione
-        //when more than one enque action is active (this can be the case due 
+        //when more than one enque action is active (this can be the case due
         //to hpx apply), and the thread holding the lock is suspended and the
         //others start burning up cpu time by spinning to get the lock
         std::unique_lock<mutex_type> l(counters_mtx_);

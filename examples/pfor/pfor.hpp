@@ -211,7 +211,7 @@ struct pfor_neighbor_sync_split_variant
         auto dcl = dc.get_left_child();
         auto dcr = dc.get_right_child();
         auto drl = dr.get_left_child();
-        std::cout<<"SPAWNING 2 new work items: " << begin<< " to " << end << std::endl;
+//         std::cout<<"SPAWNING 2 new work items: " << begin<< " to " << end << std::endl;
         //std::cout<<"im doing a split  on " << hpx::get_locality_id() << std::endl;
 
         // spawn two new sub-tasks
@@ -246,7 +246,7 @@ struct pfor_neighbor_sync_process_variant
 
         auto begin = hpx::util::get<0>(closure);
         auto end   = hpx::util::get<1>(closure);
-    	std::cout<<"doing a processing on locality " << hpx::get_locality_id()<< " " << begin<< " to " << end << std::endl;
+//     	std::cout<<"doing a processing on locality " << hpx::get_locality_id()<< " " << begin<< " to " << end << std::endl;
 
 
 
