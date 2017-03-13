@@ -142,9 +142,12 @@ namespace allscale
         hpx::future<T> get_future()
         {
             HPX_ASSERT(this->valid());
-//             hpx::shared_future<hpx::id_type> g = gid_;
-//             this->reset();
             return hpx::async<get_future_action>(this->get_id());
+        }
+
+        explicit operator hpx::future<T>()
+        {
+            return get_future();
         }
 
         T get_result()
@@ -302,9 +305,12 @@ namespace allscale
         hpx::future<void> get_future()
         {
             HPX_ASSERT(this->valid());
-//             hpx::shared_future<hpx::id_type> g = gid_;
-//             this->reset();
             return hpx::async<get_future_action>(this->get_id());
+        }
+
+        explicit operator hpx::future<void>()
+        {
+            return get_future();
         }
 
         void get_result()

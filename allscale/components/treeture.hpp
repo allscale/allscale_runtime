@@ -44,6 +44,7 @@ namespace allscale { namespace components {
         {
             return hpx::traits::future_access<hpx::future<T>>::create(shared_state_);
         }
+//         HPX_DEFINE_COMPONENT_DIRECT_ACTION(treeture, get_future);
         HPX_DEFINE_COMPONENT_ACTION(treeture, get_future);
 
         hpx::id_type parent()

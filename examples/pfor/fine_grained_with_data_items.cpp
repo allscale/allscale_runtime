@@ -94,8 +94,6 @@ struct simple_stencil_body {
 
 int hpx_main(int argc, char **argv) {
 
-	std::cout<<"fick deine mutdder\n";
-
 	// start allscale scheduler ...
 	allscale::scheduler::run(hpx::get_locality_id());
 

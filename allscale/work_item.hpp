@@ -211,6 +211,8 @@ namespace allscale
 
             virtual treeture_base& get_treeture() = 0;
 
+            virtual bool can_split() const=0;
+
             virtual void process()=0;
             virtual void split()=0;
             virtual bool valid()=0;
@@ -268,6 +270,11 @@ namespace allscale
                 return static_cast<treeture_base&>(tres_);
             }
 
+            bool can_split() const
+            {
+                return WorkItemDescription::can_split_variant::call(closure_);
+            }
+
             template <typename ...Ts>
             void split_impl(Ts...vs)
             {
@@ -277,13 +284,13 @@ namespace allscale
                 monitor::signal(monitor::work_item_execution_started, work_item(this_));
                 set_id si(this->id_);
 
-                auto fut = WorkItemDescription::split_variant::execute(
+                hpx::future<result_type> fut(WorkItemDescription::split_variant::execute(
                     detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
-                ).get_future();
+                ));
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));
 
-                fut.then(
+                fut.then(hpx::launch::sync,
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
@@ -302,13 +309,13 @@ namespace allscale
                 monitor::signal(monitor::work_item_execution_started, work_item(this_));
                 set_id si(this->id_);
 
-                auto fut = WorkItemDescription::process_variant::execute(
+                hpx::future<result_type> fut(WorkItemDescription::process_variant::execute(
                     detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
-                ).get_future();
+                ));
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));
 
-                fut.then(
+                fut.then(hpx::launch::sync,
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
@@ -444,6 +451,11 @@ namespace allscale
                 return static_cast<treeture_base&>(tres_);
             }
 
+            bool can_split() const
+            {
+                return WorkItemDescription::can_split_variant::call(closure_);
+            }
+
             template <typename ...Ts>
             void split_impl(Ts...vs)
             {
@@ -453,13 +465,13 @@ namespace allscale
                 monitor::signal(monitor::work_item_execution_started, work_item(this_));
                 set_id si(this->id_);
 
-                auto fut = WorkItemDescription::split_variant::execute(
+                hpx::future<result_type> fut(WorkItemDescription::split_variant::execute(
                     detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
-                ).get_future();
+                ));
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));
 
-                fut.then(
+                fut.then(hpx::launch::sync,
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
@@ -478,13 +490,13 @@ namespace allscale
                 monitor::signal(monitor::work_item_execution_started, work_item(this_));
                 set_id si(this->id_);
 
-                auto fut = WorkItemDescription::process_variant::execute(
+                hpx::future<result_type> fut(WorkItemDescription::process_variant::execute(
                     detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
-                ).get_future();
+                ));
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));
 
-                fut.then(
+                fut.then(hpx::launch::sync,
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
@@ -622,6 +634,11 @@ namespace allscale
                 return static_cast<treeture_base&>(tres_);
             }
 
+            bool can_split() const
+            {
+                return WorkItemDescription::can_split_variant::call(closure_);
+            }
+
             template <typename ...Ts>
             void execute_impl(Ts...vs)
             {
@@ -631,13 +648,13 @@ namespace allscale
                 monitor::signal(monitor::work_item_execution_started, work_item(this_));
                 set_id si(this->id_);
 
-                auto fut = WorkItemDescription::process_variant::execute(
+                hpx::future<result_type> fut(WorkItemDescription::process_variant::execute(
                     detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
-                ).get_future();
+                ));
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));
 
-                fut.then(
+                fut.then(hpx::launch::sync,
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
@@ -755,6 +772,11 @@ namespace allscale
                 return static_cast<treeture_base&>(tres_);
             }
 
+            bool can_split() const
+            {
+                return WorkItemDescription::can_split_variant::call(closure_);
+            }
+
             template <typename ...Ts>
             void execute_impl(Ts...vs)
             {
@@ -764,13 +786,13 @@ namespace allscale
                 monitor::signal(monitor::work_item_execution_started, work_item(this_));
                 set_id si(this->id_);
 
-                auto fut = WorkItemDescription::process_variant::execute(
+                hpx::future<result_type> fut(WorkItemDescription::process_variant::execute(
                     detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
-                ).get_future();
+                ));
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));
 
-                fut.then(
+                fut.then(hpx::launch::sync,
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
@@ -910,6 +932,12 @@ namespace allscale
             if(impl_)
                 return impl_->valid();
             return false;
+        }
+
+        bool can_split() const
+        {
+            HPX_ASSERT(impl_);
+            return impl_->can_split();
         }
 
         this_work_item::id const& id() const
