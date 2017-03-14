@@ -57,7 +57,6 @@ int hpx_main(int argc, char **argv)
 
     if(hpx::get_locality_id() == 0)
     {
-
         for(int i=0; i<iters; i++) {
             std::cout << "Starting pfor(0.." << n << "), " << "Iter: " << i << "\n";
             hpx::util::high_resolution_timer t;

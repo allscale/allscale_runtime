@@ -246,8 +246,7 @@ struct pfor_neighbor_sync_split_variant
 
         return
             hpx::when_all(
-                left.get_future(), right.get_future(),
-                dl.get_future(), dc.get_future(), dr.get_future());
+                left.get_future(), right.get_future());
     }
 };
 
