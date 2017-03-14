@@ -21,6 +21,7 @@ namespace allscale{
         void serialize(Archive &ar, unsigned)
         {
             ar & region_;
+            ar & item_;
         }
     
 

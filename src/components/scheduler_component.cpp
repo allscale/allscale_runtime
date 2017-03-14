@@ -169,7 +169,7 @@ namespace allscale { namespace components {
         }
         HPX_ASSERT(schedule_id);
         HPX_ASSERT(work.valid());
-    	//std::cout<< "schedule rank : " <<  schedule_rank << std::endl;
+    	std::cout<< "schedule_id for distributed enque is : " <<  schedule_id << std::endl;
 
         hpx::apply<enqueue_action>(schedule_id, work, this_work_item::get_id());
     }
