@@ -40,8 +40,8 @@ namespace allscale
 
         using set_value_action =
             typename components::treeture<T>::set_value_action;
-        using get_future_action =
-            typename components::treeture<T>::get_future_action;
+        using attach_promise_action =
+            typename components::treeture<T>::attach_promise_action;
         using get_left_neighbor_action =
             typename components::treeture<T>::get_left_neighbor_action;
         using get_right_neighbor_action =
@@ -142,7 +142,11 @@ namespace allscale
         hpx::future<T> get_future()
         {
             HPX_ASSERT(this->valid());
-            return hpx::async<get_future_action>(this->get_id());
+            hpx::lcos::promise<T> p;
+            hpx::future<T> fut = p.get_future();
+            hpx::apply<attach_promise_action>(
+                this->get_id(), p.get_id(), p.resolve());
+            return std::move(fut);
         }
 
         explicit operator hpx::future<T>()
@@ -213,8 +217,8 @@ namespace allscale
 
         using set_value_action =
             typename components::treeture<hpx::util::unused_type>::set_value_action;
-        using get_future_action =
-            typename components::treeture<hpx::util::unused_type>::get_future_action;
+        using attach_promise_action =
+            typename components::treeture<hpx::util::unused_type>::attach_promise_action;
         using get_left_neighbor_action =
             typename components::treeture<hpx::util::unused_type>::get_left_neighbor_action;
         using get_right_neighbor_action =
@@ -305,7 +309,11 @@ namespace allscale
         hpx::future<void> get_future()
         {
             HPX_ASSERT(this->valid());
-            return hpx::async<get_future_action>(this->get_id());
+            hpx::lcos::promise<void> p;
+            hpx::future<void> fut = p.get_future();
+            hpx::apply<attach_promise_action>(
+                this->get_id(), p.get_id(), p.resolve());
+            return std::move(fut);
         }
 
         explicit operator hpx::future<void>()
