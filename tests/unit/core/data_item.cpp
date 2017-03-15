@@ -20,8 +20,7 @@ using test_item = allscale::data_item<descr>;
 
 ALLSCALE_REGISTER_DATA_ITEM_TYPE(descr);
 
-int some_global_function(test_item td) {
-	std::cout<<"hodensack"<<std::endl;
+int some_global_function(test_item  td) {
 	return *(td.fragment_.ptr_) * 7;
 }
 
@@ -35,26 +34,20 @@ bool test_action_invocation_distributed() {
 				<< std::endl;
 		return false;
 	}
-
 	//create data item on loc 1
 	descr test_descr;
 	my_region test_region(2);
 	my_fragment frag(test_region, 6);
-	test_item td(locs[0], test_descr, frag);
+	some_global_action act;
 
-	//launch action on loc 2 to migrate dataitem
-	some_global_action act;     // define an instance of some_global_action
-	auto tmp = act(locs[1],td);
-	std::cout<< "res is " << tmp << std::endl;
-	return 42 == tmp;
+	return 42==act(locs[1], test_item(locs[0],test_descr,frag));;
 }
 
 bool test_action_invocation() {
 	descr test_descr;
 	my_region test_region(2);
 	my_fragment frag(test_region, 6);
-	test_item td(hpx::find_here(), test_descr, frag);
-	HPX_ASSERT(td.valid());
+	auto td = test_item(hpx::find_here(), test_descr, frag);
 	some_global_action act;     // define an instance of some_global_action
 	return 42 == act(hpx::find_here(), td);
 }
@@ -70,16 +63,18 @@ bool test_creation() {
 
 int hpx_main(int argc, char* argv[]) {
 	if (hpx::get_locality_id() == 0) {
-		std::cout << "Running Test on locality: " << hpx::get_locality_id()
+
+		std::cout << "Running Tests on locality: " << hpx::get_locality_id()
 				<< std::endl;
-		std::cout << "test_creation(): "
+		std::cout << ""
 				<< (test_creation() ? "PASSED" : "FAILED") << std::endl;
-		std::cout << "test_action_invocation(): "
+		std::cout << ""
 				<< (test_action_invocation() ? "PASSED" : "FAILED")
 				<< std::endl;
-		std::cout << "test_action_invocation_distributed(): "
+		std::cout << ""
 				<< (test_action_invocation_distributed() ? "PASSED" : "FAILED")
 				<< std::endl;
+
 	}
 	return hpx::finalize();
 

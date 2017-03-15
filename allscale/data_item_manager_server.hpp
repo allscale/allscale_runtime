@@ -19,10 +19,6 @@
 
 
 
-typedef allscale::region<int> my_region;
-typedef allscale::data_item_description<my_region,int,int> descr;
-typedef allscale::data_item<descr> test_item;
-typedef allscale::requirement<descr> test_requirement;
 
 
 namespace allscale
@@ -48,18 +44,19 @@ namespace allscale
         // create a data_item on the locality where this data_item_manager_server lives on ( this->get_id())
         // uses future continuation, but does still block right now due to the f2.get()
         template <typename DataItemDescription>
-        allscale::data_item<DataItemDescription> create_data_item (DataItemDescription arg)
+        std::shared_ptr<allscale::data_item<DataItemDescription>>
+         create_data_item (DataItemDescription arg)
         {
             HPX_ASSERT(this->valid());
             using data_item_type = typename  allscale::data_item<DataItemDescription>;
             using action_type = typename components::data_item_manager_server::create_data_item_async_action<DataItemDescription>;
-            data_item_type ret_val = hpx::async<action_type>(this->get_id(),arg);
+            auto ret_val = hpx::async<action_type>(this->get_id(),arg);
 //             hpx::future<data_item_type> f2 = ret_val.then(
 //                 [this](hpx::future<data_item_type> f) -> data_item_type
 //                 {
 //                        return f.get();
 //                 });
-            return ret_val;
+            return ret_val.get();
         }
 
         template<typename DataItemDescription>

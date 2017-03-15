@@ -14,29 +14,33 @@ namespace allscale { namespace components {
         typedef hpx::components::managed_component_base<data_item_manager_server> server_type;
 
         template <typename T>
-        hpx::future<hpx::naming::id_type>   create_data_item_async( T  arg)
+        hpx::future<std::shared_ptr<allscale::data_item<T>>>   create_data_item_async( T  arg)
         {
             using data_item_type = allscale::data_item<T>;
-            hpx::lcos::local::promise<hpx::naming::id_type>  promise_;
-            
-//            std::cout << "creating data item with region: " << arg.r_.region_ << std::endl;
-            
-            
-            //std::shared_ptr<data_item_base> ptr (new data_item_type(hpx::find_here()));
-            std::shared_ptr<data_item_base> ptr (new data_item_type(hpx::find_here(),arg));
+            hpx::lcos::local::promise<std::shared_ptr<data_item_type>>  promise_;
 
+//            std::shared_ptr<data_item_base> ptr (new data_item_type(hpx::find_here(), arg));
+            std::shared_ptr<data_item_base> ptr = std::make_shared<data_item_type> (data_item_type(hpx::find_here(), arg));
 
+//            data_item_type k1 = *(std::static_pointer_cast<data_item_type>(ptr));
+//            data_item_type k2 = *(std::static_pointer_cast<data_item_type>(ptr2));
+//
+//            std::cout<< " ptrdd : " << *(k1.fragment_.ptr_) << std::endl;
+            //std::cout<< " ptr2 : " << *(k2.fragment_.ptr_) << std::endl;
 
+            //auto ptr = std::make_shared<data_item_base>(data_item_type(hpx::find_here(), arg));
             local_data_items.push_back(ptr);
-            data_item_type k = *(std::static_pointer_cast<data_item_type>(ptr));
-            promise_.set_value(k.get_id());
+            std::shared_ptr<data_item_type> k = std::static_pointer_cast<data_item_type>(ptr);
+            //data_item_type k2 = *(std::static_pointer_cast<data_item_type>(ptr));
+
+            promise_.set_value(k);
             return promise_.get_future();
         }
 
         template <typename T>
         struct create_data_item_async_action
           : hpx::actions::make_action<
-                hpx::future<hpx::naming::id_type>(data_item_manager_server::*)(T),
+                hpx::future<std::shared_ptr<allscale::data_item<T>>>(data_item_manager_server::*)(T),
                 &data_item_manager_server::template create_data_item_async<T>,
                 create_data_item_async_action<T>
             >

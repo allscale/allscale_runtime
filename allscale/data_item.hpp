@@ -76,6 +76,7 @@ public:
 			base_type(
 					hpx::new_<components::data_item<DataItemDescription> >(loc)) {
 		region_ = descr.r_;
+		fragment_ = descr.f_;
 		parent_loc = loc;
 		HPX_ASSERT(this->valid());
 	}
@@ -116,7 +117,6 @@ public:
 
 	template<typename Archive>
 	void load(Archive & ar, unsigned) {
-		std::cout<<"loading"<<std::endl;
 		ar & hpx::serialization::base_object<base_type>(*this);
 		ar & fragment_;
 		ar & region_;
@@ -126,8 +126,6 @@ public:
 
 	template<typename Archive>
 	void save(Archive & ar, unsigned) const {
-		std::cout<<"saving"<<std::endl;
-
 		HPX_ASSERT(this->valid());
 		ar & hpx::serialization::base_object<base_type>(*this);
 		ar & fragment_;
