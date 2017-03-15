@@ -46,6 +46,47 @@ int main_wrapper(const Args& ... args) {
     return res;
 }
 
+// A class aggregating task dependencies
+class dependencies {};
+
+// ---- insieme lambda wrapper ----
+
+template<typename ClosureType>
+struct insieme_lambda_wrapper {
+    ClosureType* closure;
+    template<typename ... Args>
+    auto operator()(const Args& ... args) {
+        return closure->call(closure,args...);
+    }
+};
+
+template<typename ClosureType>
+insieme_lambda_wrapper<ClosureType> make_insieme_lambda_wrapper(ClosureType* cls) {
+    return insieme_lambda_wrapper<ClosureType>{cls};
+}
+
+
+// ---- a prec operation wrapper ----
+
+template<typename A, typename R, typename Impl>
+struct prec_operation {
+
+    Impl impl;
+
+    treeture<R> operator()(const A& a) {
+        return impl(dependencies(),a);
+    }
+
+    treeture<R> operator()(const dependencies& d, const A& a) {
+        return impl(d,a);
+    }
+
+};
+
+template<typename A, typename B, typename Impl>
+prec_operation<A,B,Impl> make_prec_operation(const Impl& impl) {
+    return prec_operation<A,B,Impl>{impl};
+}
 
 // ---- a generic treeture combine operator ----
 
