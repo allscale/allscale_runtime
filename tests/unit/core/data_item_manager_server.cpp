@@ -17,25 +17,66 @@
 #include <hpx/hpx_init.hpp>
 #include <hpx/util/high_resolution_timer.hpp>
 
+namespace allscale {
+template<typename T>
+struct grid_region_1d: public allscale::region<T> {
+public:
+	grid_region_1d() :
+			begin_(0), end_(0) {
+	}
+
+	grid_region_1d(std::size_t b, std::size_t e) :
+			begin_(b), end_(e) {
+	}
+	bool operator==(grid_region_1d const & rh) {
+		return (begin_ == rh.begin_ && end_ == rh.end_);
+	}
+	bool has_intersection_with(grid_region_1d const & rh) {
+		return !((rh.end_ < begin_) || (rh.begin_ > end_));
+	}
+
+	template<typename Archive>
+	void serialize(Archive & ar, unsigned) {
+		ar & begin_;
+		ar & end_;
+
+	}
+
+	std::string to_string() {
+		std::string text = "[";
+		text += std::to_string(begin_);
+		text += ":";
+		text += std::to_string(end_);
+		text += "]";
+		return text;
+	}
 
 
+	std::size_t begin_;
+	std::size_t end_;
+};
+}
 
 using my_region = allscale::region<int>;
 using my_fragment = allscale::fragment<my_region,int>;
 using descr = allscale::data_item_description<my_region,my_fragment,int>;
 using test_item = allscale::data_item<descr>;
 
+using grid_region_type = allscale::grid_region_1d<int>;
+using grid_fragment = allscale::fragment<grid_region_type,std::vector<int>>;
+using data_item_descr = allscale::data_item_description<grid_region_type,grid_fragment,std::shared_ptr<std::vector<int>>>;
+using test_item_2 = allscale::data_item<data_item_descr>;
 
-
-
-
-typedef allscale::requirement<descr> test_requirement;
+using test_requirement2 = allscale::requirement<data_item_descr>;
 
 typedef allscale::data_item_manager_server my_data_item_manager_server;
 typedef std::pair<hpx::naming::id_type, my_data_item_manager_server> loc_server_pair;
-ALLSCALE_REGISTER_DATA_ITEM_TYPE(descr);
 
-ALLSCALE_REGISTER_DATA_ITEM_MANAGER_SERVER_COMPONENT();
+ALLSCALE_REGISTER_DATA_ITEM_TYPE(descr);
+ALLSCALE_REGISTER_DATA_ITEM_TYPE(data_item_descr);
+
+ALLSCALE_REGISTER_DATA_ITEM_MANAGER_SERVER_COMPONENT()
+;
 
 std::vector<loc_server_pair> dms;
 
@@ -59,57 +100,132 @@ bool test_creation_of_data_item_manager_server_components() {
 	std::vector<hpx::naming::id_type> localities = hpx::find_all_localities();
 	if (hpx::get_locality_id() == 0) {
 
+        std::vector<hpx::naming::id_type> server_ids;
 		for (hpx::naming::id_type const& node : localities) {
-			std::cout << "Cycling thru localities, Locality: " << node << std::endl;
+			std::cout << "Cycling thru localities, Locality: " << node
+					<< std::endl;
 			auto tmp = my_data_item_manager_server(node);
 			dms.push_back(std::make_pair(node, tmp));
+            server_ids.push_back(tmp.get_id());
 		}
+        for (auto & node_server_pair : dms) {
+			auto& server = node_server_pair.second;
+            server.servers_ = server_ids;
+        }
 	}
 	return true;
 }
 
 bool test_creation_of_data_items() {
-
 	//create a bunch of data items with a simple region on all the localities
-	int c = 0;
-	for (loc_server_pair & server_entry : dms) {
+	for (loc_server_pair& server_entry : dms) {
 		for (int i = 0; i < 10; ++i) {
 			my_region test_region(2);
 			my_fragment test_frag(test_region, i);
-			descr test_descr(test_region,test_frag,0);
-
+			descr test_descr(test_region, test_frag, 0);
 			auto td = server_entry.second.create_data_item < descr
 					> (test_descr);
-//			std::cout<<"test item fragment value: " << " global id: " << td.get_id() << std::endl;
-
-			std::cout<<"test item fragment value: " << *((*td).fragment_.ptr_)  << " global id: " << (*td).get_id() << std::endl;
+			//std::cout<<"test item fragment value: " << *((*td).fragment_.ptr_)  << " global id: " << hpx::naming::get_locality_from_gid((*td).get_id().get_gid()) << std::endl;
 		}
-		++c;
 	}
 	return true;
 }
 
-// locate the data item of a simple region on the localites
 bool test_locate_method() {
+	//create a bunch of data items with a simple 1d grid region on all the localities
+	int c = 0;
+	for (loc_server_pair& server_entry : dms) {
+		auto a = std::make_shared<std::vector<int>>(std::vector<int>(10, 337));
+		grid_region_type gr(c, c + 9);
+		grid_fragment frag(gr, a);
+		data_item_descr descr(gr, frag, nullptr);
+		auto td = server_entry.second.create_data_item < data_item_descr
+				> (descr);
+		auto k = (std::vector<int>) *(td->fragment_.ptr_);
+		c += 10;
+	}
 
-//	my_region search_region(2);
-//	descr test_descr(search_region, 0, 0);
-//
-//	test_requirement my_req(test_descr);
-//	decltype(dms[0].second.locate<descr>(my_req)) f1;
-//
-//	for (loc_server_pair & server_entry : dms) {
-//		f1 = server_entry.second.locate < descr > (my_req);
-//		auto results = f1.get();
-//		if (results.size() > 0) {
-//			std::cout << results[0].first.region_ << "     "
-//					<< results[0].second << std::endl;
-//		}
-//
-//	}
+	// now locate a region consisting of both the upper regions.
+	grid_region_type search_region(0, 20);
+	auto b = std::make_shared<std::vector<int>>(std::vector<int>(20, 0));
+	test_requirement2 tr(search_region);
+    using res_type = decltype(dms[0].second.locate<data_item_descr>(tr));
+    res_type results = dms[0].second.locate<data_item_descr>(tr);
+    //attach automatic continuation to the futures, this can be acquiring too
+    for (auto& fut : dms[0].second.locate<data_item_descr>(tr) ){
+    	   fut.then(
+    	        [](auto f) -> int
+    	        {
+    	            std::cout<<"is ready" << std::endl;
+    	            return 22;
+    	        }
+    	   );
+    }
+    /*
+    for(auto& el : results){
+        std::cout<< "checking one vector fut " << el.get().size()<<std::endl;
+    }
+     */
+    /*
+	for (loc_server_pair& el : dms) {
+		//auto fut = el.second.locate<data_item_descr>(tr);
+		vec_of_futs.push_back(
+				std::forward<fut_type>(
+						el.second.locate < data_item_descr > (tr)));
+	}
 
+	for (auto& el : vec_of_futs) {
+		auto res = el.get();
+		for (auto& el2 : res) {
+			std::cout << el2.first.begin_ << " " << el2.first.end_ << " " << el2.second << std::endl;
+		}
+	}*/
 	return true;
 }
+
+
+/*
+bool test_acquire_method() {
+	//create a bunch of data items with a simple 1d grid region on all the localities
+	int c = 0;
+	for (loc_server_pair& server_entry : dms) {
+		auto a = std::make_shared<std::vector<int>>(std::vector<int>(10, 337));
+		grid_region_type gr(c, c + 9);
+		grid_fragment frag(gr, a);
+		data_item_descr descr(gr, frag, nullptr);
+		auto td = server_entry.second.create_data_item < data_item_descr
+				> (descr);
+		auto k = (std::vector<int>) *(td->fragment_.ptr_);
+		c += 10;
+	}
+
+	// now locate a region consisting of both the upper regions.
+	grid_region_type search_region(0, 7);
+	auto b = std::make_shared<std::vector<int>>(std::vector<int>(20, 0));
+	test_requirement2 tr(search_region);
+	using fut_type = decltype(dms[0].second.locate<data_item_descr>(tr));
+	std::vector<fut_type> vec_of_futs;
+    // locate by running locate on the distributed  
+	for (loc_server_pair& el : dms) {
+		vec_of_futs.push_back(
+				std::forward<fut_type>(
+						el.second.locate < data_item_descr > (tr)));
+	}
+
+	for (auto& el : vec_of_futs) {
+		auto res = el.get();
+		for (auto& el2 : res) {
+			std::cout << el2.first.begin_ << " " << el2.first.end_ << " " << el2.second << std::endl;
+		}
+	}
+	return true;
+}
+
+
+*/
+
+
+
 
 int hpx_main(int argc, char* argv[]) {
 	if (hpx::get_locality_id() == 0) {
@@ -119,10 +235,12 @@ int hpx_main(int argc, char* argv[]) {
 					<< std::endl;
 		}
 
-		if (test_creation_of_data_items() == true) {
-			std::cout << "Test(2): Creation of data_items : PASSED"
-					<< std::endl;
-		}
+//		if (test_creation_of_data_items() == true) {
+//			std::cout << "Test(2): Creation of data_items : PASSED"
+//					<< std::endl;
+//		}
+		//test_creation_of_data_item_manager_server_components();
+		test_locate_method();
 //
 //		if (test_locate_method() == true) {
 //			std::cout

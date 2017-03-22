@@ -19,13 +19,16 @@ namespace allscale
 				region_(descr.r_)
 		{
 		}
+		requirement(region_type r) : region_(r)
+		{
+		}
 
 		template<typename Archive>
 		void serialize(Archive &ar, unsigned) {
 			ar & region_;
-			ar & item_;
+			//ar & item_;
 		}
-		data_item<DataItemDescription> item_;
+		//data_item<DataItemDescription> item_;
 		region_type region_;
 		access_privilege access_;
 

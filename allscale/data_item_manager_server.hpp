@@ -60,41 +60,24 @@ namespace allscale
         }
 
         template<typename DataItemDescription>
-        hpx::future<std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> > >
-        locate ( allscale::requirement<DataItemDescription>   requirement )
-        //locate ( allscDataItemDescription requirement )
-        {
-            HPX_ASSERT(this->valid());
-            //descr test_descr;        
-            //hpx::lcos::local::promise<int> promise;
-            //hpx::future<int> fut = promise.get_future();
-            using action_type = typename components::data_item_manager_server::locate_async_action<DataItemDescription>;
-            
-            //allscale::requirement<descr> test_req;
-         //   auto ret_val = hpx::async<action_type>(this->get_id(),fut);
-            auto ret_val = hpx::async<action_type>(this->get_id(),requirement);
-
-            return ret_val;
-
-        }
-
-        /*
-        template<typename DataItemDescription>
-//        hpx::future<std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> > >
-        void
-            locate ( allscale::requirement<DataItemDescription>  requirement )
+        std::vector<hpx::future<std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> > > >
+        locate ( allscale::requirement<DataItemDescription>& requirement)
         {
             HPX_ASSERT(this->valid());
             using action_type = typename components::data_item_manager_server::locate_async_action<DataItemDescription>;
-            
-            using future_type = hpx::future<std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> > >;
-            
-            future_type ret_val = hpx::async<action_type>(this->get_id(),requirement);
-            //future_type ret_val = hpx::async<action_type>(this->get_id(),requirement);
-
+            using fut_type = decltype(hpx::async<action_type>(this->get_id(),requirement));
+            std::vector<fut_type> results;
+            for(auto& el : servers_){
+                results.push_back(hpx::async<action_type>(el,requirement));
+            }
+            //auto ret_val = hpx::async<action_type>(this->get_id(),requirement);
+            return results;
         }
 
-*/
+
+
+
+
         //TODO: function returning mask to data_item usw
         // get_access(data_item_id, region r)
         //
@@ -104,7 +87,8 @@ namespace allscale
         {
             //destroy it
         }
-
+        
+        std::vector<hpx::naming::id_type> servers_;
         hpx::naming::id_type servers_home_locality;
 
     };
