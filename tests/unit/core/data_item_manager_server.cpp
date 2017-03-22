@@ -101,8 +101,8 @@ bool test_creation_of_data_item_manager_server_components() {
 
 		std::vector<hpx::naming::id_type> server_ids;
 		for (hpx::naming::id_type const& node : localities) {
-			std::cout << "Cycling thru localities, Locality: " << node
-					<< std::endl;
+//			std::cout << "Cycling thru localities, Locality: " << node
+//					<< std::endl;
 			auto tmp = my_data_item_manager_server(node);
 			dms.push_back(std::make_pair(node, tmp));
 			server_ids.push_back(tmp.get_id());
@@ -199,67 +199,12 @@ bool test_acquire_method() {
 	return true;
 }
 
-/*
- bool test_acquire_method() {
- //create a bunch of data items with a simple 1d grid region on all the localities
- int c = 0;
- for (loc_server_pair& server_entry : dms) {
- auto a = std::make_shared<std::vector<int>>(std::vector<int>(10, 337));
- grid_region_type gr(c, c + 9);
- grid_fragment frag(gr, a);
- data_item_descr descr(gr, frag, nullptr);
- auto td = server_entry.second.create_data_item < data_item_descr
- > (descr);
- auto k = (std::vector<int>) *(td->fragment_.ptr_);
- c += 10;
- }
-
- // now locate a region consisting of both the upper regions.
- grid_region_type search_region(0, 7);
- auto b = std::make_shared<std::vector<int>>(std::vector<int>(20, 0));
- test_requirement2 tr(search_region);
- using fut_type = decltype(dms[0].second.locate<data_item_descr>(tr));
- std::vector<fut_type> vec_of_futs;
- // locate by running locate on the distributed
- for (loc_server_pair& el : dms) {
- vec_of_futs.push_back(
- std::forward<fut_type>(
- el.second.locate < data_item_descr > (tr)));
- }
-
- for (auto& el : vec_of_futs) {
- auto res = el.get();
- for (auto& el2 : res) {
- std::cout << el2.first.begin_ << " " << el2.first.end_ << " " << el2.second << std::endl;
- }
- }
- return true;
- }
-
-
- */
 
 int hpx_main(int argc, char* argv[]) {
 	if (hpx::get_locality_id() == 0) {
-		if (test_creation_of_data_item_manager_server_components() == true) {
-			std::cout
-					<< "Test(1): Creation of data_item_manager_servers : PASSED"
-					<< std::endl;
-		}
-
-//		if (test_creation_of_data_items() == true) {
-//			std::cout << "Test(2): Creation of data_items : PASSED"
-//					<< std::endl;
-//		}
-		//test_creation_of_data_item_manager_server_components();
-		//test_locate_method();
-		test_acquire_method();
-//
-//		if (test_locate_method() == true) {
-//			std::cout
-//					<< "Test(3): Locate all data_items related to a region of a requirement: PASSED"
-//					<< std::endl;
-//		}
+		std::cout<<"test_creation_of_data_item_manager_server_components() == " << test_creation_of_data_item_manager_server_components() << std::endl;
+		std::cout<<"test_locate_method() == " << test_locate_method() << std::endl;
+		std::cout<<"test_acquire_method() == " << test_acquire_method() << std::endl;
 	}
 
 	return hpx::finalize();

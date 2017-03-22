@@ -46,33 +46,7 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 	>
 	{};
 
-	/*
-	 template <typename T>
-	 hpx::future<T>
-	 locate_async( allscale::requirement<T> requirement){
-	 hpx::lcos::local::promise<T> promise_;
-	 //           auto target_region = requirement.region_;
-	 //
-	 //           for( std::shared_ptr<data_item_base> base_item : local_data_items )
-	 //           {
-	 //               std::cout<< "djkkawjdkdaw" << std::endl;
-	 //           }
-	 future_type res;
-	 return promise_.get_future();
-	 }
 
-
-	 template <typename T>
-	 struct locate_async_action
-	 : hpx::actions::make_action<
-	 hpx::future<T> (data_item_manager_server::*)(allscale::requirement<T>),
-	 &data_item_manager_server::template locate_async<T>,
-	 locate_async_action<T>
-	 >
-	 {};
-
-
-	 */
 	template <typename DataItemDescription>
 	hpx::future<std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> > >
 	locate_async( allscale::requirement<DataItemDescription> requirement) {
