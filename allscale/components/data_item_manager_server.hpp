@@ -77,7 +77,6 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 	hpx::future<std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> > >
 	locate_async( allscale::requirement<DataItemDescription> requirement) {
         
-        std::cout<<"running locate on " << hpx::get_locality_id() << std::endl;
 		using future_type = std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> >;
 		using pair_type = std::pair<typename DataItemDescription::region_type, hpx::naming::id_type>;
 
@@ -93,7 +92,9 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 			if (tmp.region_.has_intersection_with(target_region))
 			{
 				//        std::cout<< "Found the data item on locality: " << tmp.parent_loc  << std::endl;
-				target_pair = new pair_type(tmp.region_,tmp.parent_loc);
+				//target_pair = new pair_type(tmp.region_,tmp.parent_loc);
+				target_pair = new pair_type(tmp.region_,this->get_id());
+
 				tmp2.push_back(*(target_pair));
 			}
 		}
@@ -111,16 +112,23 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 	{};
 
 	template<typename DataItemDescription>
-	hpx::future<typename DataItemDescription::collection_type> acquire_async ( typename DataItemDescription::region_type const& region)
+	hpx::future<typename DataItemDescription::collection_facade> acquire_async ( typename DataItemDescription::region_type const& region)
 	{
-		using future_type = typename DataItemDescription::collection_type;
+//		std::cout<<"acquire is called for region: "<< region.to_string() << std::endl;
+		using future_type = typename DataItemDescription::collection_facade;
 		future_type tmp2;
 		hpx::lcos::local::promise<future_type> promise_;
 
 		using data_item_type = allscale::data_item<DataItemDescription>;
 		for(std::shared_ptr<data_item_base> base_item : local_data_items) {
 			data_item_type tmp = *(std::static_pointer_cast<data_item_type>(base_item));
+			if(region == tmp.region_){
+//				std::cout<<"found this region exactly"<<std::endl;
+				tmp2 = tmp.fragment_.ptr_;
+			}
+
 		}
+
 		promise_.set_value(tmp2);
 		return promise_.get_future();
 
@@ -129,7 +137,7 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 	template <typename DataItemDescription>
 	struct acquire_async_action
 	: hpx::actions::make_action<
-	hpx::future<typename DataItemDescription::collection_type>  (data_item_manager_server::*)(typename DataItemDescription::region_type const&),
+	hpx::future<typename DataItemDescription::collection_facade>  (data_item_manager_server::*)(typename DataItemDescription::region_type const&),
 	&data_item_manager_server::template acquire_async<DataItemDescription>,
 	acquire_async_action<DataItemDescription>
 	>

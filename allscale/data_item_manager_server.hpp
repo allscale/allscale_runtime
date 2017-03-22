@@ -74,6 +74,14 @@ namespace allscale
             return results;
         }
 
+//        template<typename DataItemDescription>
+//        hpx::future<typename DataItemDescription::collection_facade>
+//        acquire( typename DataItemDescription::region_type const& region)
+//        {
+//        	using action_type = typename components::data_item_manager_server::acquire_async_action<DataItemDescription>;
+//        	return hpx::async<action_type>(this->get_id(),region);
+//        }
+
 
 
 
