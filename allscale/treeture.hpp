@@ -40,8 +40,8 @@ namespace allscale
 
         using set_value_action =
             typename components::treeture<T>::set_value_action;
-        using get_future_action =
-            typename components::treeture<T>::get_future_action;
+        using attach_promise_action =
+            typename components::treeture<T>::attach_promise_action;
         using get_left_neighbor_action =
             typename components::treeture<T>::get_left_neighbor_action;
         using get_right_neighbor_action =
@@ -142,9 +142,16 @@ namespace allscale
         hpx::future<T> get_future()
         {
             HPX_ASSERT(this->valid());
-//             hpx::shared_future<hpx::id_type> g = gid_;
-//             this->reset();
-            return hpx::async<get_future_action>(this->get_id());
+            hpx::lcos::promise<T> p;
+            hpx::future<T> fut = p.get_future();
+            hpx::apply<attach_promise_action>(
+                this->get_id(), p.get_id(), p.resolve());
+            return std::move(fut);
+        }
+
+        explicit operator hpx::future<T>()
+        {
+            return get_future();
         }
 
         T get_result()
@@ -176,22 +183,22 @@ namespace allscale
                 hpx::async<get_right_neighbor_action>(this->get_id()));
         }
 
-//         template <typename Archive>
-//         void load(Archive & ar, unsigned)
-//         {
-//             ar & hpx::serialization::base_object<base_type>(*this);
-//             HPX_ASSERT(this->valid());
-//         }
-//
-//         template <typename Archive>
-//         void save(Archive & ar, unsigned) const
-//         {
-//             HPX_ASSERT(this->valid());
-//             ar & hpx::serialization::base_object<base_type>(*this);
-//             HPX_ASSERT(this->valid());
-//         }
-//
-//         HPX_SERIALIZATION_SPLIT_MEMBER();
+         template <typename Archive>
+         void load(Archive & ar, unsigned)
+         {
+             ar & hpx::serialization::base_object<base_type>(*this);
+             HPX_ASSERT(this->valid());
+         }
+
+         template <typename Archive>
+         void save(Archive & ar, unsigned) const
+         {
+             HPX_ASSERT(this->valid());
+             ar & hpx::serialization::base_object<base_type>(*this);
+             HPX_ASSERT(this->valid());
+         }
+
+         HPX_SERIALIZATION_SPLIT_MEMBER();
     };
 
     template <typename T>
@@ -210,8 +217,8 @@ namespace allscale
 
         using set_value_action =
             typename components::treeture<hpx::util::unused_type>::set_value_action;
-        using get_future_action =
-            typename components::treeture<hpx::util::unused_type>::get_future_action;
+        using attach_promise_action =
+            typename components::treeture<hpx::util::unused_type>::attach_promise_action;
         using get_left_neighbor_action =
             typename components::treeture<hpx::util::unused_type>::get_left_neighbor_action;
         using get_right_neighbor_action =
@@ -302,9 +309,16 @@ namespace allscale
         hpx::future<void> get_future()
         {
             HPX_ASSERT(this->valid());
-//             hpx::shared_future<hpx::id_type> g = gid_;
-//             this->reset();
-            return hpx::async<get_future_action>(this->get_id());
+            hpx::lcos::promise<void> p;
+            hpx::future<void> fut = p.get_future();
+            hpx::apply<attach_promise_action>(
+                this->get_id(), p.get_id(), p.resolve());
+            return std::move(fut);
+        }
+
+        explicit operator hpx::future<void>()
+        {
+            return get_future();
         }
 
         void get_result()

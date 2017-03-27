@@ -22,6 +22,8 @@ static const int DEFAULT_SIZE = 128 * 1024 * 1024;
 static std::vector<int> dataA;
 static std::vector<int> dataB;
 
+
+
 struct simple_stencil_body {
     void operator()(std::int64_t i, const hpx::util::tuple<std::int64_t,std::int64_t>& params) const {
         // extract parameters
@@ -37,15 +39,14 @@ struct simple_stencil_body {
         int* B = (t%2) ? dataB.data() : dataA.data();
 
         // check current state
-        if ((i > 0 && A[i-1] != A[i]) || (i < n-1 && A[i] != A[i+1])) {
-                std::cout << "Error in synchronization!\n";
-                std::cout << "  for i=" << i << "\n";
-                std::cout << "  A[i-1]=" << A[i-1] << "\n";
-                std::cout << "  A[ i ]=" << A[ i ] << "\n";
-                std::cout << "  A[i+1]=" << A[i+1] << "\n";
-                exit(42);
-        }
-
+//        if ((i > 0 && A[i-1] != A[i]) || (i < n-1 && A[i] != A[i+1])) {
+//                std::cout << "Error in synchronization!\n";
+//                std::cout << "  for i=" << i << "\n";
+//                std::cout << "  A[i-1]=" << A[i-1] << "\n";
+//                std::cout << "  A[ i ]=" << A[ i ] << "\n";
+//                std::cout << "  A[i+1]=" << A[i+1] << "\n";
+//                exit(42);
+//        }
         // update B
         B[i] = A[i] + 1;
     }
@@ -54,6 +55,7 @@ struct simple_stencil_body {
 
 int hpx_main(int argc, char **argv)
 {
+	std::cout<<"blubber \n";
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
 
@@ -63,6 +65,7 @@ int hpx_main(int argc, char **argv)
     // initialize the data array
     dataA.resize(n, 0);
     dataB.resize(n, 0);
+
 
     if(hpx::get_locality_id() == 0)
     {
