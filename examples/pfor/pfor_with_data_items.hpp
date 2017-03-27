@@ -58,6 +58,56 @@ public:
 };
 
 
+template <typename Body>
+struct pfor_can_split
+{
+    template <typename Body_, typename Closure>
+    static bool call_impl(Closure&& closure, decltype(&Body_::can_split))
+    {
+        auto begin = hpx::util::get<0>(closure);
+        auto end   = hpx::util::get<1>(closure);
+
+        return Body::can_split(begin, end);
+    }
+
+    template <typename Body_, typename Closure>
+    static bool call_impl(Closure&& closure, ...)
+    {
+        auto begin = hpx::util::get<0>(closure);
+        auto end   = hpx::util::get<1>(closure);
+
+        // this decision is arbitrary and should be fixed by the Body
+        // implementations to give a good estimate for granularity
+        return end - begin > 10000;
+    }
+
+    template <typename Closure>
+    static bool call(Closure&& closure)
+    {
+        return call_impl<Body>(std::forward<Closure>(closure), nullptr);
+    }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // PFor Work Item:
 //  - Result: std::int64_t
@@ -185,7 +235,8 @@ using pfor_neighbor_sync_work =
         pfor_name,
         allscale::no_serialization,
         pfor_neighbor_sync_split_variant<Body,ExtraParams...>,
-        pfor_neighbor_sync_process_variant<Body,ExtraParams...>
+        pfor_neighbor_sync_process_variant<Body,ExtraParams...>,
+        pfor_can_split<Body>
     >;
 
 template<typename Body, typename ... ExtraParams>
@@ -228,7 +279,7 @@ struct pfor_neighbor_sync_split_variant
         auto drl = dr.get_left_child();
 
         // spawn two new sub-tasks
-        std::cout<<"SPAWNING 2 new work items: " << begin<<" to " << mid << " and " << mid << " to " << end << std::endl;
+//        std::cout<<"SPAWNING 2 new work items: " << begin<<" to " << mid << " and " << mid << " to " << end << std::endl;
 
         auto left = allscale::spawn<pfor_neighbor_sync_work<Body,ExtraParams...>>(begin, mid, extra, hpx::util::make_tuple(dlr,dcl,dcr));
         auto right = allscale::spawn<pfor_neighbor_sync_work<Body,ExtraParams...>>(mid,   end, extra, hpx::util::make_tuple(dcl,dcr,drl));
@@ -277,7 +328,7 @@ struct pfor_neighbor_sync_process_variant
                         auto end   = hpx::util::get<1>(closure);
                         auto extra = hpx::util::get<2>(closure);
 
-                       // std::cout<<"PROCESSING  work item: " << begin<<" to " << end << std::endl;
+                        //std::cout<<"PROCESSING  work item: " << begin<<" to " << end << std::endl;
 
                         // get a body instance
                         Body body;

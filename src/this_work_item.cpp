@@ -1,5 +1,6 @@
 
 #include <allscale/this_work_item.hpp>
+#include <allscale/treeture.hpp>
 #include <allscale/work_item.hpp>
 
 #include <hpx/include/threads.hpp>
@@ -17,15 +18,14 @@ namespace allscale { namespace this_work_item {
     }
 
     id::id()
-      : impl_(nullptr)
     {}
 
-    void id::set(id const& parent, void* impl)
+    void id::set(id const& parent, hpx::id_type const& tres)
     {
         next_id_ = 0;
         id_ = parent.id_;
         id_.push_back(get_id().next_id_++);
-        impl_ = impl;
+        tres_ = tres;
     }
 
     id& get_id()
@@ -67,11 +67,6 @@ namespace allscale { namespace this_work_item {
         res.id_.pop_back();
 
         return res;
-    }
-
-    void* id::get_work_item() const
-    {
-        return impl_;
     }
 
     bool operator==(id const& lhs, id const& rhs)

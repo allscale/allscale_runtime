@@ -40,11 +40,15 @@ namespace allscale { namespace components {
         }
         HPX_DEFINE_COMPONENT_DIRECT_ACTION(treeture, set_value);
 
-        hpx::future<T> get_future()
+        void attach_promise(hpx::id_type pid, hpx::naming::address addr)
         {
-            return hpx::traits::future_access<hpx::future<T>>::create(shared_state_);
+            shared_state_->set_on_completed(
+                [pid, addr, this]() mutable {
+                    T result = *shared_state_->get_result();
+                    hpx::set_lco_value(pid, std::move(addr), std::move(result));
+                });
         }
-        HPX_DEFINE_COMPONENT_ACTION(treeture, get_future);
+        HPX_DEFINE_COMPONENT_DIRECT_ACTION(treeture, attach_promise);
 
         hpx::id_type parent()
         {

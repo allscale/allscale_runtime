@@ -56,7 +56,7 @@ int hpx_main(int argc, char **argv)
 
     std::int64_t n = argc >= 2 ? std::stoi(std::string(argv[1])) : DEFAULT_SIZE;
     std::int64_t steps = argc >= 3 ? std::stoi(std::string(argv[2])) : 1000;
-    std::int64_t iters = argc >= 4 ? std::stoi(std::string(argv[2])) : 1;
+    std::int64_t iters = argc >= 4 ? std::stoi(std::string(argv[3])) : 1;
 
     // initialize the data array
     dataA.resize(n, 0);
