@@ -140,7 +140,7 @@ bool test_locate_method() {
 		data_item_descr descr(gr, frag, nullptr);
 		auto td = server_entry.second.create_data_item < data_item_descr
 				> (descr);
-		auto k = (std::vector<int>) *(td->fragment_.ptr_);
+		//auto k = (std::vector<int>) *(td->fragment_.ptr_);
 		c += 10;
 	}
 
@@ -171,7 +171,7 @@ bool test_acquire_method() {
 		data_item_descr descr(gr, frag, nullptr);
 		auto td = server_entry.second.create_data_item < data_item_descr
 				> (descr);
-		auto k = (std::vector<int>) *(td->fragment_.ptr_);
+		//auto k = (std::vector<int>) *(td->fragment_.ptr_);
 		c += 10;
 		i *= 2;
 	}
