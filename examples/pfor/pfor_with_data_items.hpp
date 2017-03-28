@@ -124,7 +124,7 @@ struct pfor_can_split {
 
 		// this decision is arbitrary and should be fixed by the Body
 		// implementations to give a good estimate for granularity
-		return end - begin > 10000;
+		return end - begin > 100;
 	}
 
 	template<typename Closure>
@@ -277,6 +277,7 @@ struct pfor_neighbor_sync_split_variant {
 
 		// compute the middle
 		auto mid = begin + (end - begin) / 2;
+		//std::cout<<"splitting"<<std::endl;
 //        std::cout<<"SPLIT VARIANT executing, mid is: " << mid << std::endl;
 		// refine dependencies
 		auto dl = hpx::util::get<0>(deps);
@@ -332,44 +333,57 @@ struct pfor_neighbor_sync_process_variant {
 							// extract parameters
 								auto begin = hpx::util::get<0>(closure);
 								auto end = hpx::util::get<1>(closure);
+
 								auto all_params = hpx::util::get<2>(closure);
-
 								hpx::naming::id_type dms = hpx::util::get<2>(all_params);
-
 								grid_region_type search_region(begin, end);
 								grid_test_requirement tr(search_region);
-
 								//std::cout<< " dms info : " << hpx::naming::get_locality_id_from_id(dms) << std::endl;
-
 								using action_type = typename allscale::components::data_item_manager_server::locate_async_action<grid_data_item_descr>;
 								using fut_type = decltype(hpx::async<action_type>(dms,tr));
 								std::vector<fut_type> results;
 								results.push_back(std::move(hpx::async<action_type>(dms,tr)));
-								//results.push_back(std::move(fut));
-								
-                                
-                                //auto res = results[0].get();
+								using get_right = typename allscale::components::data_item_manager_server::get_right_neighbor_action;
+								using get_left = typename allscale::components::data_item_manager_server::get_left_neighbor_action;
+								using acquire_action = typename allscale::components::data_item_manager_server::acquire_fragment_async_action<grid_data_item_descr>;
+								auto left = hpx::async<get_left>(dms).get();
+								auto right = hpx::async<get_right>(dms).get();
 
-                                using get_right = typename allscale::components::data_item_manager_server::get_right_neighbor_action;
-                                using get_left = typename allscale::components::data_item_manager_server::get_left_neighbor_action;
-
-                                auto left = hpx::async<get_left>(dms).get();
-                                auto right = hpx::async<get_right>(dms).get();
-
-                                if(left) {
-                                    results.push_back(std::move(hpx::async<action_type>(left,tr)));
-                                }
-                                if(right) {
-                                    results.push_back(std::move(hpx::async<action_type>(right,tr)));
-                                }
-
-								for(auto& el : results){
-									auto res = el.get();
-                                    for(auto& bla : res){
-                                        std::cout<< bla.first.to_string()<<" " ;
-                                    }
+								if(left) {
+									results.push_back(std::move(hpx::async<action_type>(left,tr)));
 								}
-                                std::cout<<std::endl;
+								if(right) {
+									results.push_back(std::move(hpx::async<action_type>(right,tr)));
+								}
+								std::vector<std::pair<grid_region_type,hpx::id_type>> shopping_list;
+								for(auto& el : results) {
+									auto res = el.get();
+									for(auto& bla : res) {
+										shopping_list.push_back(bla);
+									}
+								}
+
+
+								std::vector<grid_fragment> writable_fragments;
+								std::vector<grid_fragment> readonly_fragments;
+
+								for( auto& el : shopping_list){
+									if(hpx::naming::get_locality_id_from_id(el.second) == hpx::get_locality_id())
+									{
+//										std::cout<<"acquiring fragment on same locality for write access: " << el.first.to_string()<<std::endl;
+										writable_fragments.push_back(hpx::async<acquire_action>(el.second,el.first).get());
+									}
+									else{
+//										std::cout<<"acquiring fragment on another locality for read access: " << el.first.to_string()<<std::endl;
+										readonly_fragments.push_back(hpx::async<acquire_action>(el.second,el.first).get());
+
+									}
+								}
+
+//								for( auto& el : acquired_fragments){
+//									std::cout <<"fragment: " <<  el.region_.to_string()<< " " << (*el.ptr_).size() << " " ;
+//								}
+//								std::cout<<std::endl;
 //								std::cout<<" locate gave result of size " << res.size()<< " " << res[0].first.to_string()<< " locate gave result of size " << res2.size()<<" " << res2[0].first.to_string()<<std::endl;
 
 								//(*dms).locate<grid_data_item_descr>(tr);
@@ -381,17 +395,23 @@ struct pfor_neighbor_sync_process_variant {
 //												return 22;
 //											});
 //								}
-								/*
+
+//								 auto extra = hpx::util::make_tuple(hpx::util::get<0>(all_params),hpx::util::get<1>(all_params),
+//								 hpx::util::get<3>(all_params),
+//								 hpx::util::get<4>(all_params));
+
 								 auto extra = hpx::util::make_tuple(hpx::util::get<0>(all_params),hpx::util::get<1>(all_params),
-								 hpx::util::get<3>(all_params),
-								 hpx::util::get<4>(all_params));
+										 writable_fragments,
+										 readonly_fragments);
+
+
 								 // get a body instance
 								 Body body;
 								 // do some computation
 								 for(auto i = begin; i<end; i++) {
 								 body(i,extra);
 								 }
-								 */
+
 
 							}), dl.get_future(), dc.get_future(),
 						dr.get_future()));

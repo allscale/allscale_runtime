@@ -31,11 +31,30 @@ std::int64_t local_begin;
 std::int64_t local_end;
 
 struct simple_stencil_body {
+//	void operator()(std::int64_t i,
+//			const hpx::util::tuple<std::int64_t, std::int64_t,
+//					std::shared_ptr<test_data_item>,
+//					std::shared_ptr<test_data_item>>& params) const {
 	void operator()(std::int64_t i,
 			const hpx::util::tuple<std::int64_t, std::int64_t,
-					std::shared_ptr<test_data_item>,
-					std::shared_ptr<test_data_item>>& params) const {
+					std::vector<grid_fragment>, std::vector<grid_fragment>>& params) const {
 		// extract parameters
+		auto t = hpx::util::get<0>(params);
+		auto n = hpx::util::get<1>(params);
+		auto writable_fragments = hpx::util::get<2>(params);
+		auto readonly_fragments = hpx::util::get<3>(params);
+		if(writable_fragments.size()==0){
+			std::cout<<"no writable fragments for this process action, this is a problem..."<<std::endl;
+		}
+		for (auto& el : writable_fragments) {
+			std::cout << "writable region: " << el.region_.to_string()
+					<< std::endl;
+		}
+		for (auto& el : readonly_fragments) {
+			std::cout << "readonly region: " << el.region_.to_string()
+					<< std::endl;
+		}
+
 		/*
 		 auto t = hpx::util::get<0>(params);
 		 auto n = hpx::util::get<1>(params);
@@ -125,7 +144,6 @@ int hpx_main(int argc, char **argv) {
 		hpx::async<set_right>((*dms[0]).get_id(), (*dms[1]).get_id());
 		using set_left = typename allscale::components::data_item_manager_server::set_left_neighbor_action;
 		hpx::async<set_left>((*dms[1]).get_id(), (*dms[0]).get_id());
-
 
 	}
 

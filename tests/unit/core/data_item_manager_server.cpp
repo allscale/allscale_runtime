@@ -181,6 +181,39 @@ bool test_acquire_method() {
 	auto b = std::make_shared<std::vector<int>>(std::vector<int>(20, 0));
 	test_requirement2 tr(search_region);
 	//attach automatic continuation to the futures, this can be acquiring too
+	using locate_action = typename allscale::components::data_item_manager_server::locate_async_action<data_item_descr>;
+	std::vector<std::pair<grid_region_type,hpx::id_type>> shopping_list;
+	auto res = hpx::async<locate_action>(dms[0].second.get_id(),search_region).get();
+	for(auto& el : res ){
+		shopping_list.push_back(el);
+//		std::cout<< el.first.to_string() << " " << hpx::naming::get_locality_id_from_id(el.second) << std::endl;
+	}
+	res = hpx::async<locate_action>(dms[1].second.get_id(),search_region).get();
+	for(auto& el : res ){
+			shopping_list.push_back(el);
+//			std::cout<< el.first.to_string() << " " << hpx::naming::get_locality_id_from_id(el.second) << std::endl;
+	}
+	for(auto& el : shopping_list){
+		std::cout<< el.first.to_string() << " " << hpx::naming::get_locality_id_from_id(el.second)<<std::endl;
+	}
+
+	using acquire_action = typename allscale::components::data_item_manager_server::acquire_fragment_async_action<data_item_descr>;
+	auto frag = hpx::async<acquire_action>(shopping_list[0].second,shopping_list[0].first).get();
+	std::cout <<"frag[5] " << (*frag.ptr_)[5] <<  std::endl;
+	(*frag.ptr_)[5] = 1337;
+	auto frag2 = hpx::async<acquire_action>(shopping_list[0].second,shopping_list[0].first).get();
+	std::cout <<"frag[5] " << (*frag2.ptr_)[5] <<  std::endl;
+
+
+	auto frag3 = hpx::async<acquire_action>(shopping_list[1].second,shopping_list[1].first).get();
+	std::cout <<"frag[5] " << (*frag3.ptr_)[5] <<  std::endl;
+	(*frag.ptr_)[5] = 1337;
+	auto frag4 = hpx::async<acquire_action>(shopping_list[1].second,shopping_list[1].first).get();
+	std::cout <<"frag[5] " << (*frag4.ptr_)[5] <<  std::endl;
+
+
+	/*
+
 	for (auto& fut : dms[0].second.locate < data_item_descr > (tr)) {
 		fut.then(
 				[](auto f) -> int
@@ -190,12 +223,13 @@ bool test_acquire_method() {
 
 						using action_type = typename allscale::components::data_item_manager_server::acquire_async_action<data_item_descr>;
 						auto res = hpx::async<action_type>(el.second,el.first);
-//						std::cout << (*(res.get()))[3]  << std::endl;
+						std::cout << "blubber : " << (*(res.get()))[3]  << std::endl;
 					}
 					return 22;
 				});
 
 	}
+	*/
 	return true;
 }
 
@@ -203,7 +237,7 @@ bool test_acquire_method() {
 int hpx_main(int argc, char* argv[]) {
 	if (hpx::get_locality_id() == 0) {
 		std::cout<<"test_creation_of_data_item_manager_server_components() == " << test_creation_of_data_item_manager_server_components() << std::endl;
-		std::cout<<"test_locate_method() == " << test_locate_method() << std::endl;
+		//std::cout<<"test_locate_method() == " << test_locate_method() << std::endl;
 		std::cout<<"test_acquire_method() == " << test_acquire_method() << std::endl;
 	}
 

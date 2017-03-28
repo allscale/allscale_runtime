@@ -176,6 +176,7 @@ namespace allscale { namespace components {
 
     bool scheduler::do_split(work_item const& w)
     {
+    	//std::cout<< " wcansplit: " << w.can_split()<<std::endl;
         if (!w.can_split()) return false;
         //FIXME: think about if locking
         //counters_mtx_ could lead to a potential dead_lock situatione

@@ -123,6 +123,48 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 			acquire_async_action<DataItemDescription> > {
 	};
 
+
+	template<typename DataItemDescription>
+		hpx::future<typename DataItemDescription::fragment_type> acquire_fragment_async(
+				typename DataItemDescription::region_type const& region) {
+	//		std::cout<<"acquire is called for region: "<< region.to_string() << std::endl;
+			using future_type = typename DataItemDescription::fragment_type;
+			future_type tmp2;
+			hpx::lcos::local::promise<future_type> promise_;
+
+			using data_item_type = allscale::data_item<DataItemDescription>;
+			for (std::shared_ptr<data_item_base> base_item : local_data_items) {
+				data_item_type tmp = *(std::static_pointer_cast<data_item_type>(
+						base_item));
+				if (region == tmp.region_) {
+	//				std::cout<<"found this region exactly"<<std::endl;
+					//hand out a copy of fragment
+					tmp2 = tmp.fragment_;
+				}
+
+			}
+
+			promise_.set_value(tmp2);
+			return promise_.get_future();
+
+		}
+
+		template<typename DataItemDescription>
+		struct acquire_fragment_async_action: hpx::actions::make_action<
+				hpx::future<typename DataItemDescription::fragment_type> (data_item_manager_server::*)(
+						typename DataItemDescription::region_type const&),
+				&data_item_manager_server::template acquire_fragment_async<
+						DataItemDescription>,
+				acquire_fragment_async_action<DataItemDescription> > {
+		};
+
+
+
+
+
+
+
+
 	hpx::id_type get_left_neighbor() {
 		return left_;
 	}
