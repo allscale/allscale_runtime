@@ -213,14 +213,6 @@ namespace allscale { namespace components {
     {
         if ( num_threads_ > 1 && input_objective == scheduler::objectives.at(Objective_Ids::TIME_RESOURCE) ) {
 		const std::size_t worker_tid = hpx::get_worker_thread_num();
-		const std::size_t active_threads = os_thread_count - blocked_os_threads_.count();
-		const std::size_t active_threads_cap = 20;			//TOOD: make it configurable
-		const std::size_t small_suspend_cap = 1;    			//TODO make it configurable
-		const std::size_t large_suspend_cap = os_thread_count * 0.50;   //TODO make it configurable
-
-		std::size_t suspend_cap = active_threads < active_threads_cap  ? small_suspend_cap : large_suspend_cap;
-		std::size_t suspend_cnt = 0;
-
 
 		auto allscale_app_counter = hpx::performance_counters::stubs::performance_counter::get_value(
 						hpx::launch::sync, allscale_app_counter_id);
@@ -228,6 +220,17 @@ namespace allscale { namespace components {
 		{
 		        std::unique_lock<mutex_type> l(resize_mtx_);
 			allscale_app_time = allscale_app_counter.get_value<std::int64_t>();  
+ 			std::size_t active_threads = os_thread_count - blocked_os_threads_.count();
+
+			const std::size_t MIN_THREADS = 10;
+			if (active_threads < MIN_THREADS) return true; 			//Don't go below 10
+
+			const std::size_t SMALL_SYSTEM = 32;                      	//TOOD: make it configurable
+        	        const std::size_t SMALL_SUSPEND_CAP = 1;                        //TODO make it configurable
+	                const std::size_t LARGE_SUSPEND_CAP = active_threads * 0.20;    //TODO make it configurable
+
+                        std::size_t suspend_cap = active_threads < SMALL_SYSTEM  ? SMALL_SUSPEND_CAP : LARGE_SUSPEND_CAP;
+                        std::size_t suspend_cnt = 0;
 
 			if ( allscale_app_time > 0 )
 			  if ( last_thread_time ==0 || allscale_app_time < last_thread_time ) {
@@ -239,14 +242,16 @@ namespace allscale { namespace components {
 				      continue;
 
 			          std::cout << "Suspend attempt: tid = " << ti << ", allscale_app_time = " << allscale_app_time;
-				  std::cout << ", last_tt = " << last_thread_time << ", wtid = " << worker_tid << std::endl;
-				  suspend_cnt++;
+				  std::cout << ", suspend_cap: " << suspend_cap;
+				  std::cout << ", last_tt = " << last_thread_time << ", wtid = " << worker_tid << ", active_threads: " << active_threads << std::endl;
 				  
 				  {
 					hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
 					suspend(ti);
 				  }
 
+				  suspend_cnt++;
+				  active_threads = os_thread_count - blocked_os_threads_.count();
 //				  std::cout << "Suspend finished: " << ti << std::endl;
                                     
 				  if (suspend_cnt == suspend_cap) 
