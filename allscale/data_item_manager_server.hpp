@@ -9,7 +9,7 @@
 
 #include <hpx/include/future.hpp>
 #include <hpx/include/lcos.hpp>
-
+#include <hpx/include/serialization.hpp>
 
 //#include <boost/shared_ptr.hpp>
 //#include <boost/move/unique_ptr.hpp>
@@ -29,6 +29,13 @@ namespace allscale
         public:
         using base_type = hpx::components::client_base<data_item_manager_server, components::data_item_manager_server >;
 
+        using get_left_neighbor_action = typename allscale::components::data_item_manager_server::get_left_neighbor_action;
+      	using get_right_neighbor_action = typename allscale::components::data_item_manager_server::get_right_neighbor_action;
+        using set_left_neighbor_action = typename allscale::components::data_item_manager_server::set_left_neighbor_action;
+		using set_right_neighbor_action = typename allscale::components::data_item_manager_server::set_right_neighbor_action;
+
+
+
         data_item_manager_server ()
         {
         }
@@ -36,7 +43,7 @@ namespace allscale
         data_item_manager_server(hpx::id_type loc)
             : base_type(hpx::new_<components::data_item_manager_server > (loc))
         {
-            servers_home_locality = loc;
+            servers_home_locality_ = loc;
         }
 
 
@@ -44,19 +51,22 @@ namespace allscale
         // create a data_item on the locality where this data_item_manager_server lives on ( this->get_id())
         // uses future continuation, but does still block right now due to the f2.get()
         template <typename DataItemDescription>
-        std::shared_ptr<allscale::data_item<DataItemDescription>>
-         create_data_item (DataItemDescription arg)
+       // std::shared_ptr<allscale::data_item<DataItemDescription>>
+        bool
+        create_data_item (DataItemDescription arg)
         {
             HPX_ASSERT(this->valid());
             using data_item_type = typename  allscale::data_item<DataItemDescription>;
             using action_type = typename components::data_item_manager_server::create_data_item_async_action<DataItemDescription>;
             auto ret_val = hpx::async<action_type>(this->get_id(),arg);
+
 //             hpx::future<data_item_type> f2 = ret_val.then(
 //                 [this](hpx::future<data_item_type> f) -> data_item_type
 //                 {
 //                        return f.get();
 //                 });
-            return ret_val.get();
+
+            return ret_val.is_ready();
         }
 
         template<typename DataItemDescription>
@@ -64,12 +74,21 @@ namespace allscale
         locate ( allscale::requirement<DataItemDescription>& requirement)
         {
             HPX_ASSERT(this->valid());
+
+           // std::cout<<"locate called" << std::endl;
             using action_type = typename components::data_item_manager_server::locate_async_action<DataItemDescription>;
             using fut_type = decltype(hpx::async<action_type>(this->get_id(),requirement));
             std::vector<fut_type> results;
-            for(auto& el : servers_){
-                results.push_back(hpx::async<action_type>(el,requirement));
-            }
+/*
+            results.push_back(hpx::async<action_type>(this->get_id(),requirement));
+            results.push_back(hpx::async<action_type>(left_,requirement));
+            results.push_back(hpx::async<action_type>(right_,requirement));
+*/
+
+
+//            for(auto& el : servers_){
+//                results.push_back(hpx::async<action_type>(el,requirement));
+//            }
             //auto ret_val = hpx::async<action_type>(this->get_id(),requirement);
             return results;
         }
@@ -82,7 +101,13 @@ namespace allscale
 //        	return hpx::async<action_type>(this->get_id(),region);
 //        }
 
-
+    	template<typename Archive>
+    	void serialize(Archive & ar, unsigned) {
+    		ar & servers_;
+    		ar & left_;
+    		ar & right_;
+    		ar & servers_home_locality_;
+    	}
 
 
 
@@ -97,7 +122,10 @@ namespace allscale
         }
         
         std::vector<hpx::naming::id_type> servers_;
-        hpx::naming::id_type servers_home_locality;
+        hpx::naming::id_type left_;
+        hpx::naming::id_type  right_;
+        hpx::naming::id_type servers_home_locality_;
+
 
     };
 
