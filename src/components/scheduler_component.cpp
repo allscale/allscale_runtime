@@ -161,13 +161,14 @@ namespace allscale { namespace components {
         }
         HPX_ASSERT(schedule_id);
         HPX_ASSERT(work.valid());
-    	std::cout<< "schedule_id for distributed enque is : " <<  schedule_id << std::endl;
+    	//std::cout<< "schedule_id for distributed enque is : " <<  schedule_id << std::endl;
 
         hpx::apply<enqueue_action>(schedule_id, work, this_work_item::get_id());
     }
 
     bool scheduler::do_split(work_item const& w)
     {
+    	//std::cout<< " wcansplit: " << w.can_split()<<std::endl;
         if (!w.can_split()) return false;
         //FIXME: think about if locking
         //counters_mtx_ could lead to a potential dead_lock situatione

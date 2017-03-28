@@ -39,14 +39,14 @@ struct simple_stencil_body {
         int* B = (t%2) ? dataB.data() : dataA.data();
 
         // check current state
-//        if ((i > 0 && A[i-1] != A[i]) || (i < n-1 && A[i] != A[i+1])) {
-//                std::cout << "Error in synchronization!\n";
-//                std::cout << "  for i=" << i << "\n";
-//                std::cout << "  A[i-1]=" << A[i-1] << "\n";
-//                std::cout << "  A[ i ]=" << A[ i ] << "\n";
-//                std::cout << "  A[i+1]=" << A[i+1] << "\n";
-//                exit(42);
-//        }
+        if ((i > 0 && A[i-1] != A[i]) || (i < n-1 && A[i] != A[i+1])) {
+                std::cout << "Error in synchronization!\n";
+                std::cout << "  for i=" << i << "\n";
+                std::cout << "  A[i-1]=" << A[i-1] << "\n";
+                std::cout << "  A[ i ]=" << A[ i ] << "\n";
+                std::cout << "  A[i+1]=" << A[i+1] << "\n";
+                exit(42);
+        }
         // update B
         B[i] = A[i] + 1;
     }

@@ -26,6 +26,8 @@ public:
 	using future_type = hpx::future<DataItemDescription>;
 
 	data_item() {
+
+		std::cout<<"should not be called "<< hpx::get_locality_id() << std::endl;
 	}
 
 	data_item(data_item const& other) :
