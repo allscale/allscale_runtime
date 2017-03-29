@@ -7,25 +7,52 @@
 #include <allscale/this_work_item.hpp>
 #include <allscale/traits/is_treeture.hpp>
 #include <allscale/traits/treeture_traits.hpp>
-
+#include <allscale/traits/is_data_item.hpp>
+#include <allscale/traits/data_item_traits.hpp>
 #include <hpx/dataflow.hpp>
 #include <hpx/include/serialization.hpp>
 
 #include <utility>
-
+#include <iostream>
 namespace allscale
 {
     namespace detail
     {
         template <typename F>
         typename std::enable_if<
-            hpx::traits::is_future<F>::value,
+            hpx::traits::is_future<F>::value && !allscale::traits::is_data_item<F>::value,
             typename hpx::traits::future_traits<F>::result_type
         >::type
         unwrap_if(F && f)
         {
             return f.get();
         }
+
+
+
+
+        template <typename F>
+        typename std::enable_if<
+            hpx::traits::is_future<F>::value && allscale::traits::is_data_item<F>::value,
+            typename std::remove_reference<F>::type &&
+        >::type
+        unwrap_if(F && f)
+        {
+            return std::move(f);
+        }
+
+        /*
+        template <typename D>
+        typename std::enable_if<
+            hpx::traits::is_future<D>::value && allscale::traits::is_data_item<D>::value,
+            typename hpx::traits::future_traits<D>::result_type
+        >::type
+        unwrap_if(D && d)
+        {
+            std::cout<<"checking if  i should unrwap data_item" << std::endl;
+            return d;
+        }
+        */
 
         template <typename F>
         typename std::enable_if<
@@ -55,6 +82,18 @@ namespace allscale
         futurize_if(F && f)
         {
             return std::forward<F>(f);
+        }
+
+        template <typename T>
+        inline void set_treeture(treeture<T>& t, hpx::future<T>&& f)
+        {
+            t.set_value(f.get());
+        }
+
+        inline void set_treeture(treeture<void>& t, hpx::future<void>&& f)
+        {
+            f.get(); // exception propagation
+            t.set_value();
         }
     }
 
@@ -158,7 +197,7 @@ namespace allscale
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
-                        tres.set_value(ff.get());
+                        detail::set_treeture(tres, std::move(ff));
                         monitor::signal(monitor::work_item_result_propagated, work_item(this_));
                     }
                 );
@@ -185,7 +224,7 @@ namespace allscale
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
-                        tres.set_value(ff.get());
+                        detail::set_treeture(tres, std::move(ff));
                         monitor::signal(monitor::work_item_result_propagated, work_item(this_));
                     }
                 );
@@ -336,7 +375,7 @@ namespace allscale
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
-                        tres.set_value(ff.get());
+                        detail::set_treeture(tres , std::move(ff));
                         monitor::signal(monitor::work_item_result_propagated, work_item(this_));
                     }
                 );
@@ -363,7 +402,7 @@ namespace allscale
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
-                        tres.set_value(ff.get());
+                        detail::set_treeture(tres , std::move(ff));
                         monitor::signal(monitor::work_item_result_propagated, work_item(this_));
                     }
                 );
@@ -480,12 +519,11 @@ namespace allscale
             work_item_impl()
             {}
 
-
             void set_this_id()
             {
                 id_.set(this_work_item::get_id());
             }
-            
+
             template <typename ...Ts>
             work_item_impl(treeture<result_type> tres, Ts&&... vs)
               : tres_(std::move(tres))
@@ -515,7 +553,7 @@ namespace allscale
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
-                        tres.set_value(ff.get());
+                        detail::set_treeture(tres , std::move(ff));
                         monitor::signal(monitor::work_item_result_propagated, work_item(this_));
                     }
                 );
@@ -644,7 +682,7 @@ namespace allscale
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
-                        tres.set_value(ff.get());
+                        detail::set_treeture(tres , std::move(ff));
                         monitor::signal(monitor::work_item_result_propagated, work_item(this_));
                     }
                 );
@@ -718,26 +756,12 @@ namespace allscale
             this_work_item::id id_;
         };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         work_item()
+          : is_first_(false)
         {}
 
         template <typename WorkItemDescription, typename Treeture, typename ...Ts>
-        work_item(WorkItemDescription, Treeture tre, Ts&&... vs)
+        work_item(bool is_first, WorkItemDescription, Treeture tre, Ts&&... vs)
           : impl_(
                 new work_item_impl<
                     WorkItemDescription,
@@ -750,8 +774,14 @@ namespace allscale
                     std::move(tre), detail::futurize_if(std::forward<Ts>(vs))...
                 )
             )
+          , is_first_(is_first)
         {
             impl_->set_this_id();
+        }
+
+        bool is_first()
+        {
+            return is_first_;
         }
 
         explicit work_item(std::shared_ptr<work_item_impl_base> impl)
@@ -760,21 +790,25 @@ namespace allscale
 
         work_item(work_item const& other)
           : impl_(other.impl_)
+          , is_first_(other.is_first_)
         {}
 
         work_item(work_item && other)
           : impl_(std::move(other.impl_))
+          , is_first_(other.is_first_)
         {}
 
         work_item &operator=(work_item const& other)
         {
             impl_ = other.impl_;
+            is_first_ = other.is_first_;
             return *this;
         }
 
         work_item &operator=(work_item && other)
         {
             impl_ = std::move(other.impl_);
+            is_first_ = other.is_first_;
             return *this;
         }
 
@@ -822,6 +856,7 @@ namespace allscale
             ar & impl_;
             HPX_ASSERT(impl_->valid());
 #endif
+            ar & is_first_;
         }
 
         template <typename Archive>
@@ -840,11 +875,13 @@ namespace allscale
             }
             HPX_ASSERT(impl_->valid());
 #endif
+            ar & is_first_;
         }
 
         HPX_SERIALIZATION_SPLIT_MEMBER()
 
         std::shared_ptr<work_item_impl_base> impl_;
+        bool is_first_;
     };
 }
 

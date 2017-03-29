@@ -7,7 +7,7 @@
 
 #include <type_traits>
 #include <utility>
-
+#include <iostream>
 namespace allscale { namespace detail
 {
         template <typename F>
@@ -17,6 +17,7 @@ namespace allscale { namespace detail
         >::type
         unwrap_if(F && f)
         {
+            std::cout<<"checking if i should unwrap" << std::endl;
             return f.get();
         }
 
@@ -27,6 +28,8 @@ namespace allscale { namespace detail
         >::type
         unwrap_if(F && f)
         {
+
+            std::cout<<"checking if i should unwrap" << std::endl;
             return std::move(f);
         }
 }}

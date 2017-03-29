@@ -1,0 +1,5 @@
+Users can specifiy scheduling objectives using HPX command line options as given in the following example:
+
+	./fibonacci 30 15    --hpx:threads=24 --hpx:numa-sensitive=2  --hpx:ini=allscale.objective!=time_resource
+
+The allscale.objective option is parsed and validated by the scheduler during its initialization time. By default "time" is used as the objective. If a wrong objective specified the runtime will exit with an error message. While "time" is being an implicit and default objective. In addition to "time", "time_resource" objective is the only objective that has been implemented currently, and any other valid objective selection falls back to "time".

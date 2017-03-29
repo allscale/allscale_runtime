@@ -122,10 +122,13 @@ using combine =
         combine_operation<Result>
     >;
 
-
 template<typename A, typename B, typename Op, typename R = std::result_of_t<Op(A,B)>>
 allscale::treeture<R> treeture_combine(allscale::treeture<A>&& a, allscale::treeture<B>&& b, Op op) {
     return allscale::spawn<combine<R>>(std::move(a),std::move(b), op);
+}
+
+allscale::treeture<void> treeture_combine(allscale::treeture<void>&& a, allscale::treeture<void>&& b) {
+    return allscale::treeture<void>(hpx::when_all(a.get_future(), b.get_future()));
 }
 
 
