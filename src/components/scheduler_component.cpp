@@ -75,7 +75,7 @@ namespace allscale { namespace components {
 	    all_keys += prev(scheduler::objectiveMap.end())->first;
             HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init", boost::str(boost::format("Wrong objective: %s, Valid values: [%s]") % sched_objective % all_keys));
   	} else
-	    std::cout << "The requested objective is " << sched_objective << std::endl;
+	    std::cerr << "The requested objective is " << sched_objective << std::endl;
 
         // setup performance counter to use to decide on split/process
         static const char * queue_counter_name = "/threadqueue{locality#%d/worker-thread#%d}/length";
