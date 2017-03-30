@@ -49,6 +49,13 @@ int main_wrapper(const Args& ... args) {
 // A class aggregating task dependencies
 class dependencies {};
 
+template<typename ... TaskRefs>
+dependencies after(const TaskRefs& ... ) {
+	// TODO: implement this!
+	return {};
+}
+
+
 // ---- insieme lambda wrapper ----
 
 template<typename ClosureType>
@@ -123,12 +130,44 @@ using combine =
     >;
 
 template<typename A, typename B, typename Op, typename R = std::result_of_t<Op(A,B)>>
-allscale::treeture<R> treeture_combine(allscale::treeture<A>&& a, allscale::treeture<B>&& b, Op op) {
+allscale::treeture<R> treeture_combine(const dependencies&, allscale::treeture<A>&& a, allscale::treeture<B>&& b, Op op) {
     return allscale::spawn<combine<R>>(std::move(a),std::move(b), op);
 }
 
-allscale::treeture<void> treeture_combine(allscale::treeture<void>&& a, allscale::treeture<void>&& b) {
+template<typename A, typename B, typename Op, typename R = std::result_of_t<Op(A,B)>>
+allscale::treeture<R> treeture_combine(allscale::treeture<A>&& a, allscale::treeture<B>&& b, Op op) {
+    return treeture_combine(after(),std::move(a),std::move(b),op);
+}
+
+allscale::treeture<void> treeture_combine(const dependencies&, allscale::treeture<void>&& a, allscale::treeture<void>&& b) {
     return allscale::treeture<void>(hpx::when_all(a.get_future(), b.get_future()));
+}
+
+allscale::treeture<void> treeture_combine(allscale::treeture<void>&& a, allscale::treeture<void>&& b) {
+    return treeture_combine(after(),std::move(a),std::move(b));
+}
+
+
+template<typename A, typename B>
+allscale::treeture<void> treeture_parallel(const dependencies&, allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
+	return allscale::treeture<void>(hpx::when_all(a.get_future(), b.get_future()));
+}
+
+template<typename A, typename B>
+allscale::treeture<void> treeture_parallel(allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
+	return treeture_parallel(std::move(a),std::move(b));
+}
+
+
+template<typename A, typename B>
+allscale::treeture<void> treeture_sequential(const dependencies&, allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
+	assert(false && "Not implemented!");
+	return treeture_parallel(a,b);
+}
+
+template<typename A, typename B>
+allscale::treeture<void> treeture_sequential(allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
+	return treeture_sequential(std::move(a),std::move(b));
 }
 
 
