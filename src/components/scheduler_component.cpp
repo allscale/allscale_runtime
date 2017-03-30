@@ -90,9 +90,6 @@ namespace allscale { namespace components {
 
         hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_rate_counter_);
 
-        allscale_app_counter_id = hpx::performance_counters::get_counter(allscale_app_counter_name);
-        hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, allscale_app_counter_id);
-
         collect_counters();
 
         numa_domains = hpx::compute::host::numa_domains();
@@ -106,7 +103,12 @@ namespace allscale { namespace components {
         }
         timer_.start();
 
-        throttle_timer_.start();
+        if (input_objective == scheduler::objectives.at(Objective_Ids::TIME_RESOURCE) ) {
+            allscale_app_counter_id = hpx::performance_counters::get_counter(allscale_app_counter_name);
+            hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, allscale_app_counter_id);
+            throttle_timer_.start();
+        }
+
         std::cout
             << "Scheduler with rank "
             << rank_ << " created (" << left_ << " " << right_ << ")!\n";
@@ -223,10 +225,10 @@ namespace allscale { namespace components {
 			allscale_app_time = allscale_app_counter.get_value<std::int64_t>();  
  			std::size_t active_threads = os_thread_count - blocked_os_threads_.count();
 
-			const std::size_t MIN_THREADS = 10;
-			if (active_threads < MIN_THREADS) return true; 			//Don't go below 10
+			const std::size_t MIN_THREADS = 4;
+			if (active_threads < MIN_THREADS) return true; 			//Don't go below 4
 
-			const std::size_t SMALL_SYSTEM = 32;                      	//TOOD: make it configurable
+			const std::size_t SMALL_SYSTEM = 16;                      	//TOOD: make it configurable
         	        const std::size_t SMALL_SUSPEND_CAP = 1;                        //TODO make it configurable
 	                const std::size_t LARGE_SUSPEND_CAP = active_threads * 0.20;    //TODO make it configurable
 
@@ -260,9 +262,10 @@ namespace allscale { namespace components {
 			     }
 
 			  } else if ( blocked_os_threads_.any() && allscale_app_time > last_thread_time ) {
-			      resumed_one = false;
+			      std::size_t resume_cap = 1; //suspend_cap;
+			      resume_count = 0;
          	              hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
-                    	      resume_one();
+			      resume_n(resume_cap);
 	                  }
 
 		}
@@ -281,7 +284,10 @@ namespace allscale { namespace components {
     void scheduler::stop()
     {
         timer_.stop();
-        throttle_timer_.stop();
+ 
+        if (input_objective == scheduler::objectives.at(Objective_Ids::TIME_RESOURCE))
+            throttle_timer_.stop();
+
         if(stopped_)
             return;
 
@@ -366,17 +372,21 @@ namespace allscale { namespace components {
     }
 
 
-    void scheduler::resume_one()
+    void scheduler::resume_n(std::size_t n)
     {
-       std::lock_guard<mutex_type> l(throttle_mtx_);
-       if (!resumed_one && blocked_os_threads_.any())
-          for (int i=0; i<blocked_os_threads_.size(); i++)
-	      if (blocked_os_threads_[i]) {
-                 blocked_os_threads_[i] = false;
-		 resumed_one = true;
-		 std::cout << "Resumed worker_id: " << i << std::endl;
-                 return;
-              }
+	std::lock_guard<mutex_type> l(throttle_mtx_);
+//	std::cout << "n: " << n << ", blocked.count: " << blocked_os_threads_.count() << std::endl;
+        if (blocked_os_threads_.any()) { //Resume up to n number of threads
+           for (int i=0; i<blocked_os_threads_.size(); i++)
+               if (blocked_os_threads_[i]) {
+                  blocked_os_threads_[i] = false;
+                  resume_count++;
+                  std::cout << "Resumed worker_id: " << i << std::endl;
+		  if (resume_count >= n) break;
+               }
+	}
+
+	return;
     }
 
     void scheduler::resume_all()
