@@ -73,12 +73,12 @@ namespace allscale { namespace components {
         std::vector<executor_type> executors;
         boost::atomic<std::size_t> current_;
 
-        size_t os_thread_count;
+        std::size_t os_thread_count;
 
         void resume(std::size_t shepherd);
-        void resume_one();
         void resume_all();
-	bool resumed_one;
+	void resume_n(std::size_t n);
+        std::size_t resume_count;
         void suspend(std::size_t shepherd);
         bool is_suspended(std::size_t shepherd) const;
 
