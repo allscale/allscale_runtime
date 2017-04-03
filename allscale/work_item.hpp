@@ -118,13 +118,11 @@ namespace allscale
             }
         };
 
-        template <typename T>
         hpx::util::tuple<> unwrap_tuple(hpx::util::tuple<>&)
         {
             return hpx::util::tuple<>();
         }
 
-        template <typename T>
         hpx::util::tuple<> unwrap_tuple(hpx::util::tuple<> const&)
         {
             return hpx::util::tuple<>();
