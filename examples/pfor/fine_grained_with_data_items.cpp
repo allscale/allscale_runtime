@@ -43,16 +43,36 @@ struct simple_stencil_body {
 		auto n = hpx::util::get<1>(params);
 		auto writable_fragments = hpx::util::get<2>(params);
 		auto readonly_fragments = hpx::util::get<3>(params);
-		if(writable_fragments.size()==0){
-			std::cout<<"no writable fragments for this process action, this is a problem..."<<std::endl;
+		bool can_write = false;
+		if (writable_fragments.size() == 0) {
+//			std::cout   << "processing on i= " << i << " n= " << n
+//					<< "no writable fragments for this process action, this is a problem..."
+//					<< std::endl;
+		}
+		if (readonly_fragments.size() == 0) {
+//			std::cout << "processing on i= " << i << " n= " << n
+//					<< "no readonly fragments for this process action, this is a problem..."
+//					<< std::endl;
 		}
 		for (auto& el : writable_fragments) {
-			std::cout << "writable region: " << el.region_.to_string()
-					<< std::endl;
+			if (i >= el.region_.begin_ && i <= el.region_.end_) {
+				can_write = true;
+			}
+//			std::cout << "writable region: " << el.region_.to_string()
+//					<< std::endl;
 		}
-		for (auto& el : readonly_fragments) {
-			std::cout << "readonly region: " << el.region_.to_string()
-					<< std::endl;
+		if (!can_write) {
+			std::cout << "processing but i=" << i
+					<< " does not lie in writable region" << std::endl;
+//			for (auto& el : writable_fragments) {
+//				std::cout << "writable region: " << el.region_.to_string()
+//						<< std::endl;
+//			}
+//			for (auto& el : readonly_fragments) {
+//				std::cout << "readonly region: " << el.region_.to_string()
+//						<< std::endl;
+//			}
+
 		}
 
 		/*

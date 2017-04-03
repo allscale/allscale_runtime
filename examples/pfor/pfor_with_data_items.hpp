@@ -1,13 +1,14 @@
 #include <allscale/no_split.hpp>
 #include <allscale/no_serialization.hpp>
 #include <allscale/do_serialization.hpp>
+#include <allscale/do_use_data_items.hpp>
 #include <allscale/treeture.hpp>
 #include <allscale/spawn.hpp>
 #include <allscale/scheduler.hpp>
 #include <allscale/work_item_description.hpp>
 #include <allscale/requirement.hpp>
 #include <allscale/runtime.hpp>
-
+#include <allscale/no_data_items.hpp>
 #include <unistd.h>
 
 #include <allscale/data_item.hpp>
@@ -162,6 +163,9 @@ pfor_split_variant<Body,ExtraParams...>,
 pfor_process_variant<Body,ExtraParams...>
 >;
 
+
+
+
 template<typename Body, typename ... ExtraParams>
 struct pfor_split_variant {
 	static constexpr bool valid = true;
@@ -249,11 +253,30 @@ using pfor_neighbor_sync_work =
 allscale::work_item_description<
 void,
 pfor_name,
-allscale::no_serialization,
+allscale::do_serialization,
 pfor_neighbor_sync_split_variant<Body,ExtraParams...>,
 pfor_neighbor_sync_process_variant<Body,ExtraParams...>,
 pfor_can_split<Body>
 >;
+
+
+
+template<typename Body, typename ... ExtraParams>
+using pfor_neighbor_sync_work_with_data_items =
+allscale::work_item_description<
+void,
+pfor_name,
+allscale::do_serialization,
+allscale::do_use_data_items<grid_data_item_descr>,
+pfor_neighbor_sync_split_variant<Body,ExtraParams...>,
+pfor_neighbor_sync_process_variant<Body,ExtraParams...>,
+pfor_can_split<Body>
+>;
+
+
+
+
+
 
 template<typename Body, typename ... ExtraParams>
 struct pfor_neighbor_sync_split_variant {
@@ -314,6 +337,14 @@ struct pfor_neighbor_sync_process_variant {
 	static const char* name() {
 		return "pfor_process_variant";
 	}
+   
+    template<typename Closure>
+    static std::vector<hpx::id_type> requires(Closure const& closure){
+        std::cout<< "Call to requires implementation"<<std::endl;
+        std::vector<hpx::id_type> result;
+        result.push_back(hpx::find_here());
+        return result;
+    }
 
 	// Execute for serial
 	template<typename Closure>
@@ -330,7 +361,7 @@ struct pfor_neighbor_sync_process_variant {
 				hpx::dataflow(hpx::launch::sync,
 						hpx::util::unwrapped([closure]()
 						{
-							// extract parameters
+								// extract parameters
 								auto begin = hpx::util::get<0>(closure);
 								auto end = hpx::util::get<1>(closure);
 
@@ -363,51 +394,27 @@ struct pfor_neighbor_sync_process_variant {
 									}
 								}
 
-
 								std::vector<grid_fragment> writable_fragments;
 								std::vector<grid_fragment> readonly_fragments;
 
 								for( auto& el : shopping_list){
 									if(hpx::naming::get_locality_id_from_id(el.second) == hpx::get_locality_id())
 									{
-//										std::cout<<"acquiring fragment on same locality for write access: " << el.first.to_string()<<std::endl;
 										writable_fragments.push_back(hpx::async<acquire_action>(el.second,el.first).get());
 									}
 									else{
-//										std::cout<<"acquiring fragment on another locality for read access: " << el.first.to_string()<<std::endl;
 										readonly_fragments.push_back(hpx::async<acquire_action>(el.second,el.first).get());
-
 									}
 								}
-
-//								for( auto& el : acquired_fragments){
-//									std::cout <<"fragment: " <<  el.region_.to_string()<< " " << (*el.ptr_).size() << " " ;
-//								}
-//								std::cout<<std::endl;
-//								std::cout<<" locate gave result of size " << res.size()<< " " << res[0].first.to_string()<< " locate gave result of size " << res2.size()<<" " << res2[0].first.to_string()<<std::endl;
-
-								//(*dms).locate<grid_data_item_descr>(tr);
-//								for (auto& fut : dms.locate<grid_data_item_descr>(tr)) {
-//									fut.then(
-//											[](auto f) -> int
-//											{
-//												std::cout<< "BBBBBBBBBBBBBBBBBBBBBBBBB" << f.get().size() << std::endl;;
-//												return 22;
-//											});
-//								}
-
-//								 auto extra = hpx::util::make_tuple(hpx::util::get<0>(all_params),hpx::util::get<1>(all_params),
-//								 hpx::util::get<3>(all_params),
-//								 hpx::util::get<4>(all_params));
 
 								 auto extra = hpx::util::make_tuple(hpx::util::get<0>(all_params),hpx::util::get<1>(all_params),
 										 writable_fragments,
 										 readonly_fragments);
-
-
 								 // get a body instance
 								 Body body;
 								 // do some computation
+
+//								 std::cout<<"processing on locality: [" << hpx::get_locality_id()<<"]"<<std::endl;
 								 for(auto i = begin; i<end; i++) {
 								 body(i,extra);
 								 }

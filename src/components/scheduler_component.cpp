@@ -122,6 +122,8 @@ namespace allscale { namespace components {
 
     void scheduler::enqueue(work_item work, this_work_item::id const& id)
     {
+
+
         std::uint64_t schedule_rank = 0;
         //std::cout<<"remote is " << remote << std::endl;
         if (!id)
@@ -130,7 +132,7 @@ namespace allscale { namespace components {
             this_work_item::set_id(id);
 
         hpx::id_type schedule_id;
-
+        work.requires();
         switch (schedule_rank)
         {
             case 1:
