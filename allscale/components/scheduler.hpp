@@ -42,7 +42,7 @@ namespace allscale { namespace components {
         scheduler(std::uint64_t rank);
         void init();
 
-        void enqueue(work_item work, bool remote);
+        void enqueue(work_item work, this_work_item::id const&);
         HPX_DEFINE_COMPONENT_ACTION(scheduler, enqueue);
 
         void stop();
@@ -50,6 +50,7 @@ namespace allscale { namespace components {
 
     private:
         std::uint64_t num_localities_;
+        std::uint64_t num_threads_;
         std::uint64_t rank_;
         boost::atomic<std::uint64_t> schedule_rank_;
         boost::atomic<bool> stopped_;
@@ -66,27 +67,25 @@ namespace allscale { namespace components {
         hpx::util::interval_timer throttle_timer_;
 
         mutex_type counters_mtx_;
-        std::vector<hpx::id_type> idle_rates_counters_;
-        std::vector<double> idle_rates_;
-        double total_idle_rate_;
+        hpx::id_type idle_rate_counter_;
+        double idle_rate_;
 
-        std::vector<hpx::id_type> queue_length_counters_;
-        std::vector<std::size_t> queue_length_;
-        std::size_t total_length_;
+        hpx::id_type queue_length_counter_;
+        std::size_t queue_length_;
 
         hpx::id_type threads_total_counter_id;
 //        std::vector<std::pair<std::int64_t, double>> threads_time;
         double total_threads_time;
 
-	hpx::id_type allscale_app_counter_id;
-	double allscale_app_time;
+        hpx::id_type allscale_app_counter_id;
+        double allscale_app_time;
 
         std::vector<hpx::compute::host::target> numa_domains;
         std::vector<executor_type> executors;
         boost::atomic<std::size_t> current_;
 
         void resume(std::size_t shepherd);
-	void resume_one();
+        void resume_one();
         void resume_all();
         void suspend(std::size_t shepherd);
         bool is_suspended(std::size_t shepherd) const;
@@ -101,9 +100,9 @@ namespace allscale { namespace components {
 
         mutable mutex_type resize_mtx_;
 
-	double last_thread_time;
+        double last_thread_time;
 
-        std::string sched_objective;        
+        std::string sched_objective;
 	static std::map<std::string, Objectives> objectiveMap;
     };
 }}

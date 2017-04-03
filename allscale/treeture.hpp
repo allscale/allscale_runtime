@@ -12,24 +12,27 @@
 
 namespace allscale
 {
+    template <typename T>
+    struct treeture;
+}
 
-    // a naive version of a task reference, TODO: improve
-    struct task_reference {
+namespace hpx { namespace traits {
+    template <typename R>
+    struct is_future< ::allscale::treeture<R>>
+      : std::false_type
+    {};
+}}
 
-        // a function to wait for the completion of the referenced task
-        const std::function<void()> wait;
-
-        // a function to obtain a reference to the left child (which might only exist in the future)
-        const std::function<task_reference()> get_left_child;
-
-        // a function to obtain a reference to the right child (which might only exist in the future)
-        const std::function<task_reference()> get_right_child;
-
+namespace allscale
+{
+    struct treeture_base
+    {
+        virtual ~treeture_base() {}
     };
-
     template <typename T>
     struct treeture
-      : hpx::components::client_base<treeture<T>, components::treeture<T>>
+      : hpx::components::client_base<treeture<T>, components::treeture<T>>,
+        treeture_base
     {
         using base_type = hpx::components::client_base<treeture<T>, components::treeture<T>>;
         using result_type = T;
@@ -37,14 +40,20 @@ namespace allscale
 
         using set_value_action =
             typename components::treeture<T>::set_value_action;
-        using get_future_action =
-            typename components::treeture<T>::get_future_action;
+        using attach_promise_action =
+            typename components::treeture<T>::attach_promise_action;
+        using get_left_neighbor_action =
+            typename components::treeture<T>::get_left_neighbor_action;
+        using get_right_neighbor_action =
+            typename components::treeture<T>::get_right_neighbor_action;
+        using set_child_action =
+            typename components::treeture<T>::set_child_action;
 
         treeture()
         {}
 
-        treeture(hpx::id_type loc)
-          : base_type(hpx::new_<components::treeture<T>>(loc))
+        treeture(hpx::id_type loc, hpx::id_type parent = hpx::invalid_id)
+          : base_type(hpx::new_<components::treeture<T>>(loc, parent))
         {
             HPX_ASSERT(this->valid());
         }
@@ -59,15 +68,16 @@ namespace allscale
                  && !std::is_same<typename hpx::util::decay<F>::type, hpx::future<hpx::id_type>>::value
                 >::type
         >
-        explicit treeture(F f)
-          : base_type(hpx::new_<components::treeture<T>>(hpx::find_here()))
+        explicit treeture(F f, hpx::id_type parent = hpx::invalid_id)
+          : base_type(hpx::new_<components::treeture<T>>(hpx::find_here(), parent))
         {
             HPX_ASSERT(this->valid());
+            hpx::id_type this_id = this->get_id();
             f.then(
-                [this](F f)
+                [this_id](F f)
                 {
                     hpx::apply<set_value_action>(
-                        this->get_id(), f.get()
+                        this_id, f.get()
                     );
                 }
             );
@@ -84,8 +94,8 @@ namespace allscale
                  && !std::is_same<typename hpx::util::decay<U>::type, hpx::future<hpx::id_type>>::value
                 >::type
         >
-        explicit treeture(U && u)
-          : base_type(hpx::new_<components::treeture<T>>(hpx::find_here(), std::forward<U>(u)))
+        explicit treeture(U && u, hpx::id_type parent = hpx::invalid_id)
+          : base_type(hpx::new_<components::treeture<T>>(hpx::find_here(), std::forward<U>(u), parent))
         {
             HPX_ASSERT(this->valid());
         }
@@ -132,9 +142,16 @@ namespace allscale
         hpx::future<T> get_future() const
         {
             HPX_ASSERT(this->valid());
-//             hpx::shared_future<hpx::id_type> g = gid_;
-//             this->reset();
-            return hpx::async<get_future_action>(this->get_id());
+            hpx::lcos::promise<T> p;
+            hpx::future<T> fut = p.get_future();
+            hpx::apply<attach_promise_action>(
+                this->get_id(), p.get_id(), p.resolve());
+            return std::move(fut);
+        }
+
+        explicit operator hpx::future<T>()
+        {
+            return get_future();
         }
 
         T get_result()
@@ -151,46 +168,37 @@ namespace allscale
             get_future().wait();     // TODO: provide replacement
         }
 
-        task_reference to_task_reference() const {
-            treeture copy = *this;
-            return task_reference{
-                // wait for the task completion
-                [copy]() mutable { copy.wait(); },
-                // get the left child - TODO: provide actual support for this
-                [copy](){ return copy.get_left_child(); },
-                // get the right child - TODO: provide actual support for this
-                [copy](){ return copy.get_right_child(); }
-            };
+        void set_child(std::size_t idx, hpx::id_type child)
+        {
+            hpx::apply<set_child_action>(this->get_id(), idx, child);
         }
 
-        operator task_reference() const {
-            return to_task_reference();
+        treeture get_left_child() const {
+            return treeture(
+                hpx::async<get_left_neighbor_action>(this->get_id()));
         }
 
-        task_reference get_left_child() const {
-            return to_task_reference().get_left_child();
+        treeture get_right_child() const {
+            return treeture(
+                hpx::async<get_right_neighbor_action>(this->get_id()));
         }
 
-        task_reference get_right_child() const {
-            return to_task_reference().get_right_child();
-        }
+         template <typename Archive>
+         void load(Archive & ar, unsigned)
+         {
+             ar & hpx::serialization::base_object<base_type>(*this);
+             HPX_ASSERT(this->valid());
+         }
 
-//         template <typename Archive>
-//         void load(Archive & ar, unsigned)
-//         {
-//             ar & hpx::serialization::base_object<base_type>(*this);
-//             HPX_ASSERT(this->valid());
-//         }
-//
-//         template <typename Archive>
-//         void save(Archive & ar, unsigned) const
-//         {
-//             HPX_ASSERT(this->valid());
-//             ar & hpx::serialization::base_object<base_type>(*this);
-//             HPX_ASSERT(this->valid());
-//         }
-//
-//         HPX_SERIALIZATION_SPLIT_MEMBER();
+         template <typename Archive>
+         void save(Archive & ar, unsigned) const
+         {
+             HPX_ASSERT(this->valid());
+             ar & hpx::serialization::base_object<base_type>(*this);
+             HPX_ASSERT(this->valid());
+         }
+
+         HPX_SERIALIZATION_SPLIT_MEMBER();
     };
 
     template <typename T>
@@ -209,14 +217,20 @@ namespace allscale
 
         using set_value_action =
             typename components::treeture<hpx::util::unused_type>::set_value_action;
-        using get_future_action =
-            typename components::treeture<hpx::util::unused_type>::get_future_action;
+        using attach_promise_action =
+            typename components::treeture<hpx::util::unused_type>::attach_promise_action;
+        using get_left_neighbor_action =
+            typename components::treeture<hpx::util::unused_type>::get_left_neighbor_action;
+        using get_right_neighbor_action =
+            typename components::treeture<hpx::util::unused_type>::get_right_neighbor_action;
+        using set_child_action =
+            typename components::treeture<hpx::util::unused_type>::set_child_action;
 
         treeture()
         {}
 
-        treeture(hpx::id_type loc)
-          : base_type(loc)
+        treeture(hpx::id_type loc, hpx::id_type parent = hpx::invalid_id)
+          : base_type(loc, parent)
         {
             HPX_ASSERT(this->valid());
         }
@@ -231,23 +245,24 @@ namespace allscale
                  && !std::is_same<typename hpx::util::decay<F>::type, hpx::future<hpx::id_type>>::value
                 >::type
         >
-        explicit treeture(F f)
-          : base_type(hpx::find_here())
+        explicit treeture(F f, hpx::id_type parent = hpx::invalid_id)
+          : base_type(hpx::find_here(), parent)
         {
             HPX_ASSERT(this->valid());
+            hpx::id_type this_id = this->get_id();
             f.then(
-                [this](F f)
+                [this_id](F f)
                 {
                     hpx::apply<set_value_action>(
-                        this->get_id(), hpx::util::unused_type()
+                        this_id, hpx::util::unused_type()
                     );
                 }
             );
             HPX_ASSERT(this->valid());
         }
 
-        explicit treeture(hpx::util::unused_type)
-          : base_type(hpx::util::unused_type())
+        explicit treeture(hpx::util::unused_type, hpx::id_type parent = hpx::invalid_id)
+          : base_type(hpx::util::unused_type(), parent)
         {
             HPX_ASSERT(this->valid());
         }
@@ -294,9 +309,16 @@ namespace allscale
         hpx::future<void> get_future() const
         {
             HPX_ASSERT(this->valid());
-//             hpx::shared_future<hpx::id_type> g = gid_;
-//             this->reset();
-            return hpx::async<get_future_action>(this->get_id());
+            hpx::lcos::promise<void> p;
+            hpx::future<void> fut = p.get_future();
+            hpx::apply<attach_promise_action>(
+                this->get_id(), p.get_id(), p.resolve());
+            return std::move(fut);
+        }
+
+        explicit operator hpx::future<void>()
+        {
+            return get_future();
         }
 
         void get_result()
@@ -313,28 +335,19 @@ namespace allscale
             get_future().wait();     // TODO: provide replacement
         }
 
-        task_reference to_task_reference() const {
-            treeture copy = *this;
-            return task_reference{
-                // wait for the task completion
-                [copy]() mutable { copy.wait(); },
-                // get the left child - TODO: provide actual support for this
-                [copy](){ return copy.get_left_child(); },
-                // get the right child - TODO: provide actual support for this
-                [copy](){ return copy.get_right_child(); }
-            };
+        void set_child(std::size_t idx, hpx::id_type child)
+        {
+            hpx::apply<set_child_action>(this->get_id(), idx, child);
         }
 
-        operator task_reference() const {
-            return to_task_reference();
+        treeture get_left_child() const {
+            return treeture(
+                hpx::async<get_left_neighbor_action>(this->get_id()));
         }
 
-        task_reference get_left_child() const {
-            return to_task_reference().get_left_child();
-        }
-
-        task_reference get_right_child() const {
-            return to_task_reference().get_right_child();
+        treeture get_right_child() const {
+            return treeture(
+                hpx::async<get_right_neighbor_action>(this->get_id()));
         }
     };
 
@@ -342,6 +355,9 @@ namespace allscale
     {
         return treeture<void>(hpx::util::unused_type());
     }
+
+    template <typename R>
+    using task_reference = treeture<R>;
 
     namespace traits
     {

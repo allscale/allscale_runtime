@@ -20,7 +20,9 @@ namespace allscale
     {
         template <typename F>
         typename std::enable_if<
-            hpx::traits::is_future<F>::value && !allscale::traits::is_data_item<F>::value,
+            hpx::traits::is_future<F>::value &&
+            !std::is_same<void, typename hpx::traits::future_traits<F>::type>::value &&
+            !allscale::traits::is_data_item<F>::value,
             typename hpx::traits::future_traits<F>::result_type
         >::type
         unwrap_if(F && f)
@@ -28,8 +30,16 @@ namespace allscale
             return f.get();
         }
 
-
-
+        template <typename F>
+        typename std::enable_if<
+            hpx::traits::is_future<F>::value &&
+            std::is_same<void, typename hpx::traits::future_traits<F>::type>::value &&
+            !allscale::traits::is_data_item<F>::value
+        >::type
+        unwrap_if(F && f)
+        {
+            f.get(); // propagate exceptions...
+        }
 
         template <typename F>
         typename std::enable_if<
@@ -63,6 +73,89 @@ namespace allscale
         {
             return std::move(f);
         }
+
+        template <
+            typename Indices,
+            typename Tuple,
+            typename T,
+            typename UnwrapResult =
+                typename std::decay<decltype(unwrap_if(std::forward<T>(std::declval<T>())))>::type,
+            typename Enable = void
+        >
+        struct unwrap_tuple_impl;
+
+        template <typename T, typename UnwrapResult, std::size_t ...Is, typename ...Ts>
+        struct unwrap_tuple_impl<
+            hpx::util::detail::pack_c<std::size_t, Is...>,
+            hpx::util::tuple<Ts...>,
+            T, UnwrapResult,
+            typename std::enable_if<!std::is_same<void, UnwrapResult>::value>::type
+        >
+        {
+            typedef
+                hpx::util::tuple<typename std::decay<Ts>::type..., UnwrapResult>
+                result_type;
+
+            template <typename Tuple>
+            static result_type call(Tuple&& tuple, T&& t)
+            {
+                return result_type(
+                    std::move(hpx::util::get<Is>(tuple))..., unwrap_if(std::forward<T>(t)));
+            }
+        };
+
+        template <typename Indices, typename Tuple, typename T, typename UnwrapResult>
+        struct unwrap_tuple_impl<Indices, Tuple, T, UnwrapResult,
+            typename std::enable_if<std::is_same<void, UnwrapResult>::value>::type
+        >
+        {
+            typedef Tuple result_type;
+
+            static result_type&& call(Tuple&& tuple, T&& t)
+            {
+                unwrap_if(std::forward<T>(t));
+                return std::forward<Tuple>(tuple);
+            }
+        };
+
+        template <typename T>
+        hpx::util::tuple<> unwrap_tuple(hpx::util::tuple<>&)
+        {
+            return hpx::util::tuple<>();
+        }
+
+        template <typename T>
+        hpx::util::tuple<> unwrap_tuple(hpx::util::tuple<> const&)
+        {
+            return hpx::util::tuple<>();
+        }
+
+        template <typename Tuple, typename T>
+        auto unwrap_tuple(Tuple&& tuple, T&& t)
+        {
+            return
+                unwrap_tuple_impl<
+                    typename hpx::util::detail::make_index_pack<
+                        hpx::util::tuple_size<Tuple>::value>::type,
+                    Tuple, T>::call(
+                    std::forward<Tuple>(tuple),
+                    std::forward<T>(t));
+        }
+
+        template <typename Tuple, typename Head, typename... Ts>
+        auto unwrap_tuple(Tuple&& tuple, Head&& head, Ts&&... ts)
+        {
+            return
+                unwrap_tuple(
+                    unwrap_tuple_impl<
+                        typename hpx::util::detail::make_index_pack<
+                            hpx::util::tuple_size<Tuple>::value>::type,
+                        Tuple, Head>::call(
+                        std::forward<Tuple>(tuple),
+                        std::forward<Head>(head)),
+                    std::forward<Ts>(ts)...);
+        }
+
 
         template <typename F>
         typename std::enable_if<
@@ -122,7 +215,15 @@ namespace allscale
             virtual ~work_item_impl_base()
             {}
 
+            work_item_impl_base() {};
+            work_item_impl_base(work_item_impl_base const&) = delete;
+            work_item_impl_base& operator=(work_item_impl_base const&) = delete;
+
             virtual void set_this_id()=0;
+
+            virtual treeture_base& get_treeture() = 0;
+
+            virtual bool can_split() const=0;
 
             virtual void process()=0;
             virtual void split()=0;
@@ -165,7 +266,7 @@ namespace allscale
 
             void set_this_id()
             {
-                id_.set(this_work_item::get_id());
+                id_.set(this_work_item::get_id(), tres_.get_id());
             }
 
             template <typename ...Ts>
@@ -174,6 +275,16 @@ namespace allscale
               , closure_(std::forward<Ts>(vs)...)
             {
                 HPX_ASSERT(tres_.valid());
+            }
+
+            treeture_base& get_treeture()
+            {
+                return static_cast<treeture_base&>(tres_);
+            }
+
+            bool can_split() const
+            {
+                return WorkItemDescription::can_split_variant::call(closure_);
             }
 
             template <typename ...Ts>
@@ -185,15 +296,13 @@ namespace allscale
                 monitor::signal(monitor::work_item_execution_started, work_item(this_));
                 set_id si(this->id_);
 
-                auto fut = WorkItemDescription::split_variant::execute(
-                    hpx::util::make_tuple(
-                        detail::unwrap_if(std::move(vs))...
-                    )
-                ).get_future();
+                hpx::future<result_type> fut(WorkItemDescription::split_variant::execute(
+                    detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
+                ));
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));
 
-                fut.then(
+                fut.then(hpx::launch::sync,
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
@@ -212,15 +321,13 @@ namespace allscale
                 monitor::signal(monitor::work_item_execution_started, work_item(this_));
                 set_id si(this->id_);
 
-                auto fut = WorkItemDescription::process_variant::execute(
-                    hpx::util::make_tuple(
-                        detail::unwrap_if(std::move(vs))...
-                    )
-                ).get_future();
+                hpx::future<result_type> fut(WorkItemDescription::process_variant::execute(
+                    detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
+                ));
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));
 
-                fut.then(
+                fut.then(hpx::launch::sync,
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
@@ -308,13 +415,10 @@ namespace allscale
             template <typename Archive>
             void serialize(Archive &ar, unsigned)
             {
-				HPX_ASSERT(false);
-                /*
 				ar & hpx::serialization::base_object<work_item_impl_base>(*this);
                 ar & tres_;
                 ar & closure_;
                 ar & id_;
-				*/
             }
             HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(work_item_impl);
 
@@ -343,7 +447,7 @@ namespace allscale
 
             void set_this_id()
             {
-                id_.set(this_work_item::get_id());
+                id_.set(this_work_item::get_id(), tres_.get_id());
             }
 
             template <typename ...Ts>
@@ -352,6 +456,16 @@ namespace allscale
               , closure_(std::forward<Ts>(vs)...)
             {
                 HPX_ASSERT(tres_.valid());
+            }
+
+            treeture_base& get_treeture()
+            {
+                return static_cast<treeture_base&>(tres_);
+            }
+
+            bool can_split() const
+            {
+                return WorkItemDescription::can_split_variant::call(closure_);
             }
 
             template <typename ...Ts>
@@ -363,15 +477,13 @@ namespace allscale
                 monitor::signal(monitor::work_item_execution_started, work_item(this_));
                 set_id si(this->id_);
 
-                auto fut = WorkItemDescription::split_variant::execute(
-                    hpx::util::make_tuple(
-                        detail::unwrap_if(std::move(vs))...
-                    )
-                ).get_future();
+                hpx::future<result_type> fut(WorkItemDescription::split_variant::execute(
+                    detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
+                ));
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));
 
-                fut.then(
+                fut.then(hpx::launch::sync,
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
@@ -390,15 +502,13 @@ namespace allscale
                 monitor::signal(monitor::work_item_execution_started, work_item(this_));
                 set_id si(this->id_);
 
-                auto fut = WorkItemDescription::process_variant::execute(
-                    hpx::util::make_tuple(
-                        detail::unwrap_if(std::move(vs))...
-                    )
-                ).get_future();
+                hpx::future<result_type> fut(WorkItemDescription::process_variant::execute(
+                    detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
+                ));
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));
 
-                fut.then(
+                fut.then(hpx::launch::sync,
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
@@ -490,7 +600,6 @@ namespace allscale
                 ar & tres_;
                 ar & closure_;
                 ar & id_;
-
             }
             HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(work_item_impl);
 
@@ -521,7 +630,7 @@ namespace allscale
 
             void set_this_id()
             {
-                id_.set(this_work_item::get_id());
+                id_.set(this_work_item::get_id(), tres_.get_id());
             }
 
             template <typename ...Ts>
@@ -530,6 +639,16 @@ namespace allscale
               , closure_(std::forward<Ts>(vs)...)
             {
                 HPX_ASSERT(tres_.valid());
+            }
+
+            treeture_base& get_treeture()
+            {
+                return static_cast<treeture_base&>(tres_);
+            }
+
+            bool can_split() const
+            {
+                return WorkItemDescription::can_split_variant::call(closure_);
             }
 
             template <typename ...Ts>
@@ -541,15 +660,13 @@ namespace allscale
                 monitor::signal(monitor::work_item_execution_started, work_item(this_));
                 set_id si(this->id_);
 
-                auto fut = WorkItemDescription::process_variant::execute(
-                    hpx::util::make_tuple(
-                        detail::unwrap_if(std::move(vs))...
-                    )
-                ).get_future();
+                hpx::future<result_type> fut(WorkItemDescription::process_variant::execute(
+                    detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
+                ));
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));
 
-                fut.then(
+                fut.then(hpx::launch::sync,
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
@@ -651,14 +768,25 @@ namespace allscale
 
  			void set_this_id()
             {
-                id_.set(this_work_item::get_id());
+                id_.set(this_work_item::get_id(), tres_.get_id());
             }
+
             template <typename ...Ts>
             work_item_impl(treeture<result_type> tres, Ts&&... vs)
               : tres_(std::move(tres))
               , closure_(std::forward<Ts>(vs)...)
             {
                 HPX_ASSERT(tres_.valid());
+            }
+
+            treeture_base& get_treeture()
+            {
+                return static_cast<treeture_base&>(tres_);
+            }
+
+            bool can_split() const
+            {
+                return WorkItemDescription::can_split_variant::call(closure_);
             }
 
             template <typename ...Ts>
@@ -670,15 +798,13 @@ namespace allscale
                 monitor::signal(monitor::work_item_execution_started, work_item(this_));
                 set_id si(this->id_);
 
-                auto fut = WorkItemDescription::process_variant::execute(
-                    hpx::util::make_tuple(
-                        detail::unwrap_if(std::move(vs))...
-                    )
-                ).get_future();
+                hpx::future<result_type> fut(WorkItemDescription::process_variant::execute(
+                    detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...)
+                ));
 
                 monitor::signal(monitor::work_item_execution_finished, work_item(this_));
 
-                fut.then(
+                fut.then(hpx::launch::sync,
                     [tres, this_](hpx::future<result_type> ff) mutable
                     {
                         set_id si(this_->id_);
@@ -737,7 +863,8 @@ namespace allscale
             template <typename Archive>
             void serialize(Archive &ar, unsigned)
             {
-                HPX_ASSERT(false);
+
+                //HPX_ASSERT(false);
             }
             HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(work_item_impl);
 
@@ -785,7 +912,7 @@ namespace allscale
         }
 
         explicit work_item(std::shared_ptr<work_item_impl_base> impl)
-          : impl_(impl)
+          : impl_(std::move(impl))
         {}
 
         work_item(work_item const& other)
@@ -819,6 +946,12 @@ namespace allscale
             return false;
         }
 
+        bool can_split() const
+        {
+            HPX_ASSERT(impl_);
+            return impl_->can_split();
+        }
+
         this_work_item::id const& id() const
         {
             if(impl_)
@@ -831,6 +964,12 @@ namespace allscale
             if(impl_)
                 return impl_->name();
             return "";
+        }
+
+        template <typename R>
+        treeture<R> get_treeture()
+        {
+            return static_cast<treeture<R> const&>(impl_->get_treeture());
         }
 
         void split()

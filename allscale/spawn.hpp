@@ -7,43 +7,22 @@
 
 namespace allscale
 {
-
-    using dependencies = std::vector<task_reference>;
-
-    template<typename ... Refs>
-    dependencies after(const Refs& ... refs) {
-        return dependencies{ refs ... };
-    }
-
-
     template <typename WorkItemDescription, typename ...Ts>
     treeture<typename WorkItemDescription::result_type>
     spawn(Ts&&...vs)
     {
-        allscale::treeture<typename WorkItemDescription::result_type> tres(hpx::find_here());
+        typedef typename WorkItemDescription::result_type result_type;
+        HPX_ASSERT(this_work_item::get_id().get_treeture<result_type>());
 
-        scheduler::schedule(
-            work_item(false, WorkItemDescription(), tres, std::forward<Ts>(vs)...)
-        );
+        allscale::treeture<result_type> parent(this_work_item::get_id().get_treeture<result_type>());
+        allscale::treeture<result_type> tres(hpx::find_here(), parent.get_id());
 
-        HPX_ASSERT(tres.valid());
+        work_item wi(false, WorkItemDescription(), tres, std::forward<Ts>(vs)...);
 
-        return tres;
-    }
+        std::size_t idx = wi.id().last();
+        parent.set_child(idx, tres.get_id());
 
-    template <typename WorkItemDescription, typename ...Ts>
-    treeture<typename WorkItemDescription::result_type>
-    spawn_after(const dependencies& deps, Ts&&...vs)
-    {
-        // TODO: forward those dependencies to the scheduler, such that it can handle those 
-        //       for now it will wait for them here
-        for(const auto& cur : deps) cur.wait();
-
-        allscale::treeture<typename WorkItemDescription::result_type> tres(hpx::find_here());
-
-        scheduler::schedule(
-            work_item(false, WorkItemDescription(), tres, std::forward<Ts>(vs)...)
-        );
+        scheduler::schedule(std::move(wi));
 
         HPX_ASSERT(tres.valid());
 
@@ -54,27 +33,9 @@ namespace allscale
     treeture<typename WorkItemDescription::result_type>
     spawn_first(Ts&&...vs)
     {
-        allscale::treeture<typename WorkItemDescription::result_type> tres(hpx::find_here());
-
-        scheduler::schedule(
-            work_item(true, WorkItemDescription(), tres, std::forward<Ts>(vs)...)
-        );
-
-        HPX_ASSERT(tres.valid());
-
-        return tres;
-    }
-
-
-    template <typename WorkItemDescription, typename ...Ts>
-    treeture<typename WorkItemDescription::result_type>
-    spawn_first_after(const dependencies& deps, Ts&&...vs)
-    {
-        // TODO: forward those dependencies to the scheduler, such that it can handle those 
-        //       for now it will wait for them here
-        for(const auto& cur : deps) cur.wait();
-
-        allscale::treeture<typename WorkItemDescription::result_type> tres(hpx::find_here());
+        typedef typename WorkItemDescription::result_type result_type;
+        HPX_ASSERT(!this_work_item::get_id().get_treeture<result_type>());
+        allscale::treeture<result_type> tres(hpx::find_here());
 
         scheduler::schedule(
             work_item(true, WorkItemDescription(), tres, std::forward<Ts>(vs)...)

@@ -16,26 +16,24 @@
 
 #include "pfor.hpp"
 
+static const int DEFAULT_SIZE = 128 * 1024 * 1024;
 
-static const int MAX_SIZE = 128 * 1024 * 1024;
-
-static int dataA[MAX_SIZE];
-static int dataB[MAX_SIZE];
-
+static std::vector<int> dataA;
+static std::vector<int> dataB;
 
 struct simple_stencil_body {
     void operator()(std::int64_t i, const hpx::util::tuple<std::int64_t,std::int64_t>& params) const {
-
-        // limit maximum range
-        if (i >= MAX_SIZE) return;
-
         // extract parameters
         auto t = hpx::util::get<0>(params);
         auto n = hpx::util::get<1>(params);
 
+        HPX_ASSERT(i < n);
+        HPX_ASSERT(i < dataA.size());
+        HPX_ASSERT(i < dataB.size());
+
         // figure out in which way to move the data
-        int* A = (t%2) ? dataA : dataB;
-        int* B = (t%2) ? dataB : dataA;
+        int* A = (t%2) ? dataA.data() : dataB.data();
+        int* B = (t%2) ? dataB.data() : dataA.data();
 
         // check current state
         if ((i > 0 && A[i-1] != A[i]) || (i < n-1 && A[i] != A[i+1])) {
@@ -56,20 +54,19 @@ struct simple_stencil_body {
 int hpx_main(int argc, char **argv)
 {
 
+    std::int64_t n = argc >= 2 ? std::stoi(std::string(argv[1])) : DEFAULT_SIZE;
+    std::int64_t steps = argc >= 3 ? std::stoi(std::string(argv[2])) : 1000;
+    std::int64_t iters = argc >= 4 ? std::stoi(std::string(argv[3])) : 1;
+
     // initialize the data array
-    for(int i=0; i<MAX_SIZE; i++) {
-        dataA[i] = 0;
-    }
+    dataA.resize(n, 0);
+    dataB.resize(n, 0);
 
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
 
     if(hpx::get_locality_id() == 0)
     {
-        std::int64_t n = argc >= 2 ? std::stoi(std::string(argv[1])) : 1000000;
-        std::int64_t steps = argc >= 3 ? std::stoi(std::string(argv[2])) : 1000;
-        std::int64_t iters = argc >= 4 ? std::stoi(std::string(argv[2])) : 1;
-
         for(int i=0; i<iters; i++) {
             std::cout << "Starting " << steps << "x pfor(0.." << n << "), " << "Iter: " << i << "\n";
             hpx::util::high_resolution_timer t;

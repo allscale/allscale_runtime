@@ -1,5 +1,7 @@
 
 #include <allscale/this_work_item.hpp>
+#include <allscale/treeture.hpp>
+#include <allscale/work_item.hpp>
 
 #include <hpx/include/threads.hpp>
 
@@ -18,11 +20,12 @@ namespace allscale { namespace this_work_item {
     id::id()
     {}
 
-    void id::set(id const& parent)
+    void id::set(id const& parent, hpx::id_type const& tres)
     {
         next_id_ = 0;
         id_ = parent.id_;
         id_.push_back(get_id().next_id_++);
+        tres_ = tres;
     }
 
     id& get_id()
@@ -44,6 +47,11 @@ namespace allscale { namespace this_work_item {
         }
         result = result.substr(0, result.size()-1);
         return result;
+    }
+
+    std::size_t id::last() const
+    {
+        return id_.back();
     }
 
     std::size_t id::hash() const

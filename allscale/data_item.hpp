@@ -1,4 +1,3 @@
-
 #ifndef ALLSCALE_DATA_ITEM_HPP
 #define ALLSCALE_DATA_ITEM_HPP
 
@@ -13,117 +12,143 @@
 #include <memory>
 #include <utility>
 
-namespace allscale
-{
-    
+namespace allscale {
+
+template<typename DataItemDescription>
+struct data_item: hpx::components::client_base<data_item<DataItemDescription>,
+		components::data_item<DataItemDescription> >, data_item_base {
+public:
+	using region_type = typename DataItemDescription::region_type;
+	using fragment_type = typename DataItemDescription::fragment_type;
+	using collection_facade = typename DataItemDescription::collection_facade;
+
+	using base_type = hpx::components::client_base<data_item<DataItemDescription>, components::data_item<DataItemDescription> >;
+	using future_type = hpx::future<DataItemDescription>;
+
+	data_item() {
+
+		std::cout<<"should not be called "<< hpx::get_locality_id() << std::endl;
+	}
+
+	data_item(data_item const& other) :
+			base_type(other), parent_loc(other.parent_loc), region_(
+					other.region_), fragment_(other.fragment_) {
+		HPX_ASSERT(this->valid());
+	}
+
+	data_item(data_item && other) :
+			base_type(std::move(other)), parent_loc(
+					std::move(other.parent_loc)), region_(
+					std::move(other.region_)), fragment_(
+					std::move(other.fragment_)) {
+		HPX_ASSERT(this->valid());
+		HPX_ASSERT(!other.valid());
+	}
+
+	data_item& operator=(const data_item& other) {
+		if (other.valid()) {
+			this->base_type::operator=(static_cast<base_type const&>(other));
+			region_ = other.region_;
+			parent_loc = other.parent_loc;
+			fragment_ = other.fragment_;
+			HPX_ASSERT(this->valid());
+		}
+		return *this;
+	}
+
+	data_item& operator=(data_item&& other) {
+		if (other.valid()) {
+			this->base_type::operator=(
+					std::move(static_cast<base_type&&>(other)));
+			region_ = std::move(other.region_);
+			parent_loc = std::move(other.parent_loc);
+			fragment_ = std::move(other.fragment_);
+			HPX_ASSERT(this->valid());
+			HPX_ASSERT(!other.valid());
+		}
+		return *this;
+	}
+
+	data_item(hpx::id_type const& id) :
+			base_type(id) {
+		HPX_ASSERT(this->valid());
+	}
+
+	data_item(hpx::id_type loc, DataItemDescription descr) :
+			base_type(
+					hpx::new_<components::data_item<DataItemDescription> >(loc)) {
+		region_ = descr.r_;
+		fragment_ = descr.f_;
+		parent_loc = loc;
+		HPX_ASSERT(this->valid());
+	}
+
+	data_item(hpx::id_type loc, DataItemDescription descr, fragment_type frag) :
+			base_type(
+					hpx::new_<components::data_item<DataItemDescription> >(loc)) {
+
+		region_ = descr.r_;
+		parent_loc = loc;
+		fragment_ = frag;
+		HPX_ASSERT(this->valid());
+	}
+
+	data_item(hpx::future<hpx::naming::id_type> id) :
+			base_type(std::move(id)) {
+		std::cout << "TEST" << std::endl;
+	}
+
+	data_item(hpx::shared_future<hpx::naming::id_type> id) :
+			base_type(id) {
+		std::cout << "TEST2" << std::endl;
+	}
 
 
-    template <typename DataItemDescription>
-    struct data_item
-    : hpx::components::client_base<data_item<DataItemDescription>, components::data_item<DataItemDescription> > , data_item_base
-    {
-        public:
-            using region_type = typename DataItemDescription::region_type;
-            using fragment_type = typename DataItemDescription::fragment_type;
-            using collection_facade = typename DataItemDescription::collection_facade;
+	/*
+	template<typename Archive>
+	void serialize(Archive & ar, unsigned) {
+		std::cout << "saving dataitem for serializing" << std::endl;
+		HPX_ASSERT(this->valid());
+		ar & hpx::serialization::base_object<base_type>(*this);
+		ar & fragment_;
+		ar & region_;
+		ar & parent_loc;
+		HPX_ASSERT(this->valid());
+		std::cout << "finished saving dataitem for serializing" << std::endl;
+	}*/
 
+	template<typename Archive>
+	void load(Archive & ar, unsigned) {
+		ar & hpx::serialization::base_object<base_type>(*this);
+		ar & fragment_;
+		ar & region_;
+		ar & parent_loc;
+		HPX_ASSERT(this->valid());
+	}
 
-            using base_type = hpx::components::client_base<data_item<DataItemDescription>, components::data_item<DataItemDescription> >;
-            using future_type = hpx::future<DataItemDescription>;
+	template<typename Archive>
+	void save(Archive & ar, unsigned) const {
+		HPX_ASSERT(this->valid());
+		ar & hpx::serialization::base_object<base_type>(*this);
+		ar & fragment_;
+		ar & region_;
+		ar & parent_loc;
+		HPX_ASSERT(this->valid());
+	}
 
-            data_item()
-            {
-            }
-            
-            data_item( data_item const& other)
-            : base_type(other.get_id()),
-                parent_loc(other.parent_loc),
-                region_(other.region_),
-                fragment_(other.fragment_)
-            {
-                HPX_ASSERT(this->valid());
-            }
+	HPX_SERIALIZATION_SPLIT_MEMBER();
 
-            data_item( data_item && other)
-            : base_type( std::move(other.get_id())),
-                parent_loc(std::move(other.parent_loc)),
-                region_(std::move(other.region_)),
-                fragment_(std::move(other.fragment_)) 
-                
-                {
-                    //std::cout << " move operator: other id is " << other.get_id() << " my id is " << this->get_id() <<  std::endl;
-                    HPX_ASSERT(this->valid());
-                }
+	fragment_type fragment_;
+	region_type region_;
+	hpx::id_type parent_loc;
+};
 
-
-            data_item& operator=(const data_item& other)
-            
-            {
-                region_ = other.region_;
-                parent_loc = other.parent_loc;
-                fragment_ = other.fragment_;
-                HPX_ASSERT(this->valid());
-                return *this;
-            }
-
-
-            data_item(hpx::id_type const& id)
-              : base_type(id)
-            {
-                HPX_ASSERT(this->valid());
-            }
-
-
-            data_item(hpx::id_type loc, DataItemDescription descr)
-              : base_type(hpx::new_<components::data_item<DataItemDescription> >(loc))
-            {
-                region_ = descr.r_;
-                parent_loc = loc;
-                HPX_ASSERT(this->valid());
-            }
-
-
-            data_item(hpx::id_type loc, DataItemDescription descr, fragment_type frag)
-              : base_type(hpx::new_<components::data_item<DataItemDescription> >(loc))
-            {
-
-                region_ = descr.r_;
-                parent_loc = loc;
-                fragment_ = frag;
-                HPX_ASSERT(this->valid());
-            }
-
-
-            data_item(hpx::future<hpx::naming::id_type> id)
-              : base_type(std::move(id))
-            {
-                std::cout<<"TEST" << std::endl;
-            }
-
-            data_item(hpx::shared_future<hpx::naming::id_type> id)
-              : base_type(id)
-            {
-                std::cout<<"TEST2" << std::endl;
-            }
-
-
-            
-            fragment_type fragment_;
-            region_type region_;
-            hpx::id_type parent_loc;
-    };
-
-    namespace traits
-    {
-        template <typename T>
-        struct is_data_item< ::allscale::data_item<T>>
-          : std::true_type
-        {};
-    }
+namespace traits {
+template<typename T>
+struct is_data_item<::allscale::data_item<T>> : std::true_type {
+};
 }
-
-
-
+}
 
 #define ALLSCALE_REGISTER_DATA_ITEM_TYPE_(DataItemDescription, NAME)            \
     using NAME =                                                                \
@@ -139,7 +164,5 @@ namespace allscale
         BOOST_PP_CAT(BOOST_PP_CAT(data_item, DataItemDescription), _component_type)                \
     )                                                                           \
 /**/
-
-
 
 #endif
