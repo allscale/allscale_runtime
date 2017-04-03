@@ -118,12 +118,12 @@ namespace allscale
             }
         };
 
-        hpx::util::tuple<> unwrap_tuple(hpx::util::tuple<>&)
+        inline hpx::util::tuple<> unwrap_tuple(hpx::util::tuple<>&)
         {
             return hpx::util::tuple<>();
         }
 
-        hpx::util::tuple<> unwrap_tuple(hpx::util::tuple<> const&)
+        inline hpx::util::tuple<> unwrap_tuple(hpx::util::tuple<> const&)
         {
             return hpx::util::tuple<>();
         }
@@ -413,10 +413,12 @@ namespace allscale
             template <typename Archive>
             void serialize(Archive &ar, unsigned)
             {
+				/*
 				ar & hpx::serialization::base_object<work_item_impl_base>(*this);
                 ar & tres_;
                 ar & closure_;
                 ar & id_;
+                */
             }
             HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(work_item_impl);
 
