@@ -7,4 +7,5 @@ add_hpx_executable(
 
 add_subdirectory(pfor)
 add_subdirectory(uts)
+add_subdirectory(basic_insieme)
 

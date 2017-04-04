@@ -38,7 +38,7 @@ int main_wrapper(const Args& ... args) {
     int res = 0;
     if (hpx::get_locality_id() == 0) {
 
-        res = allscale::spawn<MainWorkItem>(args...).get_result();
+        res = allscale::spawn_first<MainWorkItem>(args...).get_result();
         allscale::scheduler::stop();
     }
 
