@@ -30,7 +30,6 @@ template<typename MainWorkItem, typename ... Args>
 int main_wrapper(const Args& ... args) {
     // include monitoring support
     allscale::components::monitor_component_init();
-    std::cout<<"wrapper started" << std::endl;
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
 
