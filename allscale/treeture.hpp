@@ -139,7 +139,7 @@ namespace allscale
 //             this->reset();
         }
 
-        hpx::future<T> get_future()
+        hpx::future<T> get_future() const
         {
             HPX_ASSERT(this->valid());
             hpx::lcos::promise<T> p;
@@ -160,7 +160,7 @@ namespace allscale
             return get_future().get();
         }
 
-        void wait()
+        void wait() const
         {
             // TODO: this fails in the fine_grained cases since the future has been retrieved before
             // How else can I wait for the completion of the task?
@@ -306,7 +306,7 @@ namespace allscale
 //             this->reset();
         }
 
-        hpx::future<void> get_future()
+        hpx::future<void> get_future() const
         {
             HPX_ASSERT(this->valid());
             hpx::lcos::promise<void> p;
@@ -327,7 +327,7 @@ namespace allscale
             get_future().get();
         }
 
-        void wait()
+        void wait() const
         {
             // TODO: this fails in the fine_grained cases since the future has been retrieved before
             // How else can I wait for the completion of the task?
