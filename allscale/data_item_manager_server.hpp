@@ -5,6 +5,7 @@
 #include <allscale/data_item_description.hpp>
 #include <allscale/components/data_item_manager_server.hpp>
 #include <allscale/data_item_base.hpp>
+
 #include <allscale/requirement.hpp>
 
 #include <hpx/include/future.hpp>
@@ -23,6 +24,9 @@
 
 namespace allscale
 {
+
+
+
     struct data_item_manager_server
         : public hpx::components::client_base<data_item_manager_server, components::data_item_manager_server >
     {
@@ -33,6 +37,7 @@ namespace allscale
       	using get_right_neighbor_action = typename allscale::components::data_item_manager_server::get_right_neighbor_action;
         using set_left_neighbor_action = typename allscale::components::data_item_manager_server::set_left_neighbor_action;
 		using set_right_neighbor_action = typename allscale::components::data_item_manager_server::set_right_neighbor_action;
+
 
 
 
@@ -68,6 +73,35 @@ namespace allscale
 
             return ret_val.is_ready();
         }
+
+
+
+
+        // create a data_item on the locality where this data_item_manager_server lives on ( this->get_id())
+            // uses future continuation, but does still block right now due to the f2.get()
+            template <typename DataItemDescription>
+           // std::shared_ptr<allscale::data_item<DataItemDescription>>
+            bool
+            create_data_item ()
+            {
+                HPX_ASSERT(this->valid());
+                using data_item_type = typename  allscale::data_item<DataItemDescription>;
+                using action_type = typename components::data_item_manager_server::create_empty_data_item_async_action<DataItemDescription>;
+                auto ret_val = hpx::async<action_type>(this->get_id());
+
+    //             hpx::future<data_item_type> f2 = ret_val.then(
+    //                 [this](hpx::future<data_item_type> f) -> data_item_type
+    //                 {
+    //                        return f.get();
+    //                 });
+
+                return ret_val.is_ready();
+            }
+
+
+
+
+
 
         template<typename DataItemDescription>
         std::vector<hpx::future<std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> > > >

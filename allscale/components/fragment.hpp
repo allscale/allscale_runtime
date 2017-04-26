@@ -10,3 +10,5 @@ namespace allscale { namespace components {
         : hpx::components::managed_component_base<fragment<Region,T> >
     {};
 }}
+
+#endif

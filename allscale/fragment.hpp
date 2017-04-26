@@ -1,15 +1,21 @@
 #ifndef ALLSCALE_FRAGMENT_HPP
 #define ALLSCALE_FRAGMENT_HPP
 
-#include <allscale/components/fragment>
+#include <allscale/components/fragment.hpp>
 #include <hpx/include/serialization.hpp>
 #include <memory>
 #include <iostream>
 
 namespace allscale {
+
+    struct fragment_base{
+        virtual ~fragment_base(){}
+    };
+
+
 template<typename Region, typename T>
-struct fragment : hpx::components::client_base<fragment<R,T>,
-                    components::fragment<R,T> >
+struct fragment : hpx::components::client_base<fragment<Region,T>,
+                    components::fragment<Region,T> >
 
 
 {

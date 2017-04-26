@@ -172,7 +172,7 @@ struct work_item {
 		virtual void process()=0;
 		virtual void split()=0;
 		virtual bool valid()=0;
-		virtual void requires()=0;
+//		virtual void requires()=0;
 
 		//virtual std::vector<allscale::fragment> requires()=0;
 		virtual this_work_item::id const& id() const=0;
@@ -183,10 +183,10 @@ struct work_item {
 		}
 		HPX_SERIALIZATION_POLYMORPHIC_ABSTRACT (work_item_impl_base);};
 
-		template<typename WorkItemDescription, typename Closure, bool Split =
-		WorkItemDescription::split_variant::valid, bool Serialization =
-		WorkItemDescription::ser_variant::activated>
-		struct work_item_impl;
+        template<typename WorkItemDescription, typename Closure, bool Split =
+        WorkItemDescription::split_variant::valid, bool Serialization =
+        WorkItemDescription::ser_variant::activated>
+        struct work_item_impl;
 
 		template<typename WorkItemDescription, typename Closure>
 		struct work_item_impl<WorkItemDescription, Closure, true, false> : work_item_impl_base {
@@ -196,34 +196,34 @@ struct work_item {
 			}
 
 			using result_type = typename WorkItemDescription::result_type;
-			using closure_type = Closure;
+            using closure_type = Closure;
 
-			using data_item_descr = typename WorkItemDescription::data_item_variant;
-			using data_item_type = typename allscale::data_item<data_item_descr>;
+            using data_item_descr = typename WorkItemDescription::data_item_variant;
+            using data_item_type = typename allscale::data_item<data_item_descr>;
 
 
-			void requires() {
-                requires(
-                        typename hpx::util::detail::make_index_pack<
-                        hpx::util::tuple_size<closure_type>::type::value>::type()
-                );
-			}
+/*            void requires() {*/
+                //requires(
+                        //typename hpx::util::detail::make_index_pack<
+                        //hpx::util::tuple_size<closure_type>::type::value>::type()
+                //);
+            //}
 
-            template<std::size_t ... Is>
-            void requires(hpx::util::detail::pack_c<std::size_t, Is...>)
-            {
-                	void (work_item_impl::*f)(
-						typename hpx::util::decay<
-						decltype(hpx::util::get<Is>(closure_))>::type...
-				) = &work_item_impl::requires_impl;
-				HPX_ASSERT(valid());
-				hpx::dataflow(f, shared_this(),
-						std::move(hpx::util::get<Is>(closure_))...);
-			}
-            template<typename ...Ts>
-            void requires_impl(Ts ...vs){
-                std::cout<<"blabla \n";
-            }               
+            //template<std::size_t ... Is>
+            //void requires(hpx::util::detail::pack_c<std::size_t, Is...>)
+            //{
+                    //void (work_item_impl::*f)(
+                        //typename hpx::util::decay<
+                        //decltype(hpx::util::get<Is>(closure_))>::type...
+                //) = &work_item_impl::requires_impl;
+                //HPX_ASSERT(valid());
+                //hpx::dataflow(f, shared_this(),
+                        //std::move(hpx::util::get<Is>(closure_))...);
+            //}
+            //template<typename ...Ts>
+            //void requires_impl(Ts ...vs){
+                //std::cout<<"blabla \n";
+            //}               
                 
 
 			work_item_impl() {
@@ -621,28 +621,28 @@ struct work_item {
 
 
 
-			void requires() {
-                requires(
-                        typename hpx::util::detail::make_index_pack<
-                        hpx::util::tuple_size<closure_type>::type::value>::type()
-                );
-			}
+			//void requires() {
+                //requires(
+                        //typename hpx::util::detail::make_index_pack<
+                        //hpx::util::tuple_size<closure_type>::type::value>::type()
+                //);
+			//}
 
-            template<std::size_t ... Is>
-            void requires(hpx::util::detail::pack_c<std::size_t, Is...>)
-            {
-                	void (work_item_impl::*f)(
-						typename hpx::util::decay<
-						decltype(hpx::util::get<Is>(closure_))>::type...
-				) = &work_item_impl::requires_impl;
-				HPX_ASSERT(valid());
-				hpx::dataflow(f, shared_this(),
-						std::move(hpx::util::get<Is>(closure_))...);
-			}
-            template<typename ...Ts>
-            void requires_impl(Ts ...vs){
-                std::cout<<"blabla \n";
-            }
+            //template<std::size_t ... Is>
+            //void requires(hpx::util::detail::pack_c<std::size_t, Is...>)
+            //{
+                    //void (work_item_impl::*f)(
+						//typename hpx::util::decay<
+						//decltype(hpx::util::get<Is>(closure_))>::type...
+				//) = &work_item_impl::requires_impl;
+				//HPX_ASSERT(valid());
+				//hpx::dataflow(f, shared_this(),
+						//std::move(hpx::util::get<Is>(closure_))...);
+			//}
+            //template<typename ...Ts>
+            //void requires_impl(Ts ...vs){
+                //std::cout<<"blabla \n";
+            //}
 
 
 
@@ -767,28 +767,28 @@ struct work_item {
 
 
 
-			void requires() {
-                requires(
-                        typename hpx::util::detail::make_index_pack<
-                        hpx::util::tuple_size<closure_type>::type::value>::type()
-                );
-			}
+			//void requires() {
+                //requires(
+                        //typename hpx::util::detail::make_index_pack<
+                        //hpx::util::tuple_size<closure_type>::type::value>::type()
+                //);
+			//}
 
-            template<std::size_t ... Is>
-            void requires(hpx::util::detail::pack_c<std::size_t, Is...>)
-            {
-                	void (work_item_impl::*f)(
-						typename hpx::util::decay<
-						decltype(hpx::util::get<Is>(closure_))>::type...
-				) = &work_item_impl::requires_impl;
-				HPX_ASSERT(valid());
-				hpx::dataflow(f, shared_this(),
-						std::move(hpx::util::get<Is>(closure_))...);
-			}
-            template<typename ...Ts>
-            void requires_impl(Ts ...vs){
-                std::cout<<"blabla \n";
-            }
+            //template<std::size_t ... Is>
+            //void requires(hpx::util::detail::pack_c<std::size_t, Is...>)
+            //{
+                    //void (work_item_impl::*f)(
+						//typename hpx::util::decay<
+						//decltype(hpx::util::get<Is>(closure_))>::type...
+				//) = &work_item_impl::requires_impl;
+				//HPX_ASSERT(valid());
+				//hpx::dataflow(f, shared_this(),
+						//std::move(hpx::util::get<Is>(closure_))...);
+			//}
+            //template<typename ...Ts>
+            //void requires_impl(Ts ...vs){
+                //std::cout<<"blabla \n";
+            //}
 
 
 
@@ -1166,18 +1166,22 @@ struct work_item {
 			impl_->split();
 //             impl_.reset();
 		}
+/*
+ *
+ *        void requires() {
+ *            HPX_ASSERT(valid());
+ *            HPX_ASSERT(impl_->valid());
+ *            std::cout << "call to requiries" << std::endl;
+ *            impl_->requires();
+ *            return std::vector<int>();
+ *            return std::vector<typename WorkItemDescription::data_item_variant>();
+ *            impl_->requires();
+ *             impl_.reset();
+ *        }
+ *
+ */
 
-		void requires() {
-			HPX_ASSERT(valid());
-			HPX_ASSERT(impl_->valid());
-			std::cout << "call to requiries" << std::endl;
-			impl_->requires();
-			//return std::vector<int>();
-			//return std::vector<typename WorkItemDescription::data_item_variant>();
-			//impl_->requires();
-//             impl_.reset();
-		}
-		void process() {
+        void process() {
 			HPX_ASSERT(valid());
 			HPX_ASSERT(impl_->valid());
 			impl_->process();

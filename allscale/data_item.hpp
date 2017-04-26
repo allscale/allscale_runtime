@@ -25,9 +25,10 @@ public:
 	using base_type = hpx::components::client_base<data_item<DataItemDescription>, components::data_item<DataItemDescription> >;
 	using future_type = hpx::future<DataItemDescription>;
 
-	data_item() {
-
-		std::cout<<"should not be called "<< hpx::get_locality_id() << std::endl;
+	data_item() : base_type(
+			hpx::new_<components::data_item<DataItemDescription> >(hpx::find_here())){
+		HPX_ASSERT(this->valid());
+		std::cout<<"empty constructor, just an empty dataitem with the region types etc" << std::endl;
 	}
 
 	data_item(data_item const& other) :

@@ -5,15 +5,37 @@
 #include <hpx/hpx.hpp>
 #include <memory>
 #include <allscale/data_item_base.hpp>
+#include <allscale/data_item.hpp>
+#include <allscale/components/data_item.hpp>
 #include <allscale/requirement.hpp>
 #include <vector>
+#include <unordered_map>
+#include <allscale/fragment.hpp>
+
+
+
 namespace allscale {
 namespace components {
+
+
+// custom hash can be a standalone function object:
+struct my_hash
+{
+	std::uint64_t operator()(hpx::naming::id_type const& id) const
+	{
+		std::cout<<"calling hash function" << std::endl;
+		return id.get_msb() + id.get_lsb();
+	}
+};
+
+
 struct data_item_manager_server: hpx::components::managed_component_base<
 		data_item_manager_server> {
 	typedef hpx::components::managed_component_base<data_item_manager_server> server_type;
+    using fragment_base = allscale::fragment_base;
 
-	template<typename T>
+
+    template<typename T>
 //	hpx::future<std::shared_ptr<allscale::data_item<T>>>create_data_item_async( T arg)
 	hpx::future<bool> create_data_item_async(T arg)
 
@@ -24,11 +46,16 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 
 		std::shared_ptr<data_item_base> ptr = std::make_shared<data_item_type>(
 				data_item_type(hpx::find_here(), arg));
-
 		local_data_items.push_back(ptr);
-
 		std::shared_ptr<data_item_type> k = std::static_pointer_cast<
 				data_item_type>(ptr);
+		auto id = (*k).get_id();
+		std::pair<hpx::id_type,std::vector<std::shared_ptr<allscale::fragment_base>>> p(id,std::vector<std::shared_ptr<allscale::fragment_base>>());
+
+
+
+
+
 		promise_.set_value(true);
 		return promise_.get_future();
 	}
@@ -48,6 +75,84 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 			&data_item_manager_server::template create_data_item_async<T>,
 			create_data_item_async_action<T> > {
 	};
+
+
+
+
+
+    template<typename T>
+//	hpx::future<std::shared_ptr<allscale::data_item<T>>>create_data_item_async( T arg)
+	hpx::future<bool> create_empty_data_item_async()
+
+	{
+		using data_item_type = allscale::data_item<T>;
+		//hpx::lcos::local::promise<std::shared_ptr<data_item_type>> promise_;
+		hpx::lcos::local::promise<bool> promise_;
+
+		std::shared_ptr<data_item_base> ptr = std::make_shared<data_item_type>(
+				data_item_type());
+		std::cout<<"blubber"<<std::endl;
+
+		local_data_items.push_back(ptr);
+		std::cout<<"blubber"<<std::endl;
+		std::shared_ptr<data_item_type> k = std::static_pointer_cast<
+				data_item_type>(ptr);
+		auto id = (*k).get_id();
+		std::cout<<"created async dataitem with id " << id << std::endl;
+		std::pair<hpx::id_type,std::vector<std::shared_ptr<allscale::fragment_base>>> p(id,std::vector<std::shared_ptr<allscale::fragment_base>>());
+
+
+
+
+
+		promise_.set_value(true);
+		return promise_.get_future();
+	}
+
+//	template <typename T>
+//	struct create_data_item_async_action
+//	: hpx::actions::make_action<
+//	hpx::future<std::shared_ptr<allscale::data_item<T>>>(data_item_manager_server::*)(T),
+//	&data_item_manager_server::template create_data_item_async<T>,
+//	create_data_item_async_action<T>
+//	>
+//	{};
+
+	template<typename T>
+	struct create_empty_data_item_async_action: hpx::actions::make_action<
+			hpx::future<bool> (data_item_manager_server::*)(),
+			&data_item_manager_server::template create_empty_data_item_async<T>,
+			create_empty_data_item_async_action<T> > {
+	};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 	template<typename DataItemDescription>
 	hpx::future<
@@ -188,7 +293,14 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 	hpx::naming::id_type left_;
 	hpx::naming::id_type right_;
 
+
+    //map of data_items | vector<fragment> 
+    //std::unordered_map<hpx::naming::id_type,std::vector<std::shared_ptr<fragment_base>>> data_item_fragments_map;
 	std::vector<std::shared_ptr<data_item_base> > local_data_items;
+
+    std::unordered_map<hpx::id_type,std::vector<std::shared_ptr<allscale::fragment_base>>,my_hash> difm;
+
+
 };
 }
 }

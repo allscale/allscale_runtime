@@ -95,15 +95,26 @@ std::vector<loc_server_pair> dms;
  }
  */
 
+
+
+
 bool test_creation_of_data_item_manager_server_components() {
 	std::vector<hpx::naming::id_type> localities = hpx::find_all_localities();
 	if (hpx::get_locality_id() == 0) {
 
 		std::vector<hpx::naming::id_type> server_ids;
-		for (hpx::naming::id_type const& node : localities) {
-//			std::cout << "Cycling thru localities, Locality: " << node
-//					<< std::endl;
-			auto tmp = my_data_item_manager_server(node);
+		
+
+
+        for (hpx::naming::id_type const& node : localities) {
+            
+//            std::stringstream buffer;
+//            buffer << node.get_gid() ;
+//            std::pair<hpx::id_type,std::string> p(node,buffer.str());
+//            blub.insert(p);
+            
+
+            auto tmp = my_data_item_manager_server(node);
 			dms.push_back(std::make_pair(node, tmp));
 			server_ids.push_back(tmp.get_id());
 		}
@@ -122,11 +133,11 @@ bool test_creation_of_data_items() {
 			my_region test_region(2);
 			my_fragment test_frag(test_region, i);
 			descr test_descr(test_region, test_frag, 0);
-			auto td = server_entry.second.create_data_item < descr
-					> (test_descr);
+			auto td = server_entry.second.create_data_item < descr > ();
 			//std::cout<<"test item fragment value: " << *((*td).fragment_.ptr_)  << " global id: " << hpx::naming::get_locality_from_gid((*td).get_id().get_gid()) << std::endl;
 		}
 	}
+
 	return true;
 }
 
@@ -236,9 +247,11 @@ bool test_acquire_method() {
 
 int hpx_main(int argc, char* argv[]) {
 	if (hpx::get_locality_id() == 0) {
-		std::cout<<"test_creation_of_data_item_manager_server_components() == " << test_creation_of_data_item_manager_server_components() << std::endl;
+		test_creation_of_data_item_manager_server_components();
+		test_creation_of_data_items();
+		//std::cout<<"test_creation_of_data_item_manager_server_components() == " << test_creation_of_data_item_manager_server_components() << std::endl;
 		//std::cout<<"test_locate_method() == " << test_locate_method() << std::endl;
-		std::cout<<"test_acquire_method() == " << test_acquire_method() << std::endl;
+		//std::cout<<"test_acquire_method() == " << test_acquire_method() << std::endl;
 	}
 
 	return hpx::finalize();

@@ -132,7 +132,7 @@ namespace allscale { namespace components {
             this_work_item::set_id(id);
 
         hpx::id_type schedule_id;
-        work.requires();
+        //work.requires();
         switch (schedule_rank)
         {
             case 1:

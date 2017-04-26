@@ -1,6 +1,5 @@
 #include <allscale/fragment.hpp>
 
-
 #include <allscale/region.hpp>
 
 
