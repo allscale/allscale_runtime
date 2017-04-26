@@ -129,7 +129,7 @@ namespace allscale
         }
 
         template <typename Tuple, typename T>
-        auto unwrap_tuple(Tuple&& tuple, T&& t)
+        decltype(auto) unwrap_tuple(Tuple&& tuple, T&& t)
         {
             return
                 unwrap_tuple_impl<
@@ -141,7 +141,7 @@ namespace allscale
         }
 
         template <typename Tuple, typename Head, typename... Ts>
-        auto unwrap_tuple(Tuple&& tuple, Head&& head, Ts&&... ts)
+        decltype(auto) unwrap_tuple(Tuple&& tuple, Head&& head, Ts&&... ts)
         {
             return
                 unwrap_tuple(
