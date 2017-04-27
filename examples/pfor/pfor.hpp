@@ -226,7 +226,7 @@ struct pfor_neighbor_sync_split_variant
 
         // compute the middle
         auto mid = begin + (end - begin) / 2;
-        std::cout<<"splitting"<<std::endl;
+//        std::cout<<"splitting"<<std::endl;
         // refine dependencies
         auto dl = hpx::util::get<0>(deps);
         auto dc = hpx::util::get<1>(deps);

@@ -162,7 +162,7 @@ struct process_variant
 #include <allscale/components/monitor.hpp>
 
 
-std::int64_t fib_elapsed = 0;
+boost::atomic<std::int64_t> fib_elapsed(0);
 
 
 std::int64_t fib_performance_data(bool reset)
@@ -178,7 +178,7 @@ void register_counter_type()
 
     // Call the HPX API function to register the counter type.
     hpx::performance_counters::install_counter_type(
-        "/allscale/examples/fib_time",
+        "/allscale/examples/app_time",
         // counter type name
         &fib_performance_data,
         // function providing counter data
@@ -186,19 +186,6 @@ void register_counter_type()
         // description text
     );
 }
-
-
-
-bool get_startup(hpx::startup_function_type& startup_func, bool& pre_startup)
-{
-    // return our startup-function if performance counters are required
-    startup_func = register_counter_type;   // function to run during startup
-    pre_startup = true;       // run 'startup' as pre-startup function
-    return true;
-}
-
-
-
 
 std::int64_t fib_runner(std::int64_t n)
 {
@@ -234,10 +221,12 @@ int hpx_main(int argc, char **argv)
     return hpx::finalize();
 }
 
+
 int main(int argc, char **argv)
 {
     hpx::register_pre_startup_function(&register_counter_type);
 
     return hpx::init(argc, argv);
 }
+
 

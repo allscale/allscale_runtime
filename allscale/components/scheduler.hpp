@@ -10,6 +10,8 @@
 #include <hpx/compute/host.hpp>
 #include <hpx/compute/host/target.hpp>
 #include <hpx/runtime/threads/executors/thread_pool_attached_executors.hpp>
+#include <hpx/runtime/threads/policies/throttling_scheduler.hpp>
+#include <hpx/runtime/threads/threadmanager_impl.hpp>
 
 #include <deque>
 #include <vector>
@@ -75,19 +77,23 @@ namespace allscale { namespace components {
 
         std::size_t os_thread_count;
 
-        void resume(std::size_t shepherd);
-        void resume_all();
-	void resume_n(std::size_t n);
-        std::size_t resume_count;
-        void suspend(std::size_t shepherd);
-        bool is_suspended(std::size_t shepherd) const;
+//        void resume(std::size_t shepherd);
+//        void resume_all();
+//	void resume_n(std::size_t n);
+  
+//        std::size_t resume_count;
+//        void suspend(std::size_t shepherd);
+//        bool is_suspended(std::size_t shepherd) const;
 
-        void throttle_controller(std::size_t shepherd);
+///        void throttle_controller(std::size_t shepherd);
 
-        void register_thread(std::size_t shepherd);
-        void register_suspend_thread(std::size_t shepherd);
+//        void register_thread(std::size_t shepherd);
+//        void register_suspend_thread(std::size_t shepherd);
 
-        boost::dynamic_bitset<> blocked_os_threads_;
+	hpx::threads::threadmanager_impl<hpx::threads::policies::throttling_scheduler<>>* thread_manager;
+
+
+//        boost::dynamic_bitset<> & blocked_os_threads_;
         mutable mutex_type throttle_mtx_;
 
         mutable mutex_type resize_mtx_;
