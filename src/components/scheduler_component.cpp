@@ -81,7 +81,7 @@ namespace allscale { namespace components {
                 boost::str(boost::format("Wrong objective: %s, Valid values: [%s]") % sched_objective % all_keys));
         }
         else
-            std::cout << "The requested objective is " << sched_objective << std::endl;
+            std::cerr << "The requested objective is " << sched_objective << std::endl;
 
         // setup performance counter to use to decide on split/process
         static const char * queue_counter_name = "/threadqueue{locality#%d/total}/length";
@@ -110,12 +110,12 @@ namespace allscale { namespace components {
             auto num_pus = domain.num_pus();
             //Create executor per numa domain
             executors.emplace_back(num_pus.first, num_pus.second);
-            std::cout << "Numa num_pus.first: " << num_pus.first << ", num_pus.second: " << num_pus.second << ". Total numa domains: " << numa_domains.size() << std::endl;
+            std::cerr << "Numa num_pus.first: " << num_pus.first << ", num_pus.second: " << num_pus.second << ". Total numa domains: " << numa_domains.size() << std::endl;
         }
         timer_.start();
 
         //throttle_timer_.start();
-        std::cout
+        std::cerr
             << "Scheduler with rank "
             << rank_ << " created (" << left_ << " " << right_ << ")!\n";
     }

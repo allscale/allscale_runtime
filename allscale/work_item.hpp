@@ -118,20 +118,18 @@ namespace allscale
             }
         };
 
-        template <typename T>
-        hpx::util::tuple<> unwrap_tuple(hpx::util::tuple<>&)
+        inline hpx::util::tuple<> unwrap_tuple(hpx::util::tuple<>&)
         {
             return hpx::util::tuple<>();
         }
 
-        template <typename T>
-        hpx::util::tuple<> unwrap_tuple(hpx::util::tuple<> const&)
+        inline hpx::util::tuple<> unwrap_tuple(hpx::util::tuple<> const&)
         {
             return hpx::util::tuple<>();
         }
 
         template <typename Tuple, typename T>
-        auto unwrap_tuple(Tuple&& tuple, T&& t)
+        decltype(auto) unwrap_tuple(Tuple&& tuple, T&& t)
         {
             return
                 unwrap_tuple_impl<
@@ -143,7 +141,7 @@ namespace allscale
         }
 
         template <typename Tuple, typename Head, typename... Ts>
-        auto unwrap_tuple(Tuple&& tuple, Head&& head, Ts&&... ts)
+        decltype(auto) unwrap_tuple(Tuple&& tuple, Head&& head, Ts&&... ts)
         {
             return
                 unwrap_tuple(
@@ -415,10 +413,12 @@ namespace allscale
             template <typename Archive>
             void serialize(Archive &ar, unsigned)
             {
+				/*
 				ar & hpx::serialization::base_object<work_item_impl_base>(*this);
                 ar & tres_;
                 ar & closure_;
                 ar & id_;
+                */
             }
             HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(work_item_impl);
 

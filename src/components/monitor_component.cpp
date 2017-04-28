@@ -633,8 +633,8 @@ namespace allscale { namespace components {
 //      std::lock_guard<mutex_type> lock(work_map_mutex);
 
 
-      std::cout << "\nWall-clock time: " << wall_clock << std::endl;
-      std::cout << "\nWork Item		Exclusive time  |  % Total  |  Inclusive time  |  % Total   |   Mean (child.)  |   SD (child.)  "
+      std::cerr << "\nWall-clock time: " << wall_clock << std::endl;
+      std::cerr << "\nWork Item		Exclusive time  |  % Total  |  Inclusive time  |  % Total   |   Mean (child.)  |   SD (child.)  "
                 << "\n------------------------------------------------------------------------------------------------------------------\n";
 
       std::vector<std::string> w_id;
@@ -654,16 +654,16 @@ namespace allscale { namespace components {
             double incl_elapsed = p->get_inclusive_time();
             double perc_incl_elapsed = (incl_elapsed/wall_clock) * 100;
 
-            std::cout.precision(5);
-            std::cout << std::scientific << "   " << i + ' ' + w_names[i] << "\t\t " << excl_elapsed << "\t\t";
-            std::cout.precision(2);
-            std::cout << std::fixed << perc_excl_elapsed;
-            std::cout.precision(5);
-            std::cout << std::scientific << "\t" << incl_elapsed << "\t\t";
-            std::cout.precision(2);
-            std::cout << std::fixed << perc_incl_elapsed << "\t";
-            std::cout.precision(5);
-            std::cout << std::fixed << p->Mean() << "       " << p->StandardDeviation() << std::endl;
+            std::cerr.precision(5);
+            std::cerr << std::scientific << "   " << i + ' ' + w_names[i] << "\t\t " << excl_elapsed << "\t\t";
+            std::cerr.precision(2);
+            std::cerr << std::fixed << perc_excl_elapsed;
+            std::cerr.precision(5);
+            std::cerr << std::scientific << "\t" << incl_elapsed << "\t\t";
+            std::cerr.precision(2);
+            std::cerr << std::fixed << perc_incl_elapsed << "\t";
+            std::cerr.precision(5);
+            std::cerr << std::fixed << p->Mean() << "       " << p->StandardDeviation() << std::endl;
         }
       }
       w_id.clear();
