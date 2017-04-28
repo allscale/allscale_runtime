@@ -94,6 +94,12 @@ namespace allscale { namespace components {
 
       p->end = std::chrono::steady_clock::now();
       
+
+#ifdef HAVE_PAPI
+      // Record PAPI counters for this work item
+
+#endif
+
      
       // Update stats per work item name
       time = p->get_exclusive_time();
@@ -304,6 +310,25 @@ namespace allscale { namespace components {
 #else
       return 0.0;
 #endif
+   }
+
+
+   double get_iteration_time(int i)
+   {
+      if(i < 0 || i >= history->iteration_time.size()) return 0.0;
+      else return history->iteration_time[i];
+   }
+
+
+   double get_last_iteration_time()
+   {
+      if(!(history->iteration_time.size())) return 0.0;
+      else return history->iteration_time.back();
+   }
+
+   long get_number_of_iterations()
+   {
+      return history->current_iteration;
    }
 
 
