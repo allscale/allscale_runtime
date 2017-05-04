@@ -382,7 +382,7 @@ namespace allscale { namespace components {
             // put this shepherd thread to sleep for 100ms
             hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
 
-            boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
+            hpx::compat::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 
         // if this thread still needs to be suspended, re-schedule this routine
