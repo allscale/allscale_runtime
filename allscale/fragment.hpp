@@ -26,8 +26,8 @@ public:
 	fragment() {
 	}
 
-	fragment(Region const& r, T t) :
-			region_(r) {
+	fragment(Region const& r, T t) :region_(r)
+	{
 		T *tmp = new T(t);
 		ptr_ = std::shared_ptr < T > (tmp);
 	}
@@ -35,6 +35,11 @@ public:
 	fragment(Region const& r, std::shared_ptr<T> ptr ) :
 			region_(r),
 			ptr_(ptr)
+	{
+
+	}
+
+	fragment(Region const& r) : region_(r), ptr_(std::make_shared<value_type>(value_type(region_.get_elements())))
 	{
 
 	}

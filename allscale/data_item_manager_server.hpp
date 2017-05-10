@@ -81,7 +81,7 @@ namespace allscale
             // uses future continuation, but does still block right now due to the f2.get()
             template <typename DataItemDescription>
            // std::shared_ptr<allscale::data_item<DataItemDescription>>
-            bool
+            hpx::id_type
             create_data_item ()
             {
                 HPX_ASSERT(this->valid());
@@ -95,7 +95,7 @@ namespace allscale
     //                        return f.get();
     //                 });
 
-                return ret_val.is_ready();
+                return ret_val.get();
             }
 
 

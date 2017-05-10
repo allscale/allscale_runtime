@@ -47,6 +47,8 @@ struct region {
 		return false;
 	}
 
+	std::size_t get_elements(){return 0;}
+
 	template<typename Archive>
 	void load(Archive & ar, unsigned) {
 		//ar & impl_;
