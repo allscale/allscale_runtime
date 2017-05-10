@@ -43,11 +43,11 @@ namespace allscale
         using attach_promise_action =
             typename components::treeture<T>::attach_promise_action;
         using get_left_neighbor_action =
-            typename components::treeture<T>::get_left_neighbor_action;
+            typename components::treeture_base::get_left_neighbor_action;
         using get_right_neighbor_action =
-            typename components::treeture<T>::get_right_neighbor_action;
+            typename components::treeture_base::get_right_neighbor_action;
         using set_child_action =
-            typename components::treeture<T>::set_child_action;
+            typename components::treeture_base::set_child_action;
 
         treeture()
         {}
@@ -219,12 +219,6 @@ namespace allscale
             typename components::treeture<hpx::util::unused_type>::set_value_action;
         using attach_promise_action =
             typename components::treeture<hpx::util::unused_type>::attach_promise_action;
-        using get_left_neighbor_action =
-            typename components::treeture<hpx::util::unused_type>::get_left_neighbor_action;
-        using get_right_neighbor_action =
-            typename components::treeture<hpx::util::unused_type>::get_right_neighbor_action;
-        using set_child_action =
-            typename components::treeture<hpx::util::unused_type>::set_child_action;
 
         treeture()
         {}
@@ -369,11 +363,12 @@ namespace allscale
 }
 
 #define ALLSCALE_REGISTER_TREETURE_TYPE_(T, NAME)                               \
+    using BOOST_PP_CAT(NAME, _treeture) = ::allscale::components::treeture< T >;\
     using NAME =                                                                \
         ::hpx::components::managed_component<                                   \
-            ::allscale::components::treeture< T >                               \
+            BOOST_PP_CAT(NAME, _treeture)                                       \
         >;                                                                      \
-    HPX_REGISTER_COMPONENT(NAME)                                                \
+    HPX_REGISTER_DERIVED_COMPONENT_FACTORY(NAME, BOOST_PP_CAT(NAME, _treeture), "treeture_base")\
 /**/
 
 #define ALLSCALE_REGISTER_TREETURE_TYPE(T)                                      \
