@@ -158,7 +158,9 @@ struct traverse_split
                     allscale::spawn<traverse_work>(child)
                 );
             }
-
+            for(auto& el : treetures){
+                el.wait();
+            }
             return allscale::spawn<add_work>(std::move(treetures), 1 + num_children);
         }
 
@@ -180,7 +182,7 @@ int hpx_main(boost::program_options::variables_map & vm)
         hpx::util::high_resolution_timer timer;
         node root;
         root.init_root(p);
-        std::size_t num_nodes = allscale::spawn<traverse_work>(root).get_result();
+        std::size_t num_nodes = allscale::spawn_first<traverse_work>(root).get_result();
         double elapsed = timer.elapsed();
         std::cerr << "traveresed " << num_nodes << " in " << elapsed << " seconds\n";
         allscale::scheduler::stop();
