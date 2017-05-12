@@ -7,7 +7,7 @@
 #include <allscale/scheduler.hpp>
 #include <allscale/work_item_description.hpp>
 
-#include <allscale/runtime.hpp>
+//#include <allscale/runtime.hpp>
 
 #include <unistd.h>
 

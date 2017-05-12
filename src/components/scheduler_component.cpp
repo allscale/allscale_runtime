@@ -247,8 +247,8 @@ namespace allscale { namespace components {
 			const std::size_t SMALL_RESUME_CAP = 1;
 		        const std::size_t LARGE_RESUME_CAP = std::max((std::size_t)(blocked_os_threads_.count() * 0.20), SMALL_RESUME_CAP);
 
-                        std::size_t suspend_cap = active_threads < SMALL_SYSTEM  ? SMALL_SUSPEND_CAP : LARGE_SUSPEND_CAP;
-			std::size_t resume_cap = active_threads < SMALL_SYSTEM  ? LARGE_RESUME_CAP : SMALL_RESUME_CAP;
+                        std::size_t suspend_cap = 2; //active_threads < SMALL_SYSTEM  ? SMALL_SUSPEND_CAP : LARGE_SUSPEND_CAP;
+			std::size_t resume_cap = 1; //active_threads < SMALL_SYSTEM  ? LARGE_RESUME_CAP : SMALL_RESUME_CAP;
 			
 			if ( allscale_app_time > 0 )
 			  if ( last_thread_time ==0 || allscale_app_time < last_thread_time ) {
@@ -259,7 +259,7 @@ namespace allscale { namespace components {
 					std::cout << "Sent disable signal" << std::endl;
 				  }
 
-			  } else if ( blocked_os_threads_.any() && allscale_app_time > last_thread_time ) {
+			  } else if ( blocked_os_threads_.any() && allscale_app_time > 1.2*last_thread_time ) {
 				   
 			          {
 	         	              hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);

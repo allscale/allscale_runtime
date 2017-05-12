@@ -9,4 +9,5 @@ add_hpx_component(
     components/scheduler_component.cpp
     components/util/graph_colouring.cpp
     components/monitor_component.cpp
+    policies/throttle_policy.cpp
 )
