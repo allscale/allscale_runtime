@@ -178,6 +178,7 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 			data_item_type tmp = *(std::static_pointer_cast<data_item_type>(
 					base_item));
 			if (region == tmp.region_) {
+				std::cout<<
 //				std::cout<<"found this region exactly"<<std::endl;
 				tmp2 = tmp.fragment_.ptr_;
 			}

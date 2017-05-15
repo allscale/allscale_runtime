@@ -94,6 +94,12 @@ namespace allscale { namespace components {
 
       p->end = std::chrono::steady_clock::now();
       
+
+#ifdef HAVE_PAPI
+      // Record PAPI counters for this work item
+
+#endif
+
      
       // Update stats per work item name
       time = p->get_exclusive_time();
@@ -304,6 +310,25 @@ namespace allscale { namespace components {
 #else
       return 0.0;
 #endif
+   }
+
+
+   double get_iteration_time(int i)
+   {
+      if(i < 0 || i >= history->iteration_time.size()) return 0.0;
+      else return history->iteration_time[i];
+   }
+
+
+   double get_last_iteration_time()
+   {
+      if(!(history->iteration_time.size())) return 0.0;
+      else return history->iteration_time.back();
+   }
+
+   long get_number_of_iterations()
+   {
+      return history->current_iteration;
    }
 
 
@@ -608,8 +633,8 @@ namespace allscale { namespace components {
 //      std::lock_guard<mutex_type> lock(work_map_mutex);
 
 
-      std::cout << "\nWall-clock time: " << wall_clock << std::endl;
-      std::cout << "\nWork Item		Exclusive time  |  % Total  |  Inclusive time  |  % Total   |   Mean (child.)  |   SD (child.)  "
+      std::cerr << "\nWall-clock time: " << wall_clock << std::endl;
+      std::cerr << "\nWork Item		Exclusive time  |  % Total  |  Inclusive time  |  % Total   |   Mean (child.)  |   SD (child.)  "
                 << "\n------------------------------------------------------------------------------------------------------------------\n";
 
       std::vector<std::string> w_id;
@@ -629,16 +654,16 @@ namespace allscale { namespace components {
             double incl_elapsed = p->get_inclusive_time();
             double perc_incl_elapsed = (incl_elapsed/wall_clock) * 100;
 
-            std::cout.precision(5);
-            std::cout << std::scientific << "   " << i + ' ' + w_names[i] << "\t\t " << excl_elapsed << "\t\t";
-            std::cout.precision(2);
-            std::cout << std::fixed << perc_excl_elapsed;
-            std::cout.precision(5);
-            std::cout << std::scientific << "\t" << incl_elapsed << "\t\t";
-            std::cout.precision(2);
-            std::cout << std::fixed << perc_incl_elapsed << "\t";
-            std::cout.precision(5);
-            std::cout << std::fixed << p->Mean() << "       " << p->StandardDeviation() << std::endl;
+            std::cerr.precision(5);
+            std::cerr << std::scientific << "   " << i + ' ' + w_names[i] << "\t\t " << excl_elapsed << "\t\t";
+            std::cerr.precision(2);
+            std::cerr << std::fixed << perc_excl_elapsed;
+            std::cerr.precision(5);
+            std::cerr << std::scientific << "\t" << incl_elapsed << "\t\t";
+            std::cerr.precision(2);
+            std::cerr << std::fixed << perc_incl_elapsed << "\t";
+            std::cerr.precision(5);
+            std::cerr << std::fixed << p->Mean() << "       " << p->StandardDeviation() << std::endl;
         }
       }
       w_id.clear();
