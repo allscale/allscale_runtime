@@ -30,7 +30,6 @@ template<typename MainWorkItem, typename ... Args>
 int main_wrapper(const Args& ... args) {
     // include monitoring support
     allscale::components::monitor_component_init();
-    std::cout<<"wrapper started" << std::endl;
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
 
@@ -56,43 +55,53 @@ dependencies after(const TaskRefs& ... ) {
 }
 
 
-// ---- insieme lambda wrapper ----
-
-template<typename ClosureType>
-struct insieme_lambda_wrapper {
-    ClosureType* closure;
-    template<typename ... Args>
-    auto operator()(const Args& ... args) {
-        return closure->call(closure,args...);
-    }
-};
-
-template<typename ClosureType>
-insieme_lambda_wrapper<ClosureType> make_insieme_lambda_wrapper(ClosureType* cls) {
-    return insieme_lambda_wrapper<ClosureType>{cls};
-}
-
 
 // ---- a prec operation wrapper ----
 
-template<typename A, typename R, typename Impl>
+template<std::size_t pos,typename A, typename ... Cs>
+struct packer {
+	template<typename ... Params>
+	hpx::util::tuple<A,Cs...> operator()(const hpx::util::tuple<Cs...>& rest, const Params& ... params) {
+		return packer<pos-1,A,Cs...>()(rest,params...,hpx::util::get<sizeof...(Cs)-pos>(rest));
+	}
+};
+
+template<typename A, typename ... Cs>
+struct packer<0,A,Cs...> {
+	template<typename ... Params>
+	hpx::util::tuple<A,Cs...> operator()(const hpx::util::tuple<Cs...>&, const Params& ... params) {
+		return hpx::util::tuple<A,Cs...>(params...);
+	}
+};
+
+template<typename A, typename ... Cs>
+hpx::util::tuple<A,Cs...> prepend(const A& a, const hpx::util::tuple<Cs...>& rest) {
+	return packer<sizeof...(Cs),A,Cs...>()(rest,a);
+}
+
+
+
+template<typename A, typename R, typename ... Cs>
 struct prec_operation {
 
-    Impl impl;
+    hpx::util::tuple<Cs...> closure;
+
+    treeture<R>(*impl)(const dependencies& d, const hpx::util::tuple<A,Cs...>&);
 
     treeture<R> operator()(const A& a) {
-        return impl(dependencies(),a);
+        return (*this).operator()(dependencies(),a);
     }
 
     treeture<R> operator()(const dependencies& d, const A& a) {
-        return impl(d,a);
+    	// TODO: could not get tuple_cat working, wrote own version
+    	return (*impl)(d,prepend(a,closure));
     }
 
 };
 
-template<typename A, typename B, typename Impl>
-prec_operation<A,B,Impl> make_prec_operation(const Impl& impl) {
-    return prec_operation<A,B,Impl>{impl};
+template<typename A, typename R, typename ... Cs>
+prec_operation<A,R,Cs...> make_prec_operation(const hpx::util::tuple<Cs...>& closure, treeture<R>(*impl)(const dependencies& d, const hpx::util::tuple<A,Cs...>&)) {
+    return prec_operation<A,R,Cs...>{closure,impl};
 }
 
 // ---- a generic treeture combine operator ----
