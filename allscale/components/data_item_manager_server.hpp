@@ -97,18 +97,28 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 
 	template<typename DataItemDescription>
 	hpx::future<bool> create_fragment_async(hpx::id_type data_item_id,
-			typename DataItemDescription::fragment_type frag)
+			typename DataItemDescription::region_type region)
 
 	{
+		using fragment_type = typename DataItemDescription::fragment_type;
+
 		map_type::const_iterator got = difm.find(data_item_id);
 
 		if (got == difm.end()) {
 			std::cout << data_item_id << " was not found on loc id: "
 					<< hpx::get_locality_id() << std::endl;
-		} else {
-			std::cout << got->first << " is " << got->second.size()
-					<< " loc id: " << hpx::get_locality_id() << std::endl;
 		}
+		else {
+			std::shared_ptr<allscale::fragment_base> ptr = std::make_shared<fragment_type> (fragment_type(region,std::vector<int>(10,337)));
+            difm[data_item_id].push_back(ptr);
+            //std::shared_ptr<allscale::fragment_base> ptr = std::make_shared<typename DataItemDescription::fragment_type>(typename DataItemDescription::fragment_type );
+			 // std::cout << data_item_id << " is " << difm[data_item_id].size()
+			 // << " loc id: " << hpx::get_locality_id() << std::endl;
+		    for( auto & el : difm[data_item_id] ){
+                fragment_type frag = *(std::static_pointer_cast<fragment_type>(el));
+                std::cout<<"region is : " << frag.region_.to_string() << std::endl;
+            }
+        }
 		hpx::lcos::local::promise<bool> promise_;
 
 		promise_.set_value(true);
@@ -118,13 +128,13 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 	template<typename DataItemDescription>
 	struct create_fragment_async_action: hpx::actions::make_action<
 			hpx::future<bool> (data_item_manager_server::*)(hpx::id_type,
-					typename DataItemDescription::fragment_type),
+					typename DataItemDescription::region_type),
 			&data_item_manager_server::template create_fragment_async<
 					DataItemDescription>,
 			create_fragment_async_action<DataItemDescription> > {
 	};
 
-	template<typename DataItemDescription>
+   template<typename DataItemDescription>
 	hpx::future<
 			std::vector<
 					std::pair<typename DataItemDescription::region_type,
@@ -259,6 +269,7 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 	//map of data_items | vector<fragment>
 	//std::unordered_map<hpx::naming::id_type,std::vector<std::shared_ptr<fragment_base>>> data_item_fragments_map;
 	std::vector<std::shared_ptr<data_item_base> > local_data_items;
+	std::vector<std::shared_ptr<allscale::fragment_base> > local_fragments;
 
 	std::unordered_map<hpx::id_type,
 			std::vector<std::shared_ptr<allscale::fragment_base>>,

@@ -135,7 +135,6 @@ bool test_creation_of_data_item_manager_server_components() {
 bool test_creation_of_data_items() {
 	//create a bunch of data items with a simple region on all the localities
 	for (loc_server_pair& server_entry : dms) {
-		for (int i = 0; i < 2; ++i) {
 
 			auto td_id = server_entry.second.create_data_item < data_item_descr > ();
 			using action_type = typename allscale::components::data_item_manager_server::create_fragment_async_action<data_item_descr>;
@@ -143,16 +142,14 @@ bool test_creation_of_data_items() {
 			for(int k = 0; k < 5; ++k)
 			{
 				auto a = std::make_shared<std::vector<int>>(std::vector<int>(10, 337));
-				grid_region_type gr(0,10);
+				grid_region_type gr(0+k*10,0+k*10+10);
 				grid_fragment frag(gr, a);
 
-			    auto sp = std::make_shared<int>(12);
 
-				auto res = hpx::async<action_type>(server_entry.second.get_id(),td_id,frag);
+				auto res = hpx::async<action_type>(server_entry.second.get_id(),td_id,gr);
 
 			}
 			//std::cout<<"test item fragment value: " << *((*td).fragment_.ptr_)  << " global id: " << hpx::naming::get_locality_from_gid((*td).get_id().get_gid()) << std::endl;
-		}
 	}
 
 	return true;

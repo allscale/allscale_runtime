@@ -15,9 +15,7 @@ namespace allscale {
 
 template<typename Region, typename T>
 struct fragment : hpx::components::client_base<fragment<Region,T>,
-                    components::fragment<Region,T> >
-
-
+                    components::fragment<Region,T> >, fragment_base
 {
 public:
 	using value_type = T;
