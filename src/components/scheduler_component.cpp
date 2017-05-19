@@ -113,6 +113,8 @@ namespace allscale { namespace components {
                std::cout << "We have a thread manager holding the throttling_scheduler" << std::endl;
             } else {
                std::cout << "thread_manager is null" << std::endl;
+               HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init", 
+			"thread_manager is null. Make sure you select throttling scheduler via --hpx:queuing=throttling");
             }
 
 	    throttle_timer_.start();
@@ -234,7 +236,7 @@ namespace allscale { namespace components {
 		        std::unique_lock<mutex_type> l(resize_mtx_);
 			allscale_app_time = allscale_app_counter.get_value<std::int64_t>();  
 
-			boost::dynamic_bitset<> const & blocked_os_threads_ = thread_manager->get_pool_sched().get_disabled_os_threads();
+			boost::dynamic_bitset<> const & blocked_os_threads_ = thread_manager->get_pool_scheduler().get_disabled_os_threads();
  			std::size_t active_threads = os_thread_count - blocked_os_threads_.count();
 
 			const std::size_t MIN_THREADS = 4;
@@ -255,7 +257,7 @@ namespace allscale { namespace components {
 
 				  {
 					hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);	
-				        thread_manager->get_pool_sched().disable_more(suspend_cap);
+				        thread_manager->get_pool_scheduler().disable_more(suspend_cap);
 					std::cout << "Sent disable signal" << std::endl;
 				  }
 
@@ -263,7 +265,7 @@ namespace allscale { namespace components {
 				   
 			          {
 	         	              hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
-				      thread_manager->get_pool_sched().enable_more(resume_cap);
+				      thread_manager->get_pool_scheduler().enable_more(resume_cap);
 				      std::cout << "Sent enable signal" << std::endl;
 			 	  }
  	                  }
@@ -292,7 +294,7 @@ namespace allscale { namespace components {
 
         //Resume all sleeping threads
         if (input_objective == scheduler::objectives.at(Objective_Ids::TIME_RESOURCE) )
-	    thread_manager->get_pool_sched().enable_more(os_thread_count);
+	    thread_manager->get_pool_scheduler().enable_more(os_thread_count);
 
         stopped_ = true;
 //         work_queue_cv_.notify_all();
