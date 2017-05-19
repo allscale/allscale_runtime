@@ -112,7 +112,6 @@ namespace allscale { namespace components {
             if (thread_manager != nullptr) {
                std::cout << "We have a thread manager holding the throttling_scheduler" << std::endl;
             } else {
-               std::cout << "thread_manager is null" << std::endl;
                HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init", 
 			"thread_manager is null. Make sure you select throttling scheduler via --hpx:queuing=throttling");
             }
