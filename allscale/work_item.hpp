@@ -127,14 +127,15 @@ typename std::enable_if<!traits::is_treeture<F>::value,
 	return std::forward<F>(f);
 }
 
-template<typename T>
-inline void set_treeture(treeture<T>& t, hpx::future<T>&& f) {
-	t.set_value(f.get());
+template<typename T, typename SharedState>
+inline void set_treeture(treeture<T>& t, SharedState& s) {
+	t.set_value(std::move(*s->get_result()));
 }
 
-inline void set_treeture(treeture<void>& t, hpx::future<void>&& f) {
-	f.get(); // exception propagation
-	t.set_value();
+template<typename SharedState>
+inline void set_treeture(treeture<void>& t, SharedState& s) {
+// 	f.get(); // exception propagation
+	t.set_value(hpx::util::unused_type{});
 }
 }
 
@@ -165,7 +166,7 @@ struct work_item {
 
 		virtual void set_this_id()=0;
 
-		virtual treeture_base& get_treeture() = 0;
+		virtual treeture<void> get_treeture() = 0;
 
 		virtual bool can_split() const=0;
 
@@ -223,14 +224,14 @@ struct work_item {
             //template<typename ...Ts>
             //void requires_impl(Ts ...vs){
                 //std::cout<<"blabla \n";
-            //}               
-                
+            //}
+
 
 			work_item_impl() {
 			}
 
 			void set_this_id() {
-				id_.set(this_work_item::get_id(), tres_.get_id());
+				id_.set(this_work_item::get_id(), tres_);
 			}
 
 			template<typename ...Ts>
@@ -239,42 +240,45 @@ struct work_item {
 				HPX_ASSERT(tres_.valid());
 			}
 
-			treeture_base& get_treeture() {
-				return static_cast<treeture_base&>(tres_);
+			treeture<void> get_treeture() {
+				return tres_;
 			}
 
 			bool can_split() const {
 				return WorkItemDescription::can_split_variant::call(closure_);
 			}
-            
 
-			
+
+
             template<typename ...Ts>
 			void split_impl(Ts ...vs) {
 				treeture<result_type> tres = tres_;
-				std::cout << "true false" << std::endl;
 
 				std::shared_ptr < work_item_impl > this_(shared_this());
 				monitor::signal(monitor::work_item_execution_started,
 						work_item(this_));
 				set_id si(this->id_);
 
-				hpx::future < result_type
-				> fut(
+                auto work_res =
 						WorkItemDescription::split_variant::execute(
 								detail::unwrap_tuple(hpx::util::tuple<>(),
-										std::move(vs)...)));
+										std::move(vs)...));
 
 				monitor::signal(monitor::work_item_execution_finished,
 						work_item(this_));
 
-				fut.then(hpx::launch::sync,
-						[tres, this_](hpx::future<result_type> ff) mutable
-						{
-							set_id si(this_->id_);
-							detail::set_treeture(tres, std::move(ff));
-							monitor::signal(monitor::work_item_result_propagated, work_item(this_));
-						});
+                typedef typename std::decay<decltype(work_res)>::type work_res_type;
+                typename hpx::traits::detail::shared_state_ptr_for<work_res_type>::type state
+                    = hpx::traits::future_access<work_res_type>::get_shared_state(work_res);
+
+                state->set_on_completed(
+                    [tres, this_, state]() mutable
+                    {
+                        set_id si(this_->id_);
+                        detail::set_treeture(tres , state);
+                        monitor::signal(monitor::work_item_result_propagated, work_item(this_));
+                    }
+                );
 			}
 
 			template<typename ...Ts>
@@ -286,22 +290,26 @@ struct work_item {
 						work_item(this_));
 				set_id si(this->id_);
 
-				hpx::future < result_type
-				> fut(
+                auto work_res =
 						WorkItemDescription::process_variant::execute(
 								detail::unwrap_tuple(hpx::util::tuple<>(),
-										std::move(vs)...)));
+										std::move(vs)...));
 
 				monitor::signal(monitor::work_item_execution_finished,
 						work_item(this_));
 
-				fut.then(hpx::launch::sync,
-						[tres, this_](hpx::future<result_type> ff) mutable
-						{
-							set_id si(this_->id_);
-							detail::set_treeture(tres, std::move(ff));
-							monitor::signal(monitor::work_item_result_propagated, work_item(this_));
-						});
+                typedef typename std::decay<decltype(work_res)>::type work_res_type;
+                typename hpx::traits::detail::shared_state_ptr_for<work_res_type>::type state
+                    = hpx::traits::future_access<work_res_type>::get_shared_state(work_res);
+
+                state->set_on_completed(
+                    [tres, this_, state]() mutable
+                    {
+                        set_id si(this_->id_);
+                        detail::set_treeture(tres , state);
+                        monitor::signal(monitor::work_item_result_propagated, work_item(this_));
+                    }
+                );
 			}
 
 			bool valid() {
@@ -393,7 +401,7 @@ struct work_item {
 			}
 
 			void set_this_id() {
-				id_.set(this_work_item::get_id(), tres_.get_id());
+				id_.set(this_work_item::get_id(), tres_);
 			}
 
 			template<typename ...Ts>
@@ -402,8 +410,8 @@ struct work_item {
 				HPX_ASSERT(tres_.valid());
 			}
 
-			treeture_base& get_treeture() {
-				return static_cast<treeture_base&>(tres_);
+			treeture<void> get_treeture() {
+				return tres_;
 			}
 
 
@@ -428,14 +436,14 @@ struct work_item {
 
                 std::cout<<"blublaHJJJJJJJJJJJJJ"<<std::endl;
 				HPX_ASSERT(valid());
-				
+
                 std::cout<<"blublaKKKKKKKKK"<<std::endl;
                 hpx::dataflow(f, shared_this(),
 						std::move(hpx::util::get<Is>(closure_))...);
 			}
             template<typename ...Ts>
             void requires_impl(Ts ...vs){
-                
+
 				treeture<result_type> tres = tres_;
                 std::cout<<"blabla ufen\n";
 
@@ -455,8 +463,8 @@ struct work_item {
 							detail::set_treeture(tres , std::move(ff));
 							monitor::signal(monitor::work_item_result_propagated, work_item(this_));
 						});
-            
-            
+
+
             }
 
 */
@@ -467,28 +475,31 @@ struct work_item {
 			template<typename ...Ts>
 			void split_impl(Ts ...vs) {
 				treeture<result_type> tres = tres_;
-				std::cout << "true true" << std::endl;
 				std::shared_ptr < work_item_impl > this_(shared_this());
 				monitor::signal(monitor::work_item_execution_started,
 						work_item(this_));
 				set_id si(this->id_);
 
-				hpx::future < result_type
-				> fut(
+                auto work_res =
 						WorkItemDescription::split_variant::execute(
 								detail::unwrap_tuple(hpx::util::tuple<>(),
-										std::move(vs)...)));
+										std::move(vs)...));
 
 				monitor::signal(monitor::work_item_execution_finished,
 						work_item(this_));
 
-				fut.then(hpx::launch::sync,
-						[tres, this_](hpx::future<result_type> ff) mutable
-						{
-							set_id si(this_->id_);
-							detail::set_treeture(tres , std::move(ff));
-							monitor::signal(monitor::work_item_result_propagated, work_item(this_));
-						});
+                typedef typename std::decay<decltype(work_res)>::type work_res_type;
+                typename hpx::traits::detail::shared_state_ptr_for<work_res_type>::type state
+                    = hpx::traits::future_access<work_res_type>::get_shared_state(work_res);
+
+                state->set_on_completed(
+                    [tres, this_, state]() mutable
+                    {
+                        set_id si(this_->id_);
+                        detail::set_treeture(tres , state);
+                        monitor::signal(monitor::work_item_result_propagated, work_item(this_));
+                    }
+                );
 			}
 
 			template<typename ...Ts>
@@ -500,22 +511,26 @@ struct work_item {
 						work_item(this_));
 				set_id si(this->id_);
 
-				hpx::future < result_type
-				> fut(
+                auto work_res =
 						WorkItemDescription::process_variant::execute(
 								detail::unwrap_tuple(hpx::util::tuple<>(),
-										std::move(vs)...)));
+										std::move(vs)...));
 
 				monitor::signal(monitor::work_item_execution_finished,
 						work_item(this_));
 
-				fut.then(hpx::launch::sync,
-						[tres, this_](hpx::future<result_type> ff) mutable
-						{
-							set_id si(this_->id_);
-							detail::set_treeture(tres , std::move(ff));
-							monitor::signal(monitor::work_item_result_propagated, work_item(this_));
-						});
+                typedef typename std::decay<decltype(work_res)>::type work_res_type;
+                typename hpx::traits::detail::shared_state_ptr_for<work_res_type>::type state
+                    = hpx::traits::future_access<work_res_type>::get_shared_state(work_res);
+
+                state->set_on_completed(
+                    [tres, this_, state]() mutable
+                    {
+                        set_id si(this_->id_);
+                        detail::set_treeture(tres , state);
+                        monitor::signal(monitor::work_item_result_propagated, work_item(this_));
+                    }
+                );
 			}
 
 			bool valid() {
@@ -615,7 +630,7 @@ struct work_item {
 			}
 
 			void set_this_id() {
-				id_.set(this_work_item::get_id(), tres_.get_id());
+				id_.set(this_work_item::get_id(), tres_);
 			}
 
 
@@ -653,8 +668,8 @@ struct work_item {
 				HPX_ASSERT(tres_.valid());
 			}
 
-			treeture_base& get_treeture() {
-				return static_cast<treeture_base&>(tres_);
+			treeture<void> get_treeture() {
+				return tres_;
 			}
 
 			bool can_split() const {
@@ -670,22 +685,26 @@ struct work_item {
 						work_item(this_));
 				set_id si(this->id_);
 
-				hpx::future < result_type
-				> fut(
+				auto work_res =
 						WorkItemDescription::process_variant::execute(
 								detail::unwrap_tuple(hpx::util::tuple<>(),
-										std::move(vs)...)));
+										std::move(vs)...));
 
 				monitor::signal(monitor::work_item_execution_finished,
 						work_item(this_));
 
-				fut.then(hpx::launch::sync,
-						[tres, this_](hpx::future<result_type> ff) mutable
-						{
-							set_id si(this_->id_);
-							detail::set_treeture(tres , std::move(ff));
-							monitor::signal(monitor::work_item_result_propagated, work_item(this_));
-						});
+                typedef typename std::decay<decltype(work_res)>::type work_res_type;
+                typename hpx::traits::detail::shared_state_ptr_for<work_res_type>::type state
+                    = hpx::traits::future_access<work_res_type>::get_shared_state(work_res);
+
+                state->set_on_completed(
+                    [tres, this_, state]() mutable
+                    {
+                        set_id si(this_->id_);
+                        detail::set_treeture(tres , state);
+                        monitor::signal(monitor::work_item_result_propagated, work_item(this_));
+                    }
+                );
 			}
 
 			bool valid() {
@@ -711,20 +730,6 @@ struct work_item {
 				hpx::dataflow(f, shared_this(),
 						std::move(hpx::util::get<Is>(closure_))...);
 			}
-
-//             template <typename, typename> friend
-//             struct ::hpx::serialization::detail::register_class_name;
-//
-//             static std::string hpx_serialization_get_name_impl()
-//             {
-//                 hpx::serialization::detail::register_class_name<
-//                     work_item_impl>::instance.instantiate();
-//                 return WorkItemDescription::process_variant::name();
-//             }
-//             virtual std::string hpx_serialization_get_name() const
-//             {
-//                 return work_item_impl::hpx_serialization_get_name_impl();
-//             }
 
 			template<typename Archive>
 			void serialize(Archive &ar, unsigned) {
@@ -761,47 +766,17 @@ struct work_item {
 			}
 
 			void set_this_id() {
-				id_.set(this_work_item::get_id(), tres_.get_id());
+				id_.set(this_work_item::get_id(), tres_);
 			}
 
-
-
-
-			//void requires() {
-                //requires(
-                        //typename hpx::util::detail::make_index_pack<
-                        //hpx::util::tuple_size<closure_type>::type::value>::type()
-                //);
-			//}
-
-            //template<std::size_t ... Is>
-            //void requires(hpx::util::detail::pack_c<std::size_t, Is...>)
-            //{
-                    //void (work_item_impl::*f)(
-						//typename hpx::util::decay<
-						//decltype(hpx::util::get<Is>(closure_))>::type...
-				//) = &work_item_impl::requires_impl;
-				//HPX_ASSERT(valid());
-				//hpx::dataflow(f, shared_this(),
-						//std::move(hpx::util::get<Is>(closure_))...);
-			//}
-            //template<typename ...Ts>
-            //void requires_impl(Ts ...vs){
-                //std::cout<<"blabla \n";
-            //}
-
-
-
-
-			
 			template<typename ...Ts>
 			work_item_impl(treeture<result_type> tres, Ts&&... vs) :
 			tres_(std::move(tres)), closure_(std::forward<Ts>(vs)...) {
 				HPX_ASSERT(tres_.valid());
 			}
 
-			treeture_base& get_treeture() {
-				return static_cast<treeture_base&>(tres_);
+			treeture<void> get_treeture() {
+				return tres_;
 			}
 
 			bool can_split() const {
@@ -817,22 +792,26 @@ struct work_item {
 						work_item(this_));
 				set_id si(this->id_);
 
-				hpx::future < result_type
-				> fut(
+                auto work_res =
 						WorkItemDescription::process_variant::execute(
 								detail::unwrap_tuple(hpx::util::tuple<>(),
-										std::move(vs)...)));
+										std::move(vs)...));
 
 				monitor::signal(monitor::work_item_execution_finished,
 						work_item(this_));
 
-				fut.then(hpx::launch::sync,
-						[tres, this_](hpx::future<result_type> ff) mutable
-						{
-							set_id si(this_->id_);
-							detail::set_treeture(tres , std::move(ff));
-							monitor::signal(monitor::work_item_result_propagated, work_item(this_));
-						});
+                typedef typename std::decay<decltype(work_res)>::type work_res_type;
+                typename hpx::traits::detail::shared_state_ptr_for<work_res_type>::type state
+                    = hpx::traits::future_access<work_res_type>::get_shared_state(work_res);
+
+                state->set_on_completed(
+                    [tres, this_, state]() mutable
+                    {
+                        set_id si(this_->id_);
+                        detail::set_treeture(tres, state);
+                        monitor::signal(monitor::work_item_result_propagated, work_item(this_));
+                    }
+                );
 			}
 
 			bool valid() {
@@ -858,20 +837,6 @@ struct work_item {
 				hpx::dataflow(f, shared_this(),
 						std::move(hpx::util::get<Is>(closure_))...);
 			}
-
-//             template <typename, typename> friend
-//             struct ::hpx::serialization::detail::register_class_name;
-//
-//             static std::string hpx_serialization_get_name_impl()
-//             {
-//                 hpx::serialization::detail::register_class_name<
-//                     work_item_impl>::instance.instantiate();
-//                 return WorkItemDescription::process_variant::name();
-//             }
-//             virtual std::string hpx_serialization_get_name() const
-//             {
-//                 return work_item_impl::hpx_serialization_get_name_impl();
-//             }
 
 			template<typename Archive>
 			void serialize(Archive &ar, unsigned) {
@@ -1155,9 +1120,8 @@ struct work_item {
 			return "";
 		}
 
-		template<typename R>
-		treeture<R> get_treeture() {
-			return static_cast<treeture<R> const&>(impl_->get_treeture());
+		treeture<void> get_treeture() {
+			return impl_->get_treeture();
 		}
 
 		void split() {

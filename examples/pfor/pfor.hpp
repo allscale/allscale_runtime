@@ -219,26 +219,23 @@ struct pfor_neighbor_sync_split_variant
         auto extra = hpx::util::get<2>(closure);
 
         // extract the dependencies
-        auto deps  = hpx::util::get<3>(closure);
+        auto deps  = std::move(hpx::util::get<3>(closure));
 
         // check whether there are iterations left
         if (begin >= end) return hpx::make_ready_future();
 
         // compute the middle
         auto mid = begin + (end - begin) / 2;
-        std::cout<<"splitting"<<std::endl;
         // refine dependencies
-        auto dl = hpx::util::get<0>(deps);
-        auto dc = hpx::util::get<1>(deps);
-        auto dr = hpx::util::get<2>(deps);
+        auto& dl = hpx::util::get<0>(deps);
+        auto& dc = hpx::util::get<1>(deps);
+        auto& dr = hpx::util::get<2>(deps);
 
         // refine dependencies
         auto dlr = dl.get_right_child();
         auto dcl = dc.get_left_child();
         auto dcr = dc.get_right_child();
         auto drl = dr.get_left_child();
-//         std::cout<<"SPAWNING 2 new work items: " << begin<< " to " << end << std::endl;
-        //std::cout<<"im doing a split  on " << hpx::get_locality_id() << std::endl;
 
         // spawn two new sub-tasks
         auto left = allscale::spawn<pfor_neighbor_sync_work<Body,ExtraParams...>>(begin, mid, extra, hpx::util::make_tuple(dlr,dcl,dcr));
@@ -265,30 +262,24 @@ struct pfor_neighbor_sync_process_variant
     template <typename Closure>
     static hpx::future<void> execute(Closure const& closure)
     {
-        // extract the dependencies
-        auto deps  = hpx::util::get<3>(closure);
-
+        // extract parameters
         auto begin = hpx::util::get<0>(closure);
         auto end   = hpx::util::get<1>(closure);
-//     	std::cout<<"doing a processing on locality " << hpx::get_locality_id()<< " " << begin<< " to " << end << std::endl;
-
-
+        auto extra = hpx::util::get<2>(closure);
+        // extract the dependencies
+        auto deps  = std::move(hpx::util::get<3>(closure));
 
         // refine dependencies
-        auto dl = hpx::util::get<0>(deps);
-        auto dc = hpx::util::get<1>(deps);
-        auto dr = hpx::util::get<2>(deps);
+        auto& dl = hpx::util::get<0>(deps);
+        auto& dc = hpx::util::get<1>(deps);
+        auto& dr = hpx::util::get<2>(deps);
+
 
         return
-            hpx::dataflow(hpx::launch::sync,
+            hpx::dataflow(
                 hpx::util::unwrapped(
-                    [closure]()
+                    [begin, end, extra]()
                     {
-                        // extract parameters
-                        auto begin = hpx::util::get<0>(closure);
-                        auto end   = hpx::util::get<1>(closure);
-                        auto extra = hpx::util::get<2>(closure);
-
                         // get a body instance
                         Body body;
 

@@ -1,5 +1,5 @@
 set(tests data_item data_item_manager_server this_work_item region fragment
-    work_item)
+    treeture work_item)
 
 foreach(test ${tests})
     set(sources ${test}.cpp)

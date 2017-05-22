@@ -20,7 +20,7 @@ namespace allscale { namespace this_work_item {
     id::id()
     {}
 
-    void id::set(id const& parent, hpx::id_type const& tres)
+    void id::set(id const& parent, treeture<void> const& tres)
     {
         next_id_ = 0;
         id_ = parent.id_;

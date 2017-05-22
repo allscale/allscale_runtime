@@ -81,7 +81,7 @@ int hpx_main(int argc, char **argv)
             }
 
             auto elapsed = t.elapsed_microseconds();
-            std::cout << "pfor(0.." << n << ") taking " << elapsed << " microseconds. Iter: " << i << "\n";
+            std::cout << "pfor(0.." << n << ") taking " << elapsed/steps << " microseconds. Iter: " << i << "\n";
         }
         allscale::scheduler::stop();
     }

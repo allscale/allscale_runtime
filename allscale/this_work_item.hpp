@@ -33,7 +33,7 @@ namespace allscale { namespace this_work_item {
 
         id();
 
-        void set(id const& id, hpx::id_type const& tres = hpx::id_type());
+        void set(id const& id, treeture<void> const& tres = treeture<void>());
 
         std::string name() const;
         std::size_t last() const;
@@ -42,13 +42,9 @@ namespace allscale { namespace this_work_item {
 
         id parent() const;
 
-        template <typename Result>
-        treeture<Result> get_treeture() const
+        treeture<void> get_treeture() const
         {
-            if (tres_)
-                return treeture<Result>(hpx::make_ready_future(tres_));
-            else
-                return treeture<Result>();
+            return tres_;
         }
 
         explicit operator bool() const
@@ -66,7 +62,7 @@ namespace allscale { namespace this_work_item {
 
         std::list<std::size_t> id_;
         std::size_t next_id_;
-        hpx::id_type tres_;
+        treeture<void> tres_;
 
         friend class hpx::serialization::access;
         template <typename Archive>

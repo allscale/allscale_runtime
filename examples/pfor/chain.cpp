@@ -74,7 +74,7 @@ int hpx_main(int argc, char **argv)
                 pfor<simple_stencil_body>(0,n,t,n);
             }
             auto elapsed = t.elapsed_microseconds();
-            std::cout << "pfor(0.." << n << ") taking " << elapsed << " microseconds. Iter: " << i << "\n";
+            std::cout << "pfor(0.." << n << ") taking " << elapsed/steps << " microseconds. Iter: " << i << "\n";
         }
         allscale::scheduler::stop();
     }

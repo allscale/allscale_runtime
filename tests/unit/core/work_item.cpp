@@ -38,8 +38,8 @@ struct simple_variant_simple_class
     {
         test_data_item td_one = hpx::util::get<1>(closure);
         test_data_item td_two = hpx::util::get<2>(closure);
-        auto res = (std::int64_t) *(td_one.fragment_.ptr_); 
-        auto res2 = (std::int64_t) *(td_two.fragment_.ptr_); 
+        auto res = (std::int64_t) *(td_one.fragment_.ptr_);
+        auto res2 = (std::int64_t) *(td_two.fragment_.ptr_);
         return allscale::treeture<std::int64_t>{ res*res2 };
     }
 };
@@ -52,7 +52,7 @@ struct simple_name
     }
 };
 
-using ultra_simple_work_item_descr = 
+using ultra_simple_work_item_descr =
     allscale::work_item_description<
         std::int64_t,
         simple_name,
@@ -77,49 +77,49 @@ bool test_work_item(){
     allscale::this_work_item::set_id(main_id);
 
     using result_type = ultra_simple_work_item_descr::result_type;
-    allscale::treeture<result_type> trs(hpx::find_here());
+    allscale::treeture<result_type> trs(allscale::parent_arg{});
     auto test_item = allscale::work_item(true,ultra_simple_work_item_descr(),trs,3,td,td2);
-    
+
     hpx::apply(&allscale::work_item::process, test_item);
     HPX_ASSERT(trs.valid());
-    auto res = trs.get_result();
-    
+    auto res = trs.get_future().get();
+
     return (known_result==res);
 }
 
 bool test_work_items_all_localities(){
     std::vector<hpx::naming::id_type> localities = hpx::find_all_localities();
-    
+
     std::cout<< "starting timer!!" << std::endl;
     hpx::util::high_resolution_timer kernel1time;
     {
         for(int i = 0; i < 10000; ++i){
-            
+
             std::int64_t known_result = i*(i+1);
             descr test_descr;
             my_region test_region(2);
             my_fragment frag(test_region,i);
             test_data_item td(localities[0],test_descr,frag);
-            
+
             descr test_descr2;
             my_region test_region2(2);
             my_fragment frag2(test_region2,i+1);
             test_data_item td2(localities[0],test_descr2,frag2);
 
             //std::cout<< hpx::naming::get_locality_from_gid((td.get_id()).get_gid()) << std::endl;
-             
+
             static allscale::this_work_item::id main_id(0);
             allscale::this_work_item::set_id(main_id);
 
             using result_type = ultra_simple_work_item_descr::result_type;
-            allscale::treeture<result_type> trs(localities[0]);
+            allscale::treeture<result_type> trs(allscale::parent_arg{});
             auto test_item = allscale::work_item(true,ultra_simple_work_item_descr(),trs,3,td,td2);
-            
+
             hpx::apply(&allscale::work_item::process, test_item);
             HPX_ASSERT(trs.valid());
-            auto res = trs.get_result();
+            auto res = trs.get_future().get();
         }
-    }    
+    }
     double k1time = kernel1time.elapsed();
     std::cout<< "time : " << k1time << std::endl;
     return true;
