@@ -3,15 +3,18 @@
 
 #include <hpx/include/components.hpp>
 #include <hpx/hpx.hpp>
-#include <memory>
+
 #include <allscale/data_item_base.hpp>
 #include <allscale/data_item.hpp>
 #include <allscale/components/data_item.hpp>
 #include <allscale/requirement.hpp>
 #include <allscale/fragment.hpp>
+#include <allscale/fragment.hpp>
+
+#include <memory>
 #include <vector>
 #include <unordered_map>
-#include <allscale/fragment.hpp>
+#include <mutex>
 
 namespace allscale {
 namespace components {
@@ -27,8 +30,11 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 	typedef hpx::components::managed_component_base<data_item_manager_server> server_type;
 	using fragment_base = allscale::fragment_base;
 	using map_type = std::unordered_map<hpx::id_type,std::vector<std::shared_ptr<allscale::fragment_base>>,hpx_id_type_hash>;
-
-	template<typename T>
+    using mutex_type = hpx::lcos::local::spinlock;
+	
+    
+    
+    template<typename T>
 //	hpx::future<std::shared_ptr<allscale::data_item<T>>>create_data_item_async( T arg)
 	hpx::future<bool> create_data_item_async(T arg)
 
@@ -100,7 +106,8 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 			typename DataItemDescription::region_type region)
 
 	{
-		using fragment_type = typename DataItemDescription::fragment_type;
+        std::lock_guard<mutex_type> l(mtx_); 
+        using fragment_type = typename DataItemDescription::fragment_type;
 
 		map_type::const_iterator got = difm.find(data_item_id);
 
@@ -144,11 +151,23 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 		using future_type = std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> >;
 		using pair_type = std::pair<typename DataItemDescription::region_type, hpx::naming::id_type>;
 
+        using fragment_type = typename DataItemDescription::fragment_type;
 		hpx::lcos::local::promise<future_type> promise_;
 		using data_item_type = allscale::data_item<DataItemDescription>;
 		auto target_region = requirement.region_;
 		future_type tmp2;
 		pair_type *target_pair;
+
+        for (auto it = difm.begin(); it != difm.end(); ++it){
+            for (auto & el : it->second){
+                fragment_type frag = *(std::static_pointer_cast<fragment_type>(el));
+                std::cout<<"region is : " << frag.region_.to_string() << std::endl;
+                        
+            }
+        
+        }
+        /*
+
 		for (std::shared_ptr<data_item_base> base_item : local_data_items) {
 			data_item_type tmp = *(std::static_pointer_cast<data_item_type>(
 					base_item));
@@ -160,6 +179,12 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 				tmp2.push_back(*(target_pair));
 			}
 		}
+        */
+
+
+
+
+
 		promise_.set_value(tmp2);
 		return promise_.get_future();
 	}
@@ -211,6 +236,7 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 
 	template<typename DataItemDescription>
 	hpx::future<typename DataItemDescription::fragment_type> acquire_fragment_async(
+            hpx::id_type data_item_id,
 			typename DataItemDescription::region_type const& region) {
 		//		std::cout<<"acquire is called for region: "<< region.to_string() << std::endl;
 		using future_type = typename DataItemDescription::fragment_type;
@@ -237,7 +263,8 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 	template<typename DataItemDescription>
 	struct acquire_fragment_async_action: hpx::actions::make_action<
 			hpx::future<typename DataItemDescription::fragment_type> (data_item_manager_server::*)(
-					typename DataItemDescription::region_type const&),
+					typename hpx::id_type,
+                    typename DataItemDescription::region_type const&),
 			&data_item_manager_server::template acquire_fragment_async<
 					DataItemDescription>,
 			acquire_fragment_async_action<DataItemDescription> > {
@@ -270,6 +297,9 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 	//std::unordered_map<hpx::naming::id_type,std::vector<std::shared_ptr<fragment_base>>> data_item_fragments_map;
 	std::vector<std::shared_ptr<data_item_base> > local_data_items;
 	std::vector<std::shared_ptr<allscale::fragment_base> > local_fragments;
+    
+    //locking stuff
+    mutex_type mtx_;
 
 	std::unordered_map<hpx::id_type,
 			std::vector<std::shared_ptr<allscale::fragment_base>>,

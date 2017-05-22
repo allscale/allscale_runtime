@@ -75,6 +75,7 @@ using test_item_2 = allscale::data_item<data_item_descr>;
 
 using test_requirement2 = allscale::requirement<data_item_descr>;
 
+
 typedef allscale::data_item_manager_server my_data_item_manager_server;
 typedef std::pair<hpx::naming::id_type, my_data_item_manager_server> loc_server_pair;
 
@@ -139,7 +140,7 @@ bool test_creation_of_data_items() {
 			auto td_id = server_entry.second.create_data_item < data_item_descr > ();
 			using action_type = typename allscale::components::data_item_manager_server::create_fragment_async_action<data_item_descr>;
 
-			for(int k = 0; k < 5; ++k)
+			for(int k = 0; k < 10; ++k)
 			{
 				auto a = std::make_shared<std::vector<int>>(std::vector<int>(10, 337));
 				grid_region_type gr(0+k*10,0+k*10+10);
@@ -155,35 +156,42 @@ bool test_creation_of_data_items() {
 	return true;
 }
 
-//bool test_locate_method() {
-//	//create a bunch of data items with a simple 1d grid region on all the localities
-//	int c = 0;
-//	for (loc_server_pair& server_entry : dms) {
-//		auto a = std::make_shared<std::vector<int>>(std::vector<int>(10, 337));
-//		grid_region_type gr(c, c + 9);
-//		grid_fragment frag(gr, a);
-//		data_item_descr descr(gr, frag, nullptr);
-//		auto td = server_entry.second.create_data_item < data_item_descr
-//				> (descr);
-//		//auto k = (std::vector<int>) *(td->fragment_.ptr_);
-//		c += 10;
-//	}
-//
-//	// now locate a region consisting of both the upper regions.
-//	grid_region_type search_region(0, 20);
-//	auto b = std::make_shared<std::vector<int>>(std::vector<int>(20, 0));
-//	test_requirement2 tr(search_region);
-//	//attach automatic continuation to the futures, this can be acquiring too
-//	for (auto& fut : dms[0].second.locate < data_item_descr > (tr)) {
-//		fut.then(
-//				[](auto f) -> int
-//				{
-//
-//					return 22;
-//				});
-//	}
-//	return true;
-//}
+bool test_locate_method() {
+	//create a bunch of data items with a simple 1d grid region on all the localities
+	int c = 0;
+	for (loc_server_pair& server_entry : dms) {
+		
+        auto td_id = server_entry.second.create_data_item < data_item_descr > ();
+        using action_type = typename allscale::components::data_item_manager_server::create_fragment_async_action<data_item_descr>;
+
+
+        
+        auto a = std::make_shared<std::vector<int>>(std::vector<int>(10, 337));
+		grid_region_type gr(c, c + 9);
+		grid_fragment frag(gr, a);
+		
+        
+		auto res = hpx::async<action_type>(server_entry.second.get_id(),td_id,gr);
+        
+        //auto k = (std::vector<int>) *(td->fragment_.ptr_);
+		c += 10;
+	}
+
+	// now locate a region consisting of both the upper regions.
+	grid_region_type search_region(0, 20);
+	auto b = std::make_shared<std::vector<int>>(std::vector<int>(20, 0));
+	test_requirement2 tr(search_region);
+	//attach automatic continuation to the futures, this can be acquiring too
+	for (auto& fut : dms[0].second.locate < data_item_descr > (tr)) {
+		fut.then(
+				[](auto f) -> int
+				{
+
+					return 22;
+				});
+	}
+	return true;
+}
 //
 //bool test_acquire_method() {
 //	//create a bunch of data items with a simple 1d grid region on all the localities
@@ -263,6 +271,7 @@ int hpx_main(int argc, char* argv[]) {
 	if (hpx::get_locality_id() == 0) {
 		test_creation_of_data_item_manager_server_components();
 		test_creation_of_data_items();
+		test_locate_method();
 		//std::cout<<"test_creation_of_data_item_manager_server_components() == " << test_creation_of_data_item_manager_server_components() << std::endl;
 		//std::cout<<"test_locate_method() == " << test_locate_method() << std::endl;
 		//std::cout<<"test_acquire_method() == " << test_acquire_method() << std::endl;
