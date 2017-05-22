@@ -122,8 +122,6 @@ namespace allscale { namespace components {
 
     void scheduler::enqueue(work_item work, this_work_item::id const& id)
     {
-
-
         std::uint64_t schedule_rank = 0;
         //std::cout<<"remote is " << remote << std::endl;
         if (!id)
@@ -150,7 +148,32 @@ namespace allscale { namespace components {
             case 0:
                 {
                     if (work.is_first())
+                    {
+                        hpx::lcos::local::sliding_semaphore *sem = nullptr;
+                        std::size_t current_id = 0;
+                        {
+                            std::unique_lock<mutex_type> lk(spawn_throttle_mtx_);
+                            std::size_t nd = 8;
+                            std::string wi_name(work.name());
+                            auto it = spawn_throttle_.find(wi_name);
+                            if (it == spawn_throttle_.end())
+                            {
+                                auto em_res = spawn_throttle_.emplace(wi_name, new hpx::lcos::local::sliding_semaphore(nd));
+                                it = em_res.first;
+                            }
+
+                            current_id = work.id().last();
+
+                            sem = it->second.get();
+                            if ((current_id % nd) == 0)
+                            {
+                                work.on_ready([sem, current_id](){ sem->signal(current_id); });
+                            }
+
+                        }
+                        sem->wait(current_id);
                         monitor::signal(monitor::work_item_first, work);
+                    }
                     monitor::signal(monitor::work_item_enqueued, work);
 //                     std::size_t current_numa_domain = ++current_ % executors.size();
                     if (do_split(work))

@@ -5,6 +5,7 @@
 #include <allscale/work_item.hpp>
 
 #include <hpx/include/components.hpp>
+#include <hpx/include/local_lcos.hpp>
 #include <hpx/util/interval_timer.hpp>
 
 #include <hpx/compute/host.hpp>
@@ -13,6 +14,7 @@
 
 #include <deque>
 #include <vector>
+#include <unordered_map>
 
 using executor_type = hpx::threads::executors::local_priority_queue_attached_executor;
 
@@ -56,6 +58,9 @@ namespace allscale { namespace components {
         boost::atomic<bool> stopped_;
         hpx::id_type left_;
         hpx::id_type right_;
+
+        mutex_type spawn_throttle_mtx_;
+        std::unordered_map<std::string, std::unique_ptr<hpx::lcos::local::sliding_semaphore>> spawn_throttle_;
 
         bool do_split(work_item const& work);
 
@@ -103,7 +108,7 @@ namespace allscale { namespace components {
         double last_thread_time;
 
         std::string sched_objective;
-	static std::map<std::string, Objectives> objectiveMap;
+        static std::map<std::string, Objectives> objectiveMap;
     };
 }}
 

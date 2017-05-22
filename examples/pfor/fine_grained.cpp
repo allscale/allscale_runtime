@@ -66,6 +66,7 @@ int hpx_main(int argc, char **argv)
     dataA.resize(n, 0);
     dataB.resize(n, 0);
 
+    double mean = 0.0;
 
     if(hpx::get_locality_id() == 0)
     {
@@ -81,9 +82,12 @@ int hpx_main(int argc, char **argv)
             }
 
             auto elapsed = t.elapsed_microseconds();
+            mean += elapsed/steps;
             std::cout << "pfor(0.." << n << ") taking " << elapsed/steps << " microseconds. Iter: " << i << "\n";
         }
         allscale::scheduler::stop();
+
+        std::cout << "mean: " << mean/iters << '\n';
     }
 
 

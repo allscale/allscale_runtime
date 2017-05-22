@@ -164,6 +164,8 @@ struct work_item {
 		work_item_impl_base(work_item_impl_base const&) = delete;
 		work_item_impl_base& operator=(work_item_impl_base const&) = delete;
 
+        virtual void on_ready(hpx::util::unique_function_nonser<void()> f)=0;
+
 		virtual void set_this_id()=0;
 
 		virtual treeture<void> get_treeture() = 0;
@@ -248,7 +250,13 @@ struct work_item {
 				return WorkItemDescription::can_split_variant::call(closure_);
 			}
 
+            void on_ready(hpx::util::unique_function_nonser<void()> f)
+            {
+                typename hpx::traits::detail::shared_state_ptr_for<treeture<result_type>>::type state
+                    = hpx::traits::future_access<treeture<result_type>>::get_shared_state(tres_);
 
+                state->set_on_completed(std::move(f));
+            }
 
             template<typename ...Ts>
 			void split_impl(Ts ...vs) {
@@ -414,7 +422,13 @@ struct work_item {
 				return tres_;
 			}
 
+            void on_ready(hpx::util::unique_function_nonser<void()> f)
+            {
+                typename hpx::traits::detail::shared_state_ptr_for<treeture<result_type>>::type state
+                    = hpx::traits::future_access<treeture<result_type>>::get_shared_state(tres_);
 
+                state->set_on_completed(std::move(f));
+            }
 
 /*
 			void requires() {
@@ -634,6 +648,13 @@ struct work_item {
 			}
 
 
+            void on_ready(hpx::util::unique_function_nonser<void()> f)
+            {
+                typename hpx::traits::detail::shared_state_ptr_for<treeture<result_type>>::type state
+                    = hpx::traits::future_access<treeture<result_type>>::get_shared_state(tres_);
+
+                state->set_on_completed(std::move(f));
+            }
 
 
 			//void requires() {
@@ -768,6 +789,14 @@ struct work_item {
 			void set_this_id() {
 				id_.set(this_work_item::get_id(), tres_);
 			}
+
+            void on_ready(hpx::util::unique_function_nonser<void()> f)
+            {
+                typename hpx::traits::detail::shared_state_ptr_for<treeture<result_type>>::type state
+                    = hpx::traits::future_access<treeture<result_type>>::get_shared_state(tres_);
+
+                state->set_on_completed(std::move(f));
+            }
 
 			template<typename ...Ts>
 			work_item_impl(treeture<result_type> tres, Ts&&... vs) :
@@ -1144,6 +1173,11 @@ struct work_item {
  *        }
  *
  */
+
+        void on_ready(hpx::util::unique_function_nonser<void()> f)
+        {
+            impl_->on_ready(std::move(f));
+        }
 
         void process() {
 			HPX_ASSERT(valid());

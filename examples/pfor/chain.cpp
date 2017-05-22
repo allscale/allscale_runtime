@@ -65,6 +65,8 @@ int hpx_main(int argc, char **argv)
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
 
+    double mean = 0.0;
+
     if(hpx::get_locality_id() == 0)
     {
         for(int i=0; i<iters; i++) {
@@ -74,9 +76,12 @@ int hpx_main(int argc, char **argv)
                 pfor<simple_stencil_body>(0,n,t,n);
             }
             auto elapsed = t.elapsed_microseconds();
+            mean += elapsed/steps;
             std::cout << "pfor(0.." << n << ") taking " << elapsed/steps << " microseconds. Iter: " << i << "\n";
         }
         allscale::scheduler::stop();
+
+        std::cout << "mean: " << mean/iters << '\n';
     }
 
     return hpx::finalize();
