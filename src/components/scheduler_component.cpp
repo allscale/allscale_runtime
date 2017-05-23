@@ -158,7 +158,9 @@ namespace allscale { namespace components {
                             auto it = spawn_throttle_.find(wi_name);
                             if (it == spawn_throttle_.end())
                             {
-                                auto em_res = spawn_throttle_.emplace(wi_name, new hpx::lcos::local::sliding_semaphore(nd));
+                                auto em_res = spawn_throttle_.emplace(wi_name,
+                                    std::unique_ptr<hpx::lcos::local::sliding_semaphore>(
+                                        new hpx::lcos::local::sliding_semaphore(nd)));
                                 it = em_res.first;
                             }
 
