@@ -1,6 +1,7 @@
 set(tests
   empty_main
-  insieme.out.0
+  empty_main.1
+  #  insieme.out.0
     )
 
 foreach(test ${tests})
