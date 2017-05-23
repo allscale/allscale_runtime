@@ -130,6 +130,8 @@ namespace allscale {
             shared_state_ = t.shared_state_;
             id_ = t.id_;
             fixed_children_ = t.fixed_children_;
+
+            return *this;
         }
 
         treeture& operator=(treeture<T>&& t)
@@ -137,6 +139,8 @@ namespace allscale {
             shared_state_ = std::move(t.shared_state_);
             id_ = std::move(t.id_);
             fixed_children_ = t.fixed_children_;
+
+            return *this;
         }
 
         hpx::naming::id_type get_id()
