@@ -114,6 +114,11 @@ auto unwrap_tuple(Tuple&& tuple, Head&& head, Ts&&... ts) {
 					std::forward<Head>(head)), std::forward<Ts>(ts)...);
 }
 
+inline auto unwrap_tuple(hpx::util::tuple<> t)
+{
+    return t;
+}
+
 template<typename F>
 typename std::enable_if<traits::is_treeture<F>::value,
 		typename traits::treeture_traits<F>::future_type>::type futurize_if(

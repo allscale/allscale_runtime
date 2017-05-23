@@ -159,7 +159,7 @@ namespace allscale {
             return get_future();
         }
 
-        void wait()
+        void wait() const
         {
             if (shared_state_)
             {
