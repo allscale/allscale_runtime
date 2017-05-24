@@ -125,7 +125,10 @@ namespace allscale { namespace components {
         std::uint64_t schedule_rank = 0;
         //std::cout<<"remote is " << remote << std::endl;
         if (!id)
-            schedule_rank = schedule_rank_.fetch_add(1) % 3;
+            if (work.enqueue_remote())
+            {
+                schedule_rank = schedule_rank_.fetch_add(1) % 3;
+            }
         else
             this_work_item::set_id(id);
 

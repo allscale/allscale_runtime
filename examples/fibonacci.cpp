@@ -1,6 +1,5 @@
 
 #include <allscale/no_split.hpp>
-#include <allscale/no_serialization.hpp>
 #include <allscale/do_serialization.hpp>
 #include <allscale/treeture.hpp>
 #include <allscale/spawn.hpp>
@@ -89,7 +88,7 @@ using fibonacci_work =
     allscale::work_item_description<
         std::int64_t,
         fib_name,
-        allscale::no_serialization,
+        allscale::do_serialization,
         split_variant,
         process_variant
     >;
