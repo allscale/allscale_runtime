@@ -46,7 +46,6 @@ namespace allscale { namespace detail {
 
         virtual bool enqueue_remote() const=0;
 
-        virtual void preprocess(hpx::serialization::output_archive& ar)=0;
         this_work_item::id id_;
     };
 }}

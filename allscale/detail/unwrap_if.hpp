@@ -38,10 +38,10 @@ namespace allscale { namespace detail
     typename std::enable_if<
 		hpx::traits::is_future<F>::value
 				&& allscale::traits::is_data_item<F>::value,
-		typename std::remove_reference<F>::type &&>::type
+		F&&>::type
     unwrap_if(F && f)
     {
-        return std::move(f);
+        return std::forward<F>(f);
     }
 
 /*
@@ -87,7 +87,8 @@ struct unwrap_tuple_impl<Indices, Tuple, T, UnwrapResult,
 		typename std::enable_if<std::is_same<void, UnwrapResult>::value>::type> {
 	typedef Tuple result_type;
 
-	static result_type&& call(Tuple&& tuple, T&& t) {
+	static result_type&& call(Tuple&& tuple, T&& t)
+    {
 		unwrap_if(std::forward<T>(t));
 		return std::forward<Tuple>(tuple);
 	}
@@ -114,19 +115,6 @@ auto unwrap_tuple(Tuple&& tuple, Head&& head, Ts&&... ts) {
 inline auto unwrap_tuple(hpx::util::tuple<> t)
 {
     return t;
-}
-
-template<typename F>
-typename std::enable_if<traits::is_treeture<F>::value,
-		typename traits::treeture_traits<F>::future_type>::type futurize_if(
-		F && f) {
-	return f.get_future();
-}
-
-template<typename F>
-typename std::enable_if<!traits::is_treeture<F>::value,
-		typename hpx::util::decay<F>::type>::type futurize_if(F && f) {
-	return std::forward<F>(f);
 }
 
 template<typename T, typename SharedState>

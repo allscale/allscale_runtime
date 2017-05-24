@@ -381,6 +381,9 @@ namespace hpx { namespace traits {
         };
     }
 
+//     template <typename T>
+//     struct is_future<allscale::treeture<T>> : std::true_type {};
+
     template <typename T>
     struct future_access<allscale::treeture<T>>
     {

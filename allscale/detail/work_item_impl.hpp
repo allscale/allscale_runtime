@@ -142,8 +142,6 @@ namespace allscale { namespace detail {
         template<typename ...Ts>
 		void do_process(Ts ...vs)
         {
-            treeture<result_type> tres = tres_;
-
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_execution_started,
                 work_item(this_));
@@ -178,8 +176,7 @@ namespace allscale { namespace detail {
                     decltype(hpx::util::get<Is>(closure_))>::type...
             ) = &work_item_impl::do_process;
             HPX_ASSERT(valid());
-            hpx::dataflow(f, shared_this(),
-                    std::move(hpx::util::get<Is>(closure_))...);
+            hpx::dataflow(f, shared_this(), std::move(hpx::util::get<Is>(closure_))...);
         }
 
         void process()
@@ -195,8 +192,7 @@ namespace allscale { namespace detail {
                     decltype(hpx::util::get<Is>(closure_))>::type...
             ) = &work_item_impl::do_split;
             HPX_ASSERT(valid());
-            hpx::dataflow(f, shared_this(),
-                    std::move(hpx::util::get<Is>(closure_))...);
+            hpx::dataflow(f, shared_this(), std::move(hpx::util::get<Is>(closure_))...);
         }
 
         template <typename WorkItemDescription_>
@@ -224,27 +220,6 @@ namespace allscale { namespace detail {
         bool enqueue_remote() const
         {
             return is_serializable;
-        }
-
-        template <typename Closure_>
-        typename std::enable_if<is_closure_serializable<Closure_>::value>::type
-        preprocess(hpx::serialization::output_archive& ar)
-        {
-            ar & id_;
-            ar & tres_;
-            ar & closure_;
-        }
-
-        template <typename Closure_>
-        typename std::enable_if<!is_closure_serializable<Closure_>::value>::type
-        preprocess(hpx::serialization::output_archive& ar)
-        {
-            throw std::runtime_error("Attempt to serialize non serializable work_item");
-        }
-
-        void preprocess(hpx::serialization::output_archive& ar)
-        {
-            preprocess<closure_type>(ar);
         }
 
         HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE_SEMIINTRUSIVE(work_item_impl);

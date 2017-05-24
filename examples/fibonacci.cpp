@@ -1,6 +1,7 @@
 
 #include <allscale/no_split.hpp>
 #include <allscale/do_serialization.hpp>
+#include <allscale/no_serialization.hpp>
 #include <allscale/treeture.hpp>
 #include <allscale/spawn.hpp>
 #include <allscale/scheduler.hpp>

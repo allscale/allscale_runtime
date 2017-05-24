@@ -3,6 +3,7 @@
 
 #include <allscale/detail/work_item_impl_base.hpp>
 #include <allscale/detail/work_item_impl.hpp>
+#include <allscale/detail/futurize_if.hpp>
 #include <allscale/treeture.hpp>
 #include <allscale/this_work_item.hpp>
 #include <allscale/traits/is_treeture.hpp>
@@ -158,11 +159,11 @@ namespace allscale {
         {
             HPX_ASSERT(impl_->valid());
 
-            if (ar.is_preprocessing())
-            {
-                impl_->preprocess(ar);
-            }
-            else
+//             if (ar.is_preprocessing())
+//             {
+//                 impl_->preprocess(ar);
+//             }
+//             else
             {
                 ar & impl_;
             }
