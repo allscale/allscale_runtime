@@ -37,6 +37,7 @@ namespace allscale { namespace this_work_item {
 
         std::string name() const;
         std::size_t last() const;
+        std::size_t depth() const;
 
         std::size_t hash() const;
 

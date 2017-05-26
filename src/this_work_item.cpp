@@ -54,6 +54,11 @@ namespace allscale { namespace this_work_item {
         return id_.back();
     }
 
+    std::size_t id::depth() const
+    {
+        return id_.size();
+    }
+
     std::size_t id::hash() const
     {
         return std::hash<std::string>()(name());

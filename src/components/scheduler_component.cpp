@@ -206,6 +206,8 @@ namespace allscale { namespace components {
 
     bool scheduler::do_split(work_item const& w)
     {
+        // FIXME: make the cut off runtime configurable...
+        if (w.id().depth() > 1.5 * hpx::get_os_thread_count()) return false;
     	//std::cout<< " wcansplit: " << w.can_split()<<std::endl;
         if (!w.can_split()) return false;
         //FIXME: think about if locking
