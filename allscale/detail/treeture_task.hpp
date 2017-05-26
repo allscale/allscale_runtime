@@ -38,13 +38,13 @@ namespace allscale
 
             treeture<void> get_left_child()
             {
-                HPX_ASSERT(children_[0]);
+//                 HPX_ASSERT(children_[0]);
                 return children_[0];
             }
 
             treeture<void> get_right_child()
             {
-                HPX_ASSERT(children_[1]);
+//                 HPX_ASSERT(children_[1]);
                 return children_[1];
             }
 
