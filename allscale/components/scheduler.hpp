@@ -11,6 +11,8 @@
 #include <hpx/compute/host.hpp>
 #include <hpx/compute/host/target.hpp>
 #include <hpx/runtime/threads/executors/thread_pool_attached_executors.hpp>
+#include <hpx/runtime/threads/policies/throttling_scheduler.hpp>
+#include <hpx/runtime/threads/threadmanager_impl.hpp>
 
 #include <deque>
 #include <vector>
@@ -19,17 +21,6 @@
 using executor_type = hpx::threads::executors::local_priority_queue_attached_executor;
 
 namespace allscale { namespace components {
-
-    enum Objectives {
-           TIME = 1,
-           RESOURCE,
-           ENERGY,
-           TIME_RESOURCE,
-           TIME_ENERGY,
-           RESOURCE_ENERGY,
-           TIME_RESOURCE_ENERGY
-    };
-
 
     struct scheduler
       : hpx::components::component_base<scheduler>
@@ -89,26 +80,52 @@ namespace allscale { namespace components {
         std::vector<executor_type> executors;
         boost::atomic<std::size_t> current_;
 
-        void resume(std::size_t shepherd);
-        void resume_one();
-        void resume_all();
-        void suspend(std::size_t shepherd);
-        bool is_suspended(std::size_t shepherd) const;
+        std::size_t os_thread_count;
 
-        void throttle_controller(std::size_t shepherd);
+//        void resume(std::size_t shepherd);
+//        void resume_all();
+//	void resume_n(std::size_t n);
+  
+//        std::size_t resume_count;
+//        void suspend(std::size_t shepherd);
+//        bool is_suspended(std::size_t shepherd) const;
 
-        void register_thread(std::size_t shepherd);
-        void register_suspend_thread(std::size_t shepherd);
+///        void throttle_controller(std::size_t shepherd);
 
-        boost::dynamic_bitset<> blocked_os_threads_;
+//        void register_thread(std::size_t shepherd);
+//        void register_suspend_thread(std::size_t shepherd);
+
+	hpx::threads::threadmanager_impl<hpx::threads::policies::throttling_scheduler<>>* thread_manager;
+
+
+//        boost::dynamic_bitset<> & blocked_os_threads_;
         mutable mutex_type throttle_mtx_;
 
         mutable mutex_type resize_mtx_;
 
         double last_thread_time;
 
-        std::string sched_objective;
-        static std::map<std::string, Objectives> objectiveMap;
+        std::string input_objective;
+        const std::vector<std::string> objectives = {
+		"time", 
+		"resource", 
+		"energy", 
+		"time_resource", 
+		"time_energy", 
+		"resource_energy", 
+		"time_resource_energy"
+	};
+
+        enum objective_IDs {
+              TIME = 0,
+     	      RESOURCE,
+              ENERGY,
+              TIME_RESOURCE,
+              TIME_ENERGY,
+              RESOURCE_ENERGY,
+              TIME_RESOURCE_ENERGY
+        };
+
     };
 }}
 
