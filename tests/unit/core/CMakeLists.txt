@@ -9,6 +9,6 @@ foreach(test ${tests})
         SOURCES ${sources}
         COMPONENT_DEPENDENCIES allscale
     )
-    add_test(NAME ${test}_test_exe COMMAND $<TARGET_FILE:${test}_test_exe>)
+    add_test(NAME ${test}_test_exe COMMAND $<TARGET_FILE:${test}_test_exe> -Ihpx.stacks.use_guard_pages=0)
 endforeach()
 

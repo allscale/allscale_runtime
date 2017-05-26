@@ -4,6 +4,7 @@
 #include <allscale/components/scheduler.hpp>
 
 #include <hpx/include/components.hpp>
+#include <hpx/util/detail/yield_k.hpp>
 
 HPX_REGISTER_COMPONENT_MODULE()
 
@@ -24,30 +25,37 @@ namespace allscale
         static this_work_item::id main_id(0);
         this_work_item::set_id(main_id);
         rank_ = rank;
-        return get_ptr().get();
+        return get_ptr();
     }
 
     void scheduler::stop()
     {
         get().stop();
-        get_ptr().reset();
+//         get_ptr().reset();
     }
 
     components::scheduler &scheduler::get()
     {
+        HPX_ASSERT(get_ptr());
         return *get_ptr();
     }
 
-    std::shared_ptr<components::scheduler> &scheduler::get_ptr()
+    components::scheduler* scheduler::get_ptr()
     {
         static scheduler s(rank_);
-        return s.component_;
+        components::scheduler* res = s.component_.get();
+        for (std::size_t k = 0; !res; ++k)
+        {
+            hpx::util::detail::yield_k(k, "get component...");
+            res = s.component_.get();
+        }
+        return res;
     }
 
     scheduler::scheduler(std::size_t rank)
     {
         hpx::id_type gid =
-            hpx::new_<components::scheduler>(hpx::find_here(), rank).get();
+            hpx::local_new<components::scheduler>(rank).get();
 
         hpx::register_with_basename("allscale/scheduler", gid, rank).get();
 

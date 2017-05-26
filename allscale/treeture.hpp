@@ -26,6 +26,7 @@ namespace allscale {
         using future_type = hpx::future<T>;
 
         treeture()
+          : fixed_children_(false)
         {}
 
         treeture(parent_arg, treeture<void> const& parent = treeture<void>())
@@ -216,6 +217,7 @@ namespace allscale {
         {
             if (shared_state_)
             {
+//                 HPX_ASSERT(shared_state_->parent_);
                 return shared_state_->parent_;
             }
             typename wrapped_type::get_parent_action action;

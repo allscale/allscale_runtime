@@ -18,6 +18,7 @@ namespace allscale { namespace this_work_item {
     }
 
     id::id()
+      : tres_(make_ready_treeture())
     {}
 
     void id::set(id const& parent, treeture<void> const& tres)
@@ -30,6 +31,7 @@ namespace allscale { namespace this_work_item {
 
     id& get_id()
     {
+        HPX_ASSERT(get_id_impl());
         return *get_id_impl();
     }
 

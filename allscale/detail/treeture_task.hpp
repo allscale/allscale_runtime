@@ -38,21 +38,25 @@ namespace allscale
 
             treeture<void> get_left_child()
             {
+                HPX_ASSERT(children_[0]);
                 return children_[0];
             }
 
             treeture<void> get_right_child()
             {
+                HPX_ASSERT(children_[1]);
                 return children_[1];
             }
 
             void set_left_child(treeture<void> child)
             {
+                HPX_ASSERT(child);
                 children_[0] = std::move(child);
             }
 
             void set_right_child(treeture<void> child)
             {
+                HPX_ASSERT(child);
                 children_[1] = std::move(child);
             }
 
@@ -63,6 +67,7 @@ namespace allscale
         template <typename T>
         treeture<void> treeture_lco<T>::get_parent()
         {
+//             HPX_ASSERT(shared_state_->parent_);
             return shared_state_->parent_;
         }
 

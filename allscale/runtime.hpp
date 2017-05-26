@@ -31,7 +31,7 @@ int main_wrapper(const Args& ... args) {
     // include monitoring support
     allscale::components::monitor_component_init();
     // start allscale scheduler ...
-    allscale::scheduler::run(hpx::get_locality_id());
+    auto sched = allscale::scheduler::run(hpx::get_locality_id());
 
     // trigger first work item on first node
     int res = 0;
@@ -41,8 +41,11 @@ int main_wrapper(const Args& ... args) {
         allscale::scheduler::stop();
     }
 
-    // return result (only id == 0 will actually)
-    return res;
+    // Force the optimizer to initialize the runtime...
+    if (sched)
+        // return result (only id == 0 will actually)
+        return res;
+    else return 1;
 }
 
 // A class aggregating task dependencies
@@ -58,28 +61,30 @@ dependencies after(const TaskRefs& ... ) {
 
 // ---- a prec operation wrapper ----
 
-template<std::size_t pos,typename A, typename ... Cs>
-struct packer {
-	template<typename ... Params>
-	hpx::util::tuple<A,Cs...> operator()(const hpx::util::tuple<Cs...>& rest, const Params& ... params) {
-		return packer<pos-1,A,Cs...>()(rest,params...,hpx::util::get<sizeof...(Cs)-pos>(rest));
-	}
+template <typename Indices, typename Tuple>
+struct packer;
+
+template <std::size_t... Is, typename... Ts>
+struct packer<
+    hpx::util::detail::pack_c<std::size_t, Is...>,
+    hpx::util::tuple<Ts...>>
+{
+    template <typename Tuple, typename T>
+    hpx::util::tuple<typename std::decay<T>::type, Ts...> operator()(Tuple const& tuple, T&& t)
+    {
+        return hpx::util::make_tuple(std::forward<T>(t),
+            hpx::util::get<Is>(tuple)...);
+    }
 };
 
-template<typename A, typename ... Cs>
-struct packer<0,A,Cs...> {
-	template<typename ... Params>
-	hpx::util::tuple<A,Cs...> operator()(const hpx::util::tuple<Cs...>&, const Params& ... params) {
-		return hpx::util::tuple<A,Cs...>(params...);
-	}
-};
 
 template<typename A, typename ... Cs>
-hpx::util::tuple<A,Cs...> prepend(const A& a, const hpx::util::tuple<Cs...>& rest) {
-	return packer<sizeof...(Cs),A,Cs...>()(rest,a);
+hpx::util::tuple<typename std::decay<A>::type,Cs...>
+prepend(A&& a, const hpx::util::tuple<Cs...>& rest) {
+    return packer<
+        typename hpx::util::detail::make_index_pack<sizeof...(Cs)>::type,
+        hpx::util::tuple<Cs...>>()(rest, a);
 }
-
-
 
 template<typename A, typename R, typename ... Cs>
 struct prec_operation {
@@ -159,7 +164,7 @@ allscale::treeture<void> treeture_combine(allscale::treeture<void>&& a, allscale
 
 template<typename A, typename B>
 allscale::treeture<void> treeture_parallel(const dependencies&, allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
-	return allscale::treeture<void>(hpx::when_all(a.get_future(), b.get_future()));
+ 	return allscale::treeture<void>(hpx::when_all(a.get_future(), b.get_future()));
 }
 
 template<typename A, typename B>
@@ -171,7 +176,7 @@ allscale::treeture<void> treeture_parallel(allscale::treeture<A>&& a, allscale::
 template<typename A, typename B>
 allscale::treeture<void> treeture_sequential(const dependencies&, allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
 	assert(false && "Not implemented!");
-	return treeture_parallel(a,b);
+	return treeture_parallel(std::move(a),std::move(b));
 }
 
 template<typename A, typename B>
