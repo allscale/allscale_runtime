@@ -164,7 +164,7 @@ allscale::treeture<void> treeture_parallel(const dependencies&, allscale::treetu
 
 template<typename A, typename B>
 allscale::treeture<void> treeture_parallel(allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
-	return treeture_parallel(std::move(a),std::move(b));
+	return treeture_parallel(dependencies{}, std::move(a),std::move(b));
 }
 
 
@@ -176,7 +176,7 @@ allscale::treeture<void> treeture_sequential(const dependencies&, allscale::tree
 
 template<typename A, typename B>
 allscale::treeture<void> treeture_sequential(allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
-	return treeture_sequential(std::move(a),std::move(b));
+	return treeture_sequential(dependencies{}, std::move(a),std::move(b));
 }
 
 
