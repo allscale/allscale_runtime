@@ -1,7 +1,6 @@
 set(tests
   empty_main
   empty_main.1
-  insieme.out.0
   async_basic_basic.insieme.seq
   async_capture_mutable_reference_capture_mutable_reference.insieme.seq
   async_capture_reference_capture_reference.insieme.seq
