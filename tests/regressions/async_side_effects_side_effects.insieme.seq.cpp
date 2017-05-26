@@ -135,7 +135,7 @@ struct __wi_main_variant_0 {
 /* ------- Function Definitions --------- */
 /* ------- Function Definitions --------- */
 void IMP___anon_tagtype__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_async_slash_side_effects_slash_side_effects_dot_cpp_17_20_struct_std_colon__colon_atomic_lt_int_gt___ampersand__void_IMLOC__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_async_slash_side_effects_slash_side_effects_dot_cpp_17_20::operator()() const {
-    ((struct std::__atomic_base<int32_t >&)(*this).capture_0).operator=(1);
+    (*this).capture_0 = 1;
 }
 /* ------- Function Definitions --------- */
 /* ------- Function Definitions --------- */

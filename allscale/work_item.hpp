@@ -91,7 +91,7 @@ namespace allscale {
         this_work_item::id const& id() const
         {
             if (impl_)
-            return impl_->id();
+                return impl_->id();
             return this_work_item::get_id();
         }
 

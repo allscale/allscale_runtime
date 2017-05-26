@@ -69,7 +69,7 @@ myHSV_Color rgb_to_hsv(unsigned r, unsigned g, unsigned b) {
 void init_gradient_HSV_color() {
 
    gradient_min = rgb_to_hsv(255, 255, 0); // green converted to HSV
-   gradient_max = rgb_to_hsv(255, 0, 0); // accordingly for blue 
+   gradient_max = rgb_to_hsv(255, 0, 0); // accordingly for blue
 }
 
 
@@ -134,6 +134,7 @@ myRGB_Color hsv_to_rgb(double h, double s, double v) {
        return myColor;
     }
     //comment: 0 <= i <= 6, so we never come here
+    return myColor;
 }
 
 double HSV_transition(double value, double maximum, double start_point, double end_point) {
