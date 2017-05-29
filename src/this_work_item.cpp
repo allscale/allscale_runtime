@@ -7,18 +7,22 @@
 
 namespace allscale { namespace this_work_item {
 
-    id* get_id_impl()
-    {
-        return reinterpret_cast<id*>(hpx::this_thread::get_thread_data());
-    }
-
     void set_id_impl(id const& id_)
     {
         hpx::this_thread::set_thread_data(reinterpret_cast<std::size_t>(&id_));
     }
 
+    id* get_id_impl()
+    {
+//         if (hpx::this_thread::get_thread_data() == 0)
+//         {
+//             return nullptr
+//         }
+        return reinterpret_cast<id*>(hpx::this_thread::get_thread_data());
+    }
+
     id::id()
-      : tres_(make_ready_treeture())
+//       : tres_(make_ready_treeture())
     {}
 
     void id::set(id const& parent, treeture<void> const& tres)

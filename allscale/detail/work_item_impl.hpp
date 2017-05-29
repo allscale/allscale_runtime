@@ -18,8 +18,8 @@
 
 namespace allscale { namespace detail {
 	struct set_id {
-		set_id(this_work_item::id const& old_id, this_work_item::id& id)
-          :	old_id_(old_id) {
+		set_id(this_work_item::id& id)
+          :	old_id_(this_work_item::get_id()) {
 			this_work_item::set_id(id);
 		}
 
@@ -120,8 +120,7 @@ namespace allscale { namespace detail {
         }
 
         template <typename Future>
-        void finalize(this_work_item::id old_id,
-            std::shared_ptr<work_item_impl> this_, Future work_res)
+        void finalize(std::shared_ptr<work_item_impl> this_, Future work_res)
         {
             monitor::signal(monitor::work_item_execution_finished,
                 work_item(this_));
@@ -130,56 +129,55 @@ namespace allscale { namespace detail {
             typename hpx::traits::detail::shared_state_ptr_for<work_res_type>::type state
                 = hpx::traits::future_access<work_res_type>::get_shared_state(work_res);
 
-            treeture<result_type> tres = tres_;
             state->set_on_completed(
-                [old_id, tres, this_, state]() mutable
+                hpx::util::deferred_call([](auto this_, auto state)
                 {
-                    set_id si(old_id, this_->id_);
-                    detail::set_treeture(tres , state);
-                    monitor::signal(monitor::work_item_result_propagated, work_item(this_));
-                });
+                    set_id si(this_->id_);
+                    detail::set_treeture(this_->tres_ , state);
+                    monitor::signal(monitor::work_item_result_propagated,
+                        work_item(std::move(this_)));
+                },
+                std::move(this_), std::move(state)));
         }
 
         template<typename ...Ts>
-		void do_process(this_work_item::id old_id, Ts ...vs)
+		void do_process(Ts ...vs)
         {
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_execution_started,
                 work_item(this_));
-            set_id si(old_id, this->id_);
+            set_id si(this->id_);
 
             auto work_res =
                 WorkItemDescription::process_variant::execute(
                     detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...));
 
-            finalize(std::move(old_id), std::move(this_), std::move(work_res));
+            finalize(std::move(this_), std::move(work_res));
 		}
 
         template<typename ...Ts>
-		void do_split(this_work_item::id old_id, Ts ...vs)
+		void do_split(Ts ...vs)
         {
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_execution_started, work_item(this_));
-            set_id si(old_id, this->id_);
+            set_id si(this->id_);
 
             auto work_res =
                 WorkItemDescription::split_variant::execute(
                     unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...));
 
-            finalize(std::move(old_id), std::move(this_), std::move(work_res));
+            finalize(std::move(this_), std::move(work_res));
         }
 
         template<std::size_t ... Is>
         void process(hpx::util::detail::pack_c<std::size_t, Is...>)
         {
             void (work_item_impl::*f)(
-                    this_work_item::id,
                     typename hpx::util::decay<
                     decltype(hpx::util::get<Is>(closure_))>::type...
             ) = &work_item_impl::do_process;
             HPX_ASSERT(valid());
-            this_work_item::id old_id = this_work_item::get_id();
-            hpx::dataflow(f, shared_this(), std::move(old_id), std::move(hpx::util::get<Is>(closure_))...);
+            hpx::dataflow(f, shared_this(), std::move(hpx::util::get<Is>(closure_))...);
         }
 
         void process()
@@ -191,13 +189,11 @@ namespace allscale { namespace detail {
         template<std::size_t ... Is>
         void split_impl(hpx::util::detail::pack_c<std::size_t, Is...>) {
             void (work_item_impl::*f)(
-                    this_work_item::id,
                     typename hpx::util::decay<
                     decltype(hpx::util::get<Is>(closure_))>::type...
             ) = &work_item_impl::do_split;
             HPX_ASSERT(valid());
-            this_work_item::id old_id = this_work_item::get_id();
-            hpx::dataflow(f, shared_this(), std::move(old_id), std::move(hpx::util::get<Is>(closure_))...);
+            hpx::dataflow(f, shared_this(), std::move(hpx::util::get<Is>(closure_))...);
         }
 
         template <typename WorkItemDescription_>

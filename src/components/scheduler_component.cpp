@@ -61,12 +61,12 @@ namespace allscale { namespace components {
 
         input_objective = hpx::get_config_entry("allscale.objective", scheduler::objectives.at(objective_IDs::TIME)  );
 
-        if ( std::find(scheduler::objectives.begin(), scheduler::objectives.end(), input_objective) == scheduler::objectives.end() ) { 
+        if ( std::find(scheduler::objectives.begin(), scheduler::objectives.end(), input_objective) == scheduler::objectives.end() ) {
 	    std::ostringstream all_keys;
 	    copy(scheduler::objectives.begin(), scheduler::objectives.end(), std::ostream_iterator<std::string>(all_keys, ","));
 	    std::string keys_str = all_keys.str();
             keys_str.pop_back();
-            HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init", 
+            HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
 				boost::str(boost::format("Wrong objective: %s, Valid values: [%s]") % input_objective % keys_str));
         }
         else
@@ -112,7 +112,7 @@ namespace allscale { namespace components {
             if (thread_manager != nullptr) {
                std::cout << "We have a thread manager holding the throttling_scheduler" << std::endl;
             } else {
-               HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init", 
+               HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
 			"thread_manager is null. Make sure you select throttling scheduler via --hpx:queuing=throttling");
             }
 
@@ -160,7 +160,7 @@ namespace allscale { namespace components {
                         std::size_t current_id = 0;
                         {
                             std::unique_lock<mutex_type> lk(spawn_throttle_mtx_);
-                            std::size_t nd = 8;
+                            std::size_t nd = 5;
                             std::string wi_name(work.name());
                             auto it = spawn_throttle_.find(wi_name);
                             if (it == spawn_throttle_.end())
@@ -263,7 +263,7 @@ namespace allscale { namespace components {
 
 		{
 		        std::unique_lock<mutex_type> l(resize_mtx_);
-			allscale_app_time = allscale_app_counter.get_value<std::int64_t>();  
+			allscale_app_time = allscale_app_counter.get_value<std::int64_t>();
 
 			boost::dynamic_bitset<> const & blocked_os_threads_ = thread_manager->get_pool_scheduler().get_disabled_os_threads();
  			std::size_t active_threads = os_thread_count - blocked_os_threads_.count();
@@ -277,11 +277,11 @@ namespace allscale { namespace components {
 
                         std::size_t suspend_cap = 2; //active_threads < SMALL_SYSTEM  ? SMALL_SUSPEND_CAP : LARGE_SUSPEND_CAP;
 			std::size_t resume_cap = 1; //active_threads < SMALL_SYSTEM  ? LARGE_RESUME_CAP : SMALL_RESUME_CAP;
-			
+
 			if ( allscale_app_time > 0 )
 			  if ( active_threads > MIN_THREADS && ( last_thread_time ==0  || allscale_app_time < last_thread_time ) ) {
 
-				  { 
+				  {
 					hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
 				        thread_manager->get_pool_scheduler().disable_more(suspend_cap);
 					std::cout << "Sent disable signal. Active threads: " << active_threads << std::endl;
@@ -311,7 +311,7 @@ namespace allscale { namespace components {
     void scheduler::stop()
     {
         timer_.stop();
- 
+
         if (input_objective == scheduler::objectives.at(objective_IDs::TIME_RESOURCE))
             throttle_timer_.stop();
 
