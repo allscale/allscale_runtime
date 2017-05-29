@@ -281,14 +281,14 @@ namespace allscale { namespace components {
 			if ( allscale_app_time > 0 )
 			  if ( active_threads > MIN_THREADS && ( last_thread_time ==0  || allscale_app_time < last_thread_time && active_threads > MIN_THREADS ) ) {
 
-				  {     std::cout << "active_threadS: " << active_threads << ", os_thread_count: " << os_thread_count << std::endl;
-					hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);	
+				  { 
+					hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
 				        thread_manager->get_pool_scheduler().disable_more(suspend_cap);
 					std::cout << "Sent disable signal. Active threads: " << active_threads << std::endl;
 				  }
 
 			  } else if ( blocked_os_threads_.any() && allscale_app_time > 1.2*last_thread_time ) {
-				   
+
 			          {
 	         	              hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
 				      thread_manager->get_pool_scheduler().enable_more(resume_cap);
