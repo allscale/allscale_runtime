@@ -7,10 +7,11 @@
 #include <allscale/scheduler.hpp>
 #include <allscale/work_item_description.hpp>
 
-#include <allscale/runtime.hpp>
+//#include <allscale/runtime.hpp>
 
 #include <hpx/include/unordered_map.hpp>
 #include <hpx/include/performance_counters.hpp>
+#include <hpx/hpx_init.hpp>
 
 #include <unistd.h>
 
@@ -20,6 +21,30 @@ static const int DEFAULT_SIZE = 128 * 1024 * 1024;
 
 static std::vector<int> dataA;
 static std::vector<int> dataB;
+
+boost::atomic<std::int64_t> app_elapsed(0);
+
+std::int64_t app_performance_data(bool reset)
+{
+    return hpx::util::get_and_reset_value(app_elapsed, reset);
+}
+
+
+void register_counter_type()
+{
+    std::cout << "Registering allscale counter" << std::endl;
+
+    // Call the HPX API function to register the counter type.
+    hpx::performance_counters::install_counter_type(
+        "/allscale/examples/app_time",
+        // counter type name
+        &app_performance_data,
+        // function providing counter data
+        "returns time spent on calculation of the one iter of the application"
+        // description text
+    );
+}
+
 
 struct simple_stencil_body {
     void operator()(std::int64_t i, const hpx::util::tuple<std::int64_t,std::int64_t>& params) const {
@@ -75,9 +100,10 @@ int hpx_main(int argc, char **argv)
             for(int t=0; t<steps; t++) {
                 pfor<simple_stencil_body>(0,n,t,n);
             }
-            auto elapsed = t.elapsed_microseconds();
-            mean += elapsed/steps;
-            std::cout << "pfor(0.." << n << ") taking " << elapsed/steps << " microseconds. Iter: " << i << "\n";
+            //auto elapsed = t.elapsed_microseconds();
+            app_elapsed = t.elapsed_microseconds();
+            mean += app_elapsed/steps;
+            std::cout << "pfor(0.." << n << ") taking " << app_elapsed/steps << " microseconds. Iter: " << i << "\n";
         }
         allscale::scheduler::stop();
 
@@ -89,6 +115,7 @@ int hpx_main(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
+    hpx::register_pre_startup_function(&register_counter_type);
     return hpx::init(argc, argv);
 }
 
