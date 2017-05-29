@@ -279,7 +279,7 @@ namespace allscale { namespace components {
 			std::size_t resume_cap = 1; //active_threads < SMALL_SYSTEM  ? LARGE_RESUME_CAP : SMALL_RESUME_CAP;
 			
 			if ( allscale_app_time > 0 )
-			  if ( active_threads > MIN_THREADS && ( last_thread_time ==0  || allscale_app_time < last_thread_time && active_threads > MIN_THREADS ) ) {
+			  if ( active_threads > MIN_THREADS && ( last_thread_time ==0  || allscale_app_time < last_thread_time ) ) {
 
 				  {     std::cout << "active_threadS: " << active_threads << ", os_thread_count: " << os_thread_count << std::endl;
 					hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);	
