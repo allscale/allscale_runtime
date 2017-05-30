@@ -14,6 +14,9 @@
 #include <hpx/runtime/serialization/list.hpp>
 
 namespace allscale {
+    namespace detail {
+        struct work_item_impl_base;
+    }
     struct work_item;
 }
 
@@ -25,15 +28,12 @@ namespace allscale { namespace this_work_item {
 
     struct id
     {
-        id(std::size_t i)
-          : id_(1, i)
-          , next_id_(0)
-        {
-        }
+        id(std::size_t i);
 
         id();
 
-        void set(id const& id, treeture<void> const& tres = treeture<void>());
+//         void set(std::shared_ptr<detail::work_item_impl_base>);
+        void set(detail::work_item_impl_base*);
 
         std::string name() const;
         std::size_t last() const;
@@ -43,10 +43,7 @@ namespace allscale { namespace this_work_item {
 
         id parent() const;
 
-        treeture<void> get_treeture() const
-        {
-            return tres_;
-        }
+        treeture<void> get_treeture() const;
 
         explicit operator bool() const
         {
@@ -64,6 +61,8 @@ namespace allscale { namespace this_work_item {
         std::list<std::size_t> id_;
         std::size_t next_id_;
         treeture<void> tres_;
+//         detail::work_item_impl_base* wi_;
+//         std::shared_ptr<detail::work_item_impl_base> wi_;
 
         friend class hpx::serialization::access;
         template <typename Archive>
