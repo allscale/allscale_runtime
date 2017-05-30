@@ -88,7 +88,6 @@ struct std::array<struct std::array<double, 50 >, 50 > IMP_id() {
             {
                 int32_t var_2 = 0;
                 while (var_2 < N) {
-                    std::cout << var_1 << ' ' << var_2 << '\n';
                     var_0[var_1][var_2] = (double)(var_1 == var_2?1:0);
                     var_2++;
                 };
