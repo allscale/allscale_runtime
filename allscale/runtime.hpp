@@ -30,9 +30,8 @@ template<typename MainWorkItem, typename ... Args>
 int main_wrapper(const Args& ... args) {
     // include monitoring support
     allscale::monitor::run(hpx::get_locality_id());
-    std::cout<<"wrapper started" << std::endl;
     // start allscale scheduler ...
-    allscale::scheduler::run(hpx::get_locality_id());
+    auto sched = allscale::scheduler::run(hpx::get_locality_id());
 
     // trigger first work item on first node
     int res = 0;
@@ -42,8 +41,11 @@ int main_wrapper(const Args& ... args) {
         allscale::scheduler::stop();
     }
 
-    // return result (only id == 0 will actually)
-    return res;
+    // Force the optimizer to initialize the runtime...
+    if (sched)
+        // return result (only id == 0 will actually)
+        return res;
+    else return 1;
 }
 
 // A class aggregating task dependencies
@@ -56,43 +58,55 @@ dependencies after(const TaskRefs& ... ) {
 }
 
 
-// ---- insieme lambda wrapper ----
-
-template<typename ClosureType>
-struct insieme_lambda_wrapper {
-    ClosureType* closure;
-    template<typename ... Args>
-    auto operator()(const Args& ... args) {
-        return closure->call(closure,args...);
-    }
-};
-
-template<typename ClosureType>
-insieme_lambda_wrapper<ClosureType> make_insieme_lambda_wrapper(ClosureType* cls) {
-    return insieme_lambda_wrapper<ClosureType>{cls};
-}
-
 
 // ---- a prec operation wrapper ----
 
-template<typename A, typename R, typename Impl>
+template <typename Indices, typename Tuple>
+struct packer;
+
+template <std::size_t... Is, typename... Ts>
+struct packer<
+    hpx::util::detail::pack_c<std::size_t, Is...>,
+    hpx::util::tuple<Ts...>>
+{
+    template <typename Tuple, typename T>
+    hpx::util::tuple<typename std::decay<T>::type, Ts...> operator()(Tuple const& tuple, T&& t)
+    {
+        return hpx::util::make_tuple(std::forward<T>(t),
+            hpx::util::get<Is>(tuple)...);
+    }
+};
+
+
+template<typename A, typename ... Cs>
+hpx::util::tuple<typename std::decay<A>::type,Cs...>
+prepend(A&& a, const hpx::util::tuple<Cs...>& rest) {
+    return packer<
+        typename hpx::util::detail::make_index_pack<sizeof...(Cs)>::type,
+        hpx::util::tuple<Cs...>>()(rest, a);
+}
+
+template<typename A, typename R, typename ... Cs>
 struct prec_operation {
 
-    Impl impl;
+    hpx::util::tuple<Cs...> closure;
+
+    treeture<R>(*impl)(const dependencies& d, const hpx::util::tuple<A,Cs...>&);
 
     treeture<R> operator()(const A& a) {
-        return impl(dependencies(),a);
+        return (*this).operator()(dependencies(),a);
     }
 
     treeture<R> operator()(const dependencies& d, const A& a) {
-        return impl(d,a);
+    	// TODO: could not get tuple_cat working, wrote own version
+    	return (*impl)(d,prepend(a,closure));
     }
 
 };
 
-template<typename A, typename B, typename Impl>
-prec_operation<A,B,Impl> make_prec_operation(const Impl& impl) {
-    return prec_operation<A,B,Impl>{impl};
+template<typename A, typename R, typename ... Cs>
+prec_operation<A,R,Cs...> make_prec_operation(const hpx::util::tuple<Cs...>& closure, treeture<R>(*impl)(const dependencies& d, const hpx::util::tuple<A,Cs...>&)) {
+    return prec_operation<A,R,Cs...>{closure,impl};
 }
 
 // ---- a generic treeture combine operator ----
@@ -150,24 +164,24 @@ allscale::treeture<void> treeture_combine(allscale::treeture<void>&& a, allscale
 
 template<typename A, typename B>
 allscale::treeture<void> treeture_parallel(const dependencies&, allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
-	return allscale::treeture<void>(hpx::when_all(a.get_future(), b.get_future()));
+ 	return allscale::treeture<void>(hpx::when_all(a.get_future(), b.get_future()));
 }
 
 template<typename A, typename B>
 allscale::treeture<void> treeture_parallel(allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
-	return treeture_parallel(std::move(a),std::move(b));
+	return treeture_parallel(dependencies{}, std::move(a),std::move(b));
 }
 
 
 template<typename A, typename B>
 allscale::treeture<void> treeture_sequential(const dependencies&, allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
 	assert(false && "Not implemented!");
-	return treeture_parallel(a,b);
+	return treeture_parallel(std::move(a),std::move(b));
 }
 
 template<typename A, typename B>
 allscale::treeture<void> treeture_sequential(allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
-	return treeture_sequential(std::move(a),std::move(b));
+	return treeture_sequential(dependencies{}, std::move(a),std::move(b));
 }
 
 
