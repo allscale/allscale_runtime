@@ -172,7 +172,7 @@ namespace allscale { namespace components {
                             }
                             it->second.add(std::move(lk), work.get_treeture());
                         }
-                        monitor::signal(monitor::work_item_first, work);
+                        allscale::monitor::signal(allscale::monitor::work_item_first, work);
 
                         if (current_id % 100)
                         {
@@ -182,7 +182,7 @@ namespace allscale { namespace components {
                     else
                     {
                     }
-                    monitor::signal(monitor::work_item_enqueued, work);
+                    allscale::monitor::signal(allscale::monitor::work_item_enqueued, work);
 //                     std::size_t current_numa_domain = ++current_ % executors.size();
                     if (do_split(work))
                     {
