@@ -3,9 +3,10 @@
 #define ALLSCALE_COMPONENTS_SCHEDULER_HPP
 
 #include <allscale/work_item.hpp>
+#include <allscale/components/treeture_buffer.hpp>
 
 #include <hpx/include/components.hpp>
-#include <hpx/include/local_lcos.hpp>
+// #include <hpx/include/local_lcos.hpp>
 #include <hpx/util/interval_timer.hpp>
 
 #include <hpx/compute/host.hpp>
@@ -51,7 +52,7 @@ namespace allscale { namespace components {
         hpx::id_type right_;
 
         mutex_type spawn_throttle_mtx_;
-        std::unordered_map<std::string, std::unique_ptr<hpx::lcos::local::sliding_semaphore>> spawn_throttle_;
+        std::unordered_map<const char*, treeture_buffer> spawn_throttle_;
 
         bool do_split(work_item const& work);
 
@@ -85,7 +86,7 @@ namespace allscale { namespace components {
 //        void resume(std::size_t shepherd);
 //        void resume_all();
 //	void resume_n(std::size_t n);
-  
+
 //        std::size_t resume_count;
 //        void suspend(std::size_t shepherd);
 //        bool is_suspended(std::size_t shepherd) const;
@@ -107,12 +108,12 @@ namespace allscale { namespace components {
 
         std::string input_objective;
         const std::vector<std::string> objectives = {
-		"time", 
-		"resource", 
-		"energy", 
-		"time_resource", 
-		"time_energy", 
-		"resource_energy", 
+		"time",
+		"resource",
+		"energy",
+		"time_resource",
+		"time_energy",
+		"resource_energy",
 		"time_resource_energy"
 	};
 

@@ -55,6 +55,8 @@ namespace allscale {
                 typename shared_state_type::init_no_addref()))
           , fixed_children_(false)
         {
+//             set_left_child(other.get_left_child());
+//             set_right_child(other.get_right_child());
             auto shared_state = shared_state_;
             if (other.shared_state_)
             {

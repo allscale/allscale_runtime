@@ -45,7 +45,6 @@ void register_counter_type()
     );
 }
 
-
 struct simple_stencil_body {
     void operator()(std::int64_t i, const hpx::util::tuple<std::int64_t,std::int64_t>& params) const {
         // extract parameters

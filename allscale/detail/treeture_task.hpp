@@ -50,13 +50,13 @@ namespace allscale
 
             void set_left_child(treeture<void> child)
             {
-                HPX_ASSERT(child);
+//                 HPX_ASSERT(child);
                 children_[0] = std::move(child);
             }
 
             void set_right_child(treeture<void> child)
             {
-                HPX_ASSERT(child);
+//                 HPX_ASSERT(child);
                 children_[1] = std::move(child);
             }
 

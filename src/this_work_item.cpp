@@ -2,6 +2,7 @@
 #include <allscale/this_work_item.hpp>
 #include <allscale/treeture.hpp>
 #include <allscale/work_item.hpp>
+#include <allscale/detail/work_item_impl_base.hpp>
 
 #include <hpx/include/threads.hpp>
 
@@ -22,20 +23,29 @@ namespace allscale { namespace this_work_item {
     }
 
     id::id()
-//       : tres_(make_ready_treeture())
     {}
 
-    void id::set(id const& parent, treeture<void> const& tres)
+    id::id(std::size_t i)
+      : id_(1, i)
+      , next_id_(0)
     {
+    }
+
+//     void id::set(std::shared_ptr<detail::work_item_impl_base> wi)
+    void id::set(detail::work_item_impl_base* wi)
+    {
+        id& parent = get_id();
         next_id_ = 0;
         id_ = parent.id_;
-        id_.push_back(get_id().next_id_++);
-        tres_ = tres;
+        id_.push_back(parent.next_id_++);
+//         wi_ = std::move(wi);
+//         wi_ = wi;
+        tres_ = wi->get_treeture();
     }
 
     id& get_id()
     {
-        HPX_ASSERT(get_id_impl());
+//         HPX_ASSERT(get_id_impl());
         return *get_id_impl();
     }
 
@@ -72,12 +82,20 @@ namespace allscale { namespace this_work_item {
 
     id id::parent() const
     {
-        id res(*this);
+        id res;
 
-        res.next_id_ = 0;
+        res.id_ = this->id_;
         res.id_.pop_back();
+        res.next_id_ = 0;
+//         res.tres_ = tres_->parent();
 
         return res;
+    }
+
+    treeture<void> id::get_treeture() const
+    {
+        return tres_;
+//         return wi_->get_treeture();
     }
 
     bool operator==(id const& lhs, id const& rhs)

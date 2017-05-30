@@ -4,6 +4,7 @@
 #include <allscale/treeture.hpp>
 #include <allscale/spawn.hpp>
 #include <allscale/scheduler.hpp>
+#include <allscale/components/monitor.hpp>
 #include <allscale/work_item_description.hpp>
 
 //#include <allscale/runtime.hpp>
@@ -30,7 +31,6 @@ std::int64_t app_performance_data(bool reset)
 {
     return hpx::util::get_and_reset_value(app_elapsed, reset);
 }
-
 
 void register_counter_type()
 {
@@ -80,7 +80,8 @@ struct simple_stencil_body {
 
 int hpx_main(int argc, char **argv)
 {
-    std::cout<<"blubber \n";
+    // include monitoring support
+//     allscale::components::monitor_component_init();
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
 
@@ -106,10 +107,10 @@ int hpx_main(int argc, char **argv)
                 }
             }
 
-            //auto elapsed = t.elapsed_microseconds();
-	    app_elapsed = t.elapsed_microseconds();
+//             auto elapsed = t.elapsed_microseconds();
+	        app_elapsed = t.elapsed_microseconds();
             mean += app_elapsed/steps;
-            std::cout << "pfor(0.." << n << ") taking " << app_elapsed << " microseconds. Iter: " << i << "\n";
+            std::cout << "pfor(0.." << n << ") taking " << app_elapsed/steps << " microseconds. Iter: " << i << "\n";
         }
         allscale::scheduler::stop();
 
@@ -122,8 +123,8 @@ int hpx_main(int argc, char **argv)
 
 
 int main(int argc, char **argv)
-{   
-    std::cout << "Before register counter" << std::endl;
+{
+//     std::cout << "Before register counter" << std::endl;
     hpx::register_pre_startup_function(&register_counter_type);
     return hpx::init(argc, argv);
 }

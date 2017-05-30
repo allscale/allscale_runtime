@@ -34,8 +34,8 @@ public:
     pfor_loop_handle& operator=(const pfor_loop_handle&) = delete;
     pfor_loop_handle& operator=(pfor_loop_handle&& other) = default;
 
-    const allscale::treeture<void>& get_treeture() const {
-        return treeture;
+    allscale::treeture<void> get_treeture() {
+        return std::move(treeture);
     }
 };
 
@@ -145,7 +145,7 @@ struct pfor_process_variant
 
     // Execute for serial
     template <typename Closure>
-    static hpx::future<void> execute(Closure const& closure)
+    static hpx::util::unused_type execute(Closure const& closure)
     {
         auto begin = hpx::util::get<0>(closure);
         auto end   = hpx::util::get<1>(closure);
@@ -160,7 +160,7 @@ struct pfor_process_variant
         }
 
         // done
-        return hpx::make_ready_future();
+        return hpx::util::unused;
     }
 };
 
@@ -211,18 +211,19 @@ struct pfor_neighbor_sync_split_variant
 
     // It spawns two new tasks, processing each half the iterations
     template <typename Closure>
-    static hpx::future<void> execute(Closure const& closure)
+    static hpx::future<void> execute(Closure closure)
     {
         // extract parameters
         auto begin = hpx::util::get<0>(closure);
         auto end   = hpx::util::get<1>(closure);
         auto extra = hpx::util::get<2>(closure);
 
-        // extract the dependencies
-        auto deps  = std::move(hpx::util::get<3>(closure));
-
         // check whether there are iterations left
         if (begin >= end) return hpx::make_ready_future();
+
+        // extract the dependencies
+//         auto deps   = std::move(hpx::util::get<3>(closure));
+        auto& deps  = hpx::util::get<3>(closure);
 
         // compute the middle
         auto mid = begin + (end - begin) / 2;
@@ -238,8 +239,22 @@ struct pfor_neighbor_sync_split_variant
         auto drl = dr.get_left_child();
 
         // spawn two new sub-tasks
-        auto left = allscale::spawn<pfor_neighbor_sync_work<Body,ExtraParams...>>(begin, mid, extra, hpx::util::make_tuple(dlr,dcl,dcr));
-        auto right = allscale::spawn<pfor_neighbor_sync_work<Body,ExtraParams...>>(mid,   end, extra, hpx::util::make_tuple(dcl,dcr,drl));
+        auto left = allscale::spawn<pfor_neighbor_sync_work<Body,ExtraParams...>>(
+            begin, mid, extra,
+            hpx::util::make_tuple(
+                std::move(dlr),
+                dcl,//std::move(dcl),
+                dcr//std::move(dcr)
+            )
+        );
+        auto right = allscale::spawn<pfor_neighbor_sync_work<Body,ExtraParams...>>(
+            mid, end, extra,
+            hpx::util::make_tuple(
+                std::move(dcl),
+                std::move(dcr),
+                std::move(drl)
+            )
+        );
 
         return
             hpx::when_all(
@@ -258,27 +273,37 @@ struct pfor_neighbor_sync_process_variant
         return "pfor_process_variant";
     }
 
+    template <typename Closure>
+    static hpx::future<void> deps(Closure&& closure)
+    {
+        auto& deps  = hpx::util::get<3>(closure);
+        return hpx::when_all(
+            hpx::util::get<0>(deps).get_future(),
+            hpx::util::get<1>(deps).get_future(),
+            hpx::util::get<2>(deps).get_future());
+    }
+
     // Execute for serial
     template <typename Closure>
-    static hpx::future<void> execute(Closure const& closure)
+    static hpx::util::unused_type execute(Closure closure)
     {
         // extract parameters
         auto begin = hpx::util::get<0>(closure);
         auto end   = hpx::util::get<1>(closure);
         auto extra = hpx::util::get<2>(closure);
         // extract the dependencies
-        auto deps  = std::move(hpx::util::get<3>(closure));
+//         auto deps  = std::move(hpx::util::get<3>(closure));
 
         // refine dependencies
-        auto& dl = hpx::util::get<0>(deps);
-        auto& dc = hpx::util::get<1>(deps);
-        auto& dr = hpx::util::get<2>(deps);
+//         auto& dl = hpx::util::get<0>(deps);
+//         auto& dc = hpx::util::get<1>(deps);
+//         auto& dr = hpx::util::get<2>(deps);
 
-
-        return
-            hpx::dataflow(
-                hpx::util::unwrapped(
-                    [begin, end, extra]()
+//         return
+//             hpx::dataflow(
+//                 hpx::util::unwrapped(
+//                     [begin, end, extra]()
+//                     [begin, end, extra](hpx::future<void>&&, hpx::future<void>&&, hpx::future<void>&&)
                     {
                         // get a body instance
                         Body body;
@@ -289,18 +314,20 @@ struct pfor_neighbor_sync_process_variant
                             body(i,extra);
                         }
                     }
-                )
-        		,
-                dl.get_future(),
-                dc.get_future(),
-                dr.get_future()
-            );
+//                 )
+//         		,
+//                 dl.get_future(),
+//                 dc.get_future(),
+//                 dr.get_future()
+//             );
+//         return hpx::make_ready_future();
+        return hpx::util::unused;
     }
 };
 
 
 template<typename Body, typename ... ExtraParams>
-pfor_loop_handle pfor_neighbor_sync(const pfor_loop_handle& loop, int a, int b, const ExtraParams& ... params) {
+pfor_loop_handle pfor_neighbor_sync(pfor_loop_handle& loop, int a, int b, const ExtraParams& ... params) {
     allscale::treeture<void> done = allscale::make_ready_treeture();
     return allscale::spawn_first<pfor_neighbor_sync_work<Body,ExtraParams...>>(
         a,b,                                                    // the range

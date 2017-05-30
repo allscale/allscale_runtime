@@ -109,7 +109,7 @@ namespace allscale { namespace detail {
 
         void on_ready(hpx::util::unique_function_nonser<void()> f)
         {
-            typename hpx::traits::detail::shared_state_ptr_for<treeture<result_type>>::type state
+            typename hpx::traits::detail::shared_state_ptr_for<treeture<result_type>>::type const& state
                 = hpx::traits::future_access<treeture<result_type>>::get_shared_state(tres_);
 
             state->set_on_completed(std::move(f));
@@ -120,13 +120,17 @@ namespace allscale { namespace detail {
         }
 
         template <typename Future>
-        void finalize(std::shared_ptr<work_item_impl> this_, Future work_res)
+        typename std::enable_if<!std::is_same<Future, hpx::util::unused_type>::value>::type
+        finalize(
+            std::shared_ptr<work_item_impl> this_, Future work_res)
         {
             monitor::signal(monitor::work_item_execution_finished,
                 work_item(this_));
 
             typedef typename std::decay<Future>::type work_res_type;
-            typename hpx::traits::detail::shared_state_ptr_for<work_res_type>::type state
+            typedef typename hpx::traits::detail::shared_state_ptr_for<work_res_type>::type
+                shared_state_type;
+            shared_state_type state
                 = hpx::traits::future_access<work_res_type>::get_shared_state(work_res);
 
             state->set_on_completed(
@@ -140,9 +144,16 @@ namespace allscale { namespace detail {
                 std::move(this_), std::move(state)));
         }
 
-        template<typename ...Ts>
-		void do_process(Ts ...vs)
+        void finalize(
+            std::shared_ptr<work_item_impl>&& this_, hpx::util::unused_type)
         {
+            tres_.set_value(hpx::util::unused_type{});
+        }
+
+        template<typename ...Ts>
+		void do_process(hpx::future<void>&& f, Ts ...vs)
+        {
+            if (f.valid()) f.get();
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_execution_started,
                 work_item(this_));
@@ -160,6 +171,7 @@ namespace allscale { namespace detail {
         {
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_execution_started, work_item(this_));
+
             set_id si(this->id_);
 
             auto work_res =
@@ -169,15 +181,37 @@ namespace allscale { namespace detail {
             finalize(std::move(this_), std::move(work_res));
         }
 
-        template<std::size_t ... Is>
-        void process(hpx::util::detail::pack_c<std::size_t, Is...>)
+        template <typename ProcessVariant, std::size_t... Is>
+        void get_deps(hpx::util::detail::pack_c<std::size_t, Is...>,
+            decltype(&ProcessVariant::template deps<Closure>))
         {
             void (work_item_impl::*f)(
+                    hpx::future<void>&&,
                     typename hpx::util::decay<
                     decltype(hpx::util::get<Is>(closure_))>::type...
             ) = &work_item_impl::do_process;
+            auto deps = ProcessVariant::deps(closure_);
+            hpx::dataflow(f, shared_this(), std::move(deps), std::move(hpx::util::get<Is>(closure_))...);
+        }
+
+        template <typename ProcessVariant, std::size_t... Is>
+        void get_deps(hpx::util::detail::pack_c<std::size_t, Is...>, ...)
+        {
+            void (work_item_impl::*f)(
+                    hpx::future<void>&&,
+                    typename hpx::util::decay<
+                    decltype(hpx::util::get<Is>(closure_))>::type...
+            ) = &work_item_impl::do_process;
+            hpx::apply(f, shared_this(), hpx::future<void>(), std::move(hpx::util::get<Is>(closure_))...);
+        }
+
+        template<std::size_t ... Is>
+        void process(hpx::util::detail::pack_c<std::size_t, Is...> pack)
+        {
             HPX_ASSERT(valid());
-            hpx::dataflow(f, shared_this(), std::move(hpx::util::get<Is>(closure_))...);
+            get_deps<typename WorkItemDescription::process_variant>(pack, nullptr);
+//             do_process(std::move(hpx::util::get<Is>(closure_))...);
+//             hpx::apply(f, shared_this(), std::move(hpx::util::get<Is>(closure_))...);
         }
 
         void process()
@@ -193,7 +227,9 @@ namespace allscale { namespace detail {
                     decltype(hpx::util::get<Is>(closure_))>::type...
             ) = &work_item_impl::do_split;
             HPX_ASSERT(valid());
-            hpx::dataflow(f, shared_this(), std::move(hpx::util::get<Is>(closure_))...);
+//             do_split(std::move(hpx::util::get<Is>(closure_))...);
+//             hpx::dataflow(f, shared_this(), std::move(hpx::util::get<Is>(closure_))...);
+            hpx::apply(f, shared_this(), std::move(hpx::util::get<Is>(closure_))...);
         }
 
         template <typename WorkItemDescription_>
