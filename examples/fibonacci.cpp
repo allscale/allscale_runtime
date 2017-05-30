@@ -1,10 +1,11 @@
 
 #include <allscale/no_split.hpp>
-#include <allscale/do_serialization.hpp>
 #include <allscale/no_serialization.hpp>
+#include <allscale/do_serialization.hpp>
 #include <allscale/treeture.hpp>
 #include <allscale/spawn.hpp>
 #include <allscale/scheduler.hpp>
+#include <allscale/monitor.hpp>
 #include <allscale/work_item_description.hpp>
 
 #include <hpx/include/unordered_map.hpp>
@@ -89,7 +90,7 @@ using fibonacci_work =
     allscale::work_item_description<
         std::int64_t,
         fib_name,
-        allscale::do_serialization,
+        allscale::no_serialization,
         split_variant,
         process_variant
     >;
@@ -159,10 +160,8 @@ struct process_variant
 
 #include <boost/atomic.hpp>
 
-#include <allscale/components/monitor.hpp>
 
-
-boost::atomic<std::int64_t> fib_elapsed(0);
+std::int64_t fib_elapsed = 0;
 
 
 std::int64_t fib_performance_data(bool reset)
@@ -178,7 +177,7 @@ void register_counter_type()
 
     // Call the HPX API function to register the counter type.
     hpx::performance_counters::install_counter_type(
-        "/allscale/examples/app_time",
+        "/allscale/examples/fib_time",
         // counter type name
         &fib_performance_data,
         // function providing counter data
@@ -186,6 +185,19 @@ void register_counter_type()
         // description text
     );
 }
+
+
+
+bool get_startup(hpx::startup_function_type& startup_func, bool& pre_startup)
+{
+    // return our startup-function if performance counters are required
+    startup_func = register_counter_type;   // function to run during startup
+    pre_startup = true;       // run 'startup' as pre-startup function
+    return true;
+}
+
+
+
 
 std::int64_t fib_runner(std::int64_t n)
 {
@@ -198,10 +210,12 @@ std::int64_t fib_runner(std::int64_t n)
 
 int hpx_main(int argc, char **argv)
 {
-   // allscale::components::monitor_component_init();
+    // start allscale monitoring
+    allscale::monitor::run(hpx::get_locality_id());
 
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
+
 
     if(hpx::get_locality_id() == 0)
     {
@@ -216,11 +230,11 @@ int hpx_main(int argc, char **argv)
            std::cout << "fib(" << n << ") = " << res << " taking " << fib_elapsed << " microseconds. Iter: " << i << "\n";
         }
         allscale::scheduler::stop();
+        allscale::monitor::stop();
     }
 
     return hpx::finalize();
 }
-
 
 int main(int argc, char **argv)
 {
@@ -228,5 +242,4 @@ int main(int argc, char **argv)
 
     return hpx::init(argc, argv);
 }
-
 

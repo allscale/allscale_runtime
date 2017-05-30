@@ -1,57 +1,70 @@
-#include <allscale/work_item.hpp>
 #include <allscale/components/monitor.hpp>
 #include <allscale/monitor.hpp>
-#include <allscale/work_item_dependency.hpp>
-#include <allscale/profile.hpp>
-#include <allscale/work_item_stats.hpp>
-#include <allscale/util/graph_colouring.hpp>
-#include <allscale/historical_data.hpp>
 
-#include <hpx/include/lcos.hpp>
-
-#include <unistd.h>
-#include <unordered_map>
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <mutex>
-#include <memory>
-#include <vector>
-#include <stdlib.h>
-
-// Performance profiles per work item ID
-std::unordered_map<std::string, std::shared_ptr<allscale::profile>> profiles;
-
-// Performance data per work item name
-std::unordered_map<std::string, std::shared_ptr<allscale::work_item_stats>> work_item_stats_map;  
-
-typedef hpx::lcos::local::spinlock mutex_type;
-mutex_type work_map_mutex;
-
-// For graph creation
-std::unordered_map<std::string, std::string> w_names; // Maps work_item name and ID for nice graph node labelling
-						      // Also serves as a list of nodes
-std::list <std::shared_ptr<allscale::work_item_dependency>> w_graph;
-
-// For graph creation from a specific node
-std::unordered_map<std::string, std::vector <std::string>> graph;
-
-// Measuring total execution time
-std::chrono::steady_clock::time_point execution_start;
-std::chrono::steady_clock::time_point execution_end;
-double wall_clock;
-
-// Historial data
-std::shared_ptr<allscale::historical_data> history;
-
-// Env. vars
-int output_treeture = 0;
-int output_iteration_trees = 0;
-   
+ 
 namespace allscale { namespace components {
 
 
-   void w_exec_start_wrapper(allscale::work_item const& w)
+   monitor::monitor(std::uint64_t rank)
+     : rank_(rank)
+     , output_profile_table_(0)
+     , output_treeture_(0)
+     , output_iteration_trees_(0)
+#ifdef REALTIME_VIZ
+     , num_active_tasks_(0)
+     , total_tasks_(0)
+     , realtime_viz(0)
+     , sample_id_(0)
+     , timer_(
+          hpx::util::bind(
+              &monitor::sample_task_stats,
+              this
+          ),
+          10000,
+          "monitor:sample_task_stats",
+          true
+       )
+#endif
+    {
+
+    }
+
+#ifdef REALTIME_VIZ
+   bool monitor::sample_task_stats()
+   {
+      hpx::performance_counters::counter_value idle_value;
+      hpx::performance_counters::counter_value rss_value;
+
+      idle_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                hpx::launch::sync, idle_rate_counter_);
+      rss_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                hpx::launch::sync, resident_memory_counter_);
+
+
+     std::unique_lock<std::mutex> lock(counter_mutex_);
+
+     idle_rate_ = idle_value.get_value<double>() * 0.01;
+     resident_memory_ = rss_value.get_value<double>() * 1e-6; 
+
+     data_file << sample_id_++ << "\t" << num_active_tasks_ << "\t" 
+               << get_avg_task_duration() << "\t" << idle_rate_ << "\t" << resident_memory_ << std::endl;
+     
+//     std::cout << "Total number of tasks: " << total_tasks_ << " Number of active tasks: " << num_active_tasks_ 
+//	       << "Average time per task: " << get_avg_task_duration() <<  "IDLE RATE: " << idle_rate_ << std::endl; 
+     return true;
+   }
+
+ 
+   double monitor::get_avg_task_duration()
+   {
+     if(!total_tasks_) return 0.0;
+     else return total_task_duration_/(double)total_tasks_;
+   }
+
+#endif
+
+
+   void monitor::w_exec_start_wrapper(work_item const& w)
    {
       allscale::this_work_item::id my_wid = w.id();
       std::shared_ptr<allscale::profile> p(new profile());
@@ -70,6 +83,15 @@ namespace allscale { namespace components {
 			 std::vector<std::string>(1, my_wid.name())));
       }
       else it->second.push_back(my_wid.name());
+
+#ifdef REALTIME_VIZ
+      if(realtime_viz) {
+         std::unique_lock<std::mutex> lock2(counter_mutex_);
+         num_active_tasks_++;
+         lock2.unlock();
+      }
+#endif
+
 /*
       std::cout
           << "Start work item "
@@ -82,7 +104,14 @@ namespace allscale { namespace components {
 */
    }
 
-   void w_exec_finish_wrapper(allscale::work_item const& w)
+
+   void monitor::global_w_exec_start_wrapper(work_item const& w)
+   {
+	(allscale::monitor::get_ptr().get())->w_exec_start_wrapper(w);
+   }
+
+
+   void monitor::w_exec_finish_wrapper(work_item const& w)
    {
       allscale::this_work_item::id my_wid = w.id();
       std::shared_ptr<allscale::profile> p;
@@ -93,7 +122,16 @@ namespace allscale { namespace components {
       p = profiles[my_wid.name()];
 
       p->end = std::chrono::steady_clock::now();
-      
+
+#ifdef REALTIME_VIZ
+      if(realtime_viz) {
+         // Global task stats
+         std::unique_lock<std::mutex> lock2(counter_mutex_);
+         total_tasks_++; num_active_tasks_--;
+         total_task_duration_ += p->get_exclusive_time();
+         lock2.unlock();
+      }
+#endif
 
 #ifdef HAVE_PAPI
       // Record PAPI counters for this work item
@@ -141,6 +179,7 @@ namespace allscale { namespace components {
       p->push(time);
 
 
+
 /*
       std::cout
           << "Finish work item "
@@ -152,8 +191,13 @@ namespace allscale { namespace components {
    }
 
 
+   void monitor::global_w_exec_finish_wrapper(work_item const& w)
+   {
+        (allscale::monitor::get_ptr().get())->w_exec_finish_wrapper(w);
+   }
 
-   void w_result_propagated_wrapper(allscale::work_item const& w)
+
+   void monitor::w_result_propagated_wrapper(allscale::work_item const& w)
    {
       allscale::this_work_item::id my_wid = w.id();
       std::shared_ptr<allscale::profile> p;
@@ -174,8 +218,14 @@ namespace allscale { namespace components {
    }
 
 
+   void monitor::global_w_result_propagated_wrapper(work_item const& w)
+   {
+        (allscale::monitor::get_ptr().get())->w_result_propagated_wrapper(w);
+   }
+
+
    // Signal for new iteration
-   void w_app_iteration(allscale::work_item const& w)
+   void monitor::w_app_iteration(allscale::work_item const& w)
    {
       if(history->current_iteration < 0) {
 //	 history = std::make_shared<allscale::historical_data>();
@@ -189,8 +239,14 @@ namespace allscale { namespace components {
    }
 
 
+   void monitor::global_w_app_iteration(work_item const& w)
+   {
+        (allscale::monitor::get_ptr().get())->w_app_iteration(w);
+   }
+
+
    // Returns the exclusive time for a work item with ID w_id
-   double get_exclusive_time(std::string w_id)
+   double monitor::get_exclusive_time(std::string w_id)
    {
       std::lock_guard<mutex_type> lock(work_map_mutex);
       std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it = profiles.find(w_id);
@@ -203,7 +259,7 @@ namespace allscale { namespace components {
 
 
    // Returns the inclusive time for a work item with ID w_id
-   double get_inclusive_time(std::string w_id)
+   double monitor::get_inclusive_time(std::string w_id)
    {
       std::lock_guard<mutex_type> lock(work_map_mutex);
       std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it = profiles.find(w_id);
@@ -215,7 +271,7 @@ namespace allscale { namespace components {
    }
 
    // Returns the average exclusive time for a work item with name w_name
-   double get_average_exclusive_time(std::string w_name)
+   double monitor::get_average_exclusive_time(std::string w_name)
    {
       std::lock_guard<mutex_type> lock(work_map_mutex);
       std::unordered_map<std::string, std::shared_ptr<allscale::work_item_stats>>::const_iterator it = 
@@ -228,7 +284,7 @@ namespace allscale { namespace components {
    }
 
    // Returns the minimum exclusive time for a work item with name w_name
-   double get_minimum_exclusive_time(std::string w_name)
+   double monitor::get_minimum_exclusive_time(std::string w_name)
    {
       std::lock_guard<mutex_type> lock(work_map_mutex);
       std::unordered_map<std::string, std::shared_ptr<allscale::work_item_stats>>::const_iterator it = 
@@ -243,7 +299,7 @@ namespace allscale { namespace components {
 
 
    // Returns the maximum exclusive time for a work item with name w_name
-   double get_maximum_exclusive_time(std::string w_name)
+   double monitor::get_maximum_exclusive_time(std::string w_name)
    {
       std::lock_guard<mutex_type> lock(work_map_mutex);
       std::unordered_map<std::string, std::shared_ptr<allscale::work_item_stats>>::const_iterator it = 
@@ -258,7 +314,7 @@ namespace allscale { namespace components {
 
 
    // Returns the mean exclusive time for all children
-   double get_children_mean_time(std::string w_id)
+   double monitor::get_children_mean_time(std::string w_id)
    {
       std::lock_guard<mutex_type> lock(work_map_mutex);
       std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it = profiles.find(w_id);
@@ -271,7 +327,7 @@ namespace allscale { namespace components {
 
 
    // Returns the exclusive time standard deviation for all children
-   double get_children_SD_time(std::string w_id)
+   double monitor::get_children_SD_time(std::string w_id)
    {
       std::lock_guard<mutex_type> lock(work_map_mutex);
       std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it = profiles.find(w_id);
@@ -282,6 +338,7 @@ namespace allscale { namespace components {
          return (it->second)->StandardDeviation();
    }
 
+#if 0
    // Returns PAPI counters for a work item with ID w_id
    long long *get_papi_counters(std::string w_id)
    {
@@ -312,21 +369,22 @@ namespace allscale { namespace components {
 #endif
    }
 
+#endif
 
-   double get_iteration_time(int i)
+   double monitor::get_iteration_time(int i)
    {
       if(i < 0 || i >= history->iteration_time.size()) return 0.0;
       else return history->iteration_time[i];
    }
 
 
-   double get_last_iteration_time()
+   double monitor::get_last_iteration_time()
    {
       if(!(history->iteration_time.size())) return 0.0;
       else return history->iteration_time.back();
    }
 
-   long get_number_of_iterations()
+   long monitor::get_number_of_iterations()
    {
       return history->current_iteration;
    }
@@ -334,7 +392,7 @@ namespace allscale { namespace components {
 
    // Translates a work ID changing it prefix with the last iteration root 
    // Returns the same label for work items of the first iteration
-   std::string match_previous_treeture(std::string const& w_ID)
+   std::string monitor::match_previous_treeture(std::string const& w_ID)
    {
       std::string match = w_ID;
       int last_iteration = history->current_iteration - 1;
@@ -349,7 +407,7 @@ namespace allscale { namespace components {
    }
 
 
-   void print_node(std::ofstream& myfile, std::string node, double total_tree_time)
+   void monitor::print_node(std::ofstream& myfile, std::string node, double total_tree_time)
    {
       std::string label;
       double excl_elapsed, incl_elapsed;
@@ -381,7 +439,7 @@ namespace allscale { namespace components {
 
    }
 
-   void print_edges(std::ofstream& myfile, std::string node)
+   void monitor::print_edges(std::ofstream& myfile, std::string node)
    {
       double excl_elapsed, incl_elapsed;
 
@@ -437,7 +495,7 @@ namespace allscale { namespace components {
    }
 
 
-   void print_treeture(std::string filename, std::string root, double total_tree_time)
+   void monitor::print_treeture(std::string filename, std::string root, double total_tree_time)
    {
       double excl_elapsed, incl_elapsed;
       std::ofstream myfile;
@@ -515,7 +573,7 @@ namespace allscale { namespace components {
       myfile.close();
    }
 
-   void print_trees_per_iteration() 
+   void monitor::print_trees_per_iteration() 
    {
       std::string filename;
 
@@ -538,7 +596,7 @@ namespace allscale { namespace components {
 
    // Create task graph
    // TODO make it shorter and more structured
-   void create_work_item_graph() {
+   void monitor::create_work_item_graph() {
 //      std::lock_guard<mutex_type> lock(work_map_mutex);
       double excl_elapsed, incl_elapsed;
       std::ofstream myfile;
@@ -629,7 +687,7 @@ namespace allscale { namespace components {
    }
 
 
-   void monitor_component_output() {
+   void monitor::monitor_component_output() {
 //      std::lock_guard<mutex_type> lock(work_map_mutex);
 
 
@@ -671,13 +729,18 @@ namespace allscale { namespace components {
 
 
 
-   void monitor_component_finalize() {
+   void monitor::stop() {
 
       execution_end = std::chrono::steady_clock::now();
 
       std::chrono::duration<double> total_time_elapsed =
           std::chrono::duration_cast<std::chrono::duration<double>>(execution_end - execution_start);
       wall_clock = total_time_elapsed.count();
+
+#ifdef REALTIME_VIZ
+      timer_.stop();
+      data_file.close();
+#endif
 
       // Finish time for "main" work item
 //      std::lock_guard<mutex_type> lock(work_map_mutex);
@@ -688,34 +751,73 @@ namespace allscale { namespace components {
 
 
       // Dump profile reports and graphs
-      monitor_component_output();
+      if(output_profile_table_)
+	 monitor_component_output();
 
-      if(output_treeture)
+      if(output_treeture_)
          create_work_item_graph();
 
-      if(output_iteration_trees) {
+      if(output_iteration_trees_) {
          history->new_iteration(std::string("foo"));
          print_trees_per_iteration();
       }
    }
 
+   void monitor::global_finalize() {
+//      (allscale::monitor::get_ptr().get())->monitor_component_finalize();
+   }
 
-   void monitor_component_init() {
+   void monitor::init() {
 
-      allscale::monitor::connect(allscale::monitor::work_item_execution_started, w_exec_start_wrapper);
-      allscale::monitor::connect(allscale::monitor::work_item_execution_finished, w_exec_finish_wrapper);
-      allscale::monitor::connect(allscale::monitor::work_item_result_propagated, w_result_propagated_wrapper);
-      allscale::monitor::connect(allscale::monitor::work_item_first, w_app_iteration);
+      allscale::monitor::connect(allscale::monitor::work_item_execution_started, monitor::global_w_exec_start_wrapper);
+      allscale::monitor::connect(allscale::monitor::work_item_execution_finished, monitor::global_w_exec_finish_wrapper);
+      allscale::monitor::connect(allscale::monitor::work_item_result_propagated, monitor::global_w_result_propagated_wrapper);
+      allscale::monitor::connect(allscale::monitor::work_item_first, monitor::global_w_app_iteration);
 
-      const int result = std::atexit(monitor_component_finalize);
-      if(result != 0) std::cerr << "Registration of monitor_finalize function failed!" << std::endl;
+//      const int result = std::atexit(global_finalize);
+//      if(result != 0) std::cerr << "Registration of monitor_finalize function failed!" << std::endl;
 
       // Check environment variables
+      if(const char* env_p = std::getenv("PRINT_PERFORMANCE_TABLE"))
+         if(atoi(env_p) == 1) output_profile_table_ = 1;
+
       if(const char* env_p = std::getenv("PRINT_TREE_ITERATIONS"))
-	 output_iteration_trees = atoi(env_p);
-     
+         if(atoi(env_p) == 1) output_iteration_trees_ = 1;
+
       if(const char* env_p = std::getenv("PRINT_TREETURE"))
-         output_treeture = atoi(env_p);
+         if(atoi(env_p) == 1) output_treeture_ = 1;
+
+      if(const char* env_p = std::getenv("REALTIME_VIZ"))
+         if(atoi(env_p) == 1) {
+#ifdef REALTIME_VIZ
+               realtime_viz = 1;
+
+	       data_file.open ("realtime_data.txt", std::ofstream::out | std::ofstream::trunc); 	
+
+               // setup performance counter
+               static const char * idle_counter_name = "/threads{locality#%d/total}/idle-rate";
+               static const char * vm_counter_name = "/runtime{locality#%d/total}/memory/resident";
+
+               const std::uint32_t prefix = hpx::get_locality_id();
+
+               idle_rate_counter_ = hpx::performance_counters::get_counter(
+                    boost::str(boost::format(idle_counter_name) % prefix));
+
+               resident_memory_counter_ = hpx::performance_counters::get_counter(
+                    boost::str(boost::format(vm_counter_name) % prefix));
+
+               hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_rate_counter_);
+               hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, resident_memory_counter_);
+
+               sample_task_stats();
+
+               timer_.start();
+
+#else
+                std::cerr << "Var. REALTIME_VIZ defined but code compiled without REALTIME_VIZ support!" << std::endl;
+#endif
+         }
+
 
       execution_start = std::chrono::steady_clock::now();
 

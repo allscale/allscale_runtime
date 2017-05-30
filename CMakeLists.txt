@@ -8,11 +8,14 @@ if (ALLSCALE_SHARED_MEMORY_ONLY)
   add_definitions(-DALLSCALE_SHARED_MEMORY_ONLY)
 endif()
 
+if (ALLSCALE_REALTIME_VIZ)
+add_definitions(-DREALTIME_VIZ)
+endif()
+
 include_directories(${CMAKE_SOURCE_DIR})
 
 add_subdirectory(src)
 add_subdirectory(examples)
-
 
 if(ALLSCALE_WITH_TESTS)
   enable_testing()

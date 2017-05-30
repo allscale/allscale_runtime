@@ -5,8 +5,14 @@
 #include <allscale/this_work_item.hpp>
 
 #include <functional>
+#include <memory>
 
 namespace allscale {
+
+    namespace components
+    {
+	struct monitor;
+    }
 
     struct work_item;
 
@@ -26,8 +32,22 @@ namespace allscale {
             std::function<void(work_item const&)>
             event_function;
 
-        static void connect(event, event_function f);
-        static void signal(event, work_item const& w);
+        static components::monitor* run(std::size_t rank);
+        static void connect(event e, event_function f);
+        static void signal(event e, work_item const& w);
+        static components::monitor & get();
+        static std::shared_ptr<components::monitor> & get_ptr();
+        static void stop();
+
+    private:
+        static std::size_t rank_;
+//        static std::shared_ptr<components::monitor> & get_ptr();
+//        static components::monitor & get();
+
+        monitor(std::size_t rank);
+
+        std::shared_ptr<components::monitor> component_;
+
     };
 };
 
