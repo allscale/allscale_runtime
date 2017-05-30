@@ -15,7 +15,10 @@ namespace allscale { namespace components {
       , rank_(rank)
       , schedule_rank_(0)
       , stopped_(false)
+      , allscale_app_time(0.0)
       , os_thread_count(hpx::get_os_thread_count())
+      , active_threads(os_thread_count)
+      , last_thread_time(0.0)
 //       , count_(0)
       , timer_(
             hpx::util::bind(
@@ -75,7 +78,7 @@ namespace allscale { namespace components {
         // setup performance counter to use to decide on split/process
         static const char * queue_counter_name = "/threadqueue{locality#%d/total}/length";
 //         static const char * idle_counter_name = "/threads{locality#%d/total}/idle-rate";
-        static const char * allscale_app_counter_name = "/allscale{locality#*/total}/examples/app_time";
+//         static const char * allscale_app_counter_name = "/allscale{locality#*/total}/examples/app_time";
         //static const char * threads_time_total = "/threads{locality#*/total}/time/overall";
 
         const std::uint32_t prefix = hpx::get_locality_id();
@@ -105,8 +108,8 @@ namespace allscale { namespace components {
 //         timer_.start();
 
         if (input_objective == scheduler::objectives.at(objective_IDs::TIME_RESOURCE) ) {
-            allscale_app_counter_id = hpx::performance_counters::get_counter(allscale_app_counter_name);
-            hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, allscale_app_counter_id);
+//             allscale_app_counter_id = hpx::performance_counters::get_counter(allscale_app_counter_name);
+//             hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, allscale_app_counter_id);
 
 	    thread_manager = dynamic_cast<hpx::threads::threadmanager_impl<hpx::threads::policies::throttling_scheduler<>>* >(&hpx::get_runtime().get_thread_manager());
             if (thread_manager != nullptr) {
@@ -116,7 +119,7 @@ namespace allscale { namespace components {
 			"thread_manager is null. Make sure you select throttling scheduler via --hpx:queuing=throttling");
             }
 
-	    throttle_timer_.start();
+// 	    throttle_timer_.start();
         }
 
         std::cerr
@@ -170,6 +173,11 @@ namespace allscale { namespace components {
                             it->second.add(std::move(lk), work.get_treeture());
                         }
                         monitor::signal(monitor::work_item_first, work);
+
+                        if (current_id % 100)
+                        {
+                            periodic_throttle();
+                        }
                     }
                     else
                     {
@@ -203,7 +211,7 @@ namespace allscale { namespace components {
     {
 //         return (w.id().depth() <= 1.5 * hpx::get_os_thread_count());
         // FIXME: make the cut off runtime configurable...
-        if (w.id().depth() > num_threads_) return false;
+        if (w.id().depth() > active_threads) return false;
 
     	//std::cout<< " wcansplit: " << w.can_split()<<std::endl;
         if (!w.can_split()) return false;
@@ -258,51 +266,54 @@ namespace allscale { namespace components {
 
     bool scheduler::periodic_throttle()
     {
-        if ( num_threads_ > 1 && input_objective == scheduler::objectives.at(objective_IDs::TIME_RESOURCE) ) {
-		const std::size_t worker_tid = hpx::get_worker_thread_num();
-		auto allscale_app_counter = hpx::performance_counters::stubs::performance_counter::get_value(
-						hpx::launch::sync, allscale_app_counter_id);
+        if ( num_threads_ > 1 && input_objective == scheduler::objectives.at(objective_IDs::TIME_RESOURCE) )
+        {
+//             const std::size_t worker_tid = hpx::get_worker_thread_num();
+//             auto allscale_app_counter = hpx::performance_counters::stubs::performance_counter::get_value(
+//                 hpx::launch::sync, allscale_app_counter_id);
 
-		{
-		        std::unique_lock<mutex_type> l(resize_mtx_);
-			allscale_app_time = allscale_app_counter.get_value<std::int64_t>();
+            // FIXME: this should really use the monitoring component...
+            if (allscale_app_time == 0.0)
+            {
+                allscale_app_time = hpx::util::high_resolution_timer::now();
+                return true;
+            }
 
-			boost::dynamic_bitset<> const & blocked_os_threads_ = thread_manager->get_pool_scheduler().get_disabled_os_threads();
- 			std::size_t active_threads = os_thread_count - blocked_os_threads_.count();
-
-			const std::size_t MIN_THREADS = 5;				//if we disable by 2 we should not go below 4
-			const std::size_t SMALL_SYSTEM = 16;                      	//TOOD: make it configurable
-        	        const std::size_t SMALL_SUSPEND_CAP = 1;                        //TODO make it configurable
-	                const std::size_t LARGE_SUSPEND_CAP = active_threads * 0.20;    //TODO make it configurable
-			const std::size_t SMALL_RESUME_CAP = 1;
-		        const std::size_t LARGE_RESUME_CAP = std::max((std::size_t)(blocked_os_threads_.count() * 0.20), SMALL_RESUME_CAP);
-
-                        std::size_t suspend_cap = 2; //active_threads < SMALL_SYSTEM  ? SMALL_SUSPEND_CAP : LARGE_SUSPEND_CAP;
-			std::size_t resume_cap = 1; //active_threads < SMALL_SYSTEM  ? LARGE_RESUME_CAP : SMALL_RESUME_CAP;
+            double now = hpx::util::high_resolution_timer::now();
+            double elapsed = now - allscale_app_time;
+            allscale_app_time = now;
+            double last_time = last_thread_time;
+            last_thread_time = elapsed;
 
 			if ( allscale_app_time > 0 )
-			  if ( active_threads > MIN_THREADS && ( last_thread_time ==0  || allscale_app_time < last_thread_time ) ) {
+            {
+                boost::dynamic_bitset<> const & blocked_os_threads_ =
+                    thread_manager->get_pool_scheduler().get_disabled_os_threads();
+                active_threads = os_thread_count - blocked_os_threads_.count();
 
-				  {
-					hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
-				        thread_manager->get_pool_scheduler().disable_more(suspend_cap);
-					std::cout << "Sent disable signal. Active threads: " << active_threads << std::endl;
-				  }
+                const std::size_t MIN_THREADS = 5;				//if we disable by 2 we should not go below 4
+                const std::size_t SMALL_SYSTEM = 16;                      	//TOOD: make it configurable
+                const std::size_t SMALL_SUSPEND_CAP = 1;                        //TODO make it configurable
+                const std::size_t LARGE_SUSPEND_CAP = active_threads * 0.20;    //TODO make it configurable
+                const std::size_t SMALL_RESUME_CAP = 1;
+                const std::size_t LARGE_RESUME_CAP = std::max((std::size_t)(blocked_os_threads_.count() * 0.20), SMALL_RESUME_CAP);
 
-			  } else if ( blocked_os_threads_.any() && allscale_app_time > 1.2*last_thread_time ) {
+                std::size_t suspend_cap = 1; //active_threads < SMALL_SYSTEM  ? SMALL_SUSPEND_CAP : LARGE_SUSPEND_CAP;
+                std::size_t resume_cap = 1; //active_threads < SMALL_SYSTEM  ? LARGE_RESUME_CAP : SMALL_RESUME_CAP;
 
-			          {
-	         	              hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
-				      thread_manager->get_pool_scheduler().enable_more(resume_cap);
-				      std::cout << "Sent enable signal. Active threads: " << active_threads << std::endl;
-			 	  }
- 	                  }
-		}
+                // FIXME: add statistical regression...
+                if ( active_threads > MIN_THREADS && ( last_time ==0  || 1.2*elapsed < last_time ) )
+                {
+                    thread_manager->get_pool_scheduler().disable_more(suspend_cap);
+                    std::cout << "Sent disable signal. Active threads: " << active_threads - suspend_cap << std::endl;
+                }
+                else if ( blocked_os_threads_.any() && elapsed > 1.2*last_time )
+                {
+                    thread_manager->get_pool_scheduler().enable_more(resume_cap);
+                    std::cout << "Sent enable signal. Active threads: " << active_threads + resume_cap << std::endl;
+                }
+            }
 
-		{
-	      	    std::unique_lock<mutex_type> l(resize_mtx_);
-		    last_thread_time = allscale_app_time;
-		}
         }
 
         return true;
@@ -314,8 +325,8 @@ namespace allscale { namespace components {
     {
 //         timer_.stop();
 
-        if (input_objective == scheduler::objectives.at(objective_IDs::TIME_RESOURCE))
-            throttle_timer_.stop();
+//         if (input_objective == scheduler::objectives.at(objective_IDs::TIME_RESOURCE))
+//             throttle_timer_.stop();
 
         if(stopped_)
             return;

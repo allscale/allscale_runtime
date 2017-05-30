@@ -82,6 +82,7 @@ namespace allscale { namespace components {
         boost::atomic<std::size_t> current_;
 
         std::size_t os_thread_count;
+        std::size_t active_threads;
 
 //        void resume(std::size_t shepherd);
 //        void resume_all();
