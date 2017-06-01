@@ -39,6 +39,7 @@ int main_wrapper(const Args& ... args) {
 
         res = allscale::spawn_first<MainWorkItem>(args...).get_result();
         allscale::scheduler::stop();
+        allscale::monitor::stop();
     }
 
     // Force the optimizer to initialize the runtime...
