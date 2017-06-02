@@ -305,13 +305,13 @@ namespace allscale { namespace components {
                 // FIXME: add statistical regression...
                 if ( active_threads > MIN_THREADS && ( last_time ==0  || 1.2*elapsed < last_time ) )
                 {
-                    depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5))
+                    depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5));
                     thread_manager->get_pool_scheduler().disable_more(suspend_cap);
                     std::cout << "Sent disable signal. Active threads: " << active_threads - suspend_cap << std::endl;
                 }
                 else if ( blocked_os_threads_.any() && elapsed > 1.2*last_time )
                 {
-                    depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5))
+                    depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5));
                     thread_manager->get_pool_scheduler().enable_more(resume_cap);
                     std::cout << "Sent enable signal. Active threads: " << active_threads + resume_cap << std::endl;
                 }
