@@ -83,6 +83,7 @@ namespace allscale { namespace components {
 
         std::size_t os_thread_count;
         std::size_t active_threads;
+        std::size_t depth_cap;
 
 //        void resume(std::size_t shepherd);
 //        void resume_all();
