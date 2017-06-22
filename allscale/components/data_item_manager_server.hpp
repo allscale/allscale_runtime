@@ -184,31 +184,15 @@ struct data_item_manager_server: hpx::components::managed_component_base<
                 fragment_type frag = *(std::static_pointer_cast<fragment_type>(el));
                 if( frag.region_.has_intersection_with(target_region)){
                 	//std::cout<<"region is : " << frag.region_.to_string() << std::endl;
-    				target_pair = new pair_type(frag.region_, this->get_id());
+    				//target_pair = new pair_type(frag.region_, this->get_id());
+    				target_pair = new pair_type(frag.region_, it->first);
+
     				tmp2.push_back(*(target_pair));
 
                 }
             }
         
         }
-        /*
-
-		for (std::shared_ptr<data_item_base> base_item : local_data_items) {
-			data_item_type tmp = *(std::static_pointer_cast<data_item_type>(
-					base_item));
-			if (tmp.region_.has_intersection_with(target_region)) {
-				//        std::cout<< "Found the data item on locality: " << tmp.parent_loc  << std::endl;
-				//target_pair = new pair_type(tmp.region_,tmp.parent_loc);
-				target_pair = new pair_type(tmp.region_, this->get_id());
-
-				tmp2.push_back(*(target_pair));
-			}
-		}
-        */
-
-
-
-
 
 		promise_.set_value(tmp2);
 		return promise_.get_future();
@@ -263,26 +247,34 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 	hpx::future<typename DataItemDescription::fragment_type> acquire_fragment_async(
             hpx::id_type data_item_id,
 			typename DataItemDescription::region_type const& region) {
+		using fragment_type = typename DataItemDescription::fragment_type;
 		//		std::cout<<"acquire is called for region: "<< region.to_string() << std::endl;
 		using future_type = typename DataItemDescription::fragment_type;
 		future_type tmp2;
 		hpx::lcos::local::promise<future_type> promise_;
 
 		using data_item_type = allscale::data_item<DataItemDescription>;
-		for (std::shared_ptr<data_item_base> base_item : local_data_items) {
-			data_item_type tmp = *(std::static_pointer_cast<data_item_type>(
-					base_item));
-			if (region == tmp.region_) {
-				//				std::cout<<"found this region exactly"<<std::endl;
-				//hand out a copy of fragment
-				tmp2 = tmp.fragment_;
+
+		map_type::const_iterator got = difm.find(data_item_id);
+
+	if (got == difm.end()) {
+				std::cout << data_item_id << " was not found on loc id: "
+						<< hpx::get_locality_id() << std::endl;
+
+				return promise_.get_future();
+
 			}
+			else {
 
-		}
+				for( auto & el :  difm[data_item_id]){
+	                fragment_type frag = *(std::static_pointer_cast<fragment_type>(el));
 
-		promise_.set_value(tmp2);
+					if (region == frag.region_){
+						promise_.set_value(frag);
+					}
+				}
+	       }
 		return promise_.get_future();
-
 	}
 
 	template<typename DataItemDescription>
