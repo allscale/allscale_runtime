@@ -10,7 +10,7 @@
 //#include <allscale/runtime.hpp>
 
 #include <unistd.h>
-
+#include <iostream>
 
 // a handle for loop iterations
 class pfor_loop_handle {
@@ -205,6 +205,7 @@ using pfor_neighbor_sync_work =
 template<typename Body, typename ... ExtraParams>
 struct pfor_neighbor_sync_split_variant
 {
+
     static constexpr bool valid = true;
     using result_type = void;
 
@@ -213,6 +214,7 @@ struct pfor_neighbor_sync_split_variant
     template <typename Closure>
     static hpx::future<void> execute(Closure closure)
     {
+
         // extract parameters
         auto begin = hpx::util::get<0>(closure);
         auto end   = hpx::util::get<1>(closure);

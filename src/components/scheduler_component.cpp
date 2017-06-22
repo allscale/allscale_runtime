@@ -134,6 +134,8 @@ namespace allscale { namespace components {
         //std::cout<<"remote is " << remote << std::endl;
         if (work.enqueue_remote())
         {
+        	std::cout<<"schedulign work item on loc " << hpx::get_locality_id()<<std::endl;
+
             schedule_rank = schedule_rank_.fetch_add(1) % 3;
         }
 
