@@ -113,6 +113,8 @@ ALLSCALE_REGISTER_DATA_ITEM_MANAGER_SERVER_COMPONENT()
 
 
 
+//ALLSCALE_REGISTER_FRAGMENT_TYPE(grid_region_type,value_type);
+
 
 
 
@@ -141,20 +143,44 @@ struct simple_stencil_body {
 
         auto server_0 =  hpx::util::get<3>(params);
         auto server_1 =  hpx::util::get<4>(params);
-    	grid_region_type reg(0, 9);
+    	grid_region_type reg(0, 100000);
 
     	using acquire_action = typename allscale::components::data_item_manager_server::acquire_fragment_async_action<grid_data_item_descr>;
 
 
-        if(hpx::get_locality_id()!=0){
+        if(hpx::get_locality_id()==0){
         	std::cout<<"not on main \n";
             std::cout<<"loc from item : "<< hpx::naming::get_locality_id_from_id(data_item_a_id) <<" loc:" <<  hpx::get_locality_id()<<std::endl;
-			auto frag = hpx::async<acquire_action>(server_0,data_item_a_id,reg).get();
-			std::cout<<"bullshit" << std::endl;
-			std::cout<< (*frag.ptr_)[0]<<std::endl;
+            
+            
+            hpx::future<grid_fragment> fut = hpx::async<acquire_action>(server_0,data_item_a_id,reg);
+            // hpx::future<grid_fragment> fut = hpx::async<acquire_action>(server_0,data_item_a_id,reg);
+            grid_fragment frag = fut.get();
+			//std::cout<<"bullshit" << std::endl;
+            //
 
+		    (*frag.ptr_)[i] = i;
 
         }
+
+
+
+
+        if(hpx::get_locality_id()==1){
+        	std::cout<<"not on main \n";
+            std::cout<<"loc from item : "<< hpx::naming::get_locality_id_from_id(data_item_a_id) <<" loc:" <<  hpx::get_locality_id()<<std::endl;
+            
+            
+            hpx::future<grid_fragment> fut = hpx::async<acquire_action>(server_1,data_item_a_id,reg);
+            // hpx::future<grid_fragment> fut = hpx::async<acquire_action>(server_0,data_item_a_id,reg);
+            grid_fragment frag = fut.get();
+			//std::cout<<"bullshit" << std::endl;
+            //
+
+		    (*frag.ptr_)[i] = i;
+
+        }
+
 
 //        HPX_ASSERT(i < n);
 //        HPX_ASSERT(i < dataA.size());
@@ -245,7 +271,31 @@ int hpx_main(int argc, char **argv) {
 		            	       }
 		            }
 		 }
+
+
+
+    	grid_region_type reg(0, 100000);
+    	using acquire_action = typename allscale::components::data_item_manager_server::acquire_fragment_async_action<grid_data_item_descr>;
+        hpx::future<grid_fragment> fut = hpx::async<acquire_action>(server_0.get_id(),data_item_a,reg);
+        grid_fragment frag = fut.get();
+
+        for(int i = 0; i < 100000; ++i){
+            std::cout << (*frag.ptr_)[i] << std::endl;
+        }
+
+
+
+
+
+
+
+
+
+
 		 allscale::scheduler::stop();
+
+
+
 
 		//pfor_neighbor_sync<simple_stencil_body>(last, 0, n, 0, n, server_1.get_id(), n, n);
         //last = pfor_neighbor_sync<simple_stencil_body>(last,0,n,t,n);

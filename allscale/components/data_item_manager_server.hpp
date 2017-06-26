@@ -111,12 +111,11 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 
 
 	template<typename DataItemDescription, typename ...Ts>
-	hpx::future<bool> create_fragment_async(hpx::id_type data_item_id,
+	bool create_fragment_async(hpx::id_type data_item_id,
 			typename DataItemDescription::region_type region, Ts&&... vs)
 
 	{
 
-		hpx::lcos::local::promise<bool> promise_;
 
         std::lock_guard<mutex_type> l(mtx_); 
         using fragment_type = typename DataItemDescription::fragment_type;
@@ -128,13 +127,16 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 		if (got == difm.end()) {
 			std::cout << data_item_id << " was not found on loc id: "
 					<< hpx::get_locality_id() << std::endl;
-			promise_.set_value(false);
-					return promise_.get_future();
+			return false;
 
 		}
 		else {
 
+	        mtx_.unlock();
 			std::shared_ptr<allscale::fragment_base> ptr = std::make_shared<fragment_type> (fragment_type(std::forward<Ts>(vs)...));
+
+			//std::shared_ptr<allscale::fragment_base> ptr = std::make_shared<fragment_type> (fragment_type(10));
+	        mtx_.lock();
 
 
 			//std::shared_ptr<allscale::fragment_base> ptr = std::make_shared<fragment_type> (fragment_type(region,std::vector<int>(10,337)));
@@ -149,13 +151,12 @@ struct data_item_manager_server: hpx::components::managed_component_base<
             }*/
         }
 
-		promise_.set_value(true);
-		return promise_.get_future();
+		return true;
 	}
 
 	template<typename DataItemDescription,  typename ...Ts>
 	struct create_fragment_async_action: hpx::actions::make_action<
-			hpx::future<bool> (data_item_manager_server::*)(hpx::id_type,
+			bool (data_item_manager_server::*)(hpx::id_type,
 					typename DataItemDescription::region_type, Ts&&...  ),
 			&data_item_manager_server::template create_fragment_async<
 					DataItemDescription, Ts...>,
@@ -276,8 +277,11 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 
 
 	        for (auto it = difm.begin(); it != difm.end(); ++it){
+	        	std::cout<< "first is : " << it->first << std::endl;
 	            for (auto & el : it->second){
 	                fragment_type frag = *(std::static_pointer_cast<fragment_type>(el));
+
+	                std::cout<< "checkng region " << frag.region_.to_string() << std::endl;
 	                if( frag.region_.has_intersection_with(target_region)){
 	                	//std::cout<<"region is : " << frag.region_.to_string() << std::endl;
 	    				//target_pair = new pair_type(frag.region_, this->get_id());
@@ -402,42 +406,42 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 	};
 
 	template<typename DataItemDescription>
-	hpx::future<typename DataItemDescription::fragment_type> acquire_fragment_async(
+	typename DataItemDescription::fragment_type acquire_fragment_async(
             hpx::id_type data_item_id,
 			typename DataItemDescription::region_type const& region) {
 		using fragment_type = typename DataItemDescription::fragment_type;
 		//		std::cout<<"acquire is called for region: "<< region.to_string() << std::endl;
-		using future_type = typename DataItemDescription::fragment_type;
-		future_type tmp2;
-		hpx::lcos::local::promise<future_type> promise_;
+		//using future_type = typename DataItemDescription::fragment_type;
+		//future_type tmp2;
+		//hpx::lcos::local::promise<future_type> promise_;
+
 		using data_item_type = allscale::data_item<DataItemDescription>;
+        //std::lock_guard<mutex_type> l(mtx_);
 
 		map_type::const_iterator got = difm.find(data_item_id);
 
 		if (got == difm.end()) {
 			std::cout << data_item_id << " was not found on loc id: "
 					<< hpx::get_locality_id() << std::endl;
-
-			return promise_.get_future();
+			return fragment_type();
 
 		}
 		else {
 			for( auto & el :  difm[data_item_id]){
-				fragment_type frag = *(std::static_pointer_cast<fragment_type>(el));
-
+                //       mtx_.unlock();  
+                fragment_type frag = *(std::static_pointer_cast<fragment_type>(el));
 				if (region == frag.region_){
-					promise_.set_value(frag);
+                    return frag;
 				}
-			}
+		//	    mtx_.lock();
+            }
 	   }
-		std::cout<<"acaquire called on loc: " << hpx::get_locality_id() << std::endl;
-
-		return promise_.get_future();
+        return fragment_type();
 	}
 
 	template<typename DataItemDescription>
 	struct acquire_fragment_async_action: hpx::actions::make_action<
-			hpx::future<typename DataItemDescription::fragment_type> (data_item_manager_server::*)(
+			typename DataItemDescription::fragment_type (data_item_manager_server::*)(
 					typename hpx::id_type,
                     typename DataItemDescription::region_type const&),
 			&data_item_manager_server::template acquire_fragment_async<

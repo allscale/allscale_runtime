@@ -19,6 +19,7 @@ using descr = allscale::data_item_description<my_region,my_fragment,int>;
 using test_item = allscale::data_item<descr>;
 
 ALLSCALE_REGISTER_DATA_ITEM_TYPE(descr);
+//ALLSCALE_REGISTER_FRAGMENT_TYPE(my_region,int);
 
 int some_global_function(test_item  td) {
 	return *(td.fragment_.ptr_) * 7;
