@@ -101,44 +101,66 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 			create_empty_data_item_async_action<T> > {
 	};
 
-	template<typename DataItemDescription>
-	hpx::future<bool> create_fragment_async(hpx::id_type data_item_id,
-			typename DataItemDescription::region_type region)
+
+	template<typename Fragment>
+	void tester(typename Fragment::region_type region, std::shared_ptr<typename Fragment::value_type> ptr)
+	{
+		std::cout<<"this region :  " << region.to_string() << std::endl;
+		//Fragment k(region,ptr);
+	}
+
+
+	template<typename DataItemDescription, typename ...Ts>
+	bool create_fragment_async(hpx::id_type data_item_id,
+			typename DataItemDescription::region_type region, Ts&&... vs)
 
 	{
+
+
         std::lock_guard<mutex_type> l(mtx_); 
         using fragment_type = typename DataItemDescription::fragment_type;
+        //tester<fragment_type>(std::forward<Ts>(vs)...);
+		//tester<fragment_type>(vs...);
 
 		map_type::const_iterator got = difm.find(data_item_id);
 
 		if (got == difm.end()) {
 			std::cout << data_item_id << " was not found on loc id: "
 					<< hpx::get_locality_id() << std::endl;
+			return false;
+
 		}
 		else {
-			std::shared_ptr<allscale::fragment_base> ptr = std::make_shared<fragment_type> (fragment_type(region,std::vector<int>(10,337)));
+
+	        mtx_.unlock();
+			std::shared_ptr<allscale::fragment_base> ptr = std::make_shared<fragment_type> (fragment_type(std::forward<Ts>(vs)...));
+
+			//std::shared_ptr<allscale::fragment_base> ptr = std::make_shared<fragment_type> (fragment_type(10));
+	        mtx_.lock();
+
+
+			//std::shared_ptr<allscale::fragment_base> ptr = std::make_shared<fragment_type> (fragment_type(region,std::vector<int>(10,337)));
             difm[data_item_id].push_back(ptr);
             //std::shared_ptr<allscale::fragment_base> ptr = std::make_shared<typename DataItemDescription::fragment_type>(typename DataItemDescription::fragment_type );
 			 // std::cout << data_item_id << " is " << difm[data_item_id].size()
 			 // << " loc id: " << hpx::get_locality_id() << std::endl;
+
+            /*
 		    for( auto & el : difm[data_item_id] ){
                 fragment_type frag = *(std::static_pointer_cast<fragment_type>(el));
-                std::cout<<"region is : " << frag.region_.to_string() << std::endl;
-            }
+            }*/
         }
-		hpx::lcos::local::promise<bool> promise_;
 
-		promise_.set_value(true);
-		return promise_.get_future();
+		return true;
 	}
 
-	template<typename DataItemDescription>
+	template<typename DataItemDescription,  typename ...Ts>
 	struct create_fragment_async_action: hpx::actions::make_action<
-			hpx::future<bool> (data_item_manager_server::*)(hpx::id_type,
-					typename DataItemDescription::region_type),
+			bool (data_item_manager_server::*)(hpx::id_type,
+					typename DataItemDescription::region_type, Ts&&...  ),
 			&data_item_manager_server::template create_fragment_async<
-					DataItemDescription>,
-			create_fragment_async_action<DataItemDescription> > {
+					DataItemDescription, Ts...>,
+			create_fragment_async_action<DataItemDescription, Ts...> > {
 	};
 
    template<typename DataItemDescription>
@@ -146,44 +168,62 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 			std::vector<
 					std::pair<typename DataItemDescription::region_type,
 							hpx::naming::id_type> > > locate_async(
+			hpx::id_type data_item_id,
 			allscale::requirement<DataItemDescription> requirement) {
+
+		map_type::const_iterator got = difm.find(data_item_id);
+
 
 		using future_type = std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> >;
 		using pair_type = std::pair<typename DataItemDescription::region_type, hpx::naming::id_type>;
 
         using fragment_type = typename DataItemDescription::fragment_type;
 		hpx::lcos::local::promise<future_type> promise_;
+
 		using data_item_type = allscale::data_item<DataItemDescription>;
 		auto target_region = requirement.region_;
 		future_type tmp2;
 		pair_type *target_pair;
 
-        for (auto it = difm.begin(); it != difm.end(); ++it){
-            for (auto & el : it->second){
-                fragment_type frag = *(std::static_pointer_cast<fragment_type>(el));
-                std::cout<<"region is : " << frag.region_.to_string() << std::endl;
-                        
-            }
-        
-        }
-        /*
 
-		for (std::shared_ptr<data_item_base> base_item : local_data_items) {
-			data_item_type tmp = *(std::static_pointer_cast<data_item_type>(
-					base_item));
-			if (tmp.region_.has_intersection_with(target_region)) {
-				//        std::cout<< "Found the data item on locality: " << tmp.parent_loc  << std::endl;
-				//target_pair = new pair_type(tmp.region_,tmp.parent_loc);
-				target_pair = new pair_type(tmp.region_, this->get_id());
+		if (got == difm.end()) {
+				std::cout << data_item_id << " was not found on loc id: "
+						<< hpx::get_locality_id() << std::endl;
+				return promise_.get_future();
+		}
+		else {
+			for( auto & el :  difm[data_item_id]){
+				fragment_type frag = *(std::static_pointer_cast<fragment_type>(el));
+				  if( frag.region_.has_intersection_with(target_region)){
+				                	//std::cout<<"region is : " << frag.region_.to_string() << std::endl;
+				    				//target_pair = new pair_type(frag.region_, this->get_id());
+				    				target_pair = new pair_type(frag.region_, data_item_id);
+				    				tmp2.push_back(*(target_pair));
 
-				tmp2.push_back(*(target_pair));
+				   }
 			}
 		}
-        */
 
 
 
 
+
+
+//
+//        for (auto it = difm.begin(); it != difm.end(); ++it){
+//            for (auto & el : it->second){
+//                fragment_type frag = *(std::static_pointer_cast<fragment_type>(el));
+//                if( frag.region_.has_intersection_with(target_region)){
+//                	//std::cout<<"region is : " << frag.region_.to_string() << std::endl;
+//    				//target_pair = new pair_type(frag.region_, this->get_id());
+//    				target_pair = new pair_type(frag.region_, it->first);
+//
+//    				tmp2.push_back(*(target_pair));
+//
+//                }
+//            }
+//
+//        }
 
 		promise_.set_value(tmp2);
 		return promise_.get_future();
@@ -195,10 +235,141 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 					std::vector<
 							std::pair<typename DataItemDescription::region_type,
 									hpx::naming::id_type> > > (data_item_manager_server::*)(
+					typename hpx::id_type,
 					allscale::requirement<DataItemDescription>),
 			&data_item_manager_server::template locate_async<DataItemDescription>,
 			locate_async_action<DataItemDescription> > {
 	};
+
+
+
+
+
+
+
+
+
+
+	   template<typename DataItemDescription>
+		hpx::future<
+				std::vector<
+						std::pair<typename DataItemDescription::region_type,
+								hpx::naming::id_type> > > locate_async_all(
+				allscale::requirement<DataItemDescription> requirement) {
+
+
+
+			using future_type = std::vector<std::pair<typename DataItemDescription::region_type, hpx::naming::id_type> >;
+			using pair_type = std::pair<typename DataItemDescription::region_type, hpx::naming::id_type>;
+
+	        using fragment_type = typename DataItemDescription::fragment_type;
+			hpx::lcos::local::promise<future_type> promise_;
+
+			using data_item_type = allscale::data_item<DataItemDescription>;
+			auto target_region = requirement.region_;
+			future_type tmp2;
+			pair_type *target_pair;
+
+
+
+
+
+
+
+	        for (auto it = difm.begin(); it != difm.end(); ++it){
+	        	std::cout<< "first is : " << it->first << std::endl;
+	            for (auto & el : it->second){
+	                fragment_type frag = *(std::static_pointer_cast<fragment_type>(el));
+
+	                std::cout<< "checkng region " << frag.region_.to_string() << std::endl;
+	                if( frag.region_.has_intersection_with(target_region)){
+	                	//std::cout<<"region is : " << frag.region_.to_string() << std::endl;
+	    				//target_pair = new pair_type(frag.region_, this->get_id());
+	    				target_pair = new pair_type(frag.region_, it->first);
+
+	    				tmp2.push_back(*(target_pair));
+
+	                }
+	            }
+
+	        }
+
+			promise_.set_value(tmp2);
+			return promise_.get_future();
+		}
+
+		template<typename DataItemDescription>
+		struct locate_async_all_action: hpx::actions::make_action<
+				hpx::future<
+						std::vector<
+								std::pair<typename DataItemDescription::region_type,
+										hpx::naming::id_type> > > (data_item_manager_server::*)(
+						allscale::requirement<DataItemDescription>),
+				&data_item_manager_server::template locate_async_all<DataItemDescription>,
+				locate_async_all_action<DataItemDescription> > {
+		};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 	template<typename DataItemDescription>
 	hpx::future<typename DataItemDescription::collection_facade> acquire_async(
@@ -235,34 +406,42 @@ struct data_item_manager_server: hpx::components::managed_component_base<
 	};
 
 	template<typename DataItemDescription>
-	hpx::future<typename DataItemDescription::fragment_type> acquire_fragment_async(
+	typename DataItemDescription::fragment_type acquire_fragment_async(
             hpx::id_type data_item_id,
 			typename DataItemDescription::region_type const& region) {
+		using fragment_type = typename DataItemDescription::fragment_type;
 		//		std::cout<<"acquire is called for region: "<< region.to_string() << std::endl;
-		using future_type = typename DataItemDescription::fragment_type;
-		future_type tmp2;
-		hpx::lcos::local::promise<future_type> promise_;
+		//using future_type = typename DataItemDescription::fragment_type;
+		//future_type tmp2;
+		//hpx::lcos::local::promise<future_type> promise_;
 
 		using data_item_type = allscale::data_item<DataItemDescription>;
-		for (std::shared_ptr<data_item_base> base_item : local_data_items) {
-			data_item_type tmp = *(std::static_pointer_cast<data_item_type>(
-					base_item));
-			if (region == tmp.region_) {
-				//				std::cout<<"found this region exactly"<<std::endl;
-				//hand out a copy of fragment
-				tmp2 = tmp.fragment_;
-			}
+        //std::lock_guard<mutex_type> l(mtx_);
+
+		map_type::const_iterator got = difm.find(data_item_id);
+
+		if (got == difm.end()) {
+			std::cout << data_item_id << " was not found on loc id: "
+					<< hpx::get_locality_id() << std::endl;
+			return fragment_type();
 
 		}
-
-		promise_.set_value(tmp2);
-		return promise_.get_future();
-
+		else {
+			for( auto & el :  difm[data_item_id]){
+                //       mtx_.unlock();  
+                fragment_type frag = *(std::static_pointer_cast<fragment_type>(el));
+				if (region == frag.region_){
+                    return frag;
+				}
+		//	    mtx_.lock();
+            }
+	   }
+        return fragment_type();
 	}
 
 	template<typename DataItemDescription>
 	struct acquire_fragment_async_action: hpx::actions::make_action<
-			hpx::future<typename DataItemDescription::fragment_type> (data_item_manager_server::*)(
+			typename DataItemDescription::fragment_type (data_item_manager_server::*)(
 					typename hpx::id_type,
                     typename DataItemDescription::region_type const&),
 			&data_item_manager_server::template acquire_fragment_async<

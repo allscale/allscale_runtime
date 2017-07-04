@@ -17,6 +17,7 @@ namespace allscale
 
     void scheduler::schedule(work_item work)
     {
+    	std::cout<<"schedulign work item on loc " << hpx::get_locality_id()<<std::endl;
         get().enqueue(work, this_work_item::id());
     }
 

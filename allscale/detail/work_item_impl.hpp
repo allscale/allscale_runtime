@@ -70,8 +70,8 @@ namespace allscale { namespace detail {
         using data_item_descr = typename WorkItemDescription::data_item_variant;
         using data_item_type = typename allscale::data_item<data_item_descr>;
 
-        static constexpr bool is_serializable = WorkItemDescription::ser_variant::activated &&
-            is_closure_serializable<Closure>::value;
+        static constexpr bool is_serializable = WorkItemDescription::ser_variant::activated; /*&&
+            is_closure_serializable<Closure>::value;*/
 
         // This ctor is called during serialization...
         work_item_impl(this_work_item::id const& id, treeture<result_type>&& tres, closure_type&& closure)
@@ -256,6 +256,7 @@ namespace allscale { namespace detail {
 
         bool enqueue_remote() const
         {
+        	//std::cout<<"eqn remote called  " <<  WorkItemDescription::ser_variant::activated << "   " <<  is_closure_serializable<Closure>::value << std::endl;;
             return is_serializable;
         }
 

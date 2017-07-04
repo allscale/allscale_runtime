@@ -63,6 +63,8 @@ using grid_fragment = allscale::fragment<grid_region_type,std::vector<int>>;
 using grid_data_item_descr = allscale::data_item_description<grid_region_type,grid_fragment,std::shared_ptr<std::vector<int>>>;
 using grid_test_item = allscale::data_item<grid_data_item_descr>;
 using grid_test_requirement = allscale::requirement<grid_data_item_descr>;
+using value_type = std::vector<int>;
+
 ALLSCALE_REGISTER_DATA_ITEM_TYPE(grid_data_item_descr);
 
 typedef allscale::region<int> my_region;
