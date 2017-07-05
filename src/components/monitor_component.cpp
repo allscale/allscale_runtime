@@ -1,6 +1,11 @@
 #include <allscale/components/monitor.hpp>
 #include <allscale/monitor.hpp>
 
+#ifdef HAVE_PAPI
+#include <boost/tokenizer.hpp>
+
+#define MAX_PAPI_COUNTERS 4
+#endif
  
 namespace allscale { namespace components {
 
@@ -64,23 +69,114 @@ namespace allscale { namespace components {
 #endif
 
 
+
+   void monitor::update_work_item_stats(work_item const& w, std::shared_ptr<allscale::profile> p)
+   {
+      double time;
+      std::shared_ptr<allscale::work_item_stats> stats;
+      allscale::this_work_item::id my_wid = w.id();
+
+#ifdef REALTIME_VIZ
+      if(realtime_viz) {
+         // Global task stats
+         std::unique_lock<std::mutex> lock2(counter_mutex_);
+         total_tasks_++; num_active_tasks_--;
+         total_task_duration_ += p->get_exclusive_time();
+         lock2.unlock();
+      }
+#endif
+
+#ifdef HAVE_PAPI
+      // Record PAPI counters for this work item
+#endif
+
+      // Update stats per work item name
+      time = p->get_exclusive_time();
+      auto it = work_item_stats_map.find(w.name());
+      if( it == work_item_stats_map.end() )
+      {
+         stats.reset(new allscale::work_item_stats());
+         work_item_stats_map.insert(std::make_pair(w.name(), stats));
+      }
+      else
+        stats = it->second;
+
+
+      // Compute max per work item with same name
+      if( stats->max < time)
+         stats->max = time;
+
+      // Compute min per work item with same name
+      if( !(stats->min) || stats->min > time)
+         stats->min = time;
+
+      // Compute total time per work item with same name
+      stats->total += time;
+
+      // Number of work items with that same name
+      stats->num_work_items++;
+
+
+      // Update global stats about children in the parent node
+      // Compute streamed mean and stdev
+      // see http://www.johndcook.com/standard_deviation.html
+      // or Donald Knuth's Art of Computer Programming, Vol 2, page 232, 3rd edition
+
+      // Find parent
+      // We assume here work item 0 is in the map
+      // TODO What happens is parent is not registered
+      std::string parent_ID = my_wid.parent().name();
+      std::shared_ptr<allscale::profile> parent;
+      std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it_profiles = profiles.find(parent_ID);
+
+      if( it_profiles == profiles.end() ) {
+         // Parent is not registered
+         // this child is not included in its parent statistics then
+	 // TODO maybe think how to do it in the future
+      }
+      else {
+         parent = it_profiles->second;
+         parent->push(time);
+      }
+   }
+
+
    void monitor::w_exec_start_wrapper(work_item const& w)
    {
       allscale::this_work_item::id my_wid = w.id();
-      std::shared_ptr<allscale::profile> p(new profile());
+      std::shared_ptr<allscale::profile> p;
       std::shared_ptr<allscale::work_item_dependency> wd(
           new allscale::work_item_dependency(my_wid.parent().name(), my_wid.name()));
 
 
       std::lock_guard<mutex_type> lock(work_map_mutex);
+
+//      std::cerr << "Start signal caught, WI: " << w.name() << " " << my_wid.name() << std::endl;
+
       w_names.insert(std::make_pair(my_wid.name(), w.name()));
-      profiles.insert(std::make_pair(my_wid.name(), p));
+
+      std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it_profiles = profiles.find(my_wid.name());
+
+      if( it_profiles == profiles.end() ) {
+         // Profile does not exist yet, we create it
+         p = std::make_shared<profile>();
+         profiles.insert(std::make_pair(my_wid.name(), p));
+      }
+      else {
+         // Profile exists, finish wrapper executed before than start wrapper
+         p = it_profiles->second;
+         // We use current time as final time for the WI since this wrapper has 
+         // been called after the WI finalization wrapper
+         p->end = std::chrono::steady_clock::now();
+         update_work_item_stats(w, p);  // Item has already finish time
+      }
+
       w_graph.push_back(wd);
 
       auto it = graph.find(my_wid.parent().name());
       if( it == graph.end() ) {
-	 graph.insert(std::make_pair(my_wid.parent().name(), 
-			 std::vector<std::string>(1, my_wid.name())));
+         graph.insert(std::make_pair(my_wid.parent().name(),
+                         std::vector<std::string>(1, my_wid.name())));
       }
       else it->second.push_back(my_wid.name());
 
@@ -107,8 +203,9 @@ namespace allscale { namespace components {
 
    void monitor::global_w_exec_start_wrapper(work_item const& w)
    {
-	(allscale::monitor::get_ptr().get())->w_exec_start_wrapper(w);
+        (allscale::monitor::get_ptr().get())->w_exec_start_wrapper(w);
    }
+
 
 
    void monitor::w_exec_finish_wrapper(work_item const& w)
@@ -116,70 +213,23 @@ namespace allscale { namespace components {
       allscale::this_work_item::id my_wid = w.id();
       std::shared_ptr<allscale::profile> p;
       std::shared_ptr<allscale::work_item_stats> stats;
-      double time; 
+
 
       std::lock_guard<mutex_type> lock(work_map_mutex);
-      p = profiles[my_wid.name()];
 
-      p->end = std::chrono::steady_clock::now();
+//      std::cerr << "Finish signal caught, WI: " << w.name() << " " << my_wid.name() << std::endl;
 
-#ifdef REALTIME_VIZ
-      if(realtime_viz) {
-         // Global task stats
-         std::unique_lock<std::mutex> lock2(counter_mutex_);
-         total_tasks_++; num_active_tasks_--;
-         total_task_duration_ += p->get_exclusive_time();
-         lock2.unlock();
+      std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it_profiles = profiles.find(my_wid.name());
+
+      if( it_profiles == profiles.end() ) {
+         p = std::make_shared<profile>();
+         profiles.insert(std::make_pair(my_wid.name(), p));
       }
-#endif
-
-#ifdef HAVE_PAPI
-      // Record PAPI counters for this work item
-
-#endif
-
-     
-      // Update stats per work item name
-      time = p->get_exclusive_time();
-      auto it = work_item_stats_map.find(w.name());
-      if( it == work_item_stats_map.end() )
-      {
-	 stats.reset(new allscale::work_item_stats());
-	 work_item_stats_map.insert(std::make_pair(w.name(), stats)); 
-      } 
-      else
-	stats = it->second;
-
-      // Compute max per work item with same name
-      if( stats->max < time)
-	 stats->max = time;
-	    
-      // Compute min per work item with same name
-      if( !(stats->min) || stats->min > time)
-         stats->min = time;        
-
-      // Compute total time per work item with same name 
-      stats->total += time;
-
-      // Number of work items with that same name
-      stats->num_work_items++;
-
-
-      // Update global stats about children in the parent node
-      // Compute streamed mean and stdev
-      // see http://www.johndcook.com/standard_deviation.html
-      // or Donald Knuth's Art of Computer Programming, Vol 2, page 232, 3rd edition
-
-
-      // Find parent
-      // We assume here work item 0 is in the map
-      std::string parent_ID = my_wid.parent().name();
-      p = profiles[parent_ID];
-
-      p->push(time);
-
-
-
+      else {
+         p = it_profiles->second;
+         p->end = std::chrono::steady_clock::now();
+         update_work_item_stats(w, p);
+      }
 /*
       std::cout
           << "Finish work item "
@@ -245,6 +295,16 @@ namespace allscale { namespace components {
    }
 
 
+// TEST
+/*   std::uint64_t monitor::get_rank_remote(hpx::id_type locality)
+   {
+      get_rank_action act;
+      hpx::future<std::uint64_t> f = hpx::async(act, locality);
+
+      return f.get();
+   }
+*/
+
    // Returns the exclusive time for a work item with ID w_id
    double monitor::get_exclusive_time(std::string w_id)
    {
@@ -258,6 +318,11 @@ namespace allscale { namespace components {
    }
 
 
+   double monitor::get_exclusive_time_remote(hpx::id_type locality, std::string w_id)
+   {
+
+   }
+
    // Returns the inclusive time for a work item with ID w_id
    double monitor::get_inclusive_time(std::string w_id)
    {
@@ -269,6 +334,13 @@ namespace allscale { namespace components {
       else
          return (it->second)->get_inclusive_time();
    }
+
+
+   double monitor::get_inclusive_time_remote(hpx::id_type locality, std::string w_id)
+   {
+
+   }
+
 
    // Returns the average exclusive time for a work item with name w_name
    double monitor::get_average_exclusive_time(std::string w_name)
@@ -283,6 +355,13 @@ namespace allscale { namespace components {
          return (it->second)->get_average();
    }
 
+
+   double monitor::get_average_exclusive_time_remote(hpx::id_type locality, std::string w_name)
+   {
+
+   }
+
+
    // Returns the minimum exclusive time for a work item with name w_name
    double monitor::get_minimum_exclusive_time(std::string w_name)
    {
@@ -294,6 +373,12 @@ namespace allscale { namespace components {
          return 0.0;
       else
          return (it->second)->get_min();
+
+   }
+
+
+   double monitor::get_minimum_exclusive_time_remote(hpx::id_type locality, std::string w_name)
+   {
 
    }
 
@@ -313,6 +398,11 @@ namespace allscale { namespace components {
    }
 
 
+   double monitor::get_maximum_exclusive_time_remote(hpx::id_type locality, std::string w_name)
+   {
+
+   }
+
    // Returns the mean exclusive time for all children
    double monitor::get_children_mean_time(std::string w_id)
    {
@@ -323,6 +413,12 @@ namespace allscale { namespace components {
          return 0.0;
       else
          return (it->second)->Mean();
+   }
+
+
+   double monitor::get_children_mean_time_remote(hpx::id_type locality, std::string w_id)
+   {
+
    }
 
 
@@ -337,6 +433,13 @@ namespace allscale { namespace components {
       else
          return (it->second)->StandardDeviation();
    }
+
+
+   double monitor::get_children_SD_time_remote(hpx::id_type locality, std::string w_id)
+   {
+
+   }
+
 
 #if 0
    // Returns PAPI counters for a work item with ID w_id
@@ -819,6 +922,31 @@ namespace allscale { namespace components {
          }
 
 
+     if(const char* env_p = std::getenv("MONITOR_PAPI")) {
+#ifdef HAVE_PAPI
+ 	std::string counter_names(env_p);
+
+        boost::char_separator<char> sep(",");
+        boost::tokenizer<char_separator<char>> token(env_p, sep);
+        int num_tokens=0;
+        for (const auto& t : token) {
+             if(num_tokens >= MAX_PAPI_COUNTERS) {
+                std::cerr << "Max number of PAPI counters allowed is " << MAX_PAPI_COUNTERS << std::endl;
+                break;
+             }
+
+             cout << t << "." << endl;
+          
+	     num_tokens++;
+        }
+#else
+        std::cerr << "Var. MONITOR_PAPI defined but code compiled without PAPI support!" << std::endl;
+#endif
+     }
+
+
+
+
       execution_start = std::chrono::steady_clock::now();
 
       // Create the profile for the "Main"
@@ -832,6 +960,12 @@ namespace allscale { namespace components {
 
       // Init historical data
       history = std::make_shared<allscale::historical_data>();
+
+
+      std::cerr
+         << "Monitor component with rank "
+         << rank_ << " created!\n";
+
    }
 
 

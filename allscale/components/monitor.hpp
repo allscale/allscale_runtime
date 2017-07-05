@@ -33,7 +33,7 @@
 
 namespace allscale { namespace components {
 
-       struct monitor 
+       struct HPX_COMPONENT_EXPORT monitor 
 	 : hpx::components::component_base<monitor>
        {
 
@@ -46,6 +46,10 @@ namespace allscale { namespace components {
            void init();
            void stop();
 
+           std::uint64_t get_rank() { return rank_; }
+//         HPX_DEFINE_COMPONENT_ACTION(monitor, get_rank);
+           std::uint64_t get_rank_remote(hpx::id_type locality);
+
            // Historical Data Introspection
            double get_iteration_time(int i);
            double get_last_iteration_time();
@@ -53,12 +57,36 @@ namespace allscale { namespace components {
 
 	   // Performance Introspection
            double get_exclusive_time(std::string w_id);
+//	   HPX_DEFINE_COMPONENT_ACTION(monitor, get_exclusive_time);
+
            double get_inclusive_time(std::string w_id);
+//           HPX_DEFINE_COMPONENT_ACTION(monitor, get_inclusive_time);
+
            double get_average_exclusive_time(std::string w_name);
+//           HPX_DEFINE_COMPONENT_ACTION(monitor, get_average_exclusive_time);
+
            double get_minimum_exclusive_time(std::string w_name);
+//           HPX_DEFINE_COMPONENT_ACTION(monitor, get_minimum_exclusive_time);
+
            double get_maximum_exclusive_time(std::string w_name);
+//           HPX_DEFINE_COMPONENT_ACTION(monitor, get_maximum_exclusive_time);
+
            double get_children_mean_time(std::string w_id);
+//           HPX_DEFINE_COMPONENT_ACTION(monitor, get_children_mean_time);
+
            double get_children_SD_time(std::string w_id);
+//           HPX_DEFINE_COMPONENT_ACTION(monitor, get_children_mean_SD_time);
+
+           // Inter-node introspection (synchronous wrappers for remote actions)
+           double get_exclusive_time_remote(hpx::id_type locality, std::string w_id);
+           double get_inclusive_time_remote(hpx::id_type locality, std::string w_id);
+           double get_average_exclusive_time_remote(hpx::id_type locality, std::string w_name);
+           double get_minimum_exclusive_time_remote(hpx::id_type locality, std::string w_name);
+           double get_maximum_exclusive_time_remote(hpx::id_type locality, std::string w_name);
+           double get_children_mean_time_remote(hpx::id_type locality, std::string w_id);
+           double get_children_SD_time_remote(hpx::id_type locality, std::string w_id);
+
+
 
            static void global_w_exec_start_wrapper(work_item const& w);
            void w_exec_start_wrapper(work_item const& w);
@@ -102,6 +130,9 @@ namespace allscale { namespace components {
              // For graph creation from a specific node
              std::unordered_map<std::string, std::vector <std::string>> graph;
 
+             // Update work item stats. Can be called from the start or the finish wrapper
+             void update_work_item_stats(work_item const& w, std::shared_ptr<allscale::profile> p);
+
 
 
 #ifdef REALTIME_VIZ
@@ -139,6 +170,10 @@ namespace allscale { namespace components {
              void monitor_component_output();
            
 
+#ifdef HAVE_PAPI
+             // PAPI counters
+		
+#endif
              // ENV. VARS 
 	     int output_profile_table_;
 	     int output_treeture_;
