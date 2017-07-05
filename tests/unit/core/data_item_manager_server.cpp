@@ -61,25 +61,28 @@ public:
 }
 
 
-
+/*
 using my_region = allscale::region<int>;
 using my_fragment = allscale::fragment<my_region,int>;
 using descr = allscale::data_item_description<my_region,my_fragment,int>;
 using test_item = allscale::data_item<descr>;
+
+using test_item_2 = allscale::data_item<data_item_descr>;
+*/
 using grid_region_type = allscale::grid_region_1d<int>;
 using value_type = std::vector<int>;
 using grid_fragment = allscale::fragment<grid_region_type,value_type>;
 using data_item_descr = allscale::data_item_description<grid_region_type,grid_fragment,std::shared_ptr<value_type>>;
-using test_item_2 = allscale::data_item<data_item_descr>;
 using test_requirement2 = allscale::requirement<data_item_descr>;
 
 typedef allscale::data_item_manager_server my_data_item_manager_server;
 typedef std::pair<hpx::naming::id_type, my_data_item_manager_server> loc_server_pair;
 
-ALLSCALE_REGISTER_DATA_ITEM_TYPE(descr);
+//ALLSCALE_REGISTER_DATA_ITEM_TYPE(descr);
 ALLSCALE_REGISTER_DATA_ITEM_TYPE(data_item_descr);
-ALLSCALE_REGISTER_DATA_ITEM_MANAGER_SERVER_COMPONENT()
-;
+//ALLSCALE_REGISTER_FRAGMENT_TYPE(grid_region_type,value_type);
+
+ALLSCALE_REGISTER_DATA_ITEM_MANAGER_SERVER_COMPONENT();
 
 std::vector<loc_server_pair> dms;
 
@@ -131,36 +134,20 @@ bool test_creation_of_data_items() {
 }
 
 bool test_locate_method() {
-	//create a bunch of data items with a simple 1d grid region on all the localities
-//	int c = 0;
-//	for (loc_server_pair& server_entry : dms) {
-//
-//		auto td_id = server_entry.second.create_data_item<data_item_descr>();
-//		using action_type = typename allscale::components::data_item_manager_server::create_fragment_async_action<data_item_descr>;
-//
-//		auto a = std::make_shared<std::vector<int>>(std::vector<int>(10, 337));
-//		grid_region_type gr(c, c + 9);
-//		grid_fragment frag(gr, a);
-//
-//		auto res = hpx::async<action_type>(server_entry.second.get_id(), td_id,
-//				gr);
-//
-//		//auto k = (std::vector<int>) *(td->fragment_.ptr_);
-//		c += 10;
-//	}
-
 	// now locate a region consisting of both the upper regions.
 	grid_region_type search_region(0, 20);
 	auto b = std::make_shared<value_type>(value_type(20, 0));
 	test_requirement2 tr(search_region);
-	using locate_action = typename allscale::components::data_item_manager_server::locate_async_action<data_item_descr>;
+	using locate_action = typename allscale::components::data_item_manager_server::locate_async_all_action<data_item_descr>;
 
 	auto res = hpx::async<locate_action>(dms[0].second.get_id(), tr).get();
 	std::vector<std::pair<grid_region_type,hpx::id_type>> shopping_list;
 	std::cout << "ficken " << std::endl;
 	for (auto& el : res) {
 		shopping_list.push_back(el);
-		std::cout<< el.first.to_string() << " " << hpx::naming::get_locality_id_from_id(el.second) << std::endl;
+		std::cout<< el.first.to_string() << " " << el.second << std::endl;
+
+		//std::cout<< el.first.to_string() << " " << hpx::naming::get_locality_id_from_id(el.second) << std::endl;
 	}
 	//attach automatic continuation to the futures, this can be acquiring too
 //	for (auto& fut : dms[0].second.locate < data_item_descr > (tr)) {
@@ -173,45 +160,37 @@ bool test_locate_method() {
 	return true;
 }
 //
-//bool test_acquire_method() {
-//	//create a bunch of data items with a simple 1d grid region on all the localities
-//	int c = 0;
-//	int i = 33;
-//	for (loc_server_pair& server_entry : dms) {
-//		auto a = std::make_shared<std::vector<int>>(std::vector<int>(10, i));
-//		grid_region_type gr(c, c + 9);
-//		grid_fragment frag(gr, a);
-//		data_item_descr descr(gr, frag, nullptr);
-//		auto td = server_entry.second.create_data_item < data_item_descr
-//				> (descr);
-//		//auto k = (std::vector<int>) *(td->fragment_.ptr_);
-//		c += 10;
-//		i *= 2;
-//	}
-//
-//	// now locate a region consisting of both the upper regions.
-//	grid_region_type search_region(0, 20);
-//	auto b = std::make_shared<std::vector<int>>(std::vector<int>(20, 0));
-//	test_requirement2 tr(search_region);
-//	//attach automatic continuation to the futures, this can be acquiring too
-//	using locate_action = typename allscale::components::data_item_manager_server::locate_async_action<data_item_descr>;
-//	std::vector<std::pair<grid_region_type,hpx::id_type>> shopping_list;
-//	auto res = hpx::async<locate_action>(dms[0].second.get_id(),search_region).get();
-//	for(auto& el : res ){
-//		shopping_list.push_back(el);
-////		std::cout<< el.first.to_string() << " " << hpx::naming::get_locality_id_from_id(el.second) << std::endl;
-//	}
-//	res = hpx::async<locate_action>(dms[1].second.get_id(),search_region).get();
-//	for(auto& el : res ){
-//			shopping_list.push_back(el);
-////			std::cout<< el.first.to_string() << " " << hpx::naming::get_locality_id_from_id(el.second) << std::endl;
-//	}
-//	for(auto& el : shopping_list){
-//		std::cout<< el.first.to_string() << " " << hpx::naming::get_locality_id_from_id(el.second)<<std::endl;
-//	}
-//
-//	using acquire_action = typename allscale::components::data_item_manager_server::acquire_fragment_async_action<data_item_descr>;
-//	auto frag = hpx::async<acquire_action>(shopping_list[0].second,shopping_list[0].first).get();
+bool test_acquire_method() {
+
+	// now locate a region consisting of both the upper regions.
+	grid_region_type search_region(0, 9);
+	test_requirement2 tr(search_region);
+	//attach automatic continuation to the futures, this can be acquiring too
+	using locate_action = typename allscale::components::data_item_manager_server::locate_async_all_action<data_item_descr>;
+
+	using acquire_action = typename allscale::components::data_item_manager_server::acquire_fragment_async_action<data_item_descr>;
+
+
+	auto res = hpx::async<locate_action>(dms[0].second.get_id(), tr).get();
+	std::vector<std::pair<grid_region_type,hpx::id_type>> shopping_list;
+	for (auto& el : res) {
+			shopping_list.push_back(el);
+			std::cout<< el.first.to_string() << " " << el.second << std::endl;
+
+			//std::cout<< el.first.to_string() << " " << hpx::naming::get_locality_id_from_id(el.second) << std::endl;
+	}
+	for(auto & el : shopping_list){
+		    hpx::future<grid_fragment>  fut  = hpx::async<acquire_action>(dms[0].second.get_id(),el.second,el.first);
+            grid_fragment frag= fut.get(); 
+            //grid_fragment res_frag(res);
+			//hpx::id_type fr = res.get();
+			//std::cout<< res_frag.get_id() <<std::endl;
+		    std::cout<< (*frag.ptr_)[0]<<std::endl;
+	        (*frag.ptr_)[0] = 128;
+
+	}
+
+
 //	std::cout <<"frag[5] " << (*frag.ptr_)[5] <<  std::endl;
 //	(*frag.ptr_)[5] = 1337;
 //	auto frag2 = hpx::async<acquire_action>(shopping_list[0].second,shopping_list[0].first).get();
@@ -223,34 +202,38 @@ bool test_locate_method() {
 //	(*frag.ptr_)[5] = 1337;
 //	auto frag4 = hpx::async<acquire_action>(shopping_list[1].second,shopping_list[1].first).get();
 //	std::cout <<"frag[5] " << (*frag4.ptr_)[5] <<  std::endl;
-//
-//
-//	/*
-//
-//	for (auto& fut : dms[0].second.locate < data_item_descr > (tr)) {
-//		fut.then(
-//				[](auto f) -> int
-//				{
-//					for(auto& el : f.get()) {
-////						std::cout<< el.first.to_string() << " " << el.second << " " << std::endl;
-//
-//						using action_type = typename allscale::components::data_item_manager_server::acquire_async_action<data_item_descr>;
-//						auto res = hpx::async<action_type>(el.second,el.first);
-//						std::cout << "blubber : " << (*(res.get()))[3]  << std::endl;
-//					}
-//					return 22;
-//				});
-//
-//	}
-//	*/
-//	return true;
-//}
+
+
+	/*
+
+	for (auto& fut : dms[0].second.locate < data_item_descr > (tr)) {
+		fut.then(
+				[](auto f) -> int
+				{
+					for(auto& el : f.get()) {
+//						std::cout<< el.first.to_string() << " " << el.second << " " << std::endl;
+
+						using action_type = typename allscale::components::data_item_manager_server::acquire_async_action<data_item_descr>;
+						auto res = hpx::async<action_type>(el.second,el.first);
+						std::cout << "blubber : " << (*(res.get()))[3]  << std::endl;
+					}
+					return 22;
+				});
+
+	}
+	*/
+	return true;
+}
 
 int hpx_main(int argc, char* argv[]) {
 	if (hpx::get_locality_id() == 0) {
 		test_creation_of_data_item_manager_server_components();
 		test_creation_of_data_items();
-		test_locate_method();
+//		test_locate_method();
+		test_acquire_method() ;
+		test_acquire_method() ;
+		//test_acquire_method() ;
+
 		//std::cout<<"test_creation_of_data_item_manager_server_components() == " << test_creation_of_data_item_manager_server_components() << std::endl;
 		//std::cout<<"test_locate_method() == " << test_locate_method() << std::endl;
 		//std::cout<<"test_acquire_method() == " << test_acquire_method() << std::endl;

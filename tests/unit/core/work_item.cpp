@@ -28,6 +28,7 @@ typedef allscale::data_item<descr> test_data_item;
 
 ALLSCALE_REGISTER_DATA_ITEM_TYPE(descr);
 ALLSCALE_REGISTER_TREETURE_TYPE(int_type);
+//ALLSCALE_REGISTER_FRAGMENT_TYPE(my_region,int);
 
 struct simple_variant_simple_class
 {

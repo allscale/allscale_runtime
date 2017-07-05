@@ -1,10 +1,22 @@
-#include <allscale/fragment.hpp>
 
+
+#include <iostream>
+#include <array>
+#include <string>
+#include <type_traits>
+#include <typeinfo>
+
+#include <allscale/data_item.hpp>
+#include <allscale/treeture.hpp>
+#include <allscale/data_item_description.hpp>
 #include <allscale/region.hpp>
-
+#include <allscale/fragment.hpp>
+#include <hpx/config.hpp>
+#include <hpx/hpx_main.hpp>
 
 using my_region = allscale::region<int> ;
 using my_fragment = allscale::fragment<my_region,int>;
+//ALLSCALE_REGISTER_FRAGMENT_TYPE(my_region,int);
 
 int main()
 {

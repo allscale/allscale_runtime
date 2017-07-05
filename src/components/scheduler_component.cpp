@@ -1,5 +1,6 @@
 
 #include <allscale/components/scheduler.hpp>
+#include <allscale/components/monitor.hpp>
 #include <allscale/monitor.hpp>
 
 #include <hpx/util/scoped_unlock.hpp>
@@ -134,6 +135,8 @@ namespace allscale { namespace components {
         //std::cout<<"remote is " << remote << std::endl;
         if (work.enqueue_remote())
         {
+        	std::cout<<"schedulign work item on loc " << hpx::get_locality_id()<<std::endl;
+
             schedule_rank = schedule_rank_.fetch_add(1) % 3;
         }
 
@@ -276,7 +279,12 @@ namespace allscale { namespace components {
             // FIXME: this should really use the monitoring component...
             if (allscale_app_time == 0.0)
             {
-                allscale_app_time = hpx::util::high_resolution_timer::now();
+//                allscale_app_time = hpx::util::high_resolution_timer::now();
+                //Get first iteration time
+//                allscale::components::monitor* m = allscale::monitor::run(hpx::get_locality_id());
+                std::shared_ptr<monitor> m = allscale::monitor::get_ptr();
+                std::cout << "Last Iteration time " << m->get_last_iteration_time() << " Number of iterations: " << m->get_number_of_iterations() << std::endl;
+               // allscale_app_time = m->get_iteration_time(0);
                 return true;
             }
 
