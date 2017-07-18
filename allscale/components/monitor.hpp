@@ -59,6 +59,7 @@ namespace allscale { namespace components {
            double get_iteration_time(int i);
            double get_last_iteration_time();
 	   long get_number_of_iterations();
+	   double get_avg_time_last_iterations(std::uint32_t num_iters);
 
 	   // Performance Introspection
            double get_exclusive_time(std::string w_id);

@@ -340,7 +340,6 @@ namespace allscale { namespace components {
       }
       else
          history->new_iteration(w.id().name());
-
    }
 
 
@@ -544,6 +543,26 @@ namespace allscale { namespace components {
    long monitor::get_number_of_iterations()
    {
       return history->current_iteration;
+   }
+
+
+   double monitor::get_avg_time_last_iterations(std::uint32_t num_iters)
+   {
+      double avg_time = 0.0;
+      std::uint32_t j = num_iters;
+
+      for(std::vector<double>::reverse_iterator i = history->iteration_time.rbegin(); 
+		   i != history->iteration_time.rend(); ++i)
+      {
+	  if(!j) break;
+	  avg_time += *i; j--;
+
+      }
+
+      if(num_iters <= history->iteration_time.size())
+	 return avg_time/(double)num_iters;
+      else
+	 return avg_time/(double)history->iteration_time.size();
    }
 
 
