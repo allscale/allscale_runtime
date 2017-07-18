@@ -30,6 +30,11 @@
 //#include <iostream>
 //#include <fstream>
 #endif
+#ifdef HAVE_PAPI
+#include <hpx/include/performance_counters.hpp>
+
+#define MAX_PAPI_COUNTERS 4
+#endif
 
 namespace allscale { namespace components {
 
@@ -86,8 +91,12 @@ namespace allscale { namespace components {
            double get_children_mean_time_remote(hpx::id_type locality, std::string w_id);
            double get_children_SD_time_remote(hpx::id_type locality, std::string w_id);
 
+#ifdef HAVE_PAPI
+	   // PAPI counters
+	   long long *get_papi_counters(std::string w_id);
+#endif
 
-
+           // Wrapping functions to signals from the runtime
            static void global_w_exec_start_wrapper(work_item const& w);
            void w_exec_start_wrapper(work_item const& w);
 
@@ -168,17 +177,19 @@ namespace allscale { namespace components {
              void print_trees_per_iteration();
              void create_work_item_graph();
              void monitor_component_output();
-           
+              
 
 #ifdef HAVE_PAPI
-             // PAPI counters
-		
+             // PAPI counters per thread
+//             std::multimap<std::uint32_t, hpx::performance_counters::performance_counter> counters;
+             std::multimap<std::uint32_t, hpx::id_type> counters;
+             std::vector<std::string> papi_counter_names;
+	     void monitor_papi_output();
 #endif
              // ENV. VARS 
 	     int output_profile_table_;
 	     int output_treeture_;
 	     int output_iteration_trees_;
-
        };
 
 }}

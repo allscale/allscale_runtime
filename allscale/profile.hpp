@@ -5,6 +5,10 @@
 #include <chrono>
 #include <math.h>
 
+#ifdef HAVE_PAPI
+#include <string.h>
+#endif
+
 namespace allscale
 {
     struct profile 
@@ -12,9 +16,10 @@ namespace allscale
         std::chrono::steady_clock::time_point start;
         std::chrono::steady_clock::time_point end;
         std::chrono::steady_clock::time_point result_ready;
-#if HAVE_PAPI
-        long long papi_counters_start[8];
-        long long papi_counters_stop[8];
+#ifdef HAVE_PAPI
+        long long papi_counters_start[4];
+        long long papi_counters_stop[4];
+        std::uint32_t num_counters;
 #endif
 
         // Data to compute mean and stdev for all children
@@ -28,7 +33,10 @@ namespace allscale
         {
            m_n = 0;
            m_oldM = m_newM = m_oldS = m_newS = 0.0;
-
+#ifdef HAVE_PAPI
+           memset(papi_counters_start, 0, sizeof(long long) * 4);
+           memset(papi_counters_stop, 0, sizeof(long long) * 4);
+#endif
         }
 
 
@@ -85,6 +93,14 @@ namespace allscale
 
         }
 
+        long long *get_counters() {
+
+	   long long *counter_values = (long long *)malloc(sizeof(long long)*4);
+           for(int i = 0; i < 4; i++)
+		counter_values[i] = papi_counters_stop[i] - papi_counters_start[i];
+
+           return counter_values;            
+        }
     };
 
 

@@ -3,8 +3,7 @@
 
 #ifdef HAVE_PAPI
 #include <boost/tokenizer.hpp>
-
-#define MAX_PAPI_COUNTERS 4
+#include <string.h>
 #endif
  
 namespace allscale { namespace components {
@@ -86,8 +85,29 @@ namespace allscale { namespace components {
       }
 #endif
 
+
 #ifdef HAVE_PAPI
       // Record PAPI counters for this work item
+      hpx::performance_counters::counter_value papi_value;
+      std::size_t tid = hpx::get_worker_thread_num();
+//      std::multimap<std::uint32_t, hpx::performance_counters::performance_counter>::const_iterator it1, it2;
+      std::multimap<std::uint32_t, hpx::id_type>::const_iterator it1, it2;
+      it1 = counters.lower_bound(tid);
+      it2 = counters.upper_bound(tid);
+
+      std::uint32_t counter_num = 0;
+
+      while(it1 != it2)
+      {
+          if(p->papi_counters_start[counter_num] != 0) {
+	       papi_value = hpx::performance_counters::stubs::performance_counter::get_value(
+			hpx::launch::sync, it1->second);
+
+               p->papi_counters_stop[counter_num] = papi_value.get_value<long long>();
+          }
+          ++it1; counter_num++;
+      }
+
 #endif
 
       // Update stats per work item name
@@ -151,7 +171,8 @@ namespace allscale { namespace components {
 
       std::lock_guard<mutex_type> lock(work_map_mutex);
 
-//      std::cerr << "Start signal caught, WI: " << w.name() << " " << my_wid.name() << std::endl;
+//      std::size_t my_tid = hpx::get_worker_thread_num();
+//      std::cerr << "Start signal caught, WI: " << w.name() << " " << my_wid.name() << " Thread " << my_tid << std::endl;
 
       w_names.insert(std::make_pair(my_wid.name(), w.name()));
 
@@ -161,6 +182,28 @@ namespace allscale { namespace components {
          // Profile does not exist yet, we create it
          p = std::make_shared<profile>();
          profiles.insert(std::make_pair(my_wid.name(), p));
+
+
+#ifdef HAVE_PAPI
+         hpx::performance_counters::counter_value papi_value;
+         std::size_t tid = hpx::get_worker_thread_num();
+//         std::multimap<std::uint32_t, hpx::performance_counters::performance_counter>::const_iterator it1, it2;
+         std::multimap<std::uint32_t, hpx::id_type>::const_iterator it1, it2;
+         it1 = counters.lower_bound(tid);
+         it2 = counters.upper_bound(tid); 
+
+         std::uint32_t counter_num = 0;
+
+         while(it1 != it2)
+         {
+//             p->papi_counters_start[counter_num] = (it1->second).get_value<long long>().get();
+             papi_value = hpx::performance_counters::stubs::performance_counter::get_value(
+			hpx::launch::sync, it1->second);
+            
+             p->papi_counters_start[counter_num] = papi_value.get_value<long long>(); 
+	     ++it1; counter_num++;
+         }
+#endif
       }
       else {
          // Profile exists, finish wrapper executed before than start wrapper
@@ -170,6 +213,7 @@ namespace allscale { namespace components {
          p->end = std::chrono::steady_clock::now();
          update_work_item_stats(w, p);  // Item has already finish time
       }
+
 
       w_graph.push_back(wd);
 
@@ -187,6 +231,7 @@ namespace allscale { namespace components {
          lock2.unlock();
       }
 #endif
+
 
 /*
       std::cout
@@ -217,7 +262,8 @@ namespace allscale { namespace components {
 
       std::lock_guard<mutex_type> lock(work_map_mutex);
 
-//      std::cerr << "Finish signal caught, WI: " << w.name() << " " << my_wid.name() << std::endl;
+//      std::size_t my_tid = hpx::get_worker_thread_num();
+//      std::cerr << "Finish signal caught, WI: " << w.name() << " " << my_wid.name() << " Thread " << my_tid << std::endl;
 
       std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it_profiles = profiles.find(my_wid.name());
 
@@ -253,9 +299,18 @@ namespace allscale { namespace components {
       std::shared_ptr<allscale::profile> p;
 
       std::lock_guard<mutex_type> lock(work_map_mutex);
-      p = profiles[my_wid.name()];
+      std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it_profiles = profiles.find(my_wid.name());
 
-      p->result_ready = std::chrono::steady_clock::now();
+      if( it_profiles == profiles.end() ) {
+         // Work item not created yet
+//         p = std::make_shared<profile>();
+//         profiles.insert(std::make_pair(my_wid.name(), p));
+      }
+      else {
+         p = it_profiles->second;
+         p->result_ready = std::chrono::steady_clock::now();
+      }
+
 
 
 /*
@@ -441,26 +496,25 @@ namespace allscale { namespace components {
    }
 
 
-#if 0
-   // Returns PAPI counters for a work item with ID w_id
-   long long *get_papi_counters(std::string w_id)
-   {
+
 #ifdef HAVE_PAPI
+   // Returns PAPI counters for a work item with ID w_id
+   long long *monitor::get_papi_counters(std::string w_id)
+   {
       std::shared_ptr<allscale::profile> p;
 
       std::lock_guard<mutex_type> lock(work_map_mutex);
-      std::unordered_map<std::string, std::shared_ptr<allscale::profile>> const_iterator it = profiles.find(w_id);
+      std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it = profiles.find(w_id);
 
       if( it == profiles.end() )
          return NULL;
       else
          return (it->second)->get_counters();
-#else
-      return NULL;
-#endif
    }
+#endif
 
 
+#if 0
    // Returns the PAPI counter with name c_name for the work item 
    // with ID w_id
    double get_papi_counter(std::string w_id, std::string c_name)
@@ -831,6 +885,49 @@ namespace allscale { namespace components {
     }
 
 
+#ifdef HAVE_PAPI
+   void monitor::monitor_papi_output() {
+//      std::lock_guard<mutex_type> lock(work_map_mutex);
+      long long *counter_values;
+
+      std::size_t num_counters = papi_counter_names.size();
+      if(!num_counters) return;
+
+      std::cerr << "\n\nPAPI counters data" << std::endl;
+      std::cerr << "\nWork Item         ";
+
+      for(int i = 0; i < num_counters; i++)
+	 std::cerr << papi_counter_names[i] << "\t\t";
+
+      std::cerr << std::endl;
+ 
+
+      std::vector<std::string> w_id;
+      // sort work_item names
+      for(auto it : profiles) {
+         std::string name = it.first;
+         w_id.push_back(name);
+         }
+
+      std::sort(w_id.begin(), w_id.end());
+      // iterate over the profiles
+      for(std::string i : w_id) {
+          std::shared_ptr<profile> p = profiles[i];
+        if (p) {
+
+            counter_values = p->get_counters();
+           
+            std::cerr << "   " << i + ' ' + w_names[i];
+            for(int i = 0; i < num_counters; i++)
+		std::cerr << "\t\t" << counter_values[i];
+
+            std::cerr << std::endl; free(counter_values);
+        }
+      }
+      w_id.clear();
+    }
+#endif
+
 
    void monitor::stop() {
 
@@ -852,10 +949,26 @@ namespace allscale { namespace components {
       p->end = execution_end;
       p->result_ready = execution_end;
 
+#ifdef HAVE_PAPI
+/*      for(std::vector<hpx::performance_counters::performance_counter>::iterator it = counters.begin(); it != counters.end(); ++it)
+      {
+	 hpx::performance_counters::counter_info info = (*it).get_info().get();
+         long long value = (*it).get_value<long long>().get();
+         std::cout << "Counter: " << info.fullname_ << " Value: " << value << std::endl;
+
+      }
+*/
+#endif
+
 
       // Dump profile reports and graphs
       if(output_profile_table_)
 	 monitor_component_output();
+
+#ifdef HAVE_PAPI
+         monitor_papi_output();
+#endif
+
 
       if(output_treeture_)
          create_work_item_graph();
@@ -924,19 +1037,37 @@ namespace allscale { namespace components {
 
      if(const char* env_p = std::getenv("MONITOR_PAPI")) {
 #ifdef HAVE_PAPI
+
  	std::string counter_names(env_p);
+        static const char *counter_set_name = "/papi{locality#%d/worker-thread#%d}/%s";
+        const std::uint32_t prefix = hpx::get_locality_id();
+        std::size_t const os_threads = hpx::get_os_thread_count();
+
+
+        typedef boost::tokenizer<boost::char_separator<char>> tokenizer;
 
         boost::char_separator<char> sep(",");
-        boost::tokenizer<char_separator<char>> token(env_p, sep);
+        tokenizer tok(counter_names, sep);
         int num_tokens=0;
-        for (const auto& t : token) {
+        for (const auto& t : tok) {
              if(num_tokens >= MAX_PAPI_COUNTERS) {
                 std::cerr << "Max number of PAPI counters allowed is " << MAX_PAPI_COUNTERS << std::endl;
                 break;
              }
 
-             cout << t << "." << endl;
-          
+             papi_counter_names.push_back(t);
+
+	     for (std::size_t os_thread = 0; os_thread < os_threads; ++os_thread)
+             {
+                std::cerr << "Registering counter " << boost::str(boost::format(counter_set_name) % prefix % os_thread % t) << std::endl;
+//		hpx::performance_counters::performance_counter counter(boost::str(boost::format(counter_set_name) % prefix % os_thread % t));
+	        hpx::id_type counter = hpx::performance_counters::get_counter(boost::str(boost::format(counter_set_name) % prefix % os_thread % t));
+                hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, counter);
+		counters.insert(std::make_pair(os_thread, counter));
+             }
+//             counter_values[num_tokens] = counter.get_value<long long>().get();
+//             counters.push_back(counter);
+
 	     num_tokens++;
         }
 #else
