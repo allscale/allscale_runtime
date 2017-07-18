@@ -16,11 +16,11 @@ namespace allscale { namespace components {
       , rank_(rank)
       , schedule_rank_(0)
       , stopped_(false)
-      , allscale_app_time(0.0)
       , os_thread_count(hpx::get_os_thread_count())
       , active_threads(os_thread_count)
       , depth_cap(1.5 * (std::log(os_thread_count)/std::log(2) + 0.5))
-      , last_thread_time(0.0)
+      , current_avg_iter_time(0.0)
+      , sampling_interval(10)
 //       , count_(0)
       , timer_(
             hpx::util::bind(
@@ -41,7 +41,7 @@ namespace allscale { namespace components {
            true
         )
     {
-//	    blocked_os_threads_.resize(os_thread_count);
+        allscale_monitor = allscale::monitor::get_ptr();
     }
 
     void scheduler::init()
@@ -135,7 +135,7 @@ namespace allscale { namespace components {
         //std::cout<<"remote is " << remote << std::endl;
         if (work.enqueue_remote())
         {
-        	std::cout<<"schedulign work item on loc " << hpx::get_locality_id()<<std::endl;
+//            std::cout<<"schedulign work item on loc " << hpx::get_locality_id()<<std::endl;
 
             schedule_rank = schedule_rank_.fetch_add(1) % 3;
         }
@@ -272,54 +272,35 @@ namespace allscale { namespace components {
     {
         if ( num_threads_ > 1 && input_objective == scheduler::objectives.at(objective_IDs::TIME_RESOURCE) )
         {
-//             const std::size_t worker_tid = hpx::get_worker_thread_num();
-//             auto allscale_app_counter = hpx::performance_counters::stubs::performance_counter::get_value(
-//                 hpx::launch::sync, allscale_app_counter_id);
-
-            // FIXME: this should really use the monitoring component...
-            if (allscale_app_time == 0.0)
+            std::unique_lock<mutex_type> l(resize_mtx_);
+            if ( current_avg_iter_time == 0.0 || allscale_monitor->get_number_of_iterations() < sampling_interval)
             {
-//                allscale_app_time = hpx::util::high_resolution_timer::now();
-                //Get first iteration time
-//                allscale::components::monitor* m = allscale::monitor::run(hpx::get_locality_id());
-                std::shared_ptr<monitor> m = allscale::monitor::get_ptr();
-                std::cout << "Last Iteration time " << m->get_last_iteration_time() << " Number of iterations: " << m->get_number_of_iterations() << std::endl;
-               // allscale_app_time = m->get_iteration_time(0);
+//                std::cout << "Avg last iterations:  " << allscale_monitor->get_avg_time_last_iterations(10) << " Number of iterations: " << allscale_monitor->get_number_of_iterations() << std::endl;
+                current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
                 return true;
-            }
-
-            double now = hpx::util::high_resolution_timer::now();
-            double elapsed = now - allscale_app_time;
-            allscale_app_time = now;
-            double last_time = last_thread_time;
-            last_thread_time = elapsed;
-
-			if ( allscale_app_time > 0 )
+            } else if ( current_avg_iter_time > 0 )
             {
+                last_avg_iter_time = current_avg_iter_time;
+                current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
+
                 boost::dynamic_bitset<> const & blocked_os_threads_ =
                     thread_manager->get_pool_scheduler().get_disabled_os_threads();
                 active_threads = os_thread_count - blocked_os_threads_.count();
 
-                const std::size_t MIN_THREADS = 5;				//if we disable by 2 we should not go below 4
-                const std::size_t SMALL_SYSTEM = 16;                      	//TOOD: make it configurable
-                const std::size_t SMALL_SUSPEND_CAP = 1;                        //TODO make it configurable
-                const std::size_t LARGE_SUSPEND_CAP = active_threads * 0.20;    //TODO make it configurable
-                const std::size_t SMALL_RESUME_CAP = 1;
-                const std::size_t LARGE_RESUME_CAP = std::max((std::size_t)(blocked_os_threads_.count() * 0.20), SMALL_RESUME_CAP);
-
                 std::size_t suspend_cap = 1; //active_threads < SMALL_SYSTEM  ? SMALL_SUSPEND_CAP : LARGE_SUSPEND_CAP;
-                std::size_t resume_cap = 1; //active_threads < SMALL_SYSTEM  ? LARGE_RESUME_CAP : SMALL_RESUME_CAP;
+                std::size_t resume_cap = 1;  //active_threads < SMALL_SYSTEM  ? LARGE_RESUME_CAP : SMALL_RESUME_CAP;
 
-                // FIXME: add statistical regression...
-                if ( active_threads > MIN_THREADS && ( last_time ==0  || 1.2*elapsed < last_time ) )
+                if ( active_threads > 4 && last_avg_iter_time >= current_avg_iter_time )
                 {
                     depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5));
+                    hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                     thread_manager->get_pool_scheduler().disable_more(suspend_cap);
                     std::cout << "Sent disable signal. Active threads: " << active_threads - suspend_cap << std::endl;
                 }
-                else if ( blocked_os_threads_.any() && elapsed > 1.2*last_time )
+                else if ( blocked_os_threads_.any() && last_avg_iter_time < current_avg_iter_time )
                 {
                     depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5));
+                    hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                     thread_manager->get_pool_scheduler().enable_more(resume_cap);
                     std::cout << "Sent enable signal. Active threads: " << active_threads + resume_cap << std::endl;
                 }
