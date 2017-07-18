@@ -93,6 +93,7 @@ namespace allscale
 
         }
 
+#ifdef HAVE_PAPI
         long long *get_counters() {
 
 	   long long *counter_values = (long long *)malloc(sizeof(long long)*4);
@@ -101,6 +102,7 @@ namespace allscale
 
            return counter_values;            
         }
+#endif
     };
 
 
