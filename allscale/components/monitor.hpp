@@ -83,6 +83,12 @@ namespace allscale { namespace components {
            double get_children_SD_time(std::string w_id);
 //           HPX_DEFINE_COMPONENT_ACTION(monitor, get_children_mean_SD_time);
 
+	   // Average execution time for the last num_work_items
+	   double get_avg_work_item_times(std::uint32_t num_work_items);
+	
+           // Standard deviation in the execution time for the last num_work_items
+	   double get_SD_work_item_times(std::uint32_t num_work_items);
+
            // Inter-node introspection (synchronous wrappers for remote actions)
            double get_exclusive_time_remote(hpx::id_type locality, std::string w_id);
            double get_inclusive_time_remote(hpx::id_type locality, std::string w_id);
@@ -131,6 +137,9 @@ namespace allscale { namespace components {
 	     // Performance data per work item name
 	     std::unordered_map<std::string, std::shared_ptr<allscale::work_item_stats>> work_item_stats_map;
 
+             // Work item times in "chronological" order to compute statistics on the X last work items
+             std::vector<double> work_item_times;
+	     mutex_type work_items_vector;
 
 	     // For graph creation
 	     std::unordered_map<std::string, std::string> w_names; // Maps work_item name and ID for nice graph node labelling

@@ -1,6 +1,7 @@
 #include <allscale/components/monitor.hpp>
 #include <allscale/monitor.hpp>
 
+#include <math.h>
 #ifdef HAVE_PAPI
 #include <boost/tokenizer.hpp>
 #include <string.h>
@@ -158,6 +159,12 @@ namespace allscale { namespace components {
          parent = it_profiles->second;
          parent->push(time);
       }
+
+      
+      // Save work item time in the times vector to compute stats on-the-fly if need be for the last X work items
+      std::lock_guard<mutex_type> lock(work_items_vector);
+      work_item_times.push_back(time); 
+
    }
 
 
@@ -340,6 +347,7 @@ namespace allscale { namespace components {
       }
       else
          history->new_iteration(w.id().name());
+
    }
 
 
@@ -492,6 +500,55 @@ namespace allscale { namespace components {
    double monitor::get_children_SD_time_remote(hpx::id_type locality, std::string w_id)
    {
 
+   }
+
+
+   double monitor::get_avg_work_item_times(std::uint32_t num_work_items)
+   {
+      std::lock_guard<mutex_type> lock(work_items_vector);
+      double avg = 0.0;
+      std::uint32_t j = num_work_items;
+
+      for(std::vector<double>::reverse_iterator i = work_item_times.rbegin();
+                   i != work_item_times.rend(); ++i)
+      {
+          if(!j) break;
+          avg += *i; j--;
+
+      }
+
+      if(num_work_items <= work_item_times.size())
+         return avg/(double)num_work_items;
+      else
+         return avg/(double)work_item_times.size();
+   }
+
+
+   double monitor::get_SD_work_item_times(std::uint32_t num_work_items)
+   {
+      double std = 0.0;
+
+      //First get the mean
+      double mean = get_avg_work_item_times(num_work_items);
+
+      // Now compute the standard deviation
+      std::uint32_t j = num_work_items;
+
+      std::lock_guard<mutex_type> lock(work_items_vector);
+      double acc = 0.0;
+
+      for(std::vector<double>::reverse_iterator i = work_item_times.rbegin();
+                   i != work_item_times.rend(); ++i)
+      {
+          if(!j) break;
+          acc += pow(*i - mean, 2); j--;
+
+      }
+
+      if(num_work_items <= work_item_times.size())
+         return sqrt(acc/(double)num_work_items);
+      else
+         return sqrt(acc/(double)work_item_times.size());
    }
 
 
