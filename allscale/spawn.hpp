@@ -29,6 +29,19 @@ namespace allscale
         return tres;
     }
 
+    // forward declaration for dependencies class
+    namespace runtime {
+        class dependencies;
+    }
+
+    template <typename WorkItemDescription, typename ...Ts>
+    treeture<typename WorkItemDescription::result_type>
+    spawn_with_dependencies(const runtime::dependencies&, Ts&&...vs)
+    {
+        // TODO: handle dependencies
+        return spawn<WorkItemDescription>(std::forward<Ts>(vs)...);
+    }
+
     template <typename WorkItemDescription, typename ...Ts>
     treeture<typename WorkItemDescription::result_type>
     spawn_first(Ts&&...vs)
