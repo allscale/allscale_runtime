@@ -8,8 +8,6 @@ import sqlite3
 import logging
 import datetime
 
-import statistics  # requires python3.4+
-
 import query_manager
 import utils
 
@@ -17,6 +15,8 @@ import utils
 
 def collect_data(sqlite3_db_file, app_base_dir, app, app_arg, hpx_thread, hpx_queuing, objective):
     """Save time and energy benchmark results in sqlite3 db"""
+    import statistics  # requires python3.4+
+
     active_threads = []
     hpx_arg = "--hpx:threads={0} --hpx:queuing={1} --hpx:ini=allscale.objective!={2}".format(hpx_thread, hpx_queuing, objective)
     command = "{0} {1} {2}".format(os.path.join(os.sep, app_base_dir, app), app_arg, hpx_arg)
