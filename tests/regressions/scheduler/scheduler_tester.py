@@ -9,53 +9,7 @@ import logging
 import datetime
 
 import query_manager
-import utils
-
-
-
-def collect_data(sqlite3_db_file, app_base_dir, app, app_arg, hpx_thread, hpx_queuing, objective):
-    """Save time and energy benchmark results in sqlite3 db"""
-    import statistics  # requires python3.4+
-
-    active_threads = []
-    hpx_arg = "--hpx:threads={0} --hpx:queuing={1} --hpx:ini=allscale.objective!={2}".format(hpx_thread, hpx_queuing, objective)
-    command = "{0} {1} {2}".format(os.path.join(os.sep, app_base_dir, app), app_arg, hpx_arg)
-    print("Executing command:\n {0}".format(command))
-
-    start_energy = utils.read_energy()
-    start_time = time.time()
-
-    #It is assumed that the scheduler prints out "... Active threads: num_threads"
-    for resp in utils.run_benchmark(command):
-        if "Active threads" in resp:
-            active_threads.append(int(resp.split(':')[1].split('\\')[0]))
-
-    end_time = time.time()
-    end_energy = utils.read_energy()
-
-    params = {}
-    params['app_name'] = app
-    params['app_arg'] = app_arg
-    params['exec_time'] = end_time -start_time
-    params['energy'] = end_energy - start_energy
-    params['power'] = 0
-    params['initial_threads'] = hpx_thread
-    if active_threads:
-        params['min_threads'] = min(active_threads)
-        params['max_threads'] = max(active_threads)
-        params['mean_threads'] = statistics.mean(active_threads)
-        try:
-            params['mode_threads'] = statistics.mode(active_threads)
-        except statistics.StatisticsError:
-           #FIXME
-            params['mode_threads'] = 0
-        params['stdev_threads'] = statistics.stdev(active_threads)
-
-    params['hpx_queuing'] = hpx_queuing
-    params['objective'] = objective
-    params['date'] = '{:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now())
-
-    query_manager.insert_query(sqlite3_db_file, params)
+from utils import Utils
 
 
 
@@ -110,6 +64,7 @@ if __name__ == "__main__":
             print(help_str)
             sys.exit(0)
 
+    utils = Utils()
     config_data = utils.read_config(config_file)
    
     try: 
@@ -128,12 +83,11 @@ if __name__ == "__main__":
         sys.exit(-1)
 
     if mode == "benchmark":
-        query_manager.create_table(sqlite3_db_file, table_name)
         for app in app_names:
             for app_arg in app_arguments:
                 for hpx_thread in hpx_threads:
                     for objective in allscale_objectives:
-                        collect_data(sqlite3_db_file, app_base_dir, app, app_arg, hpx_thread, hpx_queuing, objective)
+                        utils.collect_data(sqlite3_db_file, table_name, app_base_dir, app, app_arg, hpx_thread, hpx_queuing, objective)
     elif mode == "plot":
         for app in app_names:
             for app_arg in app_arguments:
