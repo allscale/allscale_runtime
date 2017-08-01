@@ -1,12 +1,17 @@
 import subprocess
 import logging
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
+import json
+import os
 
 import query_manager
 
 def run_benchmark(exe):
     """Executes external command using system shell and returns output as generator"""
+ 
+    app = exe.split(" ")[0]
+    if not (os.path.isfile(app) and os.access(app, os.X_OK)):
+        raise Exception("File {0} either does not exist or it is not executable".format(app))
+
     p = subprocess.Popen(exe, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
     while (True):
         ret_code = p.poll()
@@ -18,6 +23,9 @@ def run_benchmark(exe):
 
 def plot(sqlite3_db_file, table_name, app_name, app_arg, hpx_threads, objectives):
     """Creates graphs out of the given lists"""
+    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_pdf import PdfPages
+
     pp = PdfPages("{0}-{1}.pdf".format(app_name, app_arg.split(" ")[0]))
     fig, ax = plt.subplots()
     for objective in objectives:
@@ -25,6 +33,8 @@ def plot(sqlite3_db_file, table_name, app_name, app_arg, hpx_threads, objectives
         threads = [rec[2] for rec in rows]
         times = [rec[3] for rec in rows]
         ax.plot(threads, times, marker="o", label = objective)
+        ax.set_xlabel("Number of threads")
+        ax.set_ylabel("Execution time")
         legend = ax.legend(loc='upper left', shadow=True, fontsize='x-large')
     
     #FIXME make it dynamic
@@ -53,4 +63,23 @@ def read_energy(file_name = "/sys/devices/system/cpu/occ_sensors/system/system-e
             energy = int(f.read().split(" ")[0])
 
     return energy
+
+
+def read_config(json_file):
+    """Reads confi from the provided json file and returns dict"""
+    config = {}
+    with open(json_file, 'r') as f:
+        config = json.load(f)
+
+    return config
+
+
+
+
+
+
+
+
+
+
 

@@ -8,15 +8,15 @@ def create_table(sqlite3_file, table_name):
     table_fields = """
                    app_name TEXT, 
                    app_args TEXT, 
-                   exec_time INTEGER, 
+                   exec_time FLOAT, 
                    energy INTEGER, 
                    power INTEGER, 
                    initial_threads INTEGER, 
                    min_threads INTEGER, 
                    max_threads INTEGER,
-                   mean_threads INTEGER,
-                   mode_threads INTEGER,
-                   stdev_threads INTEGER,
+                   mean_threads FLOAT,
+                   mode_threads FLOAT,
+                   stdev_threads FLOAT,
                    hpx_queuing TEXT,
                    objective TEXT,
                    date TEXT
@@ -93,22 +93,4 @@ def table_exists(sqlite3_db_file, table_name):
     all_rows = cursor.fetchone()
     connection.close()
     return all_rows
-
-
-def read_by_app_and_objective(sqlite3_db_file, app_name, objective):
-    """Select by app name and objective"""
-    table_name = "scheduler"
-    select_query = """SELECT app_name, initial_threads, exec_time FROM scheduler WHERE app_name=:appname and objective=:objective"""
-
-    if not table_exists(sqlite3_db_file, table_name):
-        print("{0} table does not exist. Make sure you specify correct database".format(table_name))
-        sys.exit(-1)
-
-    connection = sqlite3.connect(sqlite3_db_file)
-    cursor = connection.cursor()
-    cursor.execute(select_query, {"appname": app_name, "objective": objective})
-    all_rows = cursor.fetchall()
-    return all_rows
-
-
 

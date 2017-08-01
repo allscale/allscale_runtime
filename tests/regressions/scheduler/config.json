@@ -1,0 +1,8 @@
+{
+  "app_base_dir":"/home/khalid/Documents/lahiyeler/AllScale/allscale_runtime/my_build_dbg/examples/pfor/",
+  "app_names":["fine_grained", "chain"],
+  "app_arguments":["50000 100 1", "1000 50 1"],
+  "hpx_threads":[4, 8, 16],
+  "objectives": ["time_resource", "time"],
+  "hpx_queuing":"throttling"
+}
