@@ -11,25 +11,32 @@ import query_manager
 
 class Utils:
 
-    def __init__(self, db_created = False):
+    def __init__(self, db_created = False, max_threads = 20):
         self.db_created = db_created
+        self.cmd_ret_code = 0
+        self.max_threads = max_threads
+        logging.basicConfig(filename = 'scheduler_tester.log', level = logging.DEBUG)
 
 
 
-    def run_benchmark(self, exe):
+    def run_benchmark(self, exe, app_timeout):
         """Executes external command using system shell and returns output as generator"""
  
         app = exe.split(" ")[0]
         if not (os.path.isfile(app) and os.access(app, os.X_OK)):
+            logging.debug("File {0} either does not exist or it is not executable".format(app))
             raise Exception("File {0} either does not exist or it is not executable".format(app))
-
-        p = subprocess.Popen(exe, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+        command = "{0} {1}".format(app_timeout, exe)
+        print("Executing command: {0}".format(command))
+        p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
         while (True):
             ret_code = p.poll()
             line = p.stdout.readline()
             yield str(line)
             if (ret_code is not None): # break if subprocess is not running
                 break
+
+        self.cmd_ret_code = ret_code
         
 
 
@@ -49,8 +56,7 @@ class Utils:
             ax.set_ylabel("Execution time")
             legend = ax.legend(loc='upper left', shadow=True, fontsize='x-large')
     
-        #FIXME make it dynamic
-        plt.xlim(0, 32) 
+        plt.xlim(0, self.max_threads) 
         plt.grid(True)
         #FIXME make title parametric
         plt.title("Execution time with different policies")
@@ -64,8 +70,6 @@ class Utils:
     def read_energy(self, file_name = "/sys/devices/system/cpu/occ_sensors/system/system-energy"):
         """Read power and energy sensors which are available on POWER8"""
         import os
-
-        logging.basicConfig(filename = 'scheduler_tester.log', level = logging.DEBUG)
 
         if not os.path.exists(file_name):
             logging.debug("Sensor file: {0} does not exist".format(file_name))
@@ -86,27 +90,33 @@ class Utils:
         return config
 
 
-    def collect_data(self, sqlite3_db_file, table_name, app_base_dir, app, app_arg, hpx_thread, hpx_queuing, objective):
+    def collect_data(self, sqlite3_db_file, table_name, app_timeout, app_base_dir, app, app_arg, hpx_thread, hpx_queuing, objective):
         """Save time and energy benchmark results in sqlite3 db"""
         import statistics  # requires python3.4+
 
         active_threads = []
         hpx_arg = "--hpx:threads={0} --hpx:queuing={1} --hpx:ini=allscale.objective!={2}".format(hpx_thread, hpx_queuing, objective)
         command = "{0} {1} {2}".format(os.path.join(os.sep, app_base_dir, app), app_arg, hpx_arg)
-        print("Executing command:\n {0}".format(command))
 
         exceptions = ["std::exception", "hpx::exception"]
 
+        self.max_threads = hpx_thread
         start_energy = self.read_energy()
         start_time = time.time()
 
         #It is assumed that the scheduler prints out "... Active threads: num_threads"
-        for resp in self.run_benchmark(command):
+        for resp in self.run_benchmark(command, app_timeout):
             for exception in exceptions:
                 if exception in resp:
                     raise Exception("Error: {0}".format(resp))
             if "Active threads" in resp:
                 active_threads.append(int(resp.split(':')[1].split('\\')[0]))
+
+        print("Command ended with code: {0}".format(self.cmd_ret_code))
+
+        if self.cmd_ret_code != 0:
+            print("Command ended with code: {0}".format(self.cmd_ret_code))
+            return -1
 
         end_time = time.time()
         end_energy = self.read_energy()
@@ -139,6 +149,8 @@ class Utils:
             self.db_created = True
 
         query_manager.insert_query(sqlite3_db_file, params)
+
+        return 0
 
 
 

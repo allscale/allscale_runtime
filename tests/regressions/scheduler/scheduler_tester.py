@@ -68,6 +68,7 @@ if __name__ == "__main__":
     config_data = utils.read_config(config_file)
    
     try: 
+        app_timeout = config_data['app_timeout']
         app_base_dir = config_data['app_base_dir']
         app_names = config_data['app_names']
         app_arguments = config_data['app_arguments']
@@ -87,7 +88,7 @@ if __name__ == "__main__":
             for app_arg in app_arguments:
                 for hpx_thread in hpx_threads:
                     for objective in allscale_objectives:
-                        utils.collect_data(sqlite3_db_file, table_name, app_base_dir, app, app_arg, hpx_thread, hpx_queuing, objective)
+                        utils.collect_data(sqlite3_db_file, table_name, app_timeout, app_base_dir, app, app_arg, hpx_thread, hpx_queuing, objective)
     elif mode == "plot":
         for app in app_names:
             for app_arg in app_arguments:

@@ -1,8 +1,9 @@
 {
-  "app_base_dir":"/home/khalid/Documents/lahiyeler/AllScale/allscale_runtime/my_build_dbg/examples/pfor/",
+  "app_timeout":"timeout 30m",
+  "app_base_dir":"/home/khalid/workspace/allscale_runtime/my_build_release/examples/pfor/",
   "app_names":["fine_grained", "chain"],
-  "app_arguments":["50000 100 1", "1000 50 1"],
-  "hpx_threads":[4, 8, 16],
-  "objectives": ["time_resource", "time"],
+  "app_arguments":["33554432 50 10", "67108864 50 10", "134217728 50 10", "268435456 50 10"],
+  "hpx_threads":[10, 16, 20, 40, 60, 80],
+  "objectives":["time_resource", "time"],
   "hpx_queuing":"throttling"
 }
