@@ -3,6 +3,16 @@ import sqlite3
 import sys
 
 
+def dict_factory(cursor, row):
+    """Lets us to get results as dictionary with column names being keys.
+       See https://stackoverflow.com/questions/3300464/how-can-i-get-dict-from-sqlite-query.
+    """
+    d = {}
+    for idx, col in enumerate(cursor.description):
+        d[col[0]] = row[idx]
+    return d
+
+
 def create_table(sqlite3_file, table_name):
     """Creates sqlite3 table with predefined fields"""
     table_fields = """
@@ -65,7 +75,7 @@ def insert_query(sqlite3_file, params):
 
 
 def read_from_sqlite3(sqlite3_db_file, app_name, app_arg, hpx_threads, objective):
-    """Selects data from sqlite3 and returns it in a list"""
+    """Selects data from sqlite3 and returns it in a list of dictionaries"""
 
     select_query = """SELECT
                           app_name, 
@@ -84,6 +94,7 @@ def read_from_sqlite3(sqlite3_db_file, app_name, app_arg, hpx_threads, objective
                           initial_threads in ({0})
                    """
     connection = sqlite3.connect(sqlite3_db_file)
+    connection.row_factory = dict_factory
     cursor = connection.cursor()
     params = [app_name, app_arg, objective]
     params.extend(hpx_threads)
@@ -92,15 +103,5 @@ def read_from_sqlite3(sqlite3_db_file, app_name, app_arg, hpx_threads, objective
     all_rows = cursor.fetchall()
     connection.close()
 
-    return all_rows
-
-
-def table_exists(sqlite3_db_file, table_name):
-    """Check if the given table exists in the database"""
-    connection = sqlite3.connect(sqlite3_db_file)
-    cursor = connection.cursor()
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=:table_name", {"table_name": table_name})
-    all_rows = cursor.fetchone()
-    connection.close()
     return all_rows
 

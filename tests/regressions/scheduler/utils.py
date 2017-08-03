@@ -50,15 +50,11 @@ class Utils:
         fig, ax = plt.subplots()
         for objective in objectives:
             rows = query_manager.read_from_sqlite3(sqlite3_db_file, app_name, app_arg, hpx_threads, objective)
-            # rec[2] is initial number of threads
-            threads = [rec[2] for rec in rows] 
-            # rec[3] is exec_time
-            times = [rec[3] for rec in rows]
-            #energy = [rec[7] for rec in rows]
-            # rec[4] is min of number of threads
+            threads = [rec['initial_threads'] for rec in rows] 
+            times = [rec['exec_time'] for rec in rows]
             if objective == "time_resource":
-                min_threads = [rec[4] for rec in rows]
-                stdev_threads = [round(rec[6],2) for rec in rows]
+                min_threads = [rec['min_threads'] for rec in rows]
+                stdev_threads = [round(rec['stdev_threads'], 2) for rec in rows]
                 i = 0
                 for x, y in zip(threads, times):
                     ax.annotate(min_threads[i], xy=(x, y), xytext=(x+1, y +1))
