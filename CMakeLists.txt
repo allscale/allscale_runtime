@@ -27,4 +27,3 @@ if(ALLSCALE_WITH_TESTS)
   add_subdirectory(tests)
 endif()
 
-
