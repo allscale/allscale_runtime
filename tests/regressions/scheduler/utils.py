@@ -46,20 +46,34 @@ class Utils:
         from matplotlib.backends.backend_pdf import PdfPages
 
         pp = PdfPages("{0}-{1}.pdf".format(app_name, app_arg.split(" ")[0]))
+
         fig, ax = plt.subplots()
         for objective in objectives:
             rows = query_manager.read_from_sqlite3(sqlite3_db_file, app_name, app_arg, hpx_threads, objective)
-            threads = [rec[2] for rec in rows]
+            # rec[2] is initial number of threads
+            threads = [rec[2] for rec in rows] 
+            # rec[3] is exec_time
             times = [rec[3] for rec in rows]
+            #energy = [rec[7] for rec in rows]
+            # rec[4] is min of number of threads
+            if objective == "time_resource":
+                min_threads = [rec[4] for rec in rows]
+                stdev_threads = [round(rec[6],2) for rec in rows]
+                i = 0
+                for x, y in zip(threads, times):
+                    ax.annotate(min_threads[i], xy=(x, y), xytext=(x+1, y +1))
+                    i += 1
+            
             ax.plot(threads, times, marker="o", label = objective)
-            ax.set_xlabel("Number of threads")
-            ax.set_ylabel("Execution time")
-            legend = ax.legend(loc='upper left', shadow=True, fontsize='x-large')
-    
-        plt.xlim(0, self.max_threads) 
+            ax.set_xlabel("Number of Threads")
+            ax.set_ylabel("Execution Time (Sec)")
+            plt.xticks(threads)
+            legend = ax.legend(loc='upper center', shadow=True, fontsize='small')
+        
+        plt.xlim(0, max(hpx_threads) * 1.2) 
         plt.grid(True)
         #FIXME make title parametric
-        plt.title("Execution time with different policies")
+        plt.title("Execution time. [{0} {1}].\nAnnotations are the minimum number of threads during throttlig".format(app_name, app_arg), fontsize=11)
         pp.savefig()
         pp.close()
         plt.close()
@@ -142,7 +156,6 @@ class Utils:
         params['hpx_queuing'] = hpx_queuing
         params['objective'] = objective
         params['date'] = '{:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now())
-
 
         if not self.db_created:
             query_manager.create_table(sqlite3_db_file, table_name)

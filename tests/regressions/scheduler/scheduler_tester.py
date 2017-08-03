@@ -63,10 +63,10 @@ if __name__ == "__main__":
                  """.format(sqlite3_db_file, table_name, config_file, mode)
             print(help_str)
             sys.exit(0)
-
+    
     utils = Utils()
     config_data = utils.read_config(config_file)
-   
+     
     try: 
         app_timeout = config_data['app_timeout']
         app_base_dir = config_data['app_base_dir']

@@ -67,11 +67,21 @@ def insert_query(sqlite3_file, params):
 def read_from_sqlite3(sqlite3_db_file, app_name, app_arg, hpx_threads, objective):
     """Selects data from sqlite3 and returns it in a list"""
 
-    select_query = """SELECT app_name, app_args, initial_threads, exec_time, objective FROM scheduler WHERE 
-                      app_name=? AND 
-                      app_args=? AND
-                      objective=? AND
-                      initial_threads in ({0})
+    select_query = """SELECT
+                          app_name, 
+                          app_args,
+                          initial_threads,
+                          exec_time,
+                          min_threads,
+                          mean_threads,
+                          stdev_threads,
+                          energy,
+                          objective
+                      FROM scheduler WHERE
+                          app_name=? AND
+                          app_args=? AND
+                          objective=? AND
+                          initial_threads in ({0})
                    """
     connection = sqlite3.connect(sqlite3_db_file)
     cursor = connection.cursor()
