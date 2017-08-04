@@ -2,7 +2,7 @@
 #include <allscale/components/scheduler.hpp>
 #include <allscale/components/monitor.hpp>
 #include <allscale/monitor.hpp>
-#include <allscale/util/hardware_reconf.hpp>
+// #include <allscale/util/hardware_reconf.hpp>
 
 #include <hpx/util/scoped_unlock.hpp>
 #include <iterator>
@@ -280,7 +280,7 @@ namespace allscale { namespace components {
 //                current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
                 {
                     hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-	            current_avg_iter_time = allscale_monitor->get_avg_work_item_times(sampling_interval);
+                    current_avg_iter_time = allscale_monitor->get_avg_work_item_times(sampling_interval);
                 }
                 return true;
             } else if ( current_avg_iter_time > 0 )
@@ -303,15 +303,19 @@ namespace allscale { namespace components {
                 if ( active_threads > 4 && last_avg_iter_time >= current_avg_iter_time )
                 {
                     depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5));
-                    hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
-                    thread_manager->get_pool_scheduler().disable_more(suspend_cap);
+                    {
+                        hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+                        thread_manager->get_pool_scheduler().disable_more(suspend_cap);
+                    }
                     std::cout << "Sent disable signal. Active threads: " << active_threads - suspend_cap << std::endl;
                 }
                 else if ( blocked_os_threads_.any() && last_avg_iter_time < current_avg_iter_time )
                 {
                     depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5));
-                    hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
-                    thread_manager->get_pool_scheduler().enable_more(resume_cap);
+                    {
+                        hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+                        thread_manager->get_pool_scheduler().enable_more(resume_cap);
+                    }
                     std::cout << "Sent enable signal. Active threads: " << active_threads + resume_cap << std::endl;
                 }
             }
