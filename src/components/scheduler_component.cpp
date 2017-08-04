@@ -278,15 +278,20 @@ namespace allscale { namespace components {
             {
 //                std::cout << "Avg last iterations:  " << allscale_monitor->get_avg_time_last_iterations(10) << " Number of iterations: " << allscale_monitor->get_number_of_iterations() << std::endl;
 //                current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
-                hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-	        current_avg_iter_time = allscale_monitor->get_avg_work_item_times(sampling_interval);
+                {
+                    hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+	            current_avg_iter_time = allscale_monitor->get_avg_work_item_times(sampling_interval);
+                }
                 return true;
             } else if ( current_avg_iter_time > 0 )
             {
                 last_avg_iter_time = current_avg_iter_time;
 //                current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
-                hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                current_avg_iter_time = allscale_monitor->get_avg_work_item_times(sampling_interval);
+
+                {
+                    hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+                    current_avg_iter_time = allscale_monitor->get_avg_work_item_times(sampling_interval);
+                }
 
                 boost::dynamic_bitset<> const & blocked_os_threads_ =
                     thread_manager->get_pool_scheduler().get_disabled_os_threads();
