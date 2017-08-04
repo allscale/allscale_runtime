@@ -87,6 +87,19 @@ namespace allscale { namespace detail {
             HPX_ASSERT(tres_.valid());
         }
 
+        work_item_impl(this_work_item::id const& id, hpx::shared_future<void> dep, treeture<result_type>&& tres, closure_type&& closure)
+          : work_item_impl_base(id)
+          , tres_(std::move(tres))
+          , closure_(std::move(closure)), dep_(dep)
+        {}
+
+        template<typename ...Ts>
+        work_item_impl(hpx::shared_future<void> dep, treeture<result_type> tres, Ts&&... vs)
+         : tres_(std::move(tres)), closure_(std::forward<Ts>(vs)...), dep_(std::move(dep))
+        {
+            HPX_ASSERT(tres_.valid());
+        }
+
         std::shared_ptr<work_item_impl> shared_this()
         {
             return std::static_pointer_cast<work_item_impl>(
@@ -190,7 +203,7 @@ namespace allscale { namespace detail {
                     typename hpx::util::decay<
                     decltype(hpx::util::get<Is>(closure_))>::type...
             ) = &work_item_impl::do_process;
-            auto deps = ProcessVariant::deps(closure_);
+            auto deps = hpx::when_all(ProcessVariant::deps(closure_), dep_);
             hpx::dataflow(f, shared_this(), std::move(deps), std::move(hpx::util::get<Is>(closure_))...);
         }
 
@@ -202,7 +215,19 @@ namespace allscale { namespace detail {
                     typename hpx::util::decay<
                     decltype(hpx::util::get<Is>(closure_))>::type...
             ) = &work_item_impl::do_process;
-            hpx::apply(f, shared_this(), hpx::future<void>(), std::move(hpx::util::get<Is>(closure_))...);
+            if (dep_.valid())
+            {
+                auto this_ = shared_this();
+                dep_.then(
+                    [f, this_](hpx::shared_future<void> dep)
+                    {
+                        dep.get(); // propagate errors.
+                        hpx::apply(f, this_, hpx::future<void>(), std::move(hpx::util::get<Is>(this_->closure_))...);
+                    }
+                );
+            }
+            else
+                hpx::apply(f, shared_this(), hpx::future<void>(), std::move(hpx::util::get<Is>(closure_))...);
         }
 
         template<std::size_t ... Is>
@@ -264,6 +289,7 @@ namespace allscale { namespace detail {
 
         treeture<result_type> tres_;
         closure_type closure_;
+        hpx::shared_future<void> dep_;
     };
 
     template <typename Archive, typename WorkItemDescription, typename Closure>
@@ -275,6 +301,7 @@ namespace allscale { namespace detail {
         ar & wi.id_;
         ar & wi.tres_;
         ar & wi.closure_;
+        ar & wi.dep_;
     }
 
     template <typename Archive, typename WorkItemDescription, typename Closure>
@@ -300,12 +327,14 @@ namespace allscale { namespace detail {
         this_work_item::id id;
         treeture<typename work_item_type::result_type> tres;
         typename work_item_type::closure_type closure;
+        hpx::shared_future<void> dep;
 
         ar & id;
         ar & tres;
         ar & closure;
+        ar & dep;
 
-        return new work_item_type(id, std::move(tres), std::move(closure));
+        return new work_item_type(id, std::move(dep), std::move(tres), std::move(closure));
     }
 
     template <typename WorkItemDescription, typename Closure>

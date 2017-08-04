@@ -18,6 +18,8 @@
 
 #include <hpx/hpx_main.hpp>
 #include <hpx/util/invoke_fused.hpp>
+#include <hpx/util/unwrapped.hpp>
+#include <hpx/lcos/local/dataflow.hpp>
 
 namespace allscale {
 namespace runtime {
@@ -49,13 +51,14 @@ int main_wrapper(const Args& ... args) {
     else return 1;
 }
 
-// A class aggregating task dependencies
-class dependencies {};
+dependencies after() {
+	return dependencies(hpx::make_ready_future());
+}
 
 template<typename ... TaskRefs>
-dependencies after(const TaskRefs& ... ) {
-	// TODO: implement this!
-	return {};
+typename std::enable_if<(sizeof...(TaskRefs) > 0), dependencies>::type
+after(TaskRefs&& ... task_refs) {
+	return dependencies(hpx::when_all(task_refs.get_future()...));
 }
 
 
@@ -81,10 +84,10 @@ struct packer<
 
 template<typename A, typename ... Cs>
 hpx::util::tuple<typename std::decay<A>::type,Cs...>
-prepend(A&& a, const hpx::util::tuple<Cs...>& rest) {
+prepend(A&& a, hpx::util::tuple<Cs...> const& rest) {
     return packer<
         typename hpx::util::detail::make_index_pack<sizeof...(Cs)>::type,
-        hpx::util::tuple<Cs...>>()(rest, a);
+        hpx::util::tuple<Cs...>>()(rest, std::forward<A>(a));
 }
 
 template<typename A, typename R, typename ... Cs>
@@ -95,10 +98,10 @@ struct prec_operation {
     treeture<R>(*impl)(const dependencies& d, const hpx::util::tuple<A,Cs...>&);
 
     treeture<R> operator()(const A& a) {
-        return (*this).operator()(dependencies(),a);
+        return (*this).operator()(dependencies(hpx::make_ready_future()),a);
     }
 
-    treeture<R> operator()(const dependencies& d, const A& a) {
+    treeture<R> operator()(dependencies const& d, const A& a) {
     	// TODO: could not get tuple_cat working, wrote own version
     	return (*impl)(d,prepend(a,closure));
     }
@@ -106,7 +109,8 @@ struct prec_operation {
 };
 
 template<typename A, typename R, typename ... Cs>
-prec_operation<A,R,Cs...> make_prec_operation(const hpx::util::tuple<Cs...>& closure, treeture<R>(*impl)(const dependencies& d, const hpx::util::tuple<A,Cs...>&)) {
+prec_operation<A,R,Cs...> make_prec_operation(
+        const hpx::util::tuple<Cs...>& closure, treeture<R>(*impl)(const dependencies& d, const hpx::util::tuple<A,Cs...>&)) {
     return prec_operation<A,R,Cs...>{closure,impl};
 }
 
@@ -145,35 +149,34 @@ using combine =
     >;
 
 template<typename A, typename B, typename Op, typename R = std::result_of_t<Op(A,B)>>
-allscale::treeture<R> treeture_combine(const dependencies&, allscale::treeture<A>&& a, allscale::treeture<B>&& b, Op op) {
-    // TODO: handle dependencies
-    return allscale::spawn<combine<R>>(std::move(a),std::move(b), op);
+allscale::treeture<R> treeture_combine(const dependencies& dep, allscale::treeture<A>&& a, allscale::treeture<B>&& b, Op&& op) {
+    return allscale::treeture<R>(
+        hpx::dataflow(hpx::util::unwrapped(std::forward<Op>(op)), a.get_future(), b.get_future(), dep.dep_));
 }
 
 template<typename A, typename B, typename Op, typename R = std::result_of_t<Op(A,B)>>
 allscale::treeture<R> treeture_combine(allscale::treeture<A>&& a, allscale::treeture<B>&& b, Op op) {
-    return treeture_combine(after(),std::move(a),std::move(b),op);
+    return allscale::treeture<R>(
+        hpx::dataflow(hpx::util::unwrapped(std::forward<Op>(op)), a.get_future(), b.get_future()));
 }
 
-allscale::treeture<void> treeture_combine(const dependencies&, allscale::treeture<void>&& a, allscale::treeture<void>&& b) {
-    // TODO: handle dependencies
-    return allscale::treeture<void>(hpx::when_all(a.get_future(), b.get_future()));
+allscale::treeture<void> treeture_combine(const dependencies& dep, allscale::treeture<void>&& a, allscale::treeture<void>&& b) {
+    return allscale::treeture<void>(hpx::when_all(dep.dep_, a.get_future(), b.get_future()));
 }
 
 allscale::treeture<void> treeture_combine(allscale::treeture<void>&& a, allscale::treeture<void>&& b) {
-    return treeture_combine(after(),std::move(a),std::move(b));
+    return allscale::treeture<void>(hpx::when_all(a.get_future(), b.get_future()));
 }
 
 
 template<typename A, typename B>
-allscale::treeture<void> treeture_parallel(const dependencies&, allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
-	// TODO: handle dependencies
-	return allscale::treeture<void>(hpx::when_all(a.get_future(), b.get_future()));
+allscale::treeture<void> treeture_parallel(const dependencies& dep, allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
+	return allscale::treeture<void>(hpx::when_all(dep.dep_, a.get_future(), b.get_future()));
 }
 
 template<typename A, typename B>
 allscale::treeture<void> treeture_parallel(allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
-	return treeture_parallel(dependencies{}, std::move(a),std::move(b));
+	return allscale::treeture<void>(hpx::when_all(a.get_future(), b.get_future()));
 }
 
 
