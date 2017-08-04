@@ -7,8 +7,6 @@ import os
 
 import query_manager
 
-
-
 class Utils:
 
     def __init__(self, db_created = False, max_threads = 20):
@@ -18,10 +16,8 @@ class Utils:
         logging.basicConfig(filename = 'scheduler_tester.log', level = logging.DEBUG)
 
 
-
     def run_benchmark(self, exe, app_timeout):
         """Executes external command using system shell and returns output as generator"""
- 
         app = exe.split(" ")[0]
         if not (os.path.isfile(app) and os.access(app, os.X_OK)):
             logging.debug("File {0} either does not exist or it is not executable".format(app))
@@ -38,7 +34,6 @@ class Utils:
 
         self.cmd_ret_code = ret_code
         
-
 
     def plot(self, sqlite3_db_file, table_name, app_name, app_arg, hpx_threads, objectives):
         """Creates graphs out of the given lists"""
@@ -73,8 +68,6 @@ class Utils:
         pp.savefig()
         pp.close()
         plt.close()
-
-
 
 
     def read_energy(self, file_name = "/sys/devices/system/cpu/occ_sensors/system/system-energy"):
@@ -160,6 +153,4 @@ class Utils:
         query_manager.insert_query(sqlite3_db_file, params)
 
         return 0
-
-
 

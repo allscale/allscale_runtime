@@ -2,7 +2,6 @@ import datetime
 import sqlite3
 import sys
 
-
 def dict_factory(cursor, row):
     """Lets us to get results as dictionary with column names being keys.
        See https://stackoverflow.com/questions/3300464/how-can-i-get-dict-from-sqlite-query.
@@ -31,7 +30,6 @@ def create_table(sqlite3_file, table_name):
                    objective TEXT,
                    date TEXT
                """
-
     create_table_query = "CREATE TABLE {tn} ({tf})".format(tn = table_name, tf = table_fields)
     print(create_table_query)
 
@@ -41,10 +39,8 @@ def create_table(sqlite3_file, table_name):
     connection.close()
 
 
-
 def insert_query(sqlite3_file, params):
     """Create sqlite3 insert query that inserts benchmark inputs and outputs into a table"""
-
     values = (\
               params['app_name'],\
               params['app_arg'],\
@@ -63,7 +59,6 @@ def insert_query(sqlite3_file, params):
              )
 
     insert_query = "INSERT INTO SCHEDULER VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-
     connection = sqlite3.connect(sqlite3_file)
 
     with connection:
@@ -73,10 +68,8 @@ def insert_query(sqlite3_file, params):
     connection.close()
     
 
-
 def read_from_sqlite3(sqlite3_db_file, app_name, app_arg, hpx_threads, objective):
     """Selects data from sqlite3 and returns it in a list of dictionaries"""
-
     select_query = """SELECT
                           app_name, 
                           app_args,
@@ -104,4 +97,3 @@ def read_from_sqlite3(sqlite3_db_file, app_name, app_arg, hpx_threads, objective
     connection.close()
 
     return all_rows
-

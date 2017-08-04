@@ -5,12 +5,10 @@ import sys
 import time
 import getopt
 import sqlite3
-import logging
 import datetime
 
 import query_manager
 from utils import Utils
-
 
 
 if __name__ == "__main__":
@@ -94,6 +92,3 @@ if __name__ == "__main__":
             for app_arg in app_arguments:
                 utils.plot(sqlite3_db_file, table_name, app, app_arg, hpx_threads, allscale_objectives)
 
-
-
-     
