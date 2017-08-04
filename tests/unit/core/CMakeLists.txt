@@ -2,6 +2,8 @@ set(tests
   data_item
   data_item_manager_server
   #this_work_item
+  overlapping_async.insieme.seq
+  #overlapping_pfor.insieme.seq
   region
   fragment
   treeture

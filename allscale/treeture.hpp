@@ -271,7 +271,7 @@ namespace allscale {
 
         }
 
-        treeture<void> get_left_child()
+        treeture<void> get_left_child() const
         {
             if(fixed_children_) return *this;
 
@@ -294,7 +294,7 @@ namespace allscale {
             }
         }
 
-        treeture<void> get_right_child()
+        treeture<void> get_right_child() const
         {
             if(fixed_children_) return *this;
 
