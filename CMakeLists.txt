@@ -26,4 +26,3 @@ if(ALLSCALE_WITH_TESTS)
   include(CTest)
   add_subdirectory(tests)
 endif()
-

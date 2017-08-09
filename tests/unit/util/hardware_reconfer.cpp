@@ -1,14 +1,17 @@
 
 #include <iostream>
+#include <hpx/util/lightweight_test.hpp>
 #include <allscale/util/hardware_reconf.hpp>
+
+#include <cpufreq.h>
 
 
 int main(int argc, char** argv) {
     using hardware_reconf = allscale::components::util::hardware_reconf;  
 
+/*
     unsigned int kernel_freq = hardware_reconf::get_kernel_freq(0); 
     unsigned int hardware_freq = hardware_reconf::get_hardware_freq(0);
-
     std::vector<std::string> cpu_governors = hardware_reconf::get_governors(0);
 
     std::cout << "kernel_freq: " << kernel_freq << ", hw_freq: " << hardware_freq << std::endl;
@@ -23,6 +26,17 @@ int main(int argc, char** argv) {
     {
         std::cout << "freq: " << freq << std::endl;
     }
+*/  
+
+// It needs to be run with sudo or you should be granted to change cpu governors
+    cpufreq_policy policy;
+    std::string governor = "ondemand";
+    policy.governor = const_cast<char*>(governor.c_str());
+    policy.min = 2061000;
+    policy.max = 2061000;
+
+    int res = hardware_reconf::set_freq_policy(0, policy); 
+    HPX_TEST_EQ(res, 0);
    
 
     return 0;

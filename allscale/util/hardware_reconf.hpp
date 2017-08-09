@@ -17,7 +17,7 @@ namespace allscale { namespace components { namespace util {
         static std::vector<unsigned long> get_frequencies(unsigned int cpu);
         static std::vector<std::string> get_governors(unsigned int cpu);
         static int set_frequency(unsigned int cpu, unsigned long target_frequency);
-        static int set_freq_policy(unsigned int cpu, std::pair<std::string, std::pair<unsigned long, unsigned long>> policy);
+        static int set_freq_policy(unsigned int cpu, cpufreq_policy policy);
 
         static unsigned long get_kernel_freq(unsigned int cpu);
         static unsigned long get_hardware_freq(unsigned int cpu);

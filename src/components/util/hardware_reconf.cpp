@@ -26,15 +26,15 @@ namespace allscale { namespace components { namespace util {
     std::vector<std::string> hardware_reconf::get_governors(unsigned int cpu)
     {
         std::vector<std::string> cpu_governors;
-        struct cpufreq_available_governors *available_governors = new cpufreq_available_governors;
+        cpufreq_available_governors *available_governors = new cpufreq_available_governors;
         available_governors = cpufreq_get_available_governors(cpu);
         while (available_governors) {
             cpu_governors.push_back(available_governors->governor);
             available_governors = available_governors->next;
         }
 
-        if (available_governors != NULL)
-            cpufreq_put_available_governors(available_governors);
+        //TODO check if we have to use the following function
+        cpufreq_put_available_governors(available_governors);
     
         return cpu_governors; 
     }
@@ -46,14 +46,10 @@ namespace allscale { namespace components { namespace util {
     }
 
 
-    int hardware_reconf::set_freq_policy(unsigned int cpu, std::pair<std::string, std::pair<unsigned long, unsigned long>> policy)
+    int hardware_reconf::set_freq_policy(unsigned int cpu, cpufreq_policy policy)
     {
-        std::unique_ptr<cpufreq_policy> freq_policy(new cpufreq_policy); //(cpufreq_policy*) malloc(sizeof(struct cpufreq_policy));
-//        cpufreq_policy* freq_policy = (cpufreq_policy*) malloc(sizeof(struct cpufreq_policy));
-        freq_policy->governor = const_cast<char *>(policy.first.c_str());
-        freq_policy->min = policy.second.first;
-        freq_policy->max = policy.second.second;
-        int res = cpufreq_set_policy(cpu, freq_policy.get());
+        int res = cpufreq_set_policy(cpu, &policy);
+        return res;
     }
 
 
