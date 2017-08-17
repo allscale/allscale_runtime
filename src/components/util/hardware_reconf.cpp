@@ -1,6 +1,7 @@
 #include <allscale/util/hardware_reconf.hpp>
 
 #include <iostream>
+#include <fstream>
 #include <memory>
 #include <cpufreq.h>
 
@@ -63,5 +64,33 @@ namespace allscale { namespace components { namespace util {
         return cpufreq_get_freq_hardware(cpu);
     }
 
+
+    unsigned long long hardware_reconf::read_system_energy(const std::string &sysfs_file)
+    {
+        unsigned long long energy = 0;
+        std::string line;
+        std::ifstream ifile(sysfs_file.c_str());
+        std::getline(ifile, line);
+        ifile.close();
+
+        try {
+            energy = std::stoull(line);
+        } catch (const std::invalid_argument& ia)
+        { 
+            std::cerr << "Error reading energy sensor: " << ia.what() << ", " << line <<'\n';
+        } catch (const std::out_of_range& ofr)
+        {
+            std::cerr << "Error reading energy sensor: " << ofr.what() << ", " << line << '\n';
+        } catch ( const std::exception& e )
+        {
+            std::cerr << "Error reading energy sensor: " << e.what() << ", " << line << '\n';
+        }
+        catch ( ... )
+        {
+            std::cerr << "Error reading energy sensor, " << line << '\n';
+        }
+
+        return energy;
+    }
 
 }}}

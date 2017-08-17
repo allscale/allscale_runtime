@@ -1,4 +1,5 @@
 
+#include <string>
 #include <iostream>
 #include <hpx/util/lightweight_test.hpp>
 #include <allscale/util/hardware_reconf.hpp>
@@ -38,6 +39,11 @@ int main(int argc, char** argv) {
     int res = hardware_reconf::set_freq_policy(0, policy); 
     HPX_TEST_EQ(res, 0);
    
+    unsigned long long energy = hardware_reconf::read_system_energy();
+    HPX_TEST(energy > 0);
+
+    energy = hardware_reconf::read_system_energy("non-existent-file");
+    HPX_TEST(energy == 0);
 
     return 0;
 }
