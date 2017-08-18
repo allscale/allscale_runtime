@@ -43,7 +43,7 @@ namespace allscale { namespace components { namespace util {
 
     int hardware_reconf::set_frequency(unsigned int cpu, unsigned long target_frequency)
     {
-        throw std::logic_error("Not implemented yet");
+        return cpufreq_set_frequency(cpu, target_frequency);
     }
 
 
@@ -64,6 +64,10 @@ namespace allscale { namespace components { namespace util {
         return cpufreq_get_freq_hardware(cpu);
     }
 
+    unsigned long hardware_reconf::get_cpu_transition_latency(unsigned int cpu)
+    {
+        return cpufreq_get_transition_latency(cpu);
+    }
 
     unsigned long long hardware_reconf::read_system_energy(const std::string &sysfs_file)
     {
