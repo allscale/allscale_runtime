@@ -73,7 +73,7 @@ namespace allscale { namespace components { namespace util {
         /// \brief This function returns current CPU frequency seen by the kernel
         ///        It does not require sudo access.
         /// 
-        /// \param              [in] CPU number
+        /// \param cpu          [in] CPU number
         ///
         /// \returns            Zero on failure, else frequency in kHz.
         static unsigned long get_kernel_freq(unsigned int cpu);
@@ -81,7 +81,7 @@ namespace allscale { namespace components { namespace util {
         /// \brief This function returns current CPU frequency seen by the hardware.
         ///        It requires sudo access.
         /// 
-        /// \param              [in] CPU number
+        /// \param cpu          [in] CPU number
         ///
         /// \returns            Zero on failure, else frequency in kHz.
         static unsigned long get_hardware_freq(unsigned int cpu);
@@ -89,13 +89,22 @@ namespace allscale { namespace components { namespace util {
 
         /// \brief This function returns CPU transition latency
         ///
-        /// \param              [in] CPU number
+        /// \param cpu          [in] CPU number
         ///
         /// \returns            0 on failure, else transition latency in 10^(-9) s = nanoseconds
         static unsigned long get_cpu_transition_latency(unsigned int cpu);
 
-
-        static int set_frequencies_bulk(unsigned int num_cpus, unsigned long target_frequency);
+        
+        /// \brief This function changes frequencies of the given number of cores.
+        ///
+        /// \param num_cpus     [in] number of cpus that needs to be changed
+        /// \param target_frequency   [in] target frequency that is going to be assigned
+        ///
+        /// \note               This function works in best effort way, i.e. it will try to
+        ///                     change frequencies up to the given number of cpu cores. If
+        ///                     for some reason it fails after some number, it won't reset
+        ///                     frequencies of the previously affected cpus.
+        static void set_frequencies_bulk(unsigned int num_cpus, unsigned long target_frequency);
 
         /// \brief This function reads system energy from sysfs on POWER8/+ machines and             
         ///        returns cumulative energy.

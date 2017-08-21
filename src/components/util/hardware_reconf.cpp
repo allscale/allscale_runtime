@@ -75,7 +75,7 @@ namespace allscale { namespace components { namespace util {
     }
 
 
-    int hardware_reconf::set_frequencies_bulk(unsigned int num_cpus, unsigned long target_frequency)
+    void hardware_reconf::set_frequencies_bulk(unsigned int num_cpus, unsigned long target_frequency)
     {
         int res = 0;
         int count = 0;
@@ -95,6 +95,7 @@ namespace allscale { namespace components { namespace util {
 
                 std::cout << "cpu_id: " << cpu_id << ", count: " << count << std::endl;
                 res = set_frequency(cpu_id, target_frequency);
+                HPX_ASSERT(res == 0);
                 count++;
             }
         }
