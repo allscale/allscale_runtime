@@ -3,7 +3,12 @@
 
 #include <vector>
 #include <string>
+#include <thread>
+
+#include <hwloc.h>
 #include <cpufreq.h>
+
+#include <hpx/lcos/local/spinlock.hpp>
 
 namespace allscale { namespace components { namespace util {
 
@@ -14,6 +19,15 @@ namespace allscale { namespace components { namespace util {
     ////////////////////////////////////////////////////////////////////////////////////
     struct hardware_reconf 
     {
+        typedef hpx::lcos::local::spinlock mutex_type;
+
+        struct hw_topology
+        {
+            int num_physical_cores;
+            int num_logical_cores;
+            int num_hw_threads;
+        };
+
 
         /// \brief This function reads available CPU frequencies in KHz and returns them
         /// in a vector
@@ -57,6 +71,7 @@ namespace allscale { namespace components { namespace util {
         static int set_freq_policy(unsigned int cpu, cpufreq_policy policy);
 
         /// \brief This function returns current CPU frequency seen by the kernel
+        ///        It does not require sudo access.
         /// 
         /// \param              [in] CPU number
         ///
@@ -64,6 +79,7 @@ namespace allscale { namespace components { namespace util {
         static unsigned long get_kernel_freq(unsigned int cpu);
 
         /// \brief This function returns current CPU frequency seen by the hardware.
+        ///        It requires sudo access.
         /// 
         /// \param              [in] CPU number
         ///
@@ -78,6 +94,9 @@ namespace allscale { namespace components { namespace util {
         /// \returns            0 on failure, else transition latency in 10^(-9) s = nanoseconds
         static unsigned long get_cpu_transition_latency(unsigned int cpu);
 
+
+        static int set_frequencies_bulk(unsigned int num_cpus, unsigned long target_frequency);
+
         /// \brief This function reads system energy from sysfs on POWER8/+ machines and             
         ///        returns cumulative energy.
         ///
@@ -90,6 +109,15 @@ namespace allscale { namespace components { namespace util {
         /// \note               This function may be removed and moved into the monitoring component
         ///                     in future. 
         static unsigned long long read_system_energy(const std::string &sysfs_file = "/sys/devices/system/cpu/occ_sensors/system/system-energy");
+
+
+        /// \brief This function reads number of physical, logical cores, and hardware threads on a node.
+        ///
+        /// \returns            Returns number of physical, logical cores, and hardware threads on a node.
+        static hw_topology read_hw_topology();
+
+        private:
+             static mutex_type freq_mtx_;
 
     };
 }}}
