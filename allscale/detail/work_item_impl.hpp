@@ -67,7 +67,6 @@ namespace allscale { namespace detail {
         using closure_type = Closure;
 
 
-
         static constexpr bool is_serializable = WorkItemDescription::ser_variant::activated; /*&&
             is_closure_serializable<Closure>::value;*/
 
