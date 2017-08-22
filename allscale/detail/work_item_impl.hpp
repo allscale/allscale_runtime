@@ -3,7 +3,6 @@
 #define ALLSCALE_DETAIL_WORK_ITEM_IMPL_HPP
 
 #include <allscale/treeture.hpp>
-#include <allscale/data_item.hpp>
 #include <allscale/monitor.hpp>
 #include <allscale/detail/unwrap_if.hpp>
 #include <allscale/detail/work_item_impl_base.hpp>
@@ -67,8 +66,7 @@ namespace allscale { namespace detail {
         using result_type = typename WorkItemDescription::result_type;
         using closure_type = Closure;
 
-        using data_item_descr = typename WorkItemDescription::data_item_variant;
-        using data_item_type = typename allscale::data_item<data_item_descr>;
+
 
         static constexpr bool is_serializable = WorkItemDescription::ser_variant::activated; /*&&
             is_closure_serializable<Closure>::value;*/

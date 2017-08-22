@@ -16,7 +16,6 @@ namespace allscale { namespace detail
     typename std::enable_if<
         hpx::traits::is_future<F>::value &&
         !std::is_same<void, typename hpx::traits::future_traits<F>::type>::value &&
-        !allscale::traits::is_data_item<F>::value,
         typename hpx::traits::future_traits<F>::result_type
     >::type
     unwrap_if(F && f)
@@ -29,15 +28,14 @@ namespace allscale { namespace detail
 		hpx::traits::is_future<F>::value
 				&& std::is_same<void,
 						typename hpx::traits::future_traits<F>::type>::value
-				&& !allscale::traits::is_data_item<F>::value>::type
+
     unwrap_if(F && f) {
         f.get(); // propagate exceptions...
     }
 
     template<typename F>
     typename std::enable_if<
-		hpx::traits::is_future<F>::value
-				&& allscale::traits::is_data_item<F>::value,
+		hpx::traits::is_future<F>::value,
 		F&&>::type
     unwrap_if(F && f)
     {
@@ -99,7 +97,7 @@ auto unwrap_tuple(Tuple&& tuple, T&& t) {
 	return unwrap_tuple_impl<
 			typename hpx::util::detail::make_index_pack<
 					hpx::util::tuple_size<Tuple>::value>::type, Tuple, T>::call(
-			std::forward<Tuple>(tuple), std::forward<T>(t));
+			std::forward<Tuple>(tuple), std::forwdaard<T>(t));
 }
 
 template<typename Tuple, typename Head, typename ... Ts>
