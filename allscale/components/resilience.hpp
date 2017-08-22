@@ -2,27 +2,15 @@
 #ifndef ALLSCALE_COMPONENTS_MONITOR_HPP
 #define ALLSCALE_COMPONENTS_MONITOR_HPP
 
-#include <unistd.h>
-#include <unordered_map>
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <mutex>
-#include <memory>
-#include <vector>
-#include <stdlib.h>
-#include <string>
-
-#include <allscale/work_item_dependency.hpp>
 #include <allscale/work_item.hpp>
-#include <allscale/profile.hpp>
-#include <allscale/work_item_stats.hpp>
-#include <allscale/util/graph_colouring.hpp>
-#include <allscale/historical_data.hpp>
 
-#include <hpx/include/components.hpp>
-
+#include <hpx/hpx.hpp>
+#include <hpx/include/actions.hpp>
 #include <hpx/include/lcos.hpp>
+#include <hpx/include/components.hpp>
+#include <hpx/include/serialization.hpp>
+
+
 
 namespace allscale { namespace components {
 
@@ -34,14 +22,19 @@ namespace allscale { namespace components {
                HPX_ASSERT(false);
            }
 
-           uint64_t rank_;
+           uint64_t rank_, num_localities;
+           hpx::id_type guard;
+           work_item backup_;
            void init();
            resilience(std::uint64_t rank);
+           int get_cp_granularity();
+           void backup(work_item wi);
+           HPX_DEFINE_COMPONENT_ACTION(resilience,backup);
            
            // Wrapping functions to signals from the runtime
            static void global_w_exec_start_wrapper(work_item const& w);
            void w_exec_start_wrapper(work_item const& w);
        };
 }}
-
+HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::backup_action, backup_action)
 #endif

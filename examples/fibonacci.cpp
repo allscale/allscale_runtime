@@ -6,6 +6,7 @@
 #include <allscale/spawn.hpp>
 #include <allscale/scheduler.hpp>
 #include <allscale/monitor.hpp>
+#include <allscale/resilience.hpp>
 #include <allscale/work_item_description.hpp>
 
 #include <hpx/include/unordered_map.hpp>
@@ -212,6 +213,9 @@ int hpx_main(int argc, char **argv)
 {
     // start allscale monitoring
     allscale::monitor::run(hpx::get_locality_id());
+
+    // start allscale resilience
+    allscale::resilience::run(hpx::get_locality_id());
 
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
