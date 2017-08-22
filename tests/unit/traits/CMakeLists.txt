@@ -1,4 +1,4 @@
-set(tests is_treeture is_data_item is_region has_treeture_traits)
+set(tests is_treeture  has_treeture_traits)
 
 foreach(test ${tests})
     set(sources ${test}.cpp)

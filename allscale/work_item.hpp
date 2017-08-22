@@ -8,10 +8,6 @@
 #include <allscale/this_work_item.hpp>
 #include <allscale/traits/is_treeture.hpp>
 #include <allscale/traits/treeture_traits.hpp>
-#include <allscale/traits/is_data_item.hpp>
-#include <allscale/traits/data_item_traits.hpp>
-#include <allscale/data_item_base.hpp>
-#include <allscale/data_item.hpp>
 
 #include <hpx/include/serialization.hpp>
 

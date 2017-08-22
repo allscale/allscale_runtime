@@ -20,9 +20,3 @@ add_hpx_executable(
   COMPONENT_DEPENDENCIES allscale
 )
 
-add_hpx_executable(
-  fine_grained_with_data_items
-  SOURCES
-    fine_grained_with_data_items.cpp
-  COMPONENT_DEPENDENCIES allscale
-)
