@@ -14,7 +14,7 @@
 int main(int argc, char** argv) {
     using hardware_reconf = allscale::components::util::hardware_reconf;
 
-    hardware_reconf::hw_topology topo = hardware_reconf::read_hw_topology();
+    hardware_reconf::hw_topology topo =hardware_reconf::read_hw_topology();
 
 /*
     std::vector<std::string> cpu_governors = hardware_reconf::get_governors(0);
@@ -57,7 +57,6 @@ int main(int argc, char** argv) {
         HPX_TEST_EQ(hardware_freq, target_freq);
     }
 
-
     unsigned long long energy = hardware_reconf::read_system_energy();
     HPX_TEST(energy > 0);
 
@@ -65,21 +64,16 @@ int main(int argc, char** argv) {
     HPX_TEST_EQ(energy, 0);
 
     target_freq = max_freq;
-    unsigned int target_num_cpus = 4;
-    hardware_reconf::set_frequencies_bulk(target_num_cpus, target_freq);
+    unsigned int target_cpu_count = 4;
+    hardware_reconf::set_frequencies_bulk(target_cpu_count, target_freq);
     std::this_thread::sleep_for(std::chrono::microseconds(1));
 
-    unsigned int affected_cpu_count = 0;
-    for (unsigned int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
-    {
-        // get_kernel_freq does not require sudo access
-        hardware_freq = hardware_reconf::get_kernel_freq(cpu_id);
-        if (hardware_freq == target_freq)
-            affected_cpu_count++;
-    }
-    HPX_TEST_EQ(affected_cpu_count, target_num_cpus);
+    unsigned int affected_cpu_count = hardware_reconf::num_cpus_with_frequency(target_freq);
+    HPX_TEST_EQ(affected_cpu_count, target_cpu_count);
 
-    std::cout << "Topology: [" << topo.num_logical_cores << ", " << topo.num_physical_cores << ", " << topo.num_hw_threads << "]" << std::endl;
+//    hardware_reconf::make_cpus_online(0, 8);
+//    hardware_reconf::make_cpus_offline(0, 8);
+//    std::cout << "Topology: [" << topo.num_logical_cores << ", " << topo.num_physical_cores << ", " << topo.num_hw_threads << "]" << std::endl;
 
     return 0;
 }

@@ -6,6 +6,8 @@
 #include <mutex>
 #include <cpufreq.h>
 
+#include <boost/format.hpp>
+
 namespace allscale { namespace components { namespace util {
 
     hardware_reconf::mutex_type hardware_reconf::freq_mtx_;
@@ -80,8 +82,7 @@ namespace allscale { namespace components { namespace util {
         int res = 0;
         int count = 0;
 
-        hardware_reconf::hw_topology topo = hardware_reconf::read_hw_topology();
-
+        hardware_reconf::hw_topology topo = read_hw_topology();
         unsigned int max_cpu_id = topo.num_logical_cores;
         unsigned int hw_threads = topo.num_hw_threads;  
     
@@ -93,12 +94,30 @@ namespace allscale { namespace components { namespace util {
                 if (count == num_cpus)
                     break;
 
-                std::cout << "cpu_id: " << cpu_id << ", count: " << count << std::endl;
                 res = set_frequency(cpu_id, target_frequency);
                 HPX_ASSERT(res == 0);
                 count++;
             }
         }
+    }
+
+
+    unsigned int hardware_reconf::num_cpus_with_frequency(unsigned long frequency)
+    {
+        hardware_reconf::hw_topology topo = read_hw_topology();
+        unsigned int max_cpu_id = topo.num_logical_cores;
+        unsigned int hw_threads = topo.num_hw_threads;
+        unsigned int cpu_count = 0;
+
+        std::unique_lock<mutex_type> l(hardware_reconf::freq_mtx_);
+        for(unsigned int cpu_id = 0; cpu_id < max_cpu_id; cpu_id += hw_threads)
+        {
+            if (get_hardware_freq(cpu_id) == frequency)
+            {
+                cpu_count++;
+            }
+        }
+        return cpu_count;
     }
 
 
@@ -145,11 +164,54 @@ namespace allscale { namespace components { namespace util {
         topo.num_physical_cores = hwloc_get_nbobjs_by_depth(topology, core_depth);
         topo.num_logical_cores = std::thread::hardware_concurrency();
 
-        HPX_ASSERT(topo.num_logical_cores % topo.num_physical_cores == 0);
+//        HPX_ASSERT(topo.num_logical_cores % topo.num_physical_cores == 0);
 
         topo.num_hw_threads = topo.num_logical_cores / topo.num_physical_cores;
 
         return topo;
+    }
+
+    
+    void hardware_reconf::make_cpus_offline(unsigned int min_cpu_id, unsigned int max_cpu_id)
+    {
+        std::vector<std::thread> threads;
+        std::string sysfs_file = "/sys/devices/system/cpu/cpu%d/online";
+        for (unsigned int cpu_id = min_cpu_id; cpu_id < max_cpu_id; cpu_id++)
+        {
+            std::string sysfs_cpu_file = boost::str(boost::format(sysfs_file) % cpu_id);
+            std::cout << "Making offlie: " << sysfs_cpu_file << std::endl;
+            threads.push_back(std::move(std::thread(hardware_reconf::write_to_file, 0, sysfs_cpu_file)));
+        }
+
+        for (int i = min_cpu_id; i < max_cpu_id; i++)
+        {
+            threads[i].join();
+        }
+    }
+
+
+    void hardware_reconf::make_cpus_online(unsigned int min_cpu_id, unsigned int max_cpu_id)
+    {
+        std::vector<std::thread> threads;
+        std::string sysfs_file = "/sys/devices/system/cpu/cpu%d/online";
+        for (unsigned int cpu_id = min_cpu_id; cpu_id < max_cpu_id; cpu_id++)
+        {
+            std::string sysfs_cpu_file = boost::str(boost::format(sysfs_file) % cpu_id);
+            threads.push_back(std::move(std::thread(hardware_reconf::write_to_file, 1, sysfs_cpu_file)));
+        }
+
+        for (int i = min_cpu_id; i < max_cpu_id; i++)
+        {
+            threads[i].join();
+        }
+    }
+
+    
+    void hardware_reconf::write_to_file(int value, const std::string& file_name)    
+    {
+        std::ofstream sysfs_cpu(file_name);
+        sysfs_cpu << value;
+        sysfs_cpu.close();
     }
 
 }}}

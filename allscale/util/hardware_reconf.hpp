@@ -97,7 +97,7 @@ namespace allscale { namespace components { namespace util {
         
         /// \brief This function changes frequencies of the given number of cores.
         ///
-        /// \param num_cpus     [in] number of cpus that needs to be changed
+        /// \param num_cpus           [in] number of cpus that needs to be changed
         /// \param target_frequency   [in] target frequency that is going to be assigned
         ///
         /// \note               This function works in best effort way, i.e. it will try to
@@ -105,6 +105,15 @@ namespace allscale { namespace components { namespace util {
         ///                     for some reason it fails after some number, it won't reset
         ///                     frequencies of the previously affected cpus.
         static void set_frequencies_bulk(unsigned int num_cpus, unsigned long target_frequency);
+
+
+        /// \brief  This function returns number of physcial cpus with given frequency.
+        ///
+        /// \param frequency    [in] frequncy that is being looked for
+        ///
+        /// \returns            This function returns number of physical cpus that have
+        ///                     the given frequency.
+        static unsigned int num_cpus_with_frequency(unsigned long frequency);
 
         /// \brief This function reads system energy from sysfs on POWER8/+ machines and             
         ///        returns cumulative energy.
@@ -125,8 +134,25 @@ namespace allscale { namespace components { namespace util {
         /// \returns            Returns number of physical, logical cores, and hardware threads on a node.
         static hw_topology read_hw_topology();
 
+
+        /// \brief  This function sets cpus within range of [min_cpu_id, max_cpu_id) offline.
+        /// 
+        /// \param min_cpu_id   [in] starting cpu id, inclusive
+        /// \param max_cpu_id   [in] end cpu id, exclusive
+        ///
+        static void make_cpus_offline(unsigned int min_cpu_id, unsigned int max_cpu_id);
+
+        
+        /// \brief  This function sets cpus within range of [min_cpu_id, max_cpu_id) online.
+        /// 
+        /// \param min_cpu_id   [in] starting cpu id, inclusive
+        /// \param max_cpu_id   [in] end cpu id, exclusive
+        ///
+        static void make_cpus_online(unsigned int min_cpu_id, unsigned int max_cpu_id);
+
         private:
              static mutex_type freq_mtx_;
+             static void write_to_file(int value, const std::string& file_name);
 
     };
 }}}
