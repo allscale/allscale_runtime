@@ -188,7 +188,7 @@ allscale::treeture<void> treeture_sequential(const dependencies&, allscale::tree
 
 template<typename A, typename B>
 allscale::treeture<void> treeture_sequential(allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
-	return treeture_sequential(dependencies{}, std::move(a),std::move(b));
+	return treeture_sequential(dependencies{hpx::future<void>()}, std::move(a),std::move(b));
 }
 
 
