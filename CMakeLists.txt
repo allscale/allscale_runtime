@@ -16,7 +16,11 @@ if (ALLSCALE_PAPI)
 add_definitions(-DHAVE_PAPI)
 endif()
 
-include_directories(${CMAKE_SOURCE_DIR})
+if(NOT ALLSCALE_API_DIR)
+  message(FATAL_ERROR "ALLSCALE_API_DIR CMake variable not set. Please set it to point to the directory where you checked out https://github.com/allscale/allscale_api/")
+endif()
+
+include_directories(${CMAKE_SOURCE_DIR} ${ALLSCALE_API_DIR}/code/utils/include ${ALLSCALE_API_DIR}/code/api/include)
 
 add_subdirectory(src)
 add_subdirectory(examples)
