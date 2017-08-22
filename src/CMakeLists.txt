@@ -9,7 +9,7 @@ add_hpx_component(
     detail/work_item_impl_base.cpp
     components/scheduler_component.cpp
     components/util/graph_colouring.cpp
-    components/util/hardware_reconf.cpp
+    #    components/util/hardware_reconf.cpp
     components/monitor_component.cpp
 )
 

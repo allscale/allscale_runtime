@@ -1,4 +1,5 @@
 set(tests hardware_reconfer)
+set(tests)
   
 foreach(test ${tests})
     set(sources ${test}.cpp)
