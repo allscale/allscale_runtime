@@ -13,6 +13,8 @@
 #include <allscale/spawn.hpp>
 #include <allscale/work_item_description.hpp>
 #include <allscale/components/monitor.hpp>
+#include <allscale/components/resilience.hpp>
+#include <allscale/resilience.hpp>
 #include <allscale/do_serialization.hpp>
 #include <allscale/no_serialization.hpp>
 
@@ -32,6 +34,8 @@ template<typename MainWorkItem, typename ... Args>
 int main_wrapper(const Args& ... args) {
     // include monitoring support
     allscale::monitor::run(hpx::get_locality_id());
+    // include resilience support
+    allscale::resilience::run(hpx::get_locality_id());
     // start allscale scheduler ...
     auto sched = allscale::scheduler::run(hpx::get_locality_id());
 
