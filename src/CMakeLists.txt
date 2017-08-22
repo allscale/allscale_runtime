@@ -4,6 +4,7 @@ add_hpx_component(
   SOURCES
     monitor.cpp
     scheduler.cpp
+    resilience.cpp
     this_work_item.cpp
     treeture.cpp
     detail/work_item_impl_base.cpp
@@ -11,6 +12,7 @@ add_hpx_component(
     components/util/graph_colouring.cpp
     #    components/util/hardware_reconf.cpp
     components/monitor_component.cpp
+    components/resilience_component.cpp
 )
 
 target_link_libraries(allscale_component cpufreq)
