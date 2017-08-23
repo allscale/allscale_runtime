@@ -2,7 +2,10 @@ project(allscale)
 
 cmake_minimum_required(VERSION 2.8)
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+
 find_package(HPX REQUIRED)
+find_package(CPUFREQ)
 
 if (ALLSCALE_SHARED_MEMORY_ONLY)
   add_definitions(-DALLSCALE_SHARED_MEMORY_ONLY)

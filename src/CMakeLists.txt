@@ -1,20 +1,34 @@
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
-find_package(CPUFREQ)
+if(CPUFREQ_FOUND)
+    add_hpx_component(
+      allscale
+      SOURCES
+        monitor.cpp
+        scheduler.cpp
+        this_work_item.cpp
+        treeture.cpp
+        detail/work_item_impl_base.cpp
+        components/scheduler_component.cpp
+        components/util/graph_colouring.cpp
+        components/util/hardware_reconf.cpp
+        components/monitor_component.cpp
+    )
+    target_link_libraries(allscale_component cpufreq)
 
-add_hpx_component(
-  allscale
-  SOURCES
-    monitor.cpp
-    scheduler.cpp
-    this_work_item.cpp
-    treeture.cpp
-    detail/work_item_impl_base.cpp
-    components/scheduler_component.cpp
-    components/util/graph_colouring.cpp
-    components/util/hardware_reconf.cpp
-    components/monitor_component.cpp
-)
-
-target_link_libraries(allscale_component cpufreq)
+elseif(NOT CPUFREQ_FOUND)
+    MESSAGE(STATUS "didnt find it compile without hardwarereconf crap")
+     add_hpx_component(
+      allscale
+      SOURCES
+        monitor.cpp
+        scheduler.cpp
+        this_work_item.cpp
+        treeture.cpp
+        detail/work_item_impl_base.cpp
+        components/scheduler_component.cpp
+        components/util/graph_colouring.cpp
+        components/monitor_component.cpp
+    )
+    target_link_libraries(allscale_component )
+endif()
