@@ -22,6 +22,7 @@ namespace allscale { namespace components {
                HPX_ASSERT(false);
            }
 
+           bool resilience_disabled;
            uint64_t rank_, num_localities;
            hpx::id_type guard;
            std::map<this_work_item::id,work_item> local_backups_;

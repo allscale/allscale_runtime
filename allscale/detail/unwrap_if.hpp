@@ -32,28 +32,6 @@ namespace allscale { namespace detail
         f.get(); // propagate exceptions...
     }
 
-    template<typename F>
-    typename std::enable_if<
-		hpx::traits::is_future<F>::value,
-		F&&>::type
-    unwrap_if(F && f)
-    {
-        return std::forward<F>(f);
-    }
-
-/*
-     template <typename D>
-     typename std::enable_if<
-     hpx::traits::is_future<D>::value && allscale::traits::is_data_item<D>::value,
-     typename hpx::traits::future_traits<D>::result_type
-     >::type
-     unwrap_if(D && d)
-     {
-     std::cout<<"checking if  i should unrwap data_item" << std::endl;
-     return d;
-     }
- */
-
 template<typename F>
 typename std::enable_if<!hpx::traits::is_future<F>::value,
 		typename std::remove_reference<F>::type &&>::type unwrap_if(F && f) {

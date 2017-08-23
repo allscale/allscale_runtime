@@ -11,6 +11,7 @@
 #include <hpx/include/serialization.hpp>
 #include <hpx/util/assert.hpp>
 #include <hpx/util/tuple.hpp>
+#include <hpx/lcos/when_all.hpp>
 
 #include <memory>
 #include <utility>
