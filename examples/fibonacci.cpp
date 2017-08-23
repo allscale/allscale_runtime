@@ -91,7 +91,7 @@ using fibonacci_work =
     allscale::work_item_description<
         std::int64_t,
         fib_name,
-        allscale::no_serialization,
+        allscale::do_serialization,
         split_variant,
         process_variant
     >;

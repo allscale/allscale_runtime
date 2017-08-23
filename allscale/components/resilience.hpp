@@ -24,17 +24,23 @@ namespace allscale { namespace components {
 
            uint64_t rank_, num_localities;
            hpx::id_type guard;
-           work_item backup_;
+           std::map<this_work_item::id,work_item> local_backups_;
+           std::map<this_work_item::id,work_item> remote_backups_;
            void init();
            resilience(std::uint64_t rank);
            int get_cp_granularity();
-           void backup(work_item wi);
-           HPX_DEFINE_COMPONENT_ACTION(resilience,backup);
+           void remote_backup(work_item wi);
+           HPX_DEFINE_COMPONENT_ACTION(resilience,remote_backup);
+           void remote_unbackup(work_item wi);
+           HPX_DEFINE_COMPONENT_ACTION(resilience,remote_unbackup);
            
            // Wrapping functions to signals from the runtime
            static void global_w_exec_start_wrapper(work_item const& w);
            void w_exec_start_wrapper(work_item const& w);
+           static void global_w_exec_finish_wrapper(work_item const& w);
+           void w_exec_finish_wrapper(work_item const& w);
        };
 }}
-HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::backup_action, backup_action)
+HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::remote_backup_action, remote_backup_action)
+HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::remote_unbackup_action, remote_unbackup_action)
 #endif
