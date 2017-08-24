@@ -22,10 +22,10 @@ namespace allscale
         static void schedule(work_item work);
         static components::scheduler* run(std::size_t rank);
         static void stop();
+        static components::scheduler* get_ptr();
 
     private:
         static std::size_t rank_;
-        static components::scheduler* get_ptr();
         static components::scheduler & get();
 
 
