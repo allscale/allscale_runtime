@@ -25,7 +25,9 @@ namespace allscale { namespace components {
            bool resilience_disabled;
            uint64_t rank_, num_localities;
            hpx::id_type guard;
+           std::mutex backup_mutex_;
            std::map<this_work_item::id,work_item> local_backups_;
+           std::mutex result_mutex_;
            std::map<this_work_item::id,work_item> remote_backups_;
            void init();
            resilience(std::uint64_t rank);

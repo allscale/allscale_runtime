@@ -38,7 +38,6 @@ namespace allscale { namespace components {
         
         if (w.id().depth() != get_cp_granularity()) return;
 
-        std::cout << "Will checkpoint task " << w.id().name() << "\n";
         //@ToDo: do I really need to block (via get) here?
         hpx::async<remote_backup_action>(guard, w).get();
         local_backups_[w.id()] = w;
@@ -49,29 +48,28 @@ namespace allscale { namespace components {
 
         if (w.id().depth() != get_cp_granularity()) return;
 
-        std::cout << "Will uncheckpoint task " << w.id().name() << " on loc " << hpx::get_locality_id() <<  "\n";
-
         //@ToDo: do I really need to block (via get) here?
         hpx::async<remote_unbackup_action>(guard, w).get();
-        local_backups_.erase(local_backups_.find(w.id()),local_backups_.end());
+        local_backups_.erase(w.id());
 
     }
 
 	int resilience::get_cp_granularity() {
-		return 5;
+		return 4;
 	}
 
     void resilience::remote_backup(work_item w) {
+        std::unique_lock<std::mutex> lock(backup_mutex_);
         remote_backups_[w.id()] = w;
     }
 
     void resilience::remote_unbackup(work_item w) {
-        if (remote_backups_.find(w.id()) != remote_backups_.end()) {
-            std::cout << "Erase ... " << w.id().name() << "\n";
-            remote_backups_.erase(remote_backups_.find(w.id()),remote_backups_.end());
-        }
-        else
-            std::cout << "Didn't find the backup of " << w.id().name() << "\n";
+
+        std::unique_lock<std::mutex> lock(backup_mutex_);
+        auto b = remote_backups_.find(w.id());
+        if (b == remote_backups_.end())
+            std::cerr << "ERROR: Backup not found that should be there!\n";
+        remote_backups_.erase(b);
     }
 
 
