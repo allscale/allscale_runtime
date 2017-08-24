@@ -4,6 +4,8 @@
 #include <allscale/scheduler.hpp>
 #include <allscale/work_item.hpp>
 
+using std::chrono::milliseconds;
+
 namespace allscale { namespace components {
 
     resilience::resilience(std::uint64_t rank) : rank_(rank) {
@@ -12,11 +14,47 @@ namespace allscale { namespace components {
 
     void resilience::set_guard(hpx::id_type guard) {
         guard_ = guard;
-        //protectee_ = protectee;
     }
 
     hpx::id_type resilience::get_protectee() {
         return protectee_;
+    }
+
+    void resilience::send_heartbeat(std::size_t counter) {
+        heartbeat_counter = counter;
+    }
+
+    void resilience::check_status(std::size_t counter) {
+        std::uint32_t const locality_id = hpx::get_locality_id();
+        hpx::this_thread::sleep_for(milliseconds(delta));
+        if (heartbeat_counter < counter) {
+            std::chrono::system_clock::time_point end_time = std::chrono::high_resolution_clock::now();
+            if (end_time >= trust_lease)
+                my_state = SUSPECT;
+        }
+        else { // j >= i
+            // a message has been received for this epoch
+            // so TRUST until t_(i+1) = (i+1) * miu + delta
+            trust_lease = start_time + milliseconds((heartbeat_counter + 1) * miu + delta);
+            my_state = TRUST;
+        }
+    }
+
+    // Run detection forever ...
+    void resilience::failure_detection_loop () {
+        send_heartbeat_action send_heartbeat_act;
+        std::size_t actual_epoch = 0;
+        while (true) {
+            hpx::this_thread::sleep_for(milliseconds(miu));
+            std::chrono::system_clock::time_point t_now =  std::chrono::high_resolution_clock::now();
+            actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
+            // asynchronously send heartbeat m_i
+            // at sigma_i = i * miu
+            hpx::apply(send_heartbeat_act, protectee_, actual_epoch);
+            // At t_i - sigma_i + delta, check if I 
+            // have received a message m_j with j>=i from a peer
+            hpx::apply<check_status_action>(hpx::find_here(), actual_epoch); 
+        }
     }
 
     std::map<this_work_item::id,work_item> resilience::get_local_backups() {
@@ -24,6 +62,8 @@ namespace allscale { namespace components {
     }
 
     void resilience::init() {
+        start_time = std::chrono::high_resolution_clock::now();
+
         if (num_localities < 2) {
             resilience_disabled = true;
             std::cout << "Resilience disabled for single locality!\n";
@@ -114,3 +154,5 @@ HPX_REGISTER_ACTION(allscale::components::resilience::remote_unbackup_action, re
 HPX_REGISTER_ACTION(allscale::components::resilience::set_guard_action, set_guard_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::get_protectee_action, get_protectee_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::get_local_backups_action, get_local_backups_action);
+HPX_REGISTER_ACTION(allscale::components::resilience::send_heartbeat_action, send_heartbeat_action);
+HPX_REGISTER_ACTION(allscale::components::resilience::check_status_action, check_status_action);
