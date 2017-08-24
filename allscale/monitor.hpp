@@ -49,6 +49,6 @@ namespace allscale {
         std::shared_ptr<components::monitor> component_;
 
     };
-};
+}
 
 #endif

@@ -146,6 +146,7 @@ using combine =
 
 template<typename A, typename B, typename Op, typename R = std::result_of_t<Op(A,B)>>
 allscale::treeture<R> treeture_combine(const dependencies&, allscale::treeture<A>&& a, allscale::treeture<B>&& b, Op op) {
+    // TODO: handle dependencies
     return allscale::spawn<combine<R>>(std::move(a),std::move(b), op);
 }
 
@@ -155,6 +156,7 @@ allscale::treeture<R> treeture_combine(allscale::treeture<A>&& a, allscale::tree
 }
 
 allscale::treeture<void> treeture_combine(const dependencies&, allscale::treeture<void>&& a, allscale::treeture<void>&& b) {
+    // TODO: handle dependencies
     return allscale::treeture<void>(hpx::when_all(a.get_future(), b.get_future()));
 }
 
@@ -165,7 +167,8 @@ allscale::treeture<void> treeture_combine(allscale::treeture<void>&& a, allscale
 
 template<typename A, typename B>
 allscale::treeture<void> treeture_parallel(const dependencies&, allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
- 	return allscale::treeture<void>(hpx::when_all(a.get_future(), b.get_future()));
+	// TODO: handle dependencies
+	return allscale::treeture<void>(hpx::when_all(a.get_future(), b.get_future()));
 }
 
 template<typename A, typename B>

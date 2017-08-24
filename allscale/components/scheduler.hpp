@@ -15,6 +15,7 @@
 #include <hpx/runtime/threads/policies/throttling_scheduler.hpp>
 #include <hpx/runtime/threads/threadmanager_impl.hpp>
 
+#include <memory>
 #include <deque>
 #include <vector>
 #include <unordered_map>
@@ -71,11 +72,9 @@ namespace allscale { namespace components {
         std::size_t queue_length_;
 
         hpx::id_type threads_total_counter_id;
-//        std::vector<std::pair<std::int64_t, double>> threads_time;
         double total_threads_time;
 
         hpx::id_type allscale_app_counter_id;
-        double allscale_app_time;
 
         std::vector<hpx::compute::host::target> numa_domains;
         std::vector<executor_type> executors;
@@ -85,28 +84,15 @@ namespace allscale { namespace components {
         std::size_t active_threads;
         std::size_t depth_cap;
 
-//        void resume(std::size_t shepherd);
-//        void resume_all();
-//	void resume_n(std::size_t n);
-
-//        std::size_t resume_count;
-//        void suspend(std::size_t shepherd);
-//        bool is_suspended(std::size_t shepherd) const;
-
-///        void throttle_controller(std::size_t shepherd);
-
-//        void register_thread(std::size_t shepherd);
-//        void register_suspend_thread(std::size_t shepherd);
-
 	hpx::threads::threadmanager_impl<hpx::threads::policies::throttling_scheduler<>>* thread_manager;
 
-
-//        boost::dynamic_bitset<> & blocked_os_threads_;
         mutable mutex_type throttle_mtx_;
-
         mutable mutex_type resize_mtx_;
 
-        double last_thread_time;
+        std::uint16_t sampling_interval;
+        double last_avg_iter_time;
+        double current_avg_iter_time;
+        std::shared_ptr<monitor> allscale_monitor;
 
         std::string input_objective;
         const std::vector<std::string> objectives = {
