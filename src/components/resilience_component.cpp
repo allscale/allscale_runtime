@@ -128,7 +128,7 @@ namespace allscale { namespace components {
     }
 
 	int resilience::get_cp_granularity() {
-		return 4;
+		return 2;
 	}
 
     void resilience::remote_backup(work_item w) {
