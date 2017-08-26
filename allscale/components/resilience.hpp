@@ -22,15 +22,22 @@ namespace allscale { namespace components {
                HPX_ASSERT(false);
            }
 
-           enum state {TRUST,SUSPECT};
+           // START failure detection here (Kiril)
+           enum state {TRUST, SUSPECT};
            state my_state;
-           bool resilience_disabled;
            std::chrono::system_clock::time_point start_time,trust_lease;
            std::size_t heartbeat_counter;
            const std::size_t miu = 1000;
            const std::size_t delta = 2000;
+           void failure_detection_loop_async ();
+           void failure_detection_loop ();
+           HPX_DEFINE_COMPONENT_ACTION(resilience,failure_detection_loop);
+           void send_heartbeat(std::size_t counter);
+           HPX_DEFINE_COMPONENT_ACTION(resilience,send_heartbeat);
+           // END failure detection here
+              
+           bool resilience_disabled;
            uint64_t rank_, num_localities;
-           void failure_detection_loop();
            hpx::id_type guard_;
            hpx::id_type protectee_;
            hpx::id_type protectees_protectee_;
@@ -40,14 +47,9 @@ namespace allscale { namespace components {
            std::map<this_work_item::id,work_item> remote_backups_;
            void init();
            resilience(std::uint64_t rank);
-
-           void send_heartbeat(std::size_t counter);
-           HPX_DEFINE_COMPONENT_ACTION(resilience,send_heartbeat);
-
-           void check_status(std::size_t counter);
-           HPX_DEFINE_COMPONENT_ACTION(resilience,check_status);
            void protectee_crashed();
            int get_cp_granularity();
+
            void set_guard(hpx::id_type guard);
            HPX_DEFINE_COMPONENT_ACTION(resilience,set_guard);
            hpx::id_type get_protectee();
@@ -71,6 +73,4 @@ HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::remote_unbacku
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::set_guard_action, set_guard_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_protectee_action, get_protectee_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_local_backups_action, get_local_backups_action)
-HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::send_heartbeat_action, send_heartbeat_action)
-HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::check_status_action, check_status_action)
 #endif
