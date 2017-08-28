@@ -14,6 +14,7 @@ namespace allscale {
     struct resilience
     {
         static components::resilience* run(std::size_t rank);
+        static void stop();
         static std::shared_ptr<components::resilience> & get_ptr();
         static hpx::id_type get_protectee();
         private:

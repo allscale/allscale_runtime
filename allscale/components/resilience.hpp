@@ -22,6 +22,9 @@ namespace allscale { namespace components {
                HPX_ASSERT(false);
            }
 
+           std::atomic_bool resilience_component_running;
+           std::atomic_bool loop_done;
+
            // START failure detection here (Kiril)
            enum state {TRUST, SUSPECT};
            state my_state;
@@ -60,6 +63,8 @@ namespace allscale { namespace components {
            HPX_DEFINE_COMPONENT_ACTION(resilience,remote_backup);
            void remote_unbackup(work_item wi);
            HPX_DEFINE_COMPONENT_ACTION(resilience,remote_unbackup);
+           void shutdown();
+           HPX_DEFINE_COMPONENT_ACTION(resilience,shutdown);
 
            // Wrapping functions to signals from the runtime
            static void global_w_exec_start_wrapper(work_item const& w);
@@ -73,4 +78,5 @@ HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::remote_unbacku
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::set_guard_action, set_guard_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_protectee_action, get_protectee_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_local_backups_action, get_local_backups_action)
+HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::shutdown_action, shutdown_action)
 #endif

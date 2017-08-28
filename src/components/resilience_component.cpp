@@ -32,34 +32,35 @@ namespace allscale { namespace components {
     // Run detection forever ...
     void resilience::failure_detection_loop () {
         std::size_t actual_epoch = 0;
-        while (true) {
-            hpx::this_thread::sleep_for(milliseconds(miu-delta));
-            auto t_now =  std::chrono::high_resolution_clock::now();
-            actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
-            // asynchronously send heartbeat m_i
-            // at sigma_i = i * miu
-            hpx::id_type protectee = get_protectee();
-            hpx::apply<send_heartbeat_action>(protectee, actual_epoch);
-            // At t_i - sigma_i + delta, check if I
-            // have received a message m_j with j>=i from a peer
-
+        while (resilience_component_running) {
+//            hpx::this_thread::sleep_for(milliseconds(miu-delta));
+//            auto t_now =  std::chrono::high_resolution_clock::now();
+//            actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
+//            // asynchronously send heartbeat m_i
+//            // at sigma_i = i * miu
+//            hpx::id_type protectee = get_protectee();
+//            hpx::apply<send_heartbeat_action>(protectee, actual_epoch);
+//            // At t_i - sigma_i + delta, check if I
+//            // have received a message m_j with j>=i from a peer
+//
             hpx::this_thread::sleep_for(milliseconds(delta));
-            if (heartbeat_counter < actual_epoch) {
-                auto end_time = std::chrono::high_resolution_clock::now();
-                if (end_time >= trust_lease)
-                    my_state = SUSPECT;
-            }
-            else { // j >= i
-                // a message has been received for this epoch
-                // so TRUST until t_(i+1) = (i+1) * miu + delta
-                trust_lease = start_time + milliseconds((heartbeat_counter + 1) * miu + delta);
-                my_state = TRUST;
-            }
-            if (my_state == TRUST)
-                std::cout << "TRUST\n";
-            else
-                std::cout << "SUSPECT\n";
+//            if (heartbeat_counter < actual_epoch) {
+//                auto end_time = std::chrono::high_resolution_clock::now();
+//                if (end_time >= trust_lease)
+//                    my_state = SUSPECT;
+//            }
+//            else { // j >= i
+//                // a message has been received for this epoch
+//                // so TRUST until t_(i+1) = (i+1) * miu + delta
+//                trust_lease = start_time + milliseconds((heartbeat_counter + 1) * miu + delta);
+//                my_state = TRUST;
+//            }
+//            if (my_state == TRUST)
+//                std::cout << "TRUST\n";
+//            else
+//                std::cout << "SUSPECT\n";
         }
+        loop_done = true;
     }
 
 
@@ -73,6 +74,9 @@ namespace allscale { namespace components {
     void resilience::init() {
         start_time = std::chrono::high_resolution_clock::now();
         num_localities = hpx::get_num_localities().get();
+        resilience_component_running = true;
+        loop_done = false;
+
         if (num_localities < 2) {
             resilience_disabled = true;
             std::cout << "Resilience disabled for single locality!\n";
@@ -158,6 +162,16 @@ namespace allscale { namespace components {
         remote_backups_.erase(b);
     }
 
+    void resilience::shutdown() {
+        if (resilience_component_running) {
+            resilience_component_running = false;
+            while (!loop_done) {
+                hpx::this_thread::sleep_for(milliseconds(500));
+            }
+            hpx::apply<shutdown_action>(guard_);
+        }
+    }
+
 } // end namespace components
 } // end namespace allscale
 
@@ -168,3 +182,4 @@ HPX_REGISTER_ACTION(allscale::components::resilience::get_protectee_action, get_
 HPX_REGISTER_ACTION(allscale::components::resilience::get_local_backups_action, get_local_backups_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::send_heartbeat_action, send_heartbeat_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::failure_detection_loop_action, failure_detection_loop_action);
+HPX_REGISTER_ACTION(allscale::components::resilience::shutdown_action, shutdown_action);

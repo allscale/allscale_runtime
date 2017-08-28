@@ -6,6 +6,7 @@
 typedef hpx::components::component<allscale::components::resilience> resilience_component;
 HPX_REGISTER_COMPONENT(resilience_component)
 
+
 namespace allscale {
     std::size_t resilience::rank_ = std::size_t(-1);
 
@@ -25,6 +26,10 @@ namespace allscale {
         component_ = hpx::get_ptr<components::resilience>(gid).get();
         component_->init();
         component_->failure_detection_loop_async();
+    }
+
+    void resilience::stop() {
+        get_ptr()->shutdown();
     }
 
     std::shared_ptr<components::resilience> &resilience::get_ptr()
