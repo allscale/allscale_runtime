@@ -92,7 +92,7 @@ namespace allscale { namespace components {
         std::uint16_t sampling_interval;
         double last_avg_iter_time;
         double current_avg_iter_time;
-        std::shared_ptr<monitor> allscale_monitor;
+        monitor *allscale_monitor;
 
         std::string input_objective;
         const std::vector<std::string> objectives = {

@@ -13,6 +13,11 @@ foreach(test ${tests})
         SOURCES ${sources}
         COMPONENT_DEPENDENCIES allscale
     )
+  if (${test} STREQUAL "overlapping_async.insieme.seq")
+    add_test(NAME ${test}_test_exe COMMAND $<TARGET_FILE:${test}_test_exe> -Ihpx.stacks.use_guard_pages=0 --hpx:threads=1)
+  else()
     add_test(NAME ${test}_test_exe COMMAND $<TARGET_FILE:${test}_test_exe> -Ihpx.stacks.use_guard_pages=0)
+  endif()
+
 endforeach()
 

@@ -42,7 +42,7 @@ namespace allscale { namespace components {
            true
         )
     {
-        allscale_monitor = allscale::monitor::get_ptr();
+        allscale_monitor = &allscale::monitor::get();
     }
 
     void scheduler::init()

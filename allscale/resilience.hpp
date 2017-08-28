@@ -15,7 +15,8 @@ namespace allscale {
     {
         static components::resilience* run(std::size_t rank);
         static void stop();
-        static std::shared_ptr<components::resilience> & get_ptr();
+        static components::resilience *get_ptr();
+        static components::resilience &get();
         static hpx::id_type get_protectee();
         private:
             static std::size_t rank_;

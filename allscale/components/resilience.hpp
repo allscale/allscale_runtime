@@ -78,5 +78,5 @@ HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::remote_unbacku
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::set_guard_action, set_guard_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_protectee_action, get_protectee_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_local_backups_action, get_local_backups_action)
-HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::shutdown_action, shutdown_action)
+HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::shutdown_action, allscale_resilience_shutdown_action)
 #endif

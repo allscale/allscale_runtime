@@ -33,9 +33,9 @@ namespace runtime {
 template<typename MainWorkItem, typename ... Args>
 int main_wrapper(const Args& ... args) {
     // include monitoring support
-    allscale::monitor::run(hpx::get_locality_id());
+    auto mon = allscale::monitor::run(hpx::get_locality_id());
     // include resilience support
-    allscale::resilience::run(hpx::get_locality_id());
+    auto resi = allscale::resilience::run(hpx::get_locality_id());
     // start allscale scheduler ...
     auto sched = allscale::scheduler::run(hpx::get_locality_id());
 
@@ -50,7 +50,7 @@ int main_wrapper(const Args& ... args) {
     }
 
     // Force the optimizer to initialize the runtime...
-    if (sched)
+    if (sched && mon && resi)
         // return result (only id == 0 will actually)
         return res;
     else return 1;

@@ -3,6 +3,7 @@
 #include <allscale/components/monitor.hpp>
 
 #include <hpx/include/components.hpp>
+#include <hpx/util/detail/yield_k.hpp>
 #include <vector>
 
 //HPX_REGISTER_COMPONENT_MODULE()
@@ -17,13 +18,13 @@ namespace allscale {
     components::monitor* monitor::run(std::size_t rank)
     {
         rank_ = rank;
-        return get_ptr().get();
+        return get_ptr();
     }
 
     void monitor::stop()
     {
         get().stop();
-        get_ptr().reset();
+//         get_ptr().reset();
     }
 
 
@@ -49,13 +50,20 @@ namespace allscale {
 
     components::monitor &monitor::get()
     {
+        HPX_ASSERT(get_ptr());
         return *get_ptr();
     }
 
-    std::shared_ptr<components::monitor> &monitor::get_ptr()
+    components::monitor *monitor::get_ptr()
     {
         static monitor m(rank_);
-        return m.component_;
+        components::monitor* res = m.component_.get();
+        for (std::size_t k = 0; !res; ++k)
+        {
+            hpx::util::detail::yield_k(k, "get component...");
+            res = m.component_.get();
+        }
+        return res;
     }
 
     monitor::monitor(std::size_t rank)
