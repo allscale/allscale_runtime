@@ -1038,13 +1038,13 @@ namespace allscale { namespace components {
 
 
       // Dump profile reports and graphs
-      if(output_profile_table_)
+      if(output_profile_table_) {
 	 monitor_component_output();
 
 #ifdef HAVE_PAPI
          monitor_papi_output();
 #endif
-
+      }
 
       if(output_treeture_)
          create_work_item_graph();
