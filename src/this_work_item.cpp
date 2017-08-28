@@ -43,6 +43,12 @@ namespace allscale { namespace this_work_item {
         tres_ = wi->get_treeture();
     }
 
+    id *get_id_ptr()
+    {
+//         HPX_ASSERT(get_id_impl());
+        return get_id_impl();
+    }
+
     id& get_id()
     {
 //         HPX_ASSERT(get_id_impl());

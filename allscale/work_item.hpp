@@ -62,7 +62,7 @@ namespace allscale {
         }
 
         explicit work_item(std::shared_ptr<detail::work_item_impl_base> impl)
-          : impl_(std::move(impl))
+          : impl_(std::move(impl)), is_first_(false)
         {}
 
         work_item(work_item const& other)

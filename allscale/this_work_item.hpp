@@ -24,6 +24,7 @@ namespace allscale { namespace this_work_item {
     struct id;
 
     id& get_id();
+    id* get_id_ptr();
     void set_id(id const& id);
 
     struct id
