@@ -114,12 +114,12 @@ namespace allscale { namespace components {
 //             allscale_app_counter_id = hpx::performance_counters::get_counter(allscale_app_counter_name);
 //             hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, allscale_app_counter_id);
 
-	    thread_manager = dynamic_cast<hpx::threads::threadmanager_impl<hpx::threads::policies::throttling_scheduler<>>* >(&hpx::get_runtime().get_thread_manager());
-            if (thread_manager != nullptr) {
+        thread_scheduler = dynamic_cast<hpx::threads::policies::throttling_scheduler<>*>(hpx::resource::get_thread_pool(0).get_scheduler());
+            if (thread_scheduler != nullptr) {
                std::cout << "We have a thread manager holding the throttling_scheduler" << std::endl;
             } else {
                HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
-			"thread_manager is null. Make sure you select throttling scheduler via --hpx:queuing=throttling");
+			"thread_scheduler is null. Make sure you select throttling scheduler via --hpx:queuing=throttling");
             }
 
 // 	    throttle_timer_.start();
@@ -294,7 +294,7 @@ namespace allscale { namespace components {
                 }
 
                 boost::dynamic_bitset<> const & blocked_os_threads_ =
-                    thread_manager->get_pool_scheduler().get_disabled_os_threads();
+                    thread_scheduler->get_disabled_os_threads();
                 active_threads = os_thread_count - blocked_os_threads_.count();
 
                 std::size_t suspend_cap = 1; //active_threads < SMALL_SYSTEM  ? SMALL_SUSPEND_CAP : LARGE_SUSPEND_CAP;
@@ -305,7 +305,7 @@ namespace allscale { namespace components {
                     depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5));
                     {
                         hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
-                        thread_manager->get_pool_scheduler().disable_more(suspend_cap);
+                        thread_scheduler->disable_more(suspend_cap);
                     }
                     std::cout << "Sent disable signal. Active threads: " << active_threads - suspend_cap << std::endl;
                 }
@@ -314,7 +314,7 @@ namespace allscale { namespace components {
                     depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5));
                     {
                         hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
-                        thread_manager->get_pool_scheduler().enable_more(resume_cap);
+                        thread_scheduler->enable_more(resume_cap);
                     }
                     std::cout << "Sent enable signal. Active threads: " << active_threads + resume_cap << std::endl;
                 }
@@ -339,7 +339,7 @@ namespace allscale { namespace components {
 
         //Resume all sleeping threads
         if (input_objective == scheduler::objectives.at(objective_IDs::TIME_RESOURCE) )
-	    thread_manager->get_pool_scheduler().enable_more(os_thread_count);
+	    thread_scheduler->enable_more(os_thread_count);
 
         stopped_ = true;
 //         work_queue_cv_.notify_all();

@@ -4,6 +4,8 @@
 #include <allscale/scheduler.hpp>
 #include <allscale/work_item.hpp>
 
+#include <chrono>
+
 using std::chrono::milliseconds;
 
 namespace allscale { namespace components {
@@ -32,18 +34,18 @@ namespace allscale { namespace components {
         std::size_t actual_epoch = 0;
         while (true) {
             hpx::this_thread::sleep_for(milliseconds(miu-delta));
-            std::chrono::system_clock::time_point t_now =  std::chrono::high_resolution_clock::now();
+            auto t_now =  std::chrono::high_resolution_clock::now();
             actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
             // asynchronously send heartbeat m_i
             // at sigma_i = i * miu
             hpx::id_type protectee = get_protectee();
             hpx::apply<send_heartbeat_action>(protectee, actual_epoch);
-            // At t_i - sigma_i + delta, check if I 
+            // At t_i - sigma_i + delta, check if I
             // have received a message m_j with j>=i from a peer
 
             hpx::this_thread::sleep_for(milliseconds(delta));
             if (heartbeat_counter < actual_epoch) {
-                std::chrono::system_clock::time_point end_time = std::chrono::high_resolution_clock::now();
+                auto end_time = std::chrono::high_resolution_clock::now();
                 if (end_time >= trust_lease)
                     my_state = SUSPECT;
             }
@@ -104,7 +106,7 @@ namespace allscale { namespace components {
     // equiv. to taskAcquired in prototype
     void resilience::w_exec_start_wrapper(work_item const& w) {
         if (resilience_disabled) return;
-        
+
         if (w.id().depth() != get_cp_granularity()) return;
 
         //@ToDo: do I really need to block (via get) here?
@@ -128,7 +130,7 @@ namespace allscale { namespace components {
             work_item restored = c.second;
             allscale::scheduler::schedule(std::move(restored));
         }
-        
+
         // restore guard / protectee connections
         protectee_ = protectees_protectee_;
         hpx::async<set_guard_action>(protectee_, hpx::find_here()).get();
