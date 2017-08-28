@@ -34,7 +34,6 @@ namespace allscale { namespace components {
            const std::size_t delta = 2000;
            void failure_detection_loop_async ();
            void failure_detection_loop ();
-           HPX_DEFINE_COMPONENT_ACTION(resilience,failure_detection_loop);
            void send_heartbeat(std::size_t counter);
            HPX_DEFINE_COMPONENT_ACTION(resilience,send_heartbeat);
            // END failure detection here

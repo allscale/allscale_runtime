@@ -4,8 +4,10 @@
 #include <allscale/scheduler.hpp>
 #include <allscale/work_item.hpp>
 
+#include <hpx/include/thread_executors.hpp>
 #include <hpx/util/detail/yield_k.hpp>
 #include <chrono>
+#include <thread>
 
 using std::chrono::milliseconds;
 
@@ -25,16 +27,23 @@ namespace allscale { namespace components {
     void resilience::failure_detection_loop_async() {
         if (resilience_disabled)
             return;
-        HPX_ASSERT(this->get_id());
-        typedef resilience::failure_detection_loop_action action_type;
-        hpx::apply<action_type>(this->get_id());
+
+        // Previously:
+        // hpx::apply(&resilience::failure_detection_loop, this));
+
+        hpx::threads::executors::io_pool_executor scheduler;
+        // FIXME: this needs to go, this is just a work around to warm up the cache
+        // so we don't end up in an probably unneeded assert
+        hpx::async<send_heartbeat_action>(protectee, actual_epoch).get();
+
+        scheduler.add(hpx::util::bind(&resilience::failure_detection_loop, this));
     }
 
     // Run detection forever ...
     void resilience::failure_detection_loop () {
         std::size_t actual_epoch = 0;
         while (resilience_component_running) {
-           hpx::this_thread::sleep_for(milliseconds(miu-delta));
+           std::this_thread::sleep_for(milliseconds(miu-delta));
            auto t_now =  std::chrono::high_resolution_clock::now();
            actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
            // asynchronously send heartbeat m_i
@@ -44,7 +53,7 @@ namespace allscale { namespace components {
            // At t_i - sigma_i + delta, check if I
            // have received a message m_j with j>=i from a peer
 
-           hpx::this_thread::sleep_for(milliseconds(delta));
+           std::this_thread::sleep_for(milliseconds(delta));
            if (heartbeat_counter < actual_epoch) {
                auto end_time = std::chrono::high_resolution_clock::now();
                if (end_time >= trust_lease)
@@ -186,5 +195,4 @@ HPX_REGISTER_ACTION(allscale::components::resilience::set_guard_action, set_guar
 HPX_REGISTER_ACTION(allscale::components::resilience::get_protectee_action, get_protectee_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::get_local_backups_action, get_local_backups_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::send_heartbeat_action, send_heartbeat_action);
-HPX_REGISTER_ACTION(allscale::components::resilience::failure_detection_loop_action, failure_detection_loop_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::shutdown_action, allscale_resilience_shutdown_action);
