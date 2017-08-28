@@ -34,7 +34,7 @@ namespace allscale { namespace components {
         hpx::threads::executors::io_pool_executor scheduler;
         // FIXME: this needs to go, this is just a work around to warm up the cache
         // so we don't end up in an probably unneeded assert
-        hpx::async<send_heartbeat_action>(protectee, actual_epoch).get();
+        hpx::async<send_heartbeat_action>(get_protectee(), 0).get();
 
         scheduler.add(hpx::util::bind(&resilience::failure_detection_loop, this));
     }
