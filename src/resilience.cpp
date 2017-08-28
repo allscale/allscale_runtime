@@ -24,11 +24,16 @@ namespace allscale {
 
         component_ = hpx::get_ptr<components::resilience>(gid).get();
         component_->init();
+        component_->failure_detection_loop_async();
     }
 
     std::shared_ptr<components::resilience> &resilience::get_ptr()
     {
         static resilience m(rank_);
         return m.component_;
+    }
+
+    hpx::id_type resilience::get_protectee() {
+        return get_ptr()->get_protectee();
     }
 }

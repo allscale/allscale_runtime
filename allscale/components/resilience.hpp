@@ -14,13 +14,27 @@
 
 namespace allscale { namespace components {
 
-       struct HPX_COMPONENT_EXPORT resilience 
+       struct HPX_COMPONENT_EXPORT resilience
 	 : hpx::components::component_base<resilience>
        {
            resilience()
            {
                HPX_ASSERT(false);
            }
+
+           // START failure detection here (Kiril)
+           enum state {TRUST, SUSPECT};
+           state my_state;
+           std::chrono::high_resolution_clock::time_point start_time,trust_lease;
+           std::size_t heartbeat_counter;
+           const std::size_t miu = 1000;
+           const std::size_t delta = 2000;
+           void failure_detection_loop_async ();
+           void failure_detection_loop ();
+           HPX_DEFINE_COMPONENT_ACTION(resilience,failure_detection_loop);
+           void send_heartbeat(std::size_t counter);
+           HPX_DEFINE_COMPONENT_ACTION(resilience,send_heartbeat);
+           // END failure detection here
 
            bool resilience_disabled;
            uint64_t rank_, num_localities;
@@ -35,6 +49,7 @@ namespace allscale { namespace components {
            resilience(std::uint64_t rank);
            void protectee_crashed();
            int get_cp_granularity();
+
            void set_guard(hpx::id_type guard);
            HPX_DEFINE_COMPONENT_ACTION(resilience,set_guard);
            hpx::id_type get_protectee();

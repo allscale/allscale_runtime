@@ -13,7 +13,7 @@
 #include <hpx/compute/host/target.hpp>
 #include <hpx/runtime/threads/executors/thread_pool_attached_executors.hpp>
 #include <hpx/runtime/threads/policies/throttling_scheduler.hpp>
-#include <hpx/runtime/threads/threadmanager_impl.hpp>
+#include <hpx/runtime/threads/threadmanager.hpp>
 
 #include <memory>
 #include <deque>
@@ -84,7 +84,7 @@ namespace allscale { namespace components {
         std::size_t active_threads;
         std::size_t depth_cap;
 
-	hpx::threads::threadmanager_impl<hpx::threads::policies::throttling_scheduler<>>* thread_manager;
+        hpx::threads::policies::throttling_scheduler<>* thread_scheduler;
 
         mutable mutex_type throttle_mtx_;
         mutable mutex_type resize_mtx_;
