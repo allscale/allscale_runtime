@@ -13,6 +13,7 @@
 #include <hpx/hpx_main.hpp>
 #include <hpx/include/unordered_map.hpp>
 
+ALLSCALE_REGISTER_TREETURE_TYPE(long)
 
 struct simple_variant_simple_class
 {
