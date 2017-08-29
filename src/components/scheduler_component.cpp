@@ -348,10 +348,10 @@ namespace allscale { namespace components {
 //         std::cout << "rank(" << rank_ << "): scheduled " << count_ << "\n";
 
         hpx::future<void> stop_left;
-        if(left_)
+        if(left_ && allscale::resilience::rank_running(left_rank_))
             hpx::future<void> stop_left = hpx::async<stop_action>(left_);
         hpx::future<void> stop_right;
-        if(right_)
+        if(right_ && allscale::resilience::rank_running(right_rank_))
             hpx::future<void> stop_right = hpx::async<stop_action>(right_);
 
 //         {
