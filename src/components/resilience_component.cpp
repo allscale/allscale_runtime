@@ -6,8 +6,11 @@
 
 #include <hpx/include/thread_executors.hpp>
 #include <hpx/util/detail/yield_k.hpp>
+#include <hpx/util/asio_util.hpp>
 #include <chrono>
 #include <thread>
+
+//#include <boost/asio.hpp>
 
 using std::chrono::milliseconds;
 
@@ -36,51 +39,81 @@ namespace allscale { namespace components {
         scheduler->add(hpx::util::bind(&resilience::failure_detection_loop, this));
     }
 
+    bool resilience::rank_running(uint64_t rank) {
+        return rank_running_[rank];
+    }
+
+    void resilience::check_with_delay(std::size_t actual_epoch) {
+        std::this_thread::sleep_for(milliseconds(delta));
+        if (heartbeat_counter < actual_epoch) {
+            auto end_time = std::chrono::high_resolution_clock::now();
+            if (end_time >= trust_lease)
+                my_state = SUSPECT;
+        }
+        else { // j >= i
+            // a message has been received for this epoch
+            // so TRUST until t_(i+1) = (i+1) * miu + delta
+            trust_lease = start_time + milliseconds((heartbeat_counter + 1) * miu + delta);
+            my_state = TRUST;
+        }
+        if (my_state == SUSPECT) {
+            std::cout << "protectee state = SUSPECT\n";
+            hpx::apply(&resilience::protectee_crashed, this);
+            std::unique_lock<std::mutex> lk(cv_m);
+            cv.wait(lk, [this]{return recovery_done;});
+            my_state = TRUST;
+        }
+        else
+            std::cout << "protectee state = TRUST\n";
+    }
+   
     // Run detection forever ...
+    //
     void resilience::failure_detection_loop () {
         std::size_t actual_epoch = 0;
-        while (resilience_component_running) {
-           std::this_thread::sleep_for(milliseconds(miu-delta));
-           auto t_now =  std::chrono::high_resolution_clock::now();
-           actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
-           // asynchronously send heartbeat m_i
-           // at sigma_i = i * miu
-           hpx::id_type protectee = get_protectee();
-           hpx::apply<send_heartbeat_action>(protectee, actual_epoch);
-           // At t_i - sigma_i + delta, check if I
-           // have received a message m_j with j>=i from a peer
+    //    auto & service = hpx::get_thread_pool("io_pool")->get_io_service();
 
-           std::this_thread::sleep_for(milliseconds(delta));
-           if (heartbeat_counter < actual_epoch) {
-               auto end_time = std::chrono::high_resolution_clock::now();
-               if (end_time >= trust_lease)
-                   my_state = SUSPECT;
-           }
-           else { // j >= i
-               // a message has been received for this epoch
-               // so TRUST until t_(i+1) = (i+1) * miu + delta
-               trust_lease = start_time + milliseconds((heartbeat_counter + 1) * miu + delta);
-               my_state = TRUST;
-           }
-           if (my_state == TRUST)
-               std::cout << "TRUST\n";
-           else
-               std::cout << "SUSPECT\n";
-        }
+    //    sock = new boost::asio::ip::udp::socket(service, udp::endpoint(udp::v4(), UDP_PORT));
+
+    //    std::string guard_ip_addr = hpx::async<get_ip_address_action>(guard_).get();
+    //    std::string protectee_ip_addr = hpx::async<get_ip_address_action>(protectee_).get();
+    //    udp::endpoint receiver_endpoint(boost::asio::ip::address::from_string(guard_ip_addr), UDP_PORT_SEND);
+    //    udp::endpoint sender_endpoint(boost::asio::ip::address::from_string(protectee_ip_addr), UDP_PORT_RECV);
+    //}
+
+
+    while (resilience_component_running) {
+        std::this_thread::sleep_for(milliseconds(miu));
+        auto t_now =  std::chrono::high_resolution_clock::now();
+        actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
+        // asynchronously send heartbeat m_i
+        // at sigma_i = i * miu
+        hpx::apply<send_heartbeat_action>(protectee_, actual_epoch);
+        // At t_i - sigma_i + delta, check if I
+        // have received a message m_j with j>=i from a peer
+        hpx::apply(&resilience::check_with_delay, this, actual_epoch);
+    }
     }
 
 
-    hpx::id_type resilience::get_protectee() {
-        return protectee_;
+    std::pair<hpx::id_type,uint64_t> resilience::get_protectee() {
+        return std::make_pair(protectee_,protectee_rank_);
     }
+
     std::map<this_work_item::id,work_item> resilience::get_local_backups() {
         return local_backups_;
     }
 
     void resilience::init() {
+
+        // initialize UDP listen port
+
+
         start_time = std::chrono::high_resolution_clock::now();
         num_localities = hpx::get_num_localities().get();
+        rank_running_.resize(num_localities, true);
         resilience_component_running = true;
+        recovery_done = false;
 
         if (num_localities < 2) {
             resilience_component_running = false;
@@ -101,8 +134,15 @@ namespace allscale { namespace components {
         std::uint64_t left_id = (rank_ == 0)?(num_localities-1):(rank_-1);
         std::uint64_t left_left_id = (left_id == 0)?(num_localities-1):(left_id-1);
         guard_ = hpx::find_from_basename("allscale/resilience", right_id).get();
+        guard_rank_ = right_id;
         protectee_ = hpx::find_from_basename("allscale/resilience", left_id).get();
+        protectee_rank_ = left_id;
         protectees_protectee_ = hpx::find_from_basename("allscale/resilience", left_left_id).get();
+        protectees_protectee_rank_ = left_left_id;
+    }
+
+    std::string resilience::get_ip_address() {
+        return hpx::util::resolve_public_ip_address();
     }
 
     void resilience::global_w_exec_start_wrapper(work_item const& w)
@@ -138,17 +178,31 @@ namespace allscale { namespace components {
     }
 
     void resilience::protectee_crashed() {
+
+        std::cout << "Begin protectee crashed\n";
+        rank_running_[protectee_rank_] = false;
+
         for (auto c : remote_backups_) {
             work_item restored = c.second;
             allscale::scheduler::schedule(std::move(restored));
         }
 
         // restore guard / protectee connections
+        hpx::util::high_resolution_timer t;
         protectee_ = protectees_protectee_;
+        protectee_rank_ = protectees_protectee_rank_;
         hpx::async<set_guard_action>(protectee_, hpx::find_here()).get();
-        protectees_protectee_ = hpx::async<get_protectee_action>(protectee_).get();
+        std::pair<hpx::id_type,uint64_t> p = hpx::async<get_protectee_action>(protectee_).get();
+        protectees_protectee_ = p.first;
+        protectees_protectee_rank_ = p.second;
         remote_backups_.clear();
         remote_backups_ = hpx::async<get_local_backups_action>(protectee_).get();
+        {
+            std::lock_guard<std::mutex> lk(cv_m);
+            recovery_done = true;
+        }
+        cv.notify_one();
+        std::cout << "Finish protectee crashed\n";
     }
 
 	int resilience::get_cp_granularity() {
@@ -189,3 +243,4 @@ HPX_REGISTER_ACTION(allscale::components::resilience::get_protectee_action, get_
 HPX_REGISTER_ACTION(allscale::components::resilience::get_local_backups_action, get_local_backups_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::send_heartbeat_action, send_heartbeat_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::shutdown_action, allscale_resilience_shutdown_action);
+//HPX_REGISTER_ACTION(allscale::components::resilience::get_ip_address_action, get_ip_address_action);

@@ -51,7 +51,11 @@ namespace allscale {
         return *get_ptr();
     }
 
-    hpx::id_type resilience::get_protectee() {
+    std::pair<hpx::id_type,uint64_t> resilience::get_protectee() {
         return get_ptr()->get_protectee();
+    }
+
+    bool resilience::rank_running(uint64_t rank) {
+       return  get_ptr()->rank_running(rank);
     }
 }

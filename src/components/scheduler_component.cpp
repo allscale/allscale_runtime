@@ -2,6 +2,7 @@
 #include <allscale/components/scheduler.hpp>
 #include <allscale/components/monitor.hpp>
 #include <allscale/monitor.hpp>
+#include <allscale/resilience.hpp>
 // #include <allscale/util/hardware_reconf.hpp>
 
 #include <hpx/util/scoped_unlock.hpp>
@@ -149,13 +150,13 @@ namespace allscale { namespace components {
         switch (schedule_rank)
         {
             case 1:
-                if(right_)// && resilience::rank_running(left_rank_))
+                if(right_ && allscale::resilience::rank_running(right_rank_))
                 {
                     schedule_id = right_;
                     break;
                 }
             case 2:
-                if(left_)// && resilience::rank_running(right_rank_ - 1))
+                if(left_ && allscale::resilience::rank_running(left_rank_))
                 {
                     schedule_id = left_;
                     break;
@@ -208,6 +209,8 @@ namespace allscale { namespace components {
         HPX_ASSERT(work.valid());
     	//std::cout<< "schedule_id for distributed enque is : " <<  schedule_id << std::endl;
 
+        // ToDo: make sure this call transitions to "start work item" -> This is
+        // NOT covered currently by the resilience protocol
         hpx::apply<enqueue_action>(schedule_id, work, this_work_item::get_id());
     }
 
