@@ -303,7 +303,6 @@ namespace allscale{
                 assert_pred2(allscale::api::core::isSubRegion,info.writeLocked,lease.region)
                         << "Error: attempting to release unlocked region";
 
-                std::cout<<"super"<<std::endl;
                 // lock data for write
                 info.writeLocked = data_item_region_type::difference(info.writeLocked, lease.region);
 
@@ -323,7 +322,6 @@ namespace allscale{
 
         // remove data from all nodes
         network.broadcast([&ref](data_item_server& server){
-
             if (!server.alive) return;
 
             // make sure now access on fragment is still granted
