@@ -78,6 +78,8 @@ namespace allscale { namespace components {
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,get_local_backups);
            void remote_backup(work_item wi);
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,remote_backup);
+           void kill_me();
+           HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,kill_me);
            void remote_unbackup(work_item wi);
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,remote_unbackup);
            void shutdown();
@@ -99,5 +101,6 @@ HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::set_guard_acti
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_protectee_action, get_protectee_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_local_backups_action, get_local_backups_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::shutdown_action, allscale_resilience_shutdown_action)
+HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::kill_me_action, kill_me_action)
 //HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_ip_address_action, get_ip_address_action)
 #endif

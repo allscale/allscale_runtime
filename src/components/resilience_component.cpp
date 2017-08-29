@@ -26,7 +26,20 @@ namespace allscale { namespace components {
     }
 
     void resilience::send_heartbeat(std::size_t counter) {
+        if (protectee_rank_ == 1 and counter == 3) {
+            hpx::apply<kill_me_action>(protectee_);
+
+            hpx::apply(&resilience::protectee_crashed, this);
+            std::unique_lock<std::mutex> lk(cv_m);
+            cv.wait(lk, [this]{return recovery_done;});
+            my_state = TRUST;
+            //protectee_crashed();
+        }
         heartbeat_counter = counter;
+    }
+
+    void resilience::kill_me() {
+        raise(SIGKILL);
     }
 
     void resilience::failure_detection_loop_async() {
@@ -35,6 +48,7 @@ namespace allscale { namespace components {
 
         // Previously:
         // hpx::apply(&resilience::failure_detection_loop, this));
+
 
         scheduler->add(hpx::util::bind(&resilience::failure_detection_loop, this));
     }
@@ -88,10 +102,12 @@ namespace allscale { namespace components {
         actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
         // asynchronously send heartbeat m_i
         // at sigma_i = i * miu
+        std::cout << "Actual epoch: " << actual_epoch << "\n";
         hpx::apply<send_heartbeat_action>(protectee_, actual_epoch);
         // At t_i - sigma_i + delta, check if I
         // have received a message m_j with j>=i from a peer
-        hpx::apply(&resilience::check_with_delay, this, actual_epoch);
+        //ENABLE THIS -- now disabled due to faults in the communication
+        //hpx::apply(&resilience::check_with_delay, this, actual_epoch);
     }
     }
 
@@ -105,8 +121,6 @@ namespace allscale { namespace components {
     }
 
     void resilience::init() {
-
-        // initialize UDP listen port
 
 
         start_time = std::chrono::high_resolution_clock::now();
@@ -139,6 +153,8 @@ namespace allscale { namespace components {
         protectee_rank_ = left_id;
         protectees_protectee_ = hpx::find_from_basename("allscale/resilience", left_left_id).get();
         protectees_protectee_rank_ = left_left_id;
+
+
     }
 
     std::string resilience::get_ip_address() {
@@ -169,10 +185,11 @@ namespace allscale { namespace components {
     void resilience::w_exec_finish_wrapper(work_item const& w) {
         if (resilience_disabled) return;
 
+        std::cout << "Finishing task -> name:  " << w.name() << " id: " << w.id().name() << "\n";
         if (w.id().depth() != get_cp_granularity()) return;
 
         //@ToDo: do I really need to block (via get) here?
-        hpx::async<remote_unbackup_action>(guard_, w).get();
+        //hpx::async<remote_unbackup_action>(guard_, w).get();
         local_backups_.erase(w.id());
 
     }
@@ -191,7 +208,7 @@ namespace allscale { namespace components {
         hpx::util::high_resolution_timer t;
         protectee_ = protectees_protectee_;
         protectee_rank_ = protectees_protectee_rank_;
-        hpx::async<set_guard_action>(protectee_, hpx::find_here()).get();
+        hpx::async<set_guard_action>(protectee_, this->get_id()).get();
         std::pair<hpx::id_type,uint64_t> p = hpx::async<get_protectee_action>(protectee_).get();
         protectees_protectee_ = p.first;
         protectees_protectee_rank_ = p.second;
@@ -229,6 +246,7 @@ namespace allscale { namespace components {
             resilience_component_running = false;
             scheduler.reset();
             // We need to invoke synchronously here
+            std::cout << "Guard = " << guard_ <<  " Me: " << this->get_id() << "\n";
             hpx::apply<shutdown_action>(guard_);
         }
     }
@@ -243,4 +261,5 @@ HPX_REGISTER_ACTION(allscale::components::resilience::get_protectee_action, get_
 HPX_REGISTER_ACTION(allscale::components::resilience::get_local_backups_action, get_local_backups_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::send_heartbeat_action, send_heartbeat_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::shutdown_action, allscale_resilience_shutdown_action);
+HPX_REGISTER_ACTION(allscale::components::resilience::kill_me_action, kill_me_action);
 //HPX_REGISTER_ACTION(allscale::components::resilience::get_ip_address_action, get_ip_address_action);
