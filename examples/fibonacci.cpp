@@ -234,6 +234,7 @@ int hpx_main(int argc, char **argv)
            std::cout << "fib(" << n << ") = " << res << " taking " << fib_elapsed << " microseconds. Iter: " << i << "\n";
         }
         allscale::scheduler::stop();
+        allscale::resilience::stop();
         allscale::monitor::stop();
     }
 

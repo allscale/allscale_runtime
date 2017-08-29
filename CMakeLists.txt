@@ -15,7 +15,7 @@ if (ALLSCALE_REALTIME_VIZ)
 add_definitions(-DREALTIME_VIZ)
 endif()
 
-if (ALLSCALE_PAPI)
+if (ALLSCALE_WITH_PAPI)
 add_definitions(-DHAVE_PAPI)
 endif()
 

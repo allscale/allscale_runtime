@@ -19,15 +19,16 @@
 namespace allscale { namespace detail {
 	struct set_id {
 		set_id(this_work_item::id& id)
-          :	old_id_(this_work_item::get_id()) {
+          :	old_id_(this_work_item::get_id_ptr()) {
 			this_work_item::set_id(id);
 		}
 
 		~set_id() {
-			this_work_item::set_id(old_id_);
+            if (old_id_)
+                this_work_item::set_id(*old_id_);
 		}
 
-		this_work_item::id const& old_id_;
+		this_work_item::id* old_id_;
 	};
 
     template <typename Archive, typename T>
