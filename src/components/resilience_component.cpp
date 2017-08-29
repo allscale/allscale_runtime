@@ -13,7 +13,9 @@ using std::chrono::milliseconds;
 
 namespace allscale { namespace components {
 
-    resilience::resilience(std::uint64_t rank) : rank_(rank) {
+    resilience::resilience(std::uint64_t rank)
+      : rank_(rank)
+    {
     }
 
     void resilience::set_guard(hpx::id_type guard) {
@@ -31,12 +33,7 @@ namespace allscale { namespace components {
         // Previously:
         // hpx::apply(&resilience::failure_detection_loop, this));
 
-        hpx::threads::executors::io_pool_executor scheduler;
-        // FIXME: this needs to go, this is just a work around to warm up the cache
-        // so we don't end up in an probably unneeded assert
-        hpx::async<send_heartbeat_action>(get_protectee(), 0).get();
-
-        scheduler.add(hpx::util::bind(&resilience::failure_detection_loop, this));
+        scheduler->add(hpx::util::bind(&resilience::failure_detection_loop, this));
     }
 
     // Run detection forever ...
@@ -70,7 +67,6 @@ namespace allscale { namespace components {
            else
                std::cout << "SUSPECT\n";
         }
-        loop_done = true;
     }
 
 
@@ -85,17 +81,17 @@ namespace allscale { namespace components {
         start_time = std::chrono::high_resolution_clock::now();
         num_localities = hpx::get_num_localities().get();
         resilience_component_running = true;
-        loop_done = false;
 
         if (num_localities < 2) {
             resilience_component_running = false;
-            loop_done = true;
             resilience_disabled = true;
             std::cout << "Resilience disabled for single locality!\n";
             return;
         }
         else
             resilience_disabled = false;
+
+        scheduler.reset(new hpx::threads::executors::io_pool_executor);
 
         allscale::monitor::connect(allscale::monitor::work_item_execution_started, resilience::global_w_exec_start_wrapper);
         allscale::monitor::connect(allscale::monitor::work_item_execution_finished, resilience::global_w_exec_finish_wrapper);
@@ -177,10 +173,7 @@ namespace allscale { namespace components {
     void resilience::shutdown() {
         if (resilience_component_running) {
             resilience_component_running = false;
-            for (std::size_t k = 0; !loop_done; ++k)
-            {
-                hpx::util::detail::yield_k(k, "reslience::shutdown");
-            }
+            scheduler.reset();
             // We need to invoke synchronously here
             hpx::apply<shutdown_action>(guard_);
         }

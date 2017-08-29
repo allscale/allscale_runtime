@@ -22,8 +22,9 @@ namespace allscale { namespace components {
                HPX_ASSERT(false);
            }
 
+           std::unique_ptr<hpx::threads::executors::io_pool_executor> scheduler;
+
            std::atomic_bool resilience_component_running;
-           std::atomic_bool loop_done;
 
            // START failure detection here (Kiril)
            enum state {TRUST, SUSPECT};
