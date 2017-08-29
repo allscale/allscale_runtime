@@ -17,8 +17,18 @@ namespace allscale{
 		static lease<DataItemType> acquire(const data_item_requirement<DataItemType>& requirement) {
 			return getServer<DataItemType>().acquire(requirement);
 		}
-
-      
+		template<typename DataItemType>
+		static typename DataItemType::facade_type get(const data_item_reference<DataItemType>& ref) {
+			return getServer<DataItemType>().get(ref);
+		}
+        template<typename DataItemType>
+		static void release(const lease<DataItemType>& lease) {
+			getServer<DataItemType>().release(lease);
+		}
+		template<typename DataItemType>
+		static void destroy(const data_item_reference<DataItemType>& ref) {
+			getServer<DataItemType>().destroy(ref);
+		}
         private:
         template<typename DataItemType>
         static data_item_server<DataItemType>& getServer(){

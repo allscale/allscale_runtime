@@ -135,6 +135,73 @@ namespace allscale{
         return res;
     }
 
+    bool execute(const TransferPlan<DataItemType>& plan) {
+
+        assert_true(alive);
+        // simply execute the given plan
+        for(const auto& transfer : plan.getTransfers()) {
+
+            // TODO: add support for third-party transfers
+            assert_eq(myLocality,transfer.dst)
+                << "Unsupported feature: third-party transfers";
+
+            // if it is a local transfer, skip operation
+            if (transfer.src == myLocality) continue;
+
+            // get local fragment info
+            auto& info = getInfo(transfer.ref);
+
+            // allocate storage for requested data on local fragment
+            info.fragment.resize(merge(info.fragment.getCoveredRegion(), transfer.region));
+
+            // process the transfer
+            network.call(transfer.src,[&](data_item_server& source) {
+
+                assert_true(source.alive);
+
+                // get the servers local fragment data
+                fragment_info& locInfo = source.getInfo(transfer.ref);
+
+                // extract data
+                auto overlap = intersect(locInfo.fragment.getCoveredRegion(), transfer.region);
+
+                // if there is no overlap, nothing is to be done
+                if (overlap.empty()) return;
+
+                // test whether allowed to export data
+                assert_true(intersect(locInfo.writeLocked,transfer.region).empty())
+                    << "Error: requested to transfer write-protected data: " << intersect(locInfo.writeLocked,transfer.region);
+
+                // extract data to be transfered from current server to side where data is requested
+                allscale::utils::ArchiveWriter writer;
+                locInfo.fragment.extract(writer,overlap);
+                auto archive = std::move(writer).toArchive();
+
+                // drop ownership of data (if write access is required)
+                if (transfer.kind == TransferPlan<DataItemType>::Kind::Migration) {
+
+                    // check that local data is not protected
+                    assert_true(intersect(locInfo.readLocked,transfer.region).empty())
+                        << "Error: requested to migrate read-protected data: " << intersect(locInfo.readLocked,transfer.region);
+
+                    // abandon ownership to data segment
+                    locInfo.fragment.resize(
+                        difference(locInfo.fragment.getCoveredRegion(),transfer.region)
+                    );
+                }
+
+                // insert data on receiver side
+                allscale::utils::ArchiveReader reader(archive);
+                info.fragment.insert(reader);
+
+            });
+
+        }
+
+        // the transformation worked
+        return true;  // return true if all transfers have been successful, false otherwise
+    }
+
 
 
     lease<DataItemType> acquire(const data_item_requirement<DataItemType>& request) {
@@ -154,13 +221,12 @@ namespace allscale{
 
         // make sure the transfer was ok
         assert_true(success);
-/*
         // lock requested data as required
         switch(request.mode) {
-            case AccessMode::ReadOnly: {
+            case access_mode::ReadOnly: {
 
                 // check that access can be granted
-                network.broadcast([&](DataItemServer& server) {
+                network.broadcast([&](data_item_server& server) {
                     assert_true(intersect(server.getInfo(request.ref).writeLocked,request.region).empty())
                             << "Error: requesting read access to write-locked data: " << data_item_region_type::intersect(server.getInfo(request.ref).writeLocked,request.region);
                 });
@@ -170,10 +236,10 @@ namespace allscale{
 
                 break;
             }
-            case AccessMode::ReadWrite: {
+            case access_mode::ReadWrite: {
 
                 // check that access can be granted
-                network.broadcast([&](DataItemServer& server) {
+                network.broadcast([&](data_item_server& server) {
 
                     if (!server.alive) return;
 
@@ -186,7 +252,6 @@ namespace allscale{
                     // check that access can be granted
                     assert_true(intersect(locInfo.writeLocked,request.region).empty())
                             << "Error: requesting write access to write-locked data: " << intersect(locInfo.writeLocked,request.region);
-
                     // invalidate the remote-servers copy
                     if (&server != this) {
                         locInfo.fragment.resize(difference(locInfo.fragment.getCoveredRegion(),request.region));
@@ -200,9 +265,79 @@ namespace allscale{
                 break;
             }
         }
-        */
         return request;
     }
+
+
+
+    typename DataItemType::facade_type get(const data_item_reference<DataItemType>& ref) {
+				auto pos = store.find(ref.id);
+				assert_true(pos != store.end()) << "Requested invalid data item id: " << ref.id;
+				return pos->second.fragment.mask();
+    }
+
+
+
+    void release(const lease<DataItemType>& lease) {
+
+        assert_true(alive);
+
+        // get information about fragment
+        auto& info = getInfo(lease.ref);
+
+        // update lock states
+        switch(lease.mode) {
+            case access_mode::ReadOnly: {
+
+                // check that this region is actually protected
+                assert_pred2(allscale::api::core::isSubRegion,info.readLocked,lease.region)
+                        << "Error: attempting to release unlocked region";
+                // remove read lease
+                info.removeReadLease(lease.region);
+
+                break;
+            }
+            case access_mode::ReadWrite: {
+
+                // check that this region is actually protected
+                assert_pred2(allscale::api::core::isSubRegion,info.writeLocked,lease.region)
+                        << "Error: attempting to release unlocked region";
+
+                std::cout<<"super"<<std::endl;
+                // lock data for write
+                info.writeLocked = data_item_region_type::difference(info.writeLocked, lease.region);
+
+                break;
+            }
+        }
+    }
+
+
+    void destroy(const data_item_reference<DataItemType>& ref) {
+
+        assert_true(alive);
+
+        // check that the reference is valid
+        auto pos = store.find(ref.id);
+        assert_true(pos != store.end()) << "Requested deleting invalid data item id: " << ref.id;
+
+        // remove data from all nodes
+        network.broadcast([&ref](data_item_server& server){
+
+            if (!server.alive) return;
+
+            // make sure now access on fragment is still granted
+            assert_true(server.getInfo(ref).readLocked.empty())
+                << "Still read access on location " << server.myLocality << " for region " << server.getInfo(ref).readLocked;
+            assert_true(server.getInfo(ref).writeLocked.empty())
+                << "Still write access on location " << server.myLocality << " for region " << server.getInfo(ref).writeLocked;
+
+            server.store.erase(ref.id);
+        });
+
+    }
+
+
 
     private:
     fragment_info& getInfo(const data_item_reference<DataItemType>& ref) {
