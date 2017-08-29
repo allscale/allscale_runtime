@@ -2,6 +2,7 @@ set(tests
   #this_work_item
   overlapping_async.insieme.seq
   #overlapping_pfor.insieme.seq
+  data_item_manager
   treeture
   work_item)
 
