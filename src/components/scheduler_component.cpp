@@ -48,18 +48,18 @@ namespace allscale { namespace components {
     void scheduler::init()
     {
         // Find neighbors...
-        std::uint64_t left_id =
+        left_rank_ =
             rank_ == 0 ? num_localities_ - 1 : rank_ - 1;
-        std::uint64_t right_id =
+        right_rank_ =
             rank_ == num_localities_ - 1 ? 0 : rank_ + 1;
 
 
         hpx::future<hpx::id_type> right_future =
-            hpx::find_from_basename("allscale/scheduler", right_id);
-        if(left_id != right_id)
+            hpx::find_from_basename("allscale/scheduler", right_rank_);
+        if(left_rank_ != right_rank_)
         {
             hpx::future<hpx::id_type> left_future =
-                hpx::find_from_basename("allscale/scheduler", left_id);
+                hpx::find_from_basename("allscale/scheduler", left_rank_);
             left_ = left_future.get();
         }
         if(num_localities_ > 1)
@@ -149,18 +149,19 @@ namespace allscale { namespace components {
         switch (schedule_rank)
         {
             case 1:
-                if(right_)
+                if(right_)// && resilience::rank_running(left_rank_))
                 {
                     schedule_id = right_;
                     break;
                 }
             case 2:
-                if(left_)
+                if(left_)// && resilience::rank_running(right_rank_ - 1))
                 {
                     schedule_id = left_;
                     break;
                 }
             case 0:
+            default:
                 {
                     if (work.is_first())
                     {
@@ -202,8 +203,6 @@ namespace allscale { namespace components {
 
                     return;
                 }
-            default:
-                HPX_ASSERT(false);
         }
         HPX_ASSERT(schedule_id);
         HPX_ASSERT(work.valid());

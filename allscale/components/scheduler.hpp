@@ -50,7 +50,9 @@ namespace allscale { namespace components {
         boost::atomic<std::uint64_t> schedule_rank_;
         boost::atomic<bool> stopped_;
         hpx::id_type left_;
+        std::uint64_t left_rank_;
         hpx::id_type right_;
+        std::uint64_t right_rank_;
 
         mutex_type spawn_throttle_mtx_;
         std::unordered_map<const char*, treeture_buffer> spawn_throttle_;
