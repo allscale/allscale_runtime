@@ -13,9 +13,8 @@
 #include <hpx/include/performance_counters.hpp>
 #include <hpx/hpx_init.hpp>
 
+#include <atomic>
 #include <unistd.h>
-
-#include <boost/atomic.hpp>
 
 #include "pfor.hpp"
 
@@ -25,7 +24,7 @@ static const int DEFAULT_SIZE = 128 * 1024 * 1024;
 static std::vector<int> dataA;
 static std::vector<int> dataB;
 
-boost::atomic<std::int64_t> app_elapsed(0);
+std::atomic<std::int64_t> app_elapsed(0);
 
 std::int64_t app_performance_data(bool reset)
 {

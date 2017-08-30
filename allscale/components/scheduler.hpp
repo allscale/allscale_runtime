@@ -15,6 +15,7 @@
 #include <hpx/runtime/threads/policies/throttling_scheduler.hpp>
 #include <hpx/runtime/threads/threadmanager.hpp>
 
+#include <atomic>
 #include <memory>
 #include <deque>
 #include <vector>
@@ -47,8 +48,8 @@ namespace allscale { namespace components {
         std::uint64_t num_localities_;
         std::uint64_t num_threads_;
         std::uint64_t rank_;
-        boost::atomic<std::uint64_t> schedule_rank_;
-        boost::atomic<bool> stopped_;
+        std::atomic<std::uint64_t> schedule_rank_;
+        std::atomic<bool> stopped_;
         hpx::id_type left_;
         std::uint64_t left_rank_;
         hpx::id_type right_;
@@ -80,7 +81,7 @@ namespace allscale { namespace components {
 
         std::vector<hpx::compute::host::target> numa_domains;
         std::vector<executor_type> executors;
-        boost::atomic<std::size_t> current_;
+        std::atomic<std::size_t> current_;
 
         std::size_t os_thread_count;
         std::size_t active_threads;
