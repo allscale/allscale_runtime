@@ -238,7 +238,7 @@ int hpx_main(int argc, char **argv)
         allscale::monitor::stop();
     }
 
-    std::terminate();
+    //std::terminate();
     return 0;
 }
 
