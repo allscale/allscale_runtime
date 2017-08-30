@@ -3,6 +3,7 @@
 #define ALLSCALE_COMPONENTS_MONITOR_HPP
 
 #include <allscale/work_item.hpp>
+#include <allscale/third-party/blocking_udp_client.hpp>
 
 #include <hpx/hpx.hpp>
 #include <hpx/include/actions.hpp>
@@ -30,10 +31,10 @@ namespace allscale { namespace components {
            std::atomic_bool resilience_component_running;
 
            //UDP port
-           udp::socket * sock;
            const int UDP_RECV_PORT = 44444;
            const int UDP_SEND_PORT = 44445;
            // START failure detection here (Kiril)
+           client * c;
            enum state {TRUST, SUSPECT};
            std::condition_variable cv;
            std::mutex cv_m;
@@ -46,7 +47,7 @@ namespace allscale { namespace components {
            boost::dynamic_bitset<> rank_running_;
            bool rank_running(uint64_t rank);
            void failure_detection_loop_async ();
-           void failure_detection_loop (std::string, std::string);
+           void failure_detection_loop ();
            void check_with_delay(std::size_t actual_epoch);
            //void send_heartbeat(std::size_t counter);
            //HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,send_heartbeat);
