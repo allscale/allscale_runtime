@@ -141,7 +141,7 @@ namespace allscale { namespace components {
         scheduler.reset(new hpx::threads::executors::io_pool_executor);
 
         allscale::monitor::connect(allscale::monitor::work_item_execution_started, resilience::global_w_exec_start_wrapper);
-        allscale::monitor::connect(allscale::monitor::work_item_execution_finished, resilience::global_w_exec_finish_wrapper);
+        allscale::monitor::connect(allscale::monitor::work_item_result_propagated, resilience::global_w_exec_finish_wrapper);
         hpx::get_num_localities().get();
 
         std::uint64_t right_id = (rank_ + 1) % num_localities;
@@ -185,18 +185,18 @@ namespace allscale { namespace components {
     void resilience::w_exec_finish_wrapper(work_item const& w) {
         if (resilience_disabled) return;
 
-        std::cout << "Finishing task -> name:  " << w.name() << " id: " << w.id().name() << "\n";
         if (w.id().depth() != get_cp_granularity()) return;
 
         //@ToDo: do I really need to block (via get) here?
-        //hpx::async<remote_unbackup_action>(guard_, w).get();
+        hpx::async<remote_unbackup_action>(guard_, w).get();
         local_backups_.erase(w.id());
 
     }
 
     void resilience::protectee_crashed() {
 
-        std::cout << "Begin protectee crashed\n";
+        std::cout << "Begin recovery ...\n";
+        std::cout << "set bitrank of " << protectee_rank_ << " to false\n";
         rank_running_[protectee_rank_] = false;
 
         for (auto c : remote_backups_) {
@@ -219,7 +219,7 @@ namespace allscale { namespace components {
             recovery_done = true;
         }
         cv.notify_one();
-        std::cout << "Finish protectee crashed\n";
+        std::cout << "Finish recovery\n";
     }
 
 	int resilience::get_cp_granularity() {
@@ -227,7 +227,6 @@ namespace allscale { namespace components {
 	}
 
     void resilience::remote_backup(work_item w) {
-        std::cout << "will write remote checkpoint ...\n";
         std::unique_lock<std::mutex> lock(backup_mutex_);
         remote_backups_[w.id()] = w;
     }
@@ -246,7 +245,6 @@ namespace allscale { namespace components {
             resilience_component_running = false;
             scheduler.reset();
             // We need to invoke synchronously here
-            std::cout << "Guard = " << guard_ <<  " Me: " << this->get_id() << "\n";
             hpx::apply<shutdown_action>(guard_);
         }
     }
