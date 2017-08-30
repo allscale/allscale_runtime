@@ -71,14 +71,20 @@ namespace allscale { namespace components {
             my_state = TRUST;
         }
         if (my_state == SUSPECT) {
+#ifdef DEBUG_ 
             std::cout << "protectee state = SUSPECT\n";
+#endif // #DEBUG_
+
             hpx::apply(&resilience::protectee_crashed, this);
             std::unique_lock<std::mutex> lk(cv_m);
             cv.wait(lk, [this]{return recovery_done;});
             my_state = TRUST;
         }
-        else
+        else {
+#ifdef DEBUG_ 
             std::cout << "protectee state = TRUST\n";
+#endif // #DEBUG_
+        }
     }
    
     // Run detection forever ...
@@ -102,7 +108,9 @@ namespace allscale { namespace components {
         actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
         // asynchronously send heartbeat m_i
         // at sigma_i = i * miu
+#ifdef DEBUG_
         std::cout << "Actual epoch: " << actual_epoch << "\n";
+#endif // #DEBUG_
         hpx::apply<send_heartbeat_action>(protectee_, actual_epoch);
         // At t_i - sigma_i + delta, check if I
         // have received a message m_j with j>=i from a peer
@@ -185,6 +193,10 @@ namespace allscale { namespace components {
     void resilience::w_exec_finish_wrapper(work_item const& w) {
         if (resilience_disabled) return;
 
+#ifdef DEBUG_ 
+        std::cout << "Finish " << w.id().name() << "\n";
+#endif // DEBUG_
+
         if (w.id().depth() != get_cp_granularity()) return;
 
         //@ToDo: do I really need to block (via get) here?
@@ -195,12 +207,17 @@ namespace allscale { namespace components {
 
     void resilience::protectee_crashed() {
 
+#ifdef DEBUG_ 
         std::cout << "Begin recovery ...\n";
         std::cout << "set bitrank of " << protectee_rank_ << " to false\n";
+#endif // DEBUG_ 
         rank_running_[protectee_rank_] = false;
 
         for (auto c : remote_backups_) {
             work_item restored = c.second;
+#ifdef DEBUG_ 
+            std::cout << "Will reschedule task " << restored.id().name() << "\n";
+#endif // DEBUG_
             allscale::scheduler::schedule(std::move(restored));
         }
 
@@ -219,11 +236,13 @@ namespace allscale { namespace components {
             recovery_done = true;
         }
         cv.notify_one();
+#ifdef DEBUG_ 
         std::cout << "Finish recovery\n";
+#endif // DEBUG_
     }
 
 	int resilience::get_cp_granularity() {
-		return 2;
+		return 3;
 	}
 
     void resilience::remote_backup(work_item w) {

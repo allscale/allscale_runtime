@@ -152,19 +152,25 @@ namespace allscale { namespace components {
             case 1:
                 if(right_ && allscale::resilience::rank_running(right_rank_))
                 {
-                    std::cout << "Will schedule task " << id.name() << " on rank " << right_rank_ << std::endl;
+#ifdef DEBUG_
+                    std::cout << "Will schedule task " << work.id().name() << " on rank " << right_rank_ << std::endl;
+#endif
                     schedule_id = right_;
                     break;
                 }
             case 2:
                 if(left_ && allscale::resilience::rank_running(left_rank_))
                 {
-                    std::cout << "Will schedule task " << id.name() << " on rank " << left_rank_ << std::endl;
+#ifdef DEBUG_
+                    std::cout << "Will schedule task " << work.id().name() << " on rank " << left_rank_ << std::endl;
+#endif
                     schedule_id = left_;
                     break;
                 }
             case 0:
-                    std::cout << "Will schedule task " << id.name() << " on this rank " << std::endl;
+#ifdef DEBUG_
+                    std::cout << "Will schedule task " << work.id().name() << " on this rank " << std::endl;
+#endif
             default:
                 {
                     if (work.is_first())
