@@ -10,6 +10,7 @@ if(CPUFREQ_FOUND)
         treeture.cpp
         detail/work_item_impl_base.cpp
         components/scheduler_component.cpp
+        components/scheduler_network.cpp
         components/util/graph_colouring.cpp
         components/util/hardware_reconf.cpp
         components/monitor_component.cpp
@@ -29,6 +30,7 @@ elseif(NOT CPUFREQ_FOUND)
         treeture.cpp
         detail/work_item_impl_base.cpp
         components/scheduler_component.cpp
+        components/scheduler_network.cpp
         components/util/graph_colouring.cpp
         components/monitor_component.cpp
         components/resilience_component.cpp

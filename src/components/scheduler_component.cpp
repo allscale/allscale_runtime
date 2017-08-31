@@ -16,7 +16,6 @@ namespace allscale { namespace components {
       : num_localities_(hpx::get_num_localities().get())
       , num_threads_(hpx::get_num_worker_threads())
       , rank_(rank)
-      , schedule_rank_(0)
       , stopped_(false)
       , os_thread_count(hpx::get_os_thread_count())
       , active_threads(os_thread_count)
@@ -48,24 +47,6 @@ namespace allscale { namespace components {
 
     void scheduler::init()
     {
-        // Find neighbors...
-        left_rank_ =
-            rank_ == 0 ? num_localities_ - 1 : rank_ - 1;
-        right_rank_ =
-            rank_ == num_localities_ - 1 ? 0 : rank_ + 1;
-
-
-        hpx::future<hpx::id_type> right_future =
-            hpx::find_from_basename("allscale/scheduler", right_rank_);
-        if(left_rank_ != right_rank_)
-        {
-            hpx::future<hpx::id_type> left_future =
-                hpx::find_from_basename("allscale/scheduler", left_rank_);
-            left_ = left_future.get();
-        }
-        if(num_localities_ > 1)
-            right_ = right_future.get();
-
         input_objective = hpx::get_config_entry("allscale.objective", scheduler::objectives.at(objective_IDs::TIME)  );
 
         if ( std::find(scheduler::objectives.begin(), scheduler::objectives.end(), input_objective) == scheduler::objectives.end() ) {
@@ -127,109 +108,80 @@ namespace allscale { namespace components {
         }
 
         std::cerr
-            << "Scheduler with rank "
-            << rank_ << " created (" << left_ << " " << right_ << ")!\n";
+            << "Scheduler with rank " << rank_ << " created!\n";
     }
 
     void scheduler::enqueue(work_item work, this_work_item::id const& id)
     {
-        std::uint64_t schedule_rank = 0;
-        //std::cout<<"remote is " << remote << std::endl;
-        if (work.enqueue_remote())
-        {
-//            std::cout<<"schedulign work item on loc " << hpx::get_locality_id()<<std::endl;
-
-            schedule_rank = schedule_rank_.fetch_add(1) % 3;
-        }
-
         if (id)
             this_work_item::set_id(id);
 
-        hpx::id_type schedule_id;
-        //work.requires();
-        switch (schedule_rank)
+        std::uint64_t schedule_rank = work.id().rank();
+        if(!allscale::resilience::rank_running(schedule_rank))
         {
-            case 1:
-                if(right_ && allscale::resilience::rank_running(right_rank_))
-                {
-#ifdef DEBUG_
-                    std::cout << "Will schedule task " << work.id().name() << " on rank " << right_rank_ << std::endl;
-#endif
-                    schedule_id = right_;
-                    break;
-                }
-            case 2:
-                if(left_ && allscale::resilience::rank_running(left_rank_))
-                {
-#ifdef DEBUG_
-                    std::cout << "Will schedule task " << work.id().name() << " on rank " << left_rank_ << std::endl;
-#endif
-                    schedule_id = left_;
-                    break;
-                }
-            case 0:
-#ifdef DEBUG_
-                    std::cout << "Will schedule task " << work.id().name() << " on this rank " << std::endl;
-#endif
-            default:
-                {
-                    if (work.is_first())
-                    {
-                        std::size_t current_id = work.id().last();
-                        const char* wi_name = work.name();
-                        {
-                            std::unique_lock<mutex_type> lk(spawn_throttle_mtx_);
-                            auto it = spawn_throttle_.find(wi_name);
-                            if (it == spawn_throttle_.end())
-                            {
-                                auto em_res = spawn_throttle_.emplace(wi_name,
-                                    treeture_buffer(4));//num_threads_));
-                                it = em_res.first;
-                            }
-                            it->second.add(std::move(lk), work.get_treeture());
-                        }
-                        allscale::monitor::signal(allscale::monitor::work_item_first, work);
-
-                        if (current_id % 100)
-                        {
-                            periodic_throttle();
-                        }
-                    }
-                    else
-                    {
-                    }
-                    allscale::monitor::signal(allscale::monitor::work_item_enqueued, work);
-//                     std::size_t current_numa_domain = ++current_ % executors.size();
-                    if (do_split(work))
-                    {
-                        work.split();
-                    }
-                    else
-                    {
-                        work.process();
-//                         std::size_t current_numa_domain = ++current_ % executors.size();
-//                         hpx::apply(executors.at(current_numa_domain), &work_item::process, std::move(work));
-                    }
-
-                    return;
-                }
+            schedule_rank = rank_;
         }
-        HPX_ASSERT(schedule_id);
-        HPX_ASSERT(work.valid());
-    	//std::cout<< "schedule_id for distributed enque is : " <<  schedule_id << std::endl;
 
-        // ToDo: make sure this call transitions to "start work item" -> This is
-        // NOT covered currently by the resilience protocol
-        hpx::apply<enqueue_action>(schedule_id, work, this_work_item::get_id());
+        HPX_ASSERT(work.valid());
+
+        HPX_ASSERT(schedule_rank != std::uint64_t(-1));
+
+#ifdef DEBUG_
+        std::cout << "Will schedule task " << work.id().name() << " on rank " << right_rank_ << std::endl;
+#endif
+
+        // schedule locally
+        if (schedule_rank == rank_)
+        {
+            if (work.is_first())
+            {
+                std::size_t current_id = work.id().last();
+                const char* wi_name = work.name();
+                {
+                    std::unique_lock<mutex_type> lk(spawn_throttle_mtx_);
+                    auto it = spawn_throttle_.find(wi_name);
+                    if (it == spawn_throttle_.end())
+                    {
+                        auto em_res = spawn_throttle_.emplace(wi_name,
+                            treeture_buffer(4));//num_threads_));
+                        it = em_res.first;
+                    }
+                    it->second.add(std::move(lk), work.get_treeture());
+                }
+                allscale::monitor::signal(allscale::monitor::work_item_first, work);
+
+                if (current_id % 100)
+                {
+                    periodic_throttle();
+                }
+            }
+            else
+            {
+            }
+            allscale::monitor::signal(allscale::monitor::work_item_enqueued, work);
+//                     std::size_t current_numa_domain = ++current_ % executors.size();
+
+            // TODO: add support for NUMA scheduling
+            if (do_split(work))
+            {
+                work.split();
+            }
+            else
+            {
+                work.process();
+            }
+
+            return;
+        }
+
+        network_.schedule(schedule_rank, std::move(work), this_work_item::get_id());
     }
 
     bool scheduler::do_split(work_item const& w)
     {
-//         return (w.id().depth() <= 1.5 * hpx::get_os_thread_count());
         // FIXME: make the cut off runtime configurable...
-        if (w.id().depth() > depth_cap) return false;
+        if (!w.id().splittable()) return false;
 
-    	//std::cout<< " wcansplit: " << w.can_split()<<std::endl;
         if (!w.can_split()) return false;
 
         return true;
@@ -356,28 +308,7 @@ namespace allscale { namespace components {
 //         work_queue_cv_.notify_all();
 //         std::cout << "rank(" << rank_ << "): scheduled " << count_ << "\n";
 
-        hpx::future<void> stop_left;
-        if(left_ && allscale::resilience::rank_running(left_rank_))
-            hpx::future<void> stop_left = hpx::async<stop_action>(left_);
-        hpx::future<void> stop_right;
-        if(right_ && allscale::resilience::rank_running(right_rank_))
-            hpx::future<void> stop_right = hpx::async<stop_action>(right_);
-
-//         {
-//             std::unique_lock<mutex_type> l(work_queue_mtx_);
-//             while(!work_queue_.empty())
-//             {
-//                 std::cout << "rank(" << rank_ << "): waiting to become empty " << work_queue_.size() << "\n";
-//                 work_queue_cv_.wait(l);
-//             }
-//             std::cout << "rank(" << rank_ << "): done. " << count_ << "\n";
-//         }
-        if(stop_left.valid())
-            stop_left.get();
-        if(stop_right.valid())
-            stop_right.get();
-        left_ = hpx::id_type();
-        right_ = hpx::id_type();
+        network_.stop();
     }
 
 }}
