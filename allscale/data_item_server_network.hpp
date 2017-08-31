@@ -4,17 +4,17 @@
 
 
 #include <allscale/locality.h>
+#include <allscale/data_item_server.hpp>
 namespace allscale{
 
-    template<typename DataItemType>
-    struct data_item_server;
 
     template<typename DataItemType>
     struct data_item_server_network {
         
         
 	    using locality_type = simulator::locality_type;
-        using server_type = data_item_server<DataItemType>;
+        /*
+        using server_type = typename allscale::server::data_item_server<DataItemType>;
         std::vector<server_type> servers;
 
 
@@ -44,6 +44,8 @@ namespace allscale{
 			void call(std::size_t trg, const Op& op) {
 				op(servers[trg]);
 			}
+
+            */
     };
 
     

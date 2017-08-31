@@ -9,355 +9,204 @@
 #include <allscale/location_info.hpp>
 #include <map>
 
+
+#include <memory>
+#include "allscale/api/core/data.h"
+#include "allscale/utils/assert.h"
+#include "allscale/utils/serializer.h"
+#include <hpx/include/components.hpp>
+#include <hpx/include/actions.hpp>
+
+
 #include <allscale/util.hpp>
 namespace allscale{
-    
-    template<typename DataItemType>
-    struct data_item_server{
-        
-        using data_item_shared_data_type = typename DataItemType::shared_data_type;
-        using data_item_fragment_type = typename DataItemType::fragment_type;
-        using data_item_region_type = typename DataItemType::region_type;
-        using network_type = data_item_server_network<DataItemType>;
-	    
-        // mock types 
-        using locality_type = simulator::locality_type;
-	    using id_type = std::size_t;
-        
-        
-        
-        struct fragment_info {
+namespace server {
 
-            // the managed fragment
-            data_item_fragment_type fragment;
+template<typename DataItemType>
+class data_item_server: public hpx::components::locking_hook<
+		hpx::components::component_base<data_item_server<DataItemType> > > {
 
-            // the regions currently locked through read leases
-            data_item_region_type readLocked;
+public:
+	using data_item_type = DataItemType;
+	using data_item_shared_data_type = typename DataItemType::shared_data_type;
+	using data_item_fragment_type = typename DataItemType::fragment_type;
+	using data_item_region_type = typename DataItemType::region_type;
+	using data_item_reference_client_type = typename allscale::data_item_reference<DataItemType>;
+    using network_type = typename allscale::data_item_server_network<DataItemType>;
+    //using network_type = data_item_serverNetwork<DataItemType>;
 
-            // the list of all granted read leases
-            std::vector<data_item_region_type> readLeases;
+	struct fragment_info {
+		// the managed fragment
+		data_item_fragment_type fragment;
 
-            // the regions currently locked through write access
-            data_item_region_type writeLocked;
+		// the regions currently locked through read leases
+		data_item_region_type readLocked;
 
-            fragment_info(const data_item_shared_data_type& shared)
-                : fragment(shared), readLocked(), writeLocked() {}
+		// the list of all granted read leases
+		std::vector<data_item_region_type> readLeases;
 
-            fragment_info(const fragment_info&) = delete;
-            fragment_info(fragment_info&&) = default;
+		// the regions currently locked through write access
+		data_item_region_type writeLocked;
 
+		fragment_info(const data_item_shared_data_type& shared) :
+				fragment(shared), readLocked(), writeLocked() {
+		}
 
-            void addReadLease(const data_item_region_type& region) {
+		fragment_info(const fragment_info&) = delete;
+		fragment_info(fragment_info&&) = default;
 
-                // add to lease set
-                readLeases.push_back(region);
+		void addReadLease(const data_item_region_type& region) {
 
-                // merge into read locked region
-                readLocked = data_item_region_type::merge(readLocked, region);
-            }
+			// add to lease set
+			readLeases.push_back(region);
 
-            void removeReadLease(const data_item_region_type& region) {
+			// merge into read locked region
+			readLocked = data_item_region_type::merge(readLocked, region);
+		}
 
-                // remove lease from lease set
-                auto pos = std::find(readLeases.begin(),readLeases.end(),region);
-                assert_true(pos != readLeases.end()) << "Attempting to delete non-existing read-lease: " << region << " in " << readLeases;
-                readLeases.erase(pos);
+		void removeReadLease(const data_item_region_type& region) {
 
-                // update readLocked status
-                data_item_region_type locked = data_item_region_type();
-                for(const auto& cur : readLeases) {
-                    locked = data_item_region_type::merge(locked,cur);
-                }
+			// remove lease from lease set
+			auto pos = std::find(readLeases.begin(), readLeases.end(), region);
+			assert_true(pos != readLeases.end())
+					<< "Attempting to delete non-existing read-lease: "
+					<< region << " in " << readLeases;
+			readLeases.erase(pos);
 
-                // exchange read locked region
-                std::swap(readLocked,locked);
-            }
+			// update readLocked status
+			data_item_region_type locked = data_item_region_type();
+			for (const auto& cur : readLeases) {
+				locked = data_item_region_type::merge(locked, cur);
+			}
 
-        };
+			// exchange read locked region
+			std::swap(readLocked, locked);
+		}
 
+	};
 
-        locality_type myLocality;
-
-        network_type& network;
-
-        std::map<id_type,fragment_info> store;
-
-        id_type idCounter;
-
-        bool alive;
+	std::map<data_item_reference_client_type, fragment_info> store;
+    network_type network_;
     public:
 
+	data_item_server() {
+	}
 
-    data_item_server(locality_type loc, network_type& network)
-        : myLocality(loc), network(network), idCounter(0), alive(true) {}
-
-    void kill() {
-        alive = false;
-        store.clear();
-    }
- 
-    template<typename ... Args>
-    data_item_reference<DataItemType> create(const Args& ... args) {
-        assert_true(alive);
-
+	template<typename ... T>
+	data_item_reference_client_type create(const T& ... args) {
+        
+        typedef typename allscale::data_item_reference<DataItemType> data_item_reference_type;
+        data_item_reference_client_type ret_val( hpx::components::new_ < data_item_reference_type> (hpx::find_here()));
+        allscale::utils::Archive received(args...);
+        auto p2 = allscale::utils::deserialize<data_item_shared_data_type>(received);
+        data_item_shared_data_type shared(p2);
+        auto dataItemID =  ret_val.get_id();
+        store.emplace(ret_val, std::move(fragment_info(shared)));
+        
+        /*
+        auto s = store.size();
+        std::cout<< "Store has size " << s << hpx::naming::get_locality_id_from_id(dataItemID)<<std::endl; 
+        auto mask = store[dataItemID].fragment.mask();
         // create shared data
-        data_item_shared_data_type shared(args...);
-
         // prepare shared data to be distributed
         auto sharedStateArchive = allscale::utils::serialize(shared);
-        id_type dataItemID = (myLocality << 20) + (idCounter++);
-
         // inform other servers
-        network.broadcast([&sharedStateArchive,dataItemID](data_item_server& server) {
-
-            // retrieve shared data
-            auto sharedData = allscale::utils::deserialize<data_item_shared_data_type>(sharedStateArchive);
-
-            // create new local fragment
-            server.store.emplace(dataItemID, std::move(fragment_info(sharedData)));
+        network.broadcast(
+        [&sharedStateArchive,dataItemID](data_item_server& server) {
+        // retrieve shared data
+        auto sharedData = allscale::utils::deserialize<data_item_shared_data_type>(sharedStateArchive);
+        // create new local fragment
+        server.store.emplaYce(dataItemID, std::move(fragment_info(sharedData)));
         });
+        */
+        return ret_val;
+    }
 
-        // return reference
-        return { dataItemID };
+	template<typename ... T>
+	struct create_action: hpx::actions::make_action< data_item_reference_client_type (data_item_server::*)(const T& ...),
+			&data_item_server::template create<T...>, create_action<T...> > {
+	};
+   
+    template<typename ... T>
+	void register_data_item_ref(const T& ... args) {
+        auto tup   = hpx::util::make_tuple(args...);
+        auto first = hpx::util::get<0>(tup);
+        auto second = hpx::util::get<1>(tup);
+        std::cout<<"register dataitem ref called on " << this->get_id() << " " << second.get_id() << std::endl;
+        /*
+        typedef typename manual_tests::example::server::DataItemReference<DataItemType> data_item_reference_type;
+        allscale::utils::Archive received(args...);
+        auto p2 = allscale::utils::deserialize<data_item_shared_data_type>(received);
+        data_item_shared_data_type shared(p2);
+        auto dataItemID =  ret_val.get_id();
+        store.emplace(ret_val, std::move(fragment_info(shared)));
+        */
+    } 
+
+
+	template<typename ... T>
+	struct register_data_item_ref_action : hpx::actions::make_action< void (data_item_server::*)(const T& ...),
+			&data_item_server::template register_data_item_ref<T...>, register_data_item_ref_action<T...> > {
+	};
+   
+
+    typename DataItemType::facade_type  get(const data_item_reference_client_type& ref) 
+    {
+        std::cout<<"get method called for id: " << ref.get_id()<<std::endl;
+        
+        
+        auto pos = store.find(ref);
+        assert_true(pos != store.end()) << "Requested invalid data item id: " << ref.get_id();
+        auto maski = pos->second.fragment.mask();
+        std::cout<<maski[10]<<std::endl; 
+        return maski;
+    
+    }
+
+
+    void print()
+    {
+        std::cout<<"print method for server: " << this->get_id() << " " << this << std::endl;   
+        for(auto& el : store){
+            std::cout<<el.first.get_id()<<std::endl; 
+        }
     }
     
-    location_info<DataItemType> locate(const data_item_reference<DataItemType>& ref, const data_item_region_type& region) 
-    {
-        assert_true(alive);
-        location_info<DataItemType> res;
-        network.broadcast([&](const data_item_server& server) {
-            if (!server.alive) return;
-            auto& info = server.getInfo(ref);
-            auto part = data_item_region_type::intersect(region,info.fragment.getCoveredRegion());
-            if (part.empty()) return;
-            res.addPart(part,server.myLocality);
-        });
-        return res;
+    void set_network(const network_type& network){
+        network_ = network;
     }
+    
+    
+    
+    
+    HPX_DEFINE_COMPONENT_ACTION(data_item_server, set_network);
+    HPX_DEFINE_COMPONENT_ACTION(data_item_server, print);
+};
+
+}}
+#define REGISTER_DATAITEMSERVER_DECLARATION(type)                       \
+    HPX_REGISTER_ACTION_DECLARATION(                                          \
+    	allscale::server::data_item_server<type>::print_action,           \
+        BOOST_PP_CAT(__data_item_server_print_action_, type));            \
+     HPX_REGISTER_ACTION_DECLARATION(                                          \
+    	allscale::server::data_item_server<type>::set_network_action,           \
+        BOOST_PP_CAT(__data_item_server_set_network_action_, type));            \
+    
+   
+#define REGISTER_DATAITEMSERVER(type)                                   \
+    HPX_REGISTER_ACTION(            \
+        allscale::server::data_item_server<type>::print_action,           \
+        BOOST_PP_CAT(__data_item_server_print_action_, type));            \
+    HPX_REGISTER_ACTION(            \
+        allscale::server::data_item_server<type>::set_network_action,           \
+        BOOST_PP_CAT(__data_item_server_set_network_action_, type));            \
+    typedef ::hpx::components::component<                                     \
+    	allscale::server::data_item_server<type>                         \
+    > BOOST_PP_CAT(__data_item_server_, type);                            \
+    HPX_REGISTER_COMPONENT(BOOST_PP_CAT(__data_item_server_, type))       \
 
-    bool execute(const TransferPlan<DataItemType>& plan) {
 
-        assert_true(alive);
-        // simply execute the given plan
-        for(const auto& transfer : plan.getTransfers()) {
 
-            // TODO: add support for third-party transfers
-            assert_eq(myLocality,transfer.dst)
-                << "Unsupported feature: third-party transfers";
 
-            // if it is a local transfer, skip operation
-            if (transfer.src == myLocality) continue;
-
-            // get local fragment info
-            auto& info = getInfo(transfer.ref);
-
-            // allocate storage for requested data on local fragment
-            info.fragment.resize(merge(info.fragment.getCoveredRegion(), transfer.region));
-
-            // process the transfer
-            network.call(transfer.src,[&](data_item_server& source) {
-
-                assert_true(source.alive);
-
-                // get the servers local fragment data
-                fragment_info& locInfo = source.getInfo(transfer.ref);
-
-                // extract data
-                auto overlap = intersect(locInfo.fragment.getCoveredRegion(), transfer.region);
-
-                // if there is no overlap, nothing is to be done
-                if (overlap.empty()) return;
-
-                // test whether allowed to export data
-                assert_true(intersect(locInfo.writeLocked,transfer.region).empty())
-                    << "Error: requested to transfer write-protected data: " << intersect(locInfo.writeLocked,transfer.region);
-
-                // extract data to be transfered from current server to side where data is requested
-                allscale::utils::ArchiveWriter writer;
-                locInfo.fragment.extract(writer,overlap);
-                auto archive = std::move(writer).toArchive();
-
-                // drop ownership of data (if write access is required)
-                if (transfer.kind == TransferPlan<DataItemType>::Kind::Migration) {
-
-                    // check that local data is not protected
-                    assert_true(intersect(locInfo.readLocked,transfer.region).empty())
-                        << "Error: requested to migrate read-protected data: " << intersect(locInfo.readLocked,transfer.region);
-
-                    // abandon ownership to data segment
-                    locInfo.fragment.resize(
-                        difference(locInfo.fragment.getCoveredRegion(),transfer.region)
-                    );
-                }
-
-                // insert data on receiver side
-                allscale::utils::ArchiveReader reader(archive);
-                info.fragment.insert(reader);
-
-            });
-
-        }
-
-        // the transformation worked
-        return true;  // return true if all transfers have been successful, false otherwise
-    }
-
-
-
-    lease<DataItemType> acquire(const data_item_requirement<DataItemType>& request) {
-
-        assert_true(alive);
-
-        // collect data on data distribution
-        auto locationInfo = locate(request.ref,request.region);
-        // get local fragment info
-        auto& info = getInfo(request.ref);
-
-        // allocate storage for requested data on local fragment
-        info.fragment.resize(merge(info.fragment.getCoveredRegion(), request.region));
-
-        // transfer data using a transfer plan
-        auto success = execute(buildPlan(locationInfo,myLocality,request));
-
-        // make sure the transfer was ok
-        assert_true(success);
-        // lock requested data as required
-        switch(request.mode) {
-            case access_mode::ReadOnly: {
-
-                // check that access can be granted
-                network.broadcast([&](data_item_server& server) {
-                    assert_true(intersect(server.getInfo(request.ref).writeLocked,request.region).empty())
-                            << "Error: requesting read access to write-locked data: " << data_item_region_type::intersect(server.getInfo(request.ref).writeLocked,request.region);
-                });
-
-                // lock data for read
-                info.addReadLease(request.region);
-
-                break;
-            }
-            case access_mode::ReadWrite: {
-
-                // check that access can be granted
-                network.broadcast([&](data_item_server& server) {
-
-                    if (!server.alive) return;
-
-                    auto& locInfo = server.getInfo(request.ref);
-
-                    // check that access can be granted
-                    assert_true(intersect(locInfo.readLocked,request.region).empty())
-                            << "Error: requesting write access to read-locked data: " << intersect(locInfo.readLocked,request.region);
-
-                    // check that access can be granted
-                    assert_true(intersect(locInfo.writeLocked,request.region).empty())
-                            << "Error: requesting write access to write-locked data: " << intersect(locInfo.writeLocked,request.region);
-                    // invalidate the remote-servers copy
-                    if (&server != this) {
-                        locInfo.fragment.resize(difference(locInfo.fragment.getCoveredRegion(),request.region));
-                    }
-
-                });
-
-                // lock data for write
-                info.writeLocked = data_item_region_type::merge(info.writeLocked, request.region);
-
-                break;
-            }
-        }
-        return request;
-    }
-
-
-
-    typename DataItemType::facade_type get(const data_item_reference<DataItemType>& ref) {
-				auto pos = store.find(ref.id);
-				assert_true(pos != store.end()) << "Requested invalid data item id: " << ref.id;
-				return pos->second.fragment.mask();
-    }
-
-
-
-    void release(const lease<DataItemType>& lease) {
-
-        assert_true(alive);
-
-        // get information about fragment
-        auto& info = getInfo(lease.ref);
-
-        // update lock states
-        switch(lease.mode) {
-            case access_mode::ReadOnly: {
-
-                // check that this region is actually protected
-                assert_pred2(allscale::api::core::isSubRegion,info.readLocked,lease.region)
-                        << "Error: attempting to release unlocked region";
-                // remove read lease
-                info.removeReadLease(lease.region);
-
-                break;
-            }
-            case access_mode::ReadWrite: {
-
-                // check that this region is actually protected
-                assert_pred2(allscale::api::core::isSubRegion,info.writeLocked,lease.region)
-                        << "Error: attempting to release unlocked region";
-
-                // lock data for write
-                info.writeLocked = data_item_region_type::difference(info.writeLocked, lease.region);
-
-                break;
-            }
-        }
-    }
-
-
-    void destroy(const data_item_reference<DataItemType>& ref) {
-
-        assert_true(alive);
-
-        // check that the reference is valid
-        auto pos = store.find(ref.id);
-        assert_true(pos != store.end()) << "Requested deleting invalid data item id: " << ref.id;
-
-        // remove data from all nodes
-        network.broadcast([&ref](data_item_server& server){
-            if (!server.alive) return;
-
-            // make sure now access on fragment is still granted
-            assert_true(server.getInfo(ref).readLocked.empty())
-                << "Still read access on location " << server.myLocality << " for region " << server.getInfo(ref).readLocked;
-            assert_true(server.getInfo(ref).writeLocked.empty())
-                << "Still write access on location " << server.myLocality << " for region " << server.getInfo(ref).writeLocked;
-
-            server.store.erase(ref.id);
-        });
-
-    }
-
-
-
-    private:
-    fragment_info& getInfo(const data_item_reference<DataItemType>& ref) {
-        auto pos = store.find(ref.id);
-        assert_true(pos != store.end()) << "Requested invalid data item id: " << ref.id;
-        return pos->second;
-    }
-
-    const fragment_info& getInfo(const data_item_reference<DataItemType>& ref) const {
-        auto pos = store.find(ref.id);
-        assert_true(pos != store.end()) << "Requested invalid data item id: " << ref.id;
-        return pos->second;
-    }
-
-
-
-
-
-
-
-
-    };
-}
 
 #endif

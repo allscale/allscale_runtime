@@ -1,6 +1,6 @@
 #include "allscale/api/user/data/scalar.h"
 #include <allscale/data_item_reference.hpp>
-#include <allscale/data_item_server_network.hpp>
+#include <allscale/data_item_server.hpp>
 #include <algorithm>
 
 #include <hpx/hpx_main.hpp>
@@ -24,6 +24,7 @@ HPX_REGISTER_COMPONENT_MODULE();
 using data_item_type = Scalar<int>;
 REGISTER_DATAITEMREFERENCE(data_item_type);
 
+REGISTER_DATAITEMSERVER(data_item_type);
 
 void test_scalar_data_item_reference() {
 
@@ -45,7 +46,7 @@ void test_scalar_data_item_reference() {
     }
 }
 
-void test_data_item_server_network_creation(){
+void test_data_item_server_creation(){
 
 
 
@@ -55,6 +56,7 @@ void test_data_item_server_network_creation(){
 
 int hpx_main(int argc, char* argv[]) {
     test_scalar_data_item_reference();
+    test_data_item_server_creation();
     //std::cout<<std::endl;
     //test_grid_data_item_server_create();
     //std::cout<<std::endl;
