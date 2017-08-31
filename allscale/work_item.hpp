@@ -35,7 +35,7 @@ namespace allscale {
             ),
             is_first_(is_first)
         {
-            impl_->set_this_id();
+            impl_->set_this_id(is_first);
         }
 
         template<typename WorkItemDescription, typename Treeture, typename ...Ts>
@@ -53,7 +53,7 @@ namespace allscale {
             ),
             is_first_(is_first)
         {
-            impl_->set_this_id();
+            impl_->set_this_id(is_first);
         }
 
         bool is_first()
