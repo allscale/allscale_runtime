@@ -225,9 +225,16 @@ namespace allscale { namespace this_work_item {
         parent_.reset(&parent, [](void*){});
         next_id_ = 0;
         id_ = parent.id_;
+        if (!is_first)
+        {
+            HPX_ASSERT(parent.next_id_ <= 1);
+        }
         id_.push_back(parent.next_id_++);
 
-        HPX_ASSERT(is_first || id_.back() == 0);
+        if (!is_first)
+        {
+            HPX_ASSERT(id_.back() <= 1);
+        }
 
         HPX_ASSERT(parent.config_.rank_ != std::uint64_t(-1));
         HPX_ASSERT(parent.config_.locality_depth_ != std::uint64_t(-1));

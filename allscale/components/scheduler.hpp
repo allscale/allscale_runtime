@@ -46,6 +46,8 @@ namespace allscale { namespace components {
         HPX_DEFINE_COMPONENT_ACTION(scheduler, stop);
 
     private:
+        hpx::resource::detail::partitioner *rp_;
+        const hpx::threads::topology *topo_;
         std::uint64_t num_localities_;
         std::uint64_t num_threads_;
         std::uint64_t rank_;

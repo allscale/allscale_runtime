@@ -6,6 +6,7 @@
 // #include <allscale/util/hardware_reconf.hpp>
 
 #include <hpx/util/scoped_unlock.hpp>
+#include <hpx/traits/executor_traits.hpp>
 #include <iterator>
 #include <algorithm>
 #include <stdlib.h>
@@ -47,6 +48,16 @@ namespace allscale { namespace components {
 
     void scheduler::init()
     {
+        rp_ = &hpx::resource::get_partitioner();
+        topo_ = &hpx::threads::get_topology();
+
+// FIXME
+//         auto const& numa_domains_ = rp_->numa_domains();
+//         for (std::size_t i = 0; i < numa_domains_.size(); ++i)
+//         {
+//             rp_->create_thread_pool("allscale/numa/" + std::to_string(i));
+//         }
+
         input_objective = hpx::get_config_entry("allscale.objective", scheduler::objectives.at(objective_IDs::TIME)  );
 
         if ( std::find(scheduler::objectives.begin(), scheduler::objectives.end(), input_objective) == scheduler::objectives.end() ) {
@@ -159,16 +170,34 @@ namespace allscale { namespace components {
             {
             }
             allscale::monitor::signal(allscale::monitor::work_item_enqueued, work);
-//                     std::size_t current_numa_domain = ++current_ % executors.size();
 
-            // TODO: add support for NUMA scheduling
-            if (do_split(work))
+            auto execute = [this](work_item work, this_work_item::id const& id = this_work_item::id())
             {
-                work.split();
+                if (id)
+                    this_work_item::set_id(id);
+                if (do_split(work))
+                {
+                    work.split();
+                }
+                else
+                {
+                    work.process();
+                }
+            };
+
+            std::size_t numa_domain = work.id().numa_domain();
+            std::size_t pu_num = rp_->get_pu_num(hpx::get_worker_thread_num());
+            std::size_t my_numa_domain = topo_->get_numa_node_number(pu_num);
+            if (numa_domain == my_numa_domain)
+            {
+                execute(std::move(work));
             }
+            // Dispatch to another numa domain
             else
             {
-                work.process();
+                HPX_ASSERT(numa_domain < executors.size());
+                hpx::parallel::execution::post(
+                    executors[numa_domain], execute, std::move(work), id);
             }
 
             return;
