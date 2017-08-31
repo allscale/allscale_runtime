@@ -94,21 +94,34 @@ namespace allscale { namespace components {
         //udp::endpoint sender_endpoint(boost::asio::ip::address::from_string(protectee_ip_addr), UDP_SEND_PORT);
         
         std::size_t actual_epoch = 0;
+        auto & service = hpx::get_thread_pool("io_pool")->get_io_service();
+        udp::socket send_sock(service, udp::endpoint(udp::v4(), 0));
+
         while (resilience_component_running) {
             auto t_now =  std::chrono::high_resolution_clock::now();
             actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
             std::cout << "Actual epoch: " << actual_epoch << "\n";
-            char data[1024];
+            boost::shared_ptr<std::string> data(new std::string("hello"));
             boost::system::error_code ec;
-            std::size_t n = c->receive(boost::asio::buffer(data),
-                    boost::posix_time::seconds(1), ec);
+            std::this_thread::sleep_for(milliseconds(miu));
+            send_sock.send_to(boost::asio::buffer(*data), *guard_receiver_endpoint);
 
+            char send_buf[1];
+            std::size_t n = c->receive(boost::asio::buffer(send_buf,1), boost::posix_time::milliseconds(delta), ec);
+            // Generalization: assume that the error is the lost connection
             if (ec)
             {
                 std::cout << "Receive error: " << ec.message() << "\n"; 
+                //protectee_crashed();
             }
         }
     }
+    void resilience::handle_send(boost::shared_ptr<std::string> /*message*/,
+                  const boost::system::error_code& /*error*/,
+                        std::size_t /*bytes_transferred*/)
+          {
+
+          }
 
 
 //    while (resilience_component_running) {
@@ -176,12 +189,12 @@ namespace allscale { namespace components {
 
         //sock = new boost::asio::ip::udp::socket(service, udp::endpoint(udp::v4(), UDP_RECV_PORT+rank_));
 
-        std::string guard_ip_addr = hpx::async<get_ip_address_action>(guard_).get();
         //std::string protectee_ip_addr = hpx::async<get_ip_address_action>(protectee_).get();
-        size_t port = UDP_RECV_PORT + rank_;
-
-        udp::endpoint receiver_endpoint(boost::asio::ip::address::from_string(guard_ip_addr), port);
-        c = new client(receiver_endpoint);
+        std::string my_ip_addr = hpx::async<get_ip_address_action>(hpx::find_here()).get();
+        my_receiver_endpoint = new udp::endpoint(boost::asio::ip::address::from_string(my_ip_addr), UDP_RECV_PORT+rank_);
+        c = new client(*my_receiver_endpoint);
+        std::string guard_ip_addr = hpx::async<get_ip_address_action>(guard_).get();
+        guard_receiver_endpoint = new udp::endpoint(boost::asio::ip::address::from_string(guard_ip_addr), UDP_RECV_PORT+guard_rank_);
 
     }
 

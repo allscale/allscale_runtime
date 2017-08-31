@@ -138,7 +138,7 @@ namespace allscale { namespace components {
         HPX_ASSERT(schedule_rank != std::uint64_t(-1));
 
 #ifdef DEBUG_
-        std::cout << "Will schedule task " << work.id().name() << " on rank " << right_rank_ << std::endl;
+        std::cout << "Will schedule task " << work.id().name() << " on rank " << schedule_rank << std::endl;
 #endif
 
         // schedule locally

@@ -35,6 +35,7 @@ namespace allscale { namespace components {
            const int UDP_SEND_PORT = 44445;
            // START failure detection here (Kiril)
            client * c;
+           udp::endpoint * my_receiver_endpoint, *guard_receiver_endpoint;
            enum state {TRUST, SUSPECT};
            std::condition_variable cv;
            std::mutex cv_m;
@@ -46,6 +47,7 @@ namespace allscale { namespace components {
            const std::size_t delta = 2000;
            boost::dynamic_bitset<> rank_running_;
            bool rank_running(uint64_t rank);
+           void handle_send(boost::shared_ptr<std::string> /*message*/, const boost::system::error_code& /*error*/, std::size_t /*bytes_transferred*/);
            void failure_detection_loop_async ();
            void failure_detection_loop ();
            void check_with_delay(std::size_t actual_epoch);
