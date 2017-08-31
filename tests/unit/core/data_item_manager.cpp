@@ -1,132 +1,64 @@
 #include "allscale/api/user/data/scalar.h"
-#include "allscale/api/user/data/grid.h"
-#include "allscale/api/user/data/static_grid.h"
-#include <allscale/data_item_requirement.hpp>
-#include <allscale/data_item_manager.hpp>
-#include <allscale/locality.h>
+#include <allscale/data_item_reference.hpp>
+#include <allscale/data_item_server_network.hpp>
 #include <algorithm>
 
+#include <hpx/hpx_main.hpp>
+#include <hpx/hpx_init.hpp>
+#include <hpx/config.hpp>
+#include <hpx/include/components.hpp>
+
+#include <hpx/runtime/serialization/serialize.hpp>
+#include <hpx/runtime/serialization/input_archive.hpp>
+#include <hpx/runtime/serialization/output_archive.hpp>
+#include <hpx/runtime/serialization/vector.hpp>
 #define EXPECT_EQ(X,Y)  X==Y
 #define EXPECT_NE(X,Y)  X!=Y
 
 
 using namespace allscale::api::user::data;
-using namespace allscale::simulator;
+using namespace allscale;
+HPX_REGISTER_COMPONENT_MODULE();
 
 
-bool test_location_manager(){
-    if(5!=getNumLocations()){
-        return false;
+using data_item_type = Scalar<int>;
+REGISTER_DATAITEMREFERENCE(data_item_type);
+
+
+void test_scalar_data_item_reference() {
+
+    typedef typename server::data_item_reference<data_item_type> data_item_reference_type;
+
+    if (hpx::get_locality_id() == 0) {
+        std::cout << "on locality " << hpx::get_locality_id() << " running test"
+                << std::endl;
+        std::vector < hpx::id_type > localities = hpx::find_all_localities();
+
+        for (auto& loc : localities) {
+            data_item_reference<data_item_type> ref(
+                    hpx::components::new_ < data_item_reference_type > (loc));
+            //ref.print();
+            ref.set_value(133);
+            //ref.print();
+
+        }
     }
-    if(0!=getLocality()){
-        return false;    
-    }
-    setLocality(3);
-    if(3!=getLocality()){
-        return false;    
-    }
-    return true;
+}
+
+void test_data_item_server_network_creation(){
+
+
+
 }
 
 
-bool test_data_item_manager_scalar(){
-    auto dataRef = allscale::data_item_manager::create<Scalar<int>>(); 
-    //allscale::data_item_server<Scalar<int>> server = allscale::data_item_server_network<Scalar<int>>::getLocalDataItemServer();
-    auto lease = allscale::data_item_manager::acquire(allscale::createDataItemRequirement(dataRef,allscale::api::user::data::detail::ScalarRegion(true),allscale::access_mode::ReadWrite));
-    auto data = allscale::data_item_manager::get(dataRef);
-    data.set(12);
-    allscale::data_item_manager::release(lease);
-    allscale::data_item_manager::destroy(dataRef);
-    return true;
-}
 
-bool test_data_item_manager_grid(){
-    GridPoint<1> size = 200;
-    auto dataRef = allscale::data_item_manager::create<Grid<int,1>>(size);
-    auto lease = allscale::data_item_manager::acquire(allscale::createDataItemRequirement(dataRef,GridRegion<1>(100,150),allscale::access_mode::ReadWrite));
-    auto data = allscale::data_item_manager::get(dataRef);
-    data[120]=5;
-    allscale::data_item_manager::release(lease);
-    allscale::data_item_manager::destroy(dataRef);
-    return 1;
-}
-
-bool test_data_item_manager_static_grid(){
-    auto dataRef = allscale::data_item_manager::create<StaticGrid<int,200>>();
-    auto lease = allscale::data_item_manager::acquire(allscale::createDataItemRequirement(dataRef,GridRegion<1>(100,150),allscale::access_mode::ReadWrite));
-    auto data = allscale::data_item_manager::get(dataRef);
-    data[120]=5;
-    allscale::data_item_manager::release(lease);
-    allscale::data_item_manager::destroy(dataRef);
-    return 1;
-}
-
-bool test_data_item_manager_multi_server(){
-    setLocality(0);
-    auto dataRef = allscale::data_item_manager::create<Scalar<int>>(); 
-    setLocality(1);
-    auto lease = allscale::data_item_manager::acquire(allscale::createDataItemRequirement(dataRef,allscale::api::user::data::detail::ScalarRegion(true),allscale::access_mode::ReadWrite));
-    auto data = allscale::data_item_manager::get(dataRef);
-    data.set(12);
-    allscale::data_item_manager::release(lease);
-    setLocality(2);
-    allscale::data_item_manager::destroy(dataRef);
-    return 1;
-}
-
-bool test_data_item_manager_scalar_single_producer_single_consumer(){
-    setLocality(0);
-
-
-    auto dataRef = allscale::data_item_manager::create<Scalar<int>>();
-
-    int* loc1 = nullptr;
-    int* loc2 = nullptr;
-
-    // write something to the data item on locality 1
-    {
-        setLocality(1);
-
-        auto lease = allscale::data_item_manager::acquire(allscale::createDataItemRequirement(dataRef,allscale::api::user::data::detail::ScalarRegion(true),allscale::access_mode::ReadWrite));
-        auto data = allscale::data_item_manager::get(dataRef);
-        
-        loc1 = &data.get();
-        data.set(12);
-        allscale::data_item_manager::release(lease);
-    }
-
-    // and we consume it on locality 2
-    {
-        setLocality(2);
-        
-        auto lease = allscale::data_item_manager::acquire(allscale::createDataItemRequirement(dataRef,allscale::api::user::data::detail::ScalarRegion(true),allscale::access_mode::ReadWrite));
-        auto data = allscale::data_item_manager::get(dataRef);
-
-        loc2 = &data.get();
-        
-        std::cout<<"equal ? " << (EXPECT_EQ(12,data.get())) << std::endl;
-
-        allscale::data_item_manager::release(lease);
-    }
-
-
-    std::cout<<"not equal ? " << (EXPECT_NE(loc1,loc2)) << std::endl;
-    // and we destroy it on locality 3
-    setLocality(3);
-    allscale::data_item_manager::destroy(dataRef);
-    return 1;
-}
-
-
-int main()
-{
-    
-    std::cout<<test_location_manager()<<std::endl; 
-    std::cout<<test_data_item_manager_scalar()<<std::endl; 
-    std::cout<<test_data_item_manager_grid()<<std::endl; 
-    std::cout<<test_data_item_manager_static_grid()<<std::endl; 
-    std::cout<<test_data_item_manager_multi_server()<<std::endl; 
-    std::cout<<test_data_item_manager_scalar_single_producer_single_consumer()<<std::endl;
-    return 0;
-
+int hpx_main(int argc, char* argv[]) {
+    test_scalar_data_item_reference();
+    //std::cout<<std::endl;
+    //test_grid_data_item_server_create();
+    //std::cout<<std::endl;
+    //test_grid_data_item_server_get();
+ //   test_grid_data_item_server_network_creation();
+    return hpx::finalize();
 }
