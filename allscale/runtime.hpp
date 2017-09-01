@@ -17,6 +17,9 @@
 #include <allscale/resilience.hpp>
 #include <allscale/do_serialization.hpp>
 #include <allscale/no_serialization.hpp>
+#include <allscale/data_item_reference.hpp>
+#include <allscale/data_item_requirement.hpp>
+#include <allscale/data_item_manager.hpp>
 
 #include <hpx/hpx_main.hpp>
 #include <hpx/util/invoke_fused.hpp>
@@ -26,6 +29,25 @@
 namespace allscale {
 namespace runtime {
 
+// Adapting names for compiler
+using AccessMode = allscale::access_mode;
+
+template <typename T>
+using DataItemReference = allscale::data_item_reference<T>;
+template <typename T>
+using DataItemRequirement = allscale::data_item_requirement<T>;
+
+template<typename DataItemType>
+data_item_requirement<DataItemType> createDataItemRequirement
+(   const data_item_reference<DataItemType>& ref,
+    const typename DataItemType::region_type& region,
+    const access_mode& mode
+)
+{
+    return allscale::createDataItemRequirement(ref, region, mode);
+}
+
+using DataItemManager = allscale::data_item_manager;
 /**
  * A wrapper for the main function of an applicaiton handling the startup and
  * shutdown procedure as well as lunching the first work item.

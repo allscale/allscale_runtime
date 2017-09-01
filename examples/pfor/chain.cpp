@@ -20,8 +20,6 @@
 
 static const int DEFAULT_SIZE = 128 * 1024 * 1024;
 
-// static std::vector<int> dataA;
-// static std::vector<int> dataB;
 static std::unique_ptr<int[]> dataA;
 static std::unique_ptr<int[]> dataB;
 
@@ -116,7 +114,7 @@ int hpx_main(int argc, char **argv)
             for(int t=0; t<steps; t++) {
                 pfor<simple_stencil_body>(0,n,t,n);
             }
-            //auto elapsed = t.elapsed_microseconds();
+            // auto elapsed = t.elapsed_microseconds();
             app_elapsed = t.elapsed_microseconds();
             mean += app_elapsed/steps;
             std::cout << "pfor(0.." << n << ") taking " << app_elapsed/steps << " microseconds. Iter: " << i << "\n";

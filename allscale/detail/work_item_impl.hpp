@@ -4,6 +4,7 @@
 
 #include <allscale/treeture.hpp>
 #include <allscale/monitor.hpp>
+#include <allscale/data_item_manager.hpp>
 #include <allscale/detail/unwrap_if.hpp>
 #include <allscale/detail/work_item_impl_base.hpp>
 
@@ -60,6 +61,30 @@ namespace allscale { namespace detail {
     struct is_closure_serializable<hpx::util::tuple<Ts...>>
       : hpx::util::detail::all_of<is_serializable<Ts>...>
     {};
+
+    template <typename Leases, std::size_t... Is>
+    inline void release(hpx::util::detail::pack_c<std::size_t, Is...>, Leases const& leases)
+    {
+        int sequencer[] = {
+            (allscale::data_item_manager::release(hpx::util::get<Is>(leases)), 0)...
+        };
+    }
+
+    inline void release(hpx::util::detail::pack_c<std::size_t>, hpx::util::tuple<> const&)
+    {
+    }
+
+    template <typename Requirements, std::size_t... Is>
+    inline auto get_leases(hpx::util::detail::pack_c<std::size_t, Is...>, Requirements const& reqs)
+     -> hpx::util::tuple<
+            typename hpx::util::decay<decltype(
+                allscale::data_item_manager::acquire(hpx::util::get<Is>(reqs)))>::type...
+        >
+    {
+        return hpx::util::make_tuple(
+            allscale::data_item_manager::acquire(hpx::util::get<Is>(reqs))...
+        );
+    }
 
     template<typename WorkItemDescription, typename Closure>
     struct work_item_impl
@@ -131,10 +156,36 @@ namespace allscale { namespace detail {
             return WorkItemDescription::can_split_variant::call(closure_);
         }
 
-        template <typename Future>
+        template <typename Variant>
+        struct acquire_result
+        {
+            typedef
+                decltype(Variant::get_requirements(std::declval<Closure const&>()))
+                reqs;
+            typedef typename hpx::util::detail::make_index_pack<
+                hpx::util::tuple_size<reqs>::type::value>::type pack;
+
+            typedef decltype(get_leases(pack(), std::declval<reqs>())) type;
+        };
+
+        template <typename Variant>
+        auto acquire(decltype(&Variant::template get_requirements<Closure>))
+         -> typename acquire_result<Variant>::type
+        {
+            typename acquire_result<Variant>::pack pack;
+            return get_leases(pack, Variant::get_requirements(closure_));
+        }
+
+        template <typename Variant>
+        hpx::util::tuple<> acquire(...)
+        {
+            return hpx::util::tuple<>();
+        }
+
+        template <typename Future, typename Leases>
         typename std::enable_if<!std::is_same<Future, hpx::util::unused_type>::value>::type
         finalize(
-            std::shared_ptr<work_item_impl> this_, Future work_res)
+            std::shared_ptr<work_item_impl> this_, Future work_res, Leases leases)
         {
             monitor::signal(monitor::work_item_execution_finished,
                 work_item(this_));
@@ -146,24 +197,36 @@ namespace allscale { namespace detail {
                 = hpx::traits::future_access<work_res_type>::get_shared_state(work_res);
 
             state->set_on_completed(
-                hpx::util::deferred_call([](auto this_, auto state)
+                hpx::util::deferred_call([](auto this_, auto state, Leases leases)
                 {
+                    typename hpx::util::detail::make_index_pack<
+                        hpx::util::tuple_size<Leases>::type::value>::type pack;
+                    release(pack, leases);
+
                     set_id si(this_->id_);
                     detail::set_treeture(this_->tres_ , state);
                     monitor::signal(monitor::work_item_result_propagated,
                         work_item(std::move(this_)));
                 },
-                std::move(this_), std::move(state)));
+                std::move(this_), std::move(state), std::move(leases)));
         }
 
+        template <typename Leases>
         void finalize(
-            std::shared_ptr<work_item_impl>&& this_, hpx::util::unused_type)
+            std::shared_ptr<work_item_impl>&& this_, hpx::util::unused_type, Leases leases)
         {
+            typename hpx::util::detail::make_index_pack<
+                hpx::util::tuple_size<Leases>::type::value>::type pack;
+            release(pack, leases);
+
+            set_id si(this_->id_);
             tres_.set_value(hpx::util::unused_type{});
+            monitor::signal(monitor::work_item_result_propagated,
+                work_item(std::move(this_)));
         }
 
-        template<typename ...Ts>
-		void do_process(hpx::future<void>&& f, Ts ...vs)
+        template<typename ...Ts, typename Leases>
+		void do_process(hpx::future<void>&& f, Leases leases, Ts ...vs)
         {
             if (f.valid()) f.get();
             std::shared_ptr < work_item_impl > this_(shared_this());
@@ -175,11 +238,11 @@ namespace allscale { namespace detail {
                 WorkItemDescription::process_variant::execute(
                     detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...));
 
-            finalize(std::move(this_), std::move(work_res));
+            finalize(std::move(this_), std::move(work_res), std::move(leases));
 		}
 
-        template<typename ...Ts>
-		void do_split(Ts ...vs)
+        template<typename ...Ts, typename Leases>
+		void do_split(Leases leases, Ts ...vs)
         {
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_execution_started, work_item(this_));
@@ -190,27 +253,28 @@ namespace allscale { namespace detail {
                 WorkItemDescription::split_variant::execute(
                     unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...));
 
-            finalize(std::move(this_), std::move(work_res));
+            finalize(std::move(this_), std::move(work_res), std::move(leases));
         }
 
-        template <typename ProcessVariant, std::size_t... Is>
-        void get_deps(hpx::util::detail::pack_c<std::size_t, Is...>,
+        template <typename ProcessVariant, typename Leases, std::size_t... Is>
+        void get_deps(hpx::util::detail::pack_c<std::size_t, Is...>, Leases leases,
             decltype(&ProcessVariant::template deps<Closure>))
         {
             void (work_item_impl::*f)(
-                    hpx::future<void>&&,
+                    hpx::future<void>&&, Leases,
                     typename hpx::util::decay<
                     decltype(hpx::util::get<Is>(closure_))>::type...
             ) = &work_item_impl::do_process;
             auto deps = hpx::when_all(ProcessVariant::deps(closure_), dep_);
-            hpx::dataflow(f, shared_this(), std::move(deps), std::move(hpx::util::get<Is>(closure_))...);
+            hpx::dataflow(f, shared_this(), std::move(deps), std::move(leases),
+                std::move(hpx::util::get<Is>(closure_))...);
         }
 
-        template <typename ProcessVariant, std::size_t... Is>
-        void get_deps(hpx::util::detail::pack_c<std::size_t, Is...>, ...)
+        template <typename ProcessVariant, typename Leases, std::size_t... Is>
+        void get_deps(hpx::util::detail::pack_c<std::size_t, Is...>, Leases leases, ...)
         {
             void (work_item_impl::*f)(
-                    hpx::future<void>&&,
+                    hpx::future<void>&&, Leases,
                     typename hpx::util::decay<
                     decltype(hpx::util::get<Is>(closure_))>::type...
             ) = &work_item_impl::do_process;
@@ -218,22 +282,29 @@ namespace allscale { namespace detail {
             {
                 auto this_ = shared_this();
                 dep_.then(
-                    [f, this_](hpx::shared_future<void> dep)
+                    [f, this_, leases](hpx::shared_future<void> dep)
                     {
                         dep.get(); // propagate errors.
-                        hpx::apply(f, this_, hpx::future<void>(), std::move(hpx::util::get<Is>(this_->closure_))...);
+                        hpx::apply(f, this_, hpx::future<void>(),
+                            std::move(leases), std::move(hpx::util::get<Is>(this_->closure_))...);
                     }
                 );
             }
             else
-                hpx::apply(f, shared_this(), hpx::future<void>(), std::move(hpx::util::get<Is>(closure_))...);
+                hpx::apply(f, shared_this(), hpx::future<void>(),
+                    std::move(leases), std::move(hpx::util::get<Is>(closure_))...);
         }
+
+//         template <typename
 
         template<std::size_t ... Is>
         void process(hpx::util::detail::pack_c<std::size_t, Is...> pack)
         {
             HPX_ASSERT(valid());
-            get_deps<typename WorkItemDescription::process_variant>(pack, nullptr);
+            // FIXME: Do we need to futurizing the acquisition of leases?
+            auto reqs = acquire<typename WorkItemDescription::process_variant>(nullptr);
+
+            get_deps<typename WorkItemDescription::process_variant>(pack, reqs, nullptr);
 //             do_process(std::move(hpx::util::get<Is>(closure_))...);
 //             hpx::apply(f, shared_this(), std::move(hpx::util::get<Is>(closure_))...);
         }
@@ -246,14 +317,18 @@ namespace allscale { namespace detail {
 
         template<std::size_t ... Is>
         void split_impl(hpx::util::detail::pack_c<std::size_t, Is...>) {
+            // FIXME: Do we need to futurizing the acquisition of leases?
+            auto reqs = acquire<typename WorkItemDescription::split_variant>(nullptr);
+
             void (work_item_impl::*f)(
+                    typename hpx::util::decay<decltype(reqs)>::type,
                     typename hpx::util::decay<
                     decltype(hpx::util::get<Is>(closure_))>::type...
             ) = &work_item_impl::do_split;
             HPX_ASSERT(valid());
 //             do_split(std::move(hpx::util::get<Is>(closure_))...);
 //             hpx::dataflow(f, shared_this(), std::move(hpx::util::get<Is>(closure_))...);
-            hpx::apply(f, shared_this(), std::move(hpx::util::get<Is>(closure_))...);
+            hpx::apply(f, shared_this(), std::move(reqs), std::move(hpx::util::get<Is>(closure_))...);
         }
 
         template <typename WorkItemDescription_>

@@ -1,5 +1,6 @@
 set(tests
   #this_work_item
+  scalar_read_write
   overlapping_async.insieme.seq
   #overlapping_pfor.insieme.seq
   data_item_manager
