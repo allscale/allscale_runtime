@@ -11,21 +11,21 @@
 
 #include <allscale/util.hpp>
 namespace allscale{
-    
+
     template<typename DataItemType>
     struct data_item_server{
-        
+
         using data_item_shared_data_type = typename DataItemType::shared_data_type;
         using data_item_fragment_type = typename DataItemType::fragment_type;
         using data_item_region_type = typename DataItemType::region_type;
         using network_type = data_item_server_network<DataItemType>;
-	    
-        // mock types 
+
+        // mock types
         using locality_type = simulator::locality_type;
 	    using id_type = std::size_t;
-        
-        
-        
+
+
+
         struct fragment_info {
 
             // the managed fragment
@@ -95,7 +95,7 @@ namespace allscale{
         alive = false;
         store.clear();
     }
- 
+
     template<typename ... Args>
     data_item_reference<DataItemType> create(const Args& ... args) {
         assert_true(alive);
@@ -104,24 +104,19 @@ namespace allscale{
         data_item_shared_data_type shared(args...);
 
         // prepare shared data to be distributed
-        auto sharedStateArchive = allscale::utils::serialize(shared);
         id_type dataItemID = (myLocality << 20) + (idCounter++);
 
         // inform other servers
-        network.broadcast([&sharedStateArchive,dataItemID](data_item_server& server) {
-
-            // retrieve shared data
-            auto sharedData = allscale::utils::deserialize<data_item_shared_data_type>(sharedStateArchive);
-
+        network.broadcast([&shared,dataItemID](data_item_server& server) {
             // create new local fragment
-            server.store.emplace(dataItemID, std::move(fragment_info(sharedData)));
+            server.store.emplace(dataItemID, std::move(fragment_info(shared)));
         });
 
         // return reference
         return { dataItemID };
     }
-    
-    location_info<DataItemType> locate(const data_item_reference<DataItemType>& ref, const data_item_region_type& region) 
+
+    location_info<DataItemType> locate(const data_item_reference<DataItemType>& ref, const data_item_region_type& region)
     {
         assert_true(alive);
         location_info<DataItemType> res;
