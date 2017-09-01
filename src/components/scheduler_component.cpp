@@ -23,6 +23,8 @@ namespace allscale { namespace components {
       , depth_cap(1.5 * (std::log(os_thread_count)/std::log(2) + 0.5))
       , current_avg_iter_time(0.0)
       , sampling_interval(10)
+      , time_leeway(1.0)
+      , min_threads(4)
 //       , count_(0)
       , timer_(
             hpx::util::bind(
@@ -298,7 +300,7 @@ namespace allscale { namespace components {
 
                 double time_threshold = current_avg_iter_time; 
                 bool disable_flag = last_avg_iter_time >= time_threshold;
-                bool enable_flag = last_avg_iter_time * 1.15 < time_threshold;
+                bool enable_flag = last_avg_iter_time * time_leeway < time_threshold;
         
 
                 if (input_objective == scheduler::objectives.at(objective_IDs::TIME_RESOURCE))
@@ -307,10 +309,11 @@ namespace allscale { namespace components {
                     time_threshold = current_avg_iter_time * (active_threads / (active_threads - suspend_cap)) * 1.2;
                     disable_flag = last_avg_iter_time <= time_threshold;
                     enable_flag = last_avg_iter_time > time_threshold;
+                    min_threads = 1;
                 }
 
 
-                if ( active_threads > 5 && disable_flag )
+                if ( active_threads > min_threads && disable_flag )
                 {
                     depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5));
                     {
@@ -322,11 +325,14 @@ namespace allscale { namespace components {
                 else if ( blocked_os_threads_.any() && enable_flag )
                 {
                     depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5));
+                    if (time_leeway < 1.01)
+                        time_leeway *= 1.0005;
                     {
                         hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                         thread_scheduler->enable_more(resume_cap);
                     }
                     std::cout << "Sent enable signal. Active threads: " << active_threads + resume_cap << std::endl;
+                //    std::cout << "LEEWAY: " << time_leeway << std::endl;
                 }
             }
 
@@ -357,14 +363,6 @@ namespace allscale { namespace components {
         //Resume all sleeping threads
         if (!input_objective.empty())
        	    thread_scheduler->enable_more(os_thread_count);
-
-//        if (thread_scheduler != nullptr)
-//        {
-//            boost::dynamic_bitset<> const & blocked_os_threads_ =
-//                        thread_scheduler->get_disabled_os_threads();
-//            active_threads = os_thread_count - blocked_os_threads_.count();
-//            std::cout << "Enabled all. active_threads: " << active_threads << std::endl;        
-//        }
 
         stopped_ = true;
 //         work_queue_cv_.notify_all();
