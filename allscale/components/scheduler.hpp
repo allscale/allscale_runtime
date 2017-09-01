@@ -101,6 +101,7 @@ namespace allscale { namespace components {
         unsigned long long last_actual_energy_usage;
         unsigned long long actual_energy_usage;
         cpufreq_policy policy;
+        hardware_reconf::hw_topology topo;
         std::vector<unsigned long> cpu_freqs;
 
         mutable mutex_type throttle_mtx_;

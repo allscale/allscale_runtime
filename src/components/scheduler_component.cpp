@@ -121,17 +121,23 @@ namespace allscale { namespace components {
             "thread_scheduler is null. Make sure you select throttling scheduler via --hpx:queuing=throttling");
             }
 
-            using hardware_reconf = allscale::components::util::hardware_reconf;
-            cpu_freqs = hardware_reconf::get_frequencies(0);
-            auto min_max_freqs = std::minmax_element(cpu_freqs.begin(), cpu_freqs.end());
-            unsigned long min_freq = *min_max_freqs.first;
-            unsigned long max_freq = *min_max_freqs.second;
+            if (input_objective == "energy")
+            {
+                using hardware_reconf = allscale::components::util::hardware_reconf;
+                cpu_freqs = hardware_reconf::get_frequencies(0);
+                auto min_max_freqs = std::minmax_element(cpu_freqs.begin(), cpu_freqs.end());
+                unsigned long min_freq = *min_max_freqs.first;
+                unsigned long max_freq = *min_max_freqs.second;
 
-            std::string governor = "userspace";
-            policy.governor = const_cast<char*>(governor.c_str());
-            policy.min = min_freq;
-            policy.max = max_freq;
+                std::string governor = "userspace";
+                policy.governor = const_cast<char*>(governor.c_str());
+                policy.min = min_freq;
+                policy.max = max_freq;
 
+                topo = hardware_reconf::read_hw_topology();
+                for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
+                    int res = hardware_reconf::set_freq_policy(cpu_id, policy);
+            }
 
 // 	    throttle_timer_.start();
         }
