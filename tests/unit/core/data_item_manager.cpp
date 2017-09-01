@@ -1,6 +1,8 @@
 #include "allscale/api/user/data/scalar.h"
+#include "allscale/api/user/data/grid.h"
 #include <allscale/data_item_reference.hpp>
 #include <allscale/data_item_server.hpp>
+#include <allscale/data_item_server_network.hpp>
 #include <algorithm>
 
 #include <hpx/hpx_main.hpp>
@@ -23,16 +25,28 @@ HPX_REGISTER_COMPONENT_MODULE();
 
 using data_item_type = Scalar<int>;
 REGISTER_DATAITEMREFERENCE(data_item_type);
-
 REGISTER_DATAITEMSERVER(data_item_type);
+
+
+
+
+
+using data_item_type_grid = Grid<int,1>;
+REGISTER_DATAITEMREFERENCE(data_item_type_grid);
+REGISTER_DATAITEMSERVER(data_item_type_grid);
+
+
+
+
+
+
+
 
 void test_scalar_data_item_reference() {
 
     typedef typename server::data_item_reference<data_item_type> data_item_reference_type;
 
     if (hpx::get_locality_id() == 0) {
-        std::cout << "on locality " << hpx::get_locality_id() << " running test"
-                << std::endl;
         std::vector < hpx::id_type > localities = hpx::find_all_localities();
 
         for (auto& loc : localities) {
@@ -46,17 +60,61 @@ void test_scalar_data_item_reference() {
     }
 }
 
+
 void test_data_item_server_creation(){
 
 
 
 }
 
+template <typename DataItemType, typename ... Args>
+auto simulate_data_item_manager_create(const Args& ... args){
+    
+    std::vector<allscale::data_item_server<DataItemType>> result;
+    //SERIALIZE STUFF BY HAND FOR NOW
+    auto archive = allscale::utils::serialize(args...);
+    std::vector<char> buffer;
+    buffer = archive.getBuffer();
+    typedef typename allscale::server::data_item_server<DataItemType> data_item_server_type;
+    
+    if (hpx::get_locality_id() == 0) {
+		//CYCLE THRU LOCALITIES
+		std::cout << "on locality " << hpx::get_locality_id() << " running test" << std::endl;
+        std::vector < hpx::id_type > localities = hpx::find_all_localities();
+		//CREATE DATA ITEM SERVER INSTANCES ON LOCALITIES
+		for (auto& loc : localities) {
+		    allscale::data_item_server<DataItemType> server(
+					hpx::components::new_ < data_item_server_type > (loc));
+            auto res = server.create(buffer);
+            result.push_back(server);
+		}
+
+
+
+       allscale::data_item_server_network<DataItemType> sn;
+       sn.servers = result;
+       std::cout<<sn.servers[0].get_id()<<std::endl;
+	}
+    return result;
+}
+
+
+void test_grid_data_item_server_create() {
+    GridPoint<1> size = 200;
+	using data_item_shared_data_type = typename data_item_type_grid::shared_data_type;
+    data_item_shared_data_type sharedData(size);
+    simulate_data_item_manager_create<Grid<int,1>>(sharedData);
+}
+
+
+
 
 
 int hpx_main(int argc, char* argv[]) {
     test_scalar_data_item_reference();
-    test_data_item_server_creation();
+   // test_data_item_server_creation();
+
+	test_grid_data_item_server_create();
     //std::cout<<std::endl;
     //test_grid_data_item_server_create();
     //std::cout<<std::endl;

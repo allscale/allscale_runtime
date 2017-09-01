@@ -2,24 +2,43 @@
 #define ALLSCALE_DATA_ITEM_SERVER_NETWORK
 
 
+#include <hpx/runtime/serialization/serialize.hpp>
+#include <hpx/runtime/serialization/vector.hpp>
+#include <hpx/runtime/serialization/input_archive.hpp>
+#include <hpx/runtime/serialization/output_archive.hpp>
+
 
 #include <allscale/locality.h>
 #include <allscale/data_item_server.hpp>
 namespace allscale{
 
 
+    
+
+    template<typename DataItemType>
+    class data_item_server;
+    
+    
     template<typename DataItemType>
     struct data_item_server_network {
         
+        using server_type = typename allscale::data_item_server<DataItemType>;
         
 	    using locality_type = simulator::locality_type;
-        /*
-        using server_type = typename allscale::server::data_item_server<DataItemType>;
-        std::vector<server_type> servers;
 
 
 		public:
 
+        
+        std::vector<server_type> servers;
+ 
+        template <class Archive>
+        void serialize(Archive& ar, unsigned)
+        {
+           ar & servers;
+        }
+            
+            /*
             data_item_server_network() {
                 for(locality_type i=0; i<simulator::getNumLocations(); ++i) {
                     servers.emplace_back(i, *this);

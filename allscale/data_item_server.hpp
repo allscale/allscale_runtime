@@ -19,7 +19,19 @@
 
 
 #include <allscale/util.hpp>
+
+
+/*
+namespace{
+    template<typename DataItemType>
+    struct data_item_server;
+}*/
+
+
+
 namespace allscale{
+
+
 namespace server {
 
 template<typename DataItemType>
@@ -33,8 +45,8 @@ public:
 	using data_item_region_type = typename DataItemType::region_type;
 	using data_item_reference_client_type = typename allscale::data_item_reference<DataItemType>;
     using network_type = typename allscale::data_item_server_network<DataItemType>;
-    //using network_type = data_item_serverNetwork<DataItemType>;
-
+    // using network_type = data_item_server_network<DataItemType>;
+    //using network_type = int;
 	struct fragment_info {
 		// the managed fragment
 		data_item_fragment_type fragment;
@@ -204,6 +216,92 @@ public:
     	allscale::server::data_item_server<type>                         \
     > BOOST_PP_CAT(__data_item_server_, type);                            \
     HPX_REGISTER_COMPONENT(BOOST_PP_CAT(__data_item_server_, type))       \
+
+
+namespace allscale {
+   template<typename DataItemType>
+class data_item_server: public hpx::components::client_base<
+		data_item_server<DataItemType>,
+		allscale::server::data_item_server<DataItemType> > {
+	typedef hpx::components::client_base<data_item_server<DataItemType>,
+			allscale::server::data_item_server<DataItemType> > base_type;
+
+	typedef typename allscale::server::data_item_server<
+			DataItemType>::data_item_type data_item_type;
+    typedef typename allscale::data_item_reference<DataItemType> data_item_reference_client_type;
+
+    //using network_type = int;
+    using network_type = typename allscale::data_item_server_network<DataItemType>;
+
+public:
+
+	data_item_server() {
+	}
+
+	data_item_server(hpx::future<hpx::id_type> && gid) :
+			base_type(std::move(gid)) {
+	}
+
+	template<typename ... T>
+	data_item_reference_client_type create(const T& ... args) {
+		HPX_ASSERT(this->get_id());
+
+		typedef typename  allscale::server::data_item_server<DataItemType>::template create_action<T...> action_type;
+		return action_type()(this->get_id(), args...);
+	}
+
+    template<typename ...T>
+    void register_data_item_ref(const T& ... args){
+        HPX_ASSERT(this->get_id());
+        typedef typename allscale::server::data_item_server<DataItemType>::template register_data_item_ref_action<T...> action_type;
+        action_type()(this->get_id(),args...);
+    }
+
+    void print() {
+		HPX_ASSERT(this->get_id());
+		typedef typename allscale::server::data_item_server<DataItemType>::print_action action_type;
+		action_type()(this->get_id());
+	}
+
+    void set_network(const network_type& network){
+        HPX_ASSERT(this->get_id());
+        typedef typename allscale::server::data_item_server<DataItemType>::set_network_action action_type;
+        action_type()(this->get_id(),network);
+    }
+    typename DataItemType::facade_type get(const data_item_reference_client_type& ref){
+        using parent_type = typename allscale::server::data_item_server<DataItemType>;
+        hpx::future<std::shared_ptr<parent_type> > f = hpx::get_ptr<parent_type>(this->get_id());
+        std::shared_ptr<parent_type> ptr = f.get();
+        auto result = (ptr.get())->get(ref);
+        return result;   
+        /*HPX_ASSERT(this->get_id());
+        typedef typename allscale::server::data_item_server<DataItemType>::get_action action_type;
+        action_type()(this->get_id(),ref);
+        */
+    }
+
+};
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
