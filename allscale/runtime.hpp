@@ -36,7 +36,16 @@ template <typename T>
 using DataItemReference = allscale::data_item_reference<T>;
 template <typename T>
 using DataItemRequirement = allscale::data_item_requirement<T>;
-using createDataItemRequirement = allscale::createDataItemRequirement;
+
+template<typename DataItemType>
+data_item_requirement<DataItemType> createDataItemRequirement
+(   const data_item_reference<DataItemType>& ref,
+    const typename DataItemType::region_type& region,
+    const access_mode& mode
+)
+{
+    return allscale::createDataItemRequirement(ref, region, mode);
+}
 
 using DataItemManager = allscale::data_item_manager;
 /**
