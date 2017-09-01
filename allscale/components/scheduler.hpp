@@ -87,6 +87,7 @@ namespace allscale { namespace components {
         std::size_t active_threads;
         std::size_t depth_cap;
 
+        std::vector<std::pair<double, unsigned int>> thread_times;
         hpx::threads::policies::throttling_scheduler<>* thread_scheduler;
 
         mutable mutex_type throttle_mtx_;
