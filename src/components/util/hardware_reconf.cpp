@@ -46,9 +46,33 @@ namespace allscale { namespace components { namespace util {
     }
 
 
-    int hardware_reconf::set_frequency(unsigned int cpu, unsigned long target_frequency)
+    int hardware_reconf::set_frequency(unsigned int min_cpu, unsigned int max_cpu, unsigned long target_frequency)
     {
-        return cpufreq_set_frequency(cpu, target_frequency);
+        int res = 0;
+        for (int cpu_id = min_cpu; cpu_id < max_cpu; cpu_id++)
+        {
+            res = cpufreq_set_frequency(cpu_id, target_frequency) && res;
+        }
+
+        return res;
+    }
+
+    
+    int hardware_reconf::set_frequency_of_any(unsigned int min_cpu, unsigned int max_cpu, unsigned long target_frequency)
+    {
+        std::unique_lock<mutex_type> l(hardware_reconf::freq_mtx_);
+        int target_cpu = -1;
+        for (int cpu_id = min_cpu; cpu_id < max_cpu; cpu_id++)
+        {
+            if (get_hardware_freq(cpu_id) != target_frequency)
+            {
+                target_cpu = cpu_id;
+                break;
+            }
+        } 
+
+        cpufreq_set_frequency(target_cpu, target_frequency);
+        return target_cpu;
     }
 
 
@@ -84,9 +108,9 @@ namespace allscale { namespace components { namespace util {
 
         hardware_reconf::hw_topology topo = read_hw_topology();
         unsigned int max_cpu_id = topo.num_logical_cores;
-        unsigned int hw_threads = topo.num_hw_threads;  
+        unsigned int hw_threads = topo.num_hw_threads;
     
-        std::unique_lock<mutex_type> l(hardware_reconf::freq_mtx_);    
+        std::unique_lock<mutex_type> l(hardware_reconf::freq_mtx_);
         for(unsigned int cpu_id = 0; cpu_id < max_cpu_id; cpu_id += hw_threads)
         {
             if (get_hardware_freq(cpu_id) != target_frequency)
@@ -94,7 +118,7 @@ namespace allscale { namespace components { namespace util {
                 if (count == num_cpus)
                     break;
 
-                res = set_frequency(cpu_id, target_frequency);
+                res = set_frequency(cpu_id, cpu_id + 1, target_frequency);
                 HPX_ASSERT(res == 0);
                 count++;
             }

@@ -25,6 +25,9 @@ namespace allscale { namespace components {
       , sampling_interval(10)
       , time_leeway(1.0)
       , min_threads(4)
+	  , current_energy_usage(0)
+      , last_actual_energy_usage(0)
+      , actual_energy_usage(0)
 //       , count_(0)
       , timer_(
             hpx::util::bind(
@@ -117,6 +120,18 @@ namespace allscale { namespace components {
                HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
             "thread_scheduler is null. Make sure you select throttling scheduler via --hpx:queuing=throttling");
             }
+
+            using hardware_reconf = allscale::components::util::hardware_reconf;
+            cpu_freqs = hardware_reconf::get_frequencies(0);
+            auto min_max_freqs = std::minmax_element(cpu_freqs.begin(), cpu_freqs.end());
+            unsigned long min_freq = *min_max_freqs.first;
+            unsigned long max_freq = *min_max_freqs.second;
+
+            std::string governor = "userspace";
+            policy.governor = const_cast<char*>(governor.c_str());
+            policy.min = min_freq;
+            policy.max = max_freq;
+
 
 // 	    throttle_timer_.start();
         }
@@ -341,6 +356,50 @@ namespace allscale { namespace components {
         return true;
     }
 
+
+    bool scheduler::periodic_frequency_scale()
+    {
+        {
+            std::unique_lock<mutex_type> l(resize_mtx_);
+            if ( current_energy_usage == 0 )
+            {
+                current_energy_usage = hardware_reconf::read_system_energy();
+                cpu_to_freq_scale = 0;
+
+                return true;
+            } else if ( current_energy_usage > 0 )
+            {
+                last_energy_usage = current_energy_usage;
+                current_energy_usage = hardware_reconf::read_system_energy();
+                last_actual_energy_usage = actual_energy_usage;
+                actual_energy_usage = current_energy_usage - last_energy_usage;
+
+                if ( last_actual_energy_usage >= actual_energy_usage )
+                {
+                    {
+                        hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+                        int res = hardware_reconf::set_frequency(cpu_to_freq_scale, cpu_to_freq_scale + 1, cpu_freqs[0]);
+                        std::cout << "Increase frequency. res: " << res << ", last_actual_energy_usage: "
+                            << last_actual_energy_usage << ", actual_energy_usage: " << actual_energy_usage << ", cpu_to_freq_scale: " << cpu_to_freq_scale << std::endl;
+                    }
+                    cpu_to_freq_scale++;
+                }
+                else if ( last_actual_energy_usage < actual_energy_usage )
+                {
+                    {
+                        cpu_to_freq_scale++;
+                        hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+                        int res = hardware_reconf::set_frequency(cpu_to_freq_scale, cpu_to_freq_scale + 1, cpu_freqs[3]);
+                        std::cout << "Decrease frequency. res: " << res << ", last_actual_energy_usage: "
+                             << last_actual_energy_usage << ", actual_energy_usage: " << actual_energy_usage << ", cpu_to_freq_scale: " << cpu_to_freq_scale << std::endl;
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+ 
 
 
     void scheduler::stop()
