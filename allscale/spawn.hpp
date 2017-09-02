@@ -53,7 +53,6 @@ namespace allscale
     spawn_first(Ts&&...vs)
     {
         typedef typename WorkItemDescription::result_type result_type;
-        HPX_ASSERT(!this_work_item::get_id().get_treeture());
         allscale::treeture<void> null_parent;
         allscale::treeture<result_type> tres(parent_arg(), null_parent);
 

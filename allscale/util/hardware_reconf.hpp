@@ -46,19 +46,33 @@ namespace allscale { namespace components { namespace util {
         static std::vector<std::string> get_governors(unsigned int cpu);
 
 
-        /// \brief This function sets/changes the frequency of the given CPU
+        /// \brief This function sets/changes the frequency of the given CPUs with [min_cpu, max_cpu).
         ///
-        /// \param cpu                    [in] CPU number
+        /// \param min_cpu                [in] starting CPU number, inclusive
+        /// \param max_cpu                [in] ending CPU number, exclusive
         /// \param target_frequency       [in] CPU frequency
         ///
-        /// \returns            Returns zero if successful, otherwise a minus return code
+        /// \returns            Returns zero if all successful, otherwise a minus return code
         ///
         /// \note               This function requires a root/sudo access and
         ///                     only works if userspace governor can be used and no external
         ///                     interference (other calls to this function or to set/modify_policy) 
         ///                     occurs. Also does not work on ->range() cpufreq drivers. See
         ///                     /usr/include/cpufreq.h file for more info about cpufreq APIs.
-        static int set_frequency(unsigned int cpu, unsigned long target_frequency);
+        ///                     Also, it is a best effort API and it is up to user to query and 
+        ///                     check if the operation failed for one or more CPUs.
+        static int set_frequency(unsigned int min_cpu, unsigned int max_cpu, unsigned long target_frequency);
+
+
+        /// \brief This function changes the frequency of any cpu within the range of [min_cpu, max_cpu).
+        /// 
+        /// \param min_cpu          [in] starting cpu id, inclusive
+        /// \param max_cpu          [in] ending cpu id, exclusive
+        /// \param target_frequency [in] target frequency that needs to be assigned
+        ///
+        /// \returns                If successfull returns the affected cpu id, otherwise -1.
+        static int set_frequency_of_any(unsigned int min_cpu, unsigned int max_cpu, unsigned long target_frequency);
+
 
         /// \brief This function sets/changes the governor and frequency of the given CPU.
         ///

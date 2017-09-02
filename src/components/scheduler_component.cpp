@@ -23,6 +23,11 @@ namespace allscale { namespace components {
       , depth_cap(1.5 * (std::log(os_thread_count)/std::log(2) + 0.5))
       , current_avg_iter_time(0.0)
       , sampling_interval(10)
+      , time_leeway(1.0)
+      , min_threads(4)
+	  , current_energy_usage(0)
+      , last_actual_energy_usage(0)
+      , actual_energy_usage(0)
 //       , count_(0)
       , timer_(
             hpx::util::bind(
@@ -44,6 +49,7 @@ namespace allscale { namespace components {
         )
     {
         allscale_monitor = &allscale::monitor::get();
+        thread_times.resize(hpx::get_os_thread_count());
     }
 
     void scheduler::init()
@@ -58,18 +64,21 @@ namespace allscale { namespace components {
 //             rp_->create_thread_pool("allscale/numa/" + std::to_string(i));
 //         }
 
-        input_objective = hpx::get_config_entry("allscale.objective", scheduler::objectives.at(objective_IDs::TIME)  );
+        input_objective = hpx::get_config_entry("allscale.objective", "");
 
-        if ( std::find(scheduler::objectives.begin(), scheduler::objectives.end(), input_objective) == scheduler::objectives.end() ) {
-	    std::ostringstream all_keys;
-	    copy(scheduler::objectives.begin(), scheduler::objectives.end(), std::ostream_iterator<std::string>(all_keys, ","));
-	    std::string keys_str = all_keys.str();
-            keys_str.pop_back();
-            HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
-				boost::str(boost::format("Wrong objective: %s, Valid values: [%s]") % input_objective % keys_str));
+        if (!input_objective.empty())
+        {
+            if ( std::find(scheduler::objectives.begin(), scheduler::objectives.end(), input_objective) == scheduler::objectives.end() ) {
+                std::ostringstream all_keys;
+                copy(scheduler::objectives.begin(), scheduler::objectives.end(), std::ostream_iterator<std::string>(all_keys, ","));
+                std::string keys_str = all_keys.str();
+                keys_str.pop_back();
+                HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
+                        boost::str(boost::format("Wrong objective: %s, Valid values: [%s]") % input_objective % keys_str));
+            }
+            else
+                std::cerr << "The requested objective is " << input_objective << std::endl;
         }
-        else
-            std::cerr << "The requested objective is " << input_objective << std::endl;
 
         // setup performance counter to use to decide on split/process
         static const char * queue_counter_name = "/threadqueue{locality#%d/total}/length";
@@ -103,16 +112,31 @@ namespace allscale { namespace components {
         }
 //         timer_.start();
 
-        if (input_objective == scheduler::objectives.at(objective_IDs::TIME_RESOURCE) ) {
-//             allscale_app_counter_id = hpx::performance_counters::get_counter(allscale_app_counter_name);
-//             hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, allscale_app_counter_id);
-
-        thread_scheduler = dynamic_cast<hpx::threads::policies::throttling_scheduler<>*>(hpx::resource::get_thread_pool(0).get_scheduler());
+        if (!input_objective.empty() ) {
+            thread_scheduler = dynamic_cast<hpx::threads::policies::throttling_scheduler<>*>(hpx::resource::get_thread_pool(0).get_scheduler());
             if (thread_scheduler != nullptr) {
                std::cout << "We have a thread manager holding the throttling_scheduler" << std::endl;
             } else {
                HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
-			"thread_scheduler is null. Make sure you select throttling scheduler via --hpx:queuing=throttling");
+            "thread_scheduler is null. Make sure you select throttling scheduler via --hpx:queuing=throttling");
+            }
+
+            if (input_objective == "energy")
+            {
+                using hardware_reconf = allscale::components::util::hardware_reconf;
+                cpu_freqs = hardware_reconf::get_frequencies(0);
+                auto min_max_freqs = std::minmax_element(cpu_freqs.begin(), cpu_freqs.end());
+                unsigned long min_freq = *min_max_freqs.first;
+                unsigned long max_freq = *min_max_freqs.second;
+
+                std::string governor = "userspace";
+                policy.governor = const_cast<char*>(governor.c_str());
+                policy.min = min_freq;
+                policy.max = max_freq;
+
+                topo = hardware_reconf::read_hw_topology();
+                for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
+                    int res = hardware_reconf::set_freq_policy(cpu_id, policy);
             }
 
 // 	    throttle_timer_.start();
@@ -263,12 +287,11 @@ namespace allscale { namespace components {
 
     bool scheduler::periodic_throttle()
     {
-        if ( num_threads_ > 1 && input_objective == scheduler::objectives.at(objective_IDs::TIME_RESOURCE) )
+        if ( num_threads_ > 1 && !input_objective.empty())
         {
             std::unique_lock<mutex_type> l(resize_mtx_);
             if ( current_avg_iter_time == 0.0 || allscale_monitor->get_number_of_iterations() < sampling_interval)
             {
-//                std::cout << "Avg last iterations:  " << allscale_monitor->get_avg_time_last_iterations(10) << " Number of iterations: " << allscale_monitor->get_number_of_iterations() << std::endl;
                 {
                     hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
 //                    current_avg_iter_time = allscale_monitor->get_avg_work_item_times(sampling_interval);
@@ -289,10 +312,29 @@ namespace allscale { namespace components {
                     thread_scheduler->get_disabled_os_threads();
                 active_threads = os_thread_count - blocked_os_threads_.count();
 
+                unsigned thread_use_count = thread_times[active_threads - 1].second;
+                double thread_exe_time = current_avg_iter_time + thread_times[active_threads - 1].first;
+                thread_times[active_threads - 1] = std::make_pair(thread_exe_time, thread_use_count + 1);
+
                 std::size_t suspend_cap = 1; //active_threads < SMALL_SYSTEM  ? SMALL_SUSPEND_CAP : LARGE_SUSPEND_CAP;
                 std::size_t resume_cap = 1;  //active_threads < SMALL_SYSTEM  ? LARGE_RESUME_CAP : SMALL_RESUME_CAP;
 
-                if ( active_threads > 4 && last_avg_iter_time >= current_avg_iter_time )
+                double time_threshold = current_avg_iter_time; 
+                bool disable_flag = last_avg_iter_time >= time_threshold;
+                bool enable_flag = last_avg_iter_time * time_leeway < time_threshold;
+        
+
+                if (input_objective == scheduler::objectives.at(objective_IDs::TIME_RESOURCE))
+                {
+                    // If we have a sublinear speedup then prefer resources over time and throttle
+                    time_threshold = current_avg_iter_time * (active_threads / (active_threads - suspend_cap)) * 1.2;
+                    disable_flag = last_avg_iter_time <= time_threshold;
+                    enable_flag = last_avg_iter_time > time_threshold;
+                    min_threads = 1;
+                }
+
+
+                if ( active_threads > min_threads && disable_flag )
                 {
                     depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5));
                     {
@@ -301,14 +343,17 @@ namespace allscale { namespace components {
                     }
                     std::cout << "Sent disable signal. Active threads: " << active_threads - suspend_cap << std::endl;
                 }
-                else if ( blocked_os_threads_.any() && last_avg_iter_time < current_avg_iter_time )
+                else if ( blocked_os_threads_.any() && enable_flag )
                 {
                     depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5));
+                    if (time_leeway < 1.01)
+                        time_leeway *= 1.0005;
                     {
                         hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                         thread_scheduler->enable_more(resume_cap);
                     }
                     std::cout << "Sent enable signal. Active threads: " << active_threads + resume_cap << std::endl;
+                //    std::cout << "LEEWAY: " << time_leeway << std::endl;
                 }
             }
 
@@ -318,6 +363,50 @@ namespace allscale { namespace components {
     }
 
 
+    bool scheduler::periodic_frequency_scale()
+    {
+        {
+            std::unique_lock<mutex_type> l(resize_mtx_);
+            if ( current_energy_usage == 0 )
+            {
+                current_energy_usage = hardware_reconf::read_system_energy();
+                cpu_to_freq_scale = 0;
+
+                return true;
+            } else if ( current_energy_usage > 0 )
+            {
+                last_energy_usage = current_energy_usage;
+                current_energy_usage = hardware_reconf::read_system_energy();
+                last_actual_energy_usage = actual_energy_usage;
+                actual_energy_usage = current_energy_usage - last_energy_usage;
+
+                if ( last_actual_energy_usage >= actual_energy_usage )
+                {
+                    {
+                        hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+                        int res = hardware_reconf::set_frequency(cpu_to_freq_scale, cpu_to_freq_scale + 1, cpu_freqs[0]);
+                        std::cout << "Increase frequency. res: " << res << ", last_actual_energy_usage: "
+                            << last_actual_energy_usage << ", actual_energy_usage: " << actual_energy_usage << ", cpu_to_freq_scale: " << cpu_to_freq_scale << std::endl;
+                    }
+                    cpu_to_freq_scale++;
+                }
+                else if ( last_actual_energy_usage < actual_energy_usage )
+                {
+                    {
+                        cpu_to_freq_scale++;
+                        hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+                        int res = hardware_reconf::set_frequency(cpu_to_freq_scale, cpu_to_freq_scale + 1, cpu_freqs[3]);
+                        std::cout << "Decrease frequency. res: " << res << ", last_actual_energy_usage: "
+                             << last_actual_energy_usage << ", actual_energy_usage: " << actual_energy_usage << ", cpu_to_freq_scale: " << cpu_to_freq_scale << std::endl;
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+ 
+
 
     void scheduler::stop()
     {
@@ -326,12 +415,19 @@ namespace allscale { namespace components {
 //         if (input_objective == scheduler::objectives.at(objective_IDs::TIME_RESOURCE))
 //             throttle_timer_.stop();
 
+//        for (int i = 0; i < thread_times.size(); i++)
+//        {
+//            if (thread_times[i].first > 0)
+//                std::cout << "times[" << i << "] = " << thread_times[i].first << ", " << thread_times[i].second << std::endl;
+//        }
+
+
         if(stopped_)
             return;
 
         //Resume all sleeping threads
-        if (input_objective == scheduler::objectives.at(objective_IDs::TIME_RESOURCE) )
-	    thread_scheduler->enable_more(os_thread_count);
+        if (!input_objective.empty())
+       	    thread_scheduler->enable_more(os_thread_count);
 
         stopped_ = true;
 //         work_queue_cv_.notify_all();

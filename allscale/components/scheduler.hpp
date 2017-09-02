@@ -5,6 +5,7 @@
 #include <allscale/work_item.hpp>
 #include <allscale/components/treeture_buffer.hpp>
 #include <allscale/components/scheduler_network.hpp>
+#include <allscale/util/hardware_reconf.hpp>
 
 #include <hpx/include/components.hpp>
 // #include <hpx/include/local_lcos.hpp>
@@ -30,6 +31,7 @@ namespace allscale { namespace components {
       : hpx::components::component_base<scheduler>
     {
         typedef hpx::lcos::local::spinlock mutex_type;
+        using hardware_reconf = allscale::components::util::hardware_reconf;
 
         scheduler()
         {
@@ -63,6 +65,7 @@ namespace allscale { namespace components {
         bool collect_counters();
 
         bool periodic_throttle();
+        bool periodic_frequency_scale();
 
         hpx::util::interval_timer timer_;
         hpx::util::interval_timer throttle_timer_;
@@ -87,7 +90,19 @@ namespace allscale { namespace components {
         std::size_t active_threads;
         std::size_t depth_cap;
 
+        double time_leeway;
+        unsigned int min_threads;
+        std::vector<std::pair<double, unsigned int>> thread_times;
         hpx::threads::policies::throttling_scheduler<>* thread_scheduler;
+
+        std::size_t cpu_to_freq_scale;
+        unsigned long long current_energy_usage;
+        unsigned long long last_energy_usage;
+        unsigned long long last_actual_energy_usage;
+        unsigned long long actual_energy_usage;
+        cpufreq_policy policy;
+        hardware_reconf::hw_topology topo;
+        std::vector<unsigned long> cpu_freqs;
 
         mutable mutex_type throttle_mtx_;
         mutable mutex_type resize_mtx_;
@@ -99,14 +114,14 @@ namespace allscale { namespace components {
 
         std::string input_objective;
         const std::vector<std::string> objectives = {
-		"time",
-		"resource",
-		"energy",
-		"time_resource",
-		"time_energy",
-		"resource_energy",
-		"time_resource_energy"
-	};
+            "time",
+            "resource",
+            "energy",
+            "time_resource",
+            "time_energy",
+            "resource_energy",
+            "time_resource_energy"
+    	};
 
         enum objective_IDs {
               TIME = 0,

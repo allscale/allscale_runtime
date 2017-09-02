@@ -1,5 +1,10 @@
 #ifndef ALLSCALE_DATA_ITEM_REFERENCE_HPP
 #define ALLSCALE_DATA_ITEM_REFERENCE_HPP
+
+#include <allscale/utils/serializer.h>
+
+
+
 using id_type = std::size_t;
 
 namespace allscale
