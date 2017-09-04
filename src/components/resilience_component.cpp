@@ -25,18 +25,18 @@ namespace allscale { namespace components {
         guard_ = guard;
     }
 
-    void resilience::send_heartbeat(std::size_t counter) {
-        if (protectee_rank_ == 1 and counter == 3) {
-            hpx::apply<kill_me_action>(protectee_);
-
-            hpx::apply(&resilience::protectee_crashed, this);
-            std::unique_lock<std::mutex> lk(cv_m);
-            cv.wait(lk, [this]{return recovery_done;});
-            my_state = TRUST;
-            //protectee_crashed();
-        }
-        heartbeat_counter = counter;
-    }
+    //void resilience::send_heartbeat(std::size_t counter) {
+//        if (protectee_rank_ == 1 and counter == 3) {
+//            hpx::apply<kill_me_action>(protectee_);
+//
+//            hpx::apply(&resilience::protectee_crashed, this);
+//            std::unique_lock<std::mutex> lk(cv_m);
+//            cv.wait(lk, [this]{return recovery_done;});
+//            my_state = TRUST;
+//            //protectee_crashed();
+//        }
+        //heartbeat_counter = counter;
+    //}
 
     void resilience::kill_me() {
         raise(SIGKILL);
@@ -49,7 +49,9 @@ namespace allscale { namespace components {
         // Previously:
         // hpx::apply(&resilience::failure_detection_loop, this));
 
-
+#ifdef DEBUG_ 
+        std::cout << "Before failure detection loop thread ...\n";
+#endif
         scheduler->add(hpx::util::bind(&resilience::failure_detection_loop, this));
     }
 
@@ -73,7 +75,7 @@ namespace allscale { namespace components {
         if (my_state == SUSPECT) {
 #ifdef DEBUG_ 
             std::cout << "protectee state = SUSPECT\n";
-#endif // #DEBUG_
+#endif
 
             hpx::apply(&resilience::protectee_crashed, this);
             std::unique_lock<std::mutex> lk(cv_m);
@@ -83,42 +85,80 @@ namespace allscale { namespace components {
         else {
 #ifdef DEBUG_ 
             std::cout << "protectee state = TRUST\n";
-#endif // #DEBUG_
+#endif
         }
     }
    
+    // ignore errors while sending -- we don't care about our guard
+    void resilience::send_handler(boost::shared_ptr<std::string> message, const boost::system::error_code& error, std::size_t bytes_transferred) {
+#ifdef DEBUG_
+        if (error)
+            std::cout << "Something went wrong sending ...\n";
+#endif
+    }
+
     // Run detection forever ...
     //
     void resilience::failure_detection_loop () {
+        //udp::endpoint sender_endpoint(boost::asio::ip::address::from_string(protectee_ip_addr), UDP_SEND_PORT);
+        
         std::size_t actual_epoch = 0;
-    //    auto & service = hpx::get_thread_pool("io_pool")->get_io_service();
+        auto & service = hpx::get_thread_pool("io_pool")->get_io_service();
+        udp::socket send_sock(service, udp::endpoint(udp::v4(), 0));
 
-    //    sock = new boost::asio::ip::udp::socket(service, udp::endpoint(udp::v4(), UDP_PORT));
-
-    //    std::string guard_ip_addr = hpx::async<get_ip_address_action>(guard_).get();
-    //    std::string protectee_ip_addr = hpx::async<get_ip_address_action>(protectee_).get();
-    //    udp::endpoint receiver_endpoint(boost::asio::ip::address::from_string(guard_ip_addr), UDP_PORT_SEND);
-    //    udp::endpoint sender_endpoint(boost::asio::ip::address::from_string(protectee_ip_addr), UDP_PORT_RECV);
-    //}
-
-
-    while (resilience_component_running) {
-        std::this_thread::sleep_for(milliseconds(miu));
-        auto t_now =  std::chrono::high_resolution_clock::now();
-        actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
-        // asynchronously send heartbeat m_i
-        // at sigma_i = i * miu
+        while (resilience_component_running) {
+            auto t_now =  std::chrono::high_resolution_clock::now();
+            actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
 #ifdef DEBUG_
-        std::cout << "Actual epoch: " << actual_epoch << "\n";
-#endif // #DEBUG_
-        hpx::apply<send_heartbeat_action>(protectee_, actual_epoch);
-        // At t_i - sigma_i + delta, check if I
-        // have received a message m_j with j>=i from a peer
-        //ENABLE THIS -- now disabled due to faults in the communication
-        //hpx::apply(&resilience::check_with_delay, this, actual_epoch);
-    }
-    }
+            std::cout << "Actual epoch: " << actual_epoch << "\n";
+#endif
+            boost::shared_ptr<std::string> data(new std::string(std::to_string(actual_epoch)));
+            boost::system::error_code ec;
+            std::this_thread::sleep_for(milliseconds(miu));
+            //send_sock.send_to(boost::asio::buffer(*data), *guard_receiver_endpoint);
+            send_sock.async_send_to(boost::asio::buffer(*data), *guard_receiver_endpoint, boost::bind(&resilience::send_handler, this, data,
+                                boost::asio::placeholders::error,
+                                            boost::asio::placeholders::bytes_transferred));
 
+            char rcv_buf[16];
+            std::size_t n = c->receive(boost::asio::buffer(rcv_buf,16), boost::posix_time::milliseconds(delta), ec);
+            // Generalization: assume that the error is the lost connection
+            if (ec)
+            {
+#ifdef DEBUG_
+                std::cout << "Receive error: " << ec.message() << "\n"; 
+#endif
+                my_state = SUSPECT;
+                //protectee_crashed();
+            }
+            else {
+                std::size_t rcv_epoch = std::stoi(rcv_buf);
+#ifdef DEBUG_
+                std::cout << "Received epoch: " << rcv_epoch << "\n";
+#endif
+                if (rcv_epoch < actual_epoch)
+                    my_state = SUSPECT;
+                else
+                    my_state = TRUST;
+            }
+#ifdef DEBUG_ 
+            if (my_state == SUSPECT)
+                std::cout << "protectee state = SUSPECT\n";
+            else
+                std::cout << "protectee state = TRUST\n";
+#endif
+        }
+    }
+    void resilience::handle_send(boost::shared_ptr<std::string> message /*message*/,
+                  const boost::system::error_code& ec /*error*/,
+                        std::size_t bytes_transferred /*bytes_transferred*/)
+          {
+#ifdef DEBUG_
+              if (ec)
+                  std::cout << "Send error: " << ec.message() << "\n"; 
+#endif
+
+          }
 
     std::pair<hpx::id_type,uint64_t> resilience::get_protectee() {
         return std::make_pair(protectee_,protectee_rank_);
@@ -162,6 +202,17 @@ namespace allscale { namespace components {
         protectees_protectee_ = hpx::find_from_basename("allscale/resilience", left_left_id).get();
         protectees_protectee_rank_ = left_left_id;
 
+
+        auto & service = hpx::get_thread_pool("io_pool")->get_io_service();
+
+        //sock = new boost::asio::ip::udp::socket(service, udp::endpoint(udp::v4(), UDP_RECV_PORT+rank_));
+
+        //std::string protectee_ip_addr = hpx::async<get_ip_address_action>(protectee_).get();
+        std::string my_ip_addr = hpx::async<get_ip_address_action>(hpx::find_here()).get();
+        my_receiver_endpoint = new udp::endpoint(boost::asio::ip::address::from_string(my_ip_addr), UDP_RECV_PORT+rank_);
+        c = new client(*my_receiver_endpoint);
+        std::string guard_ip_addr = hpx::async<get_ip_address_action>(guard_).get();
+        guard_receiver_endpoint = new udp::endpoint(boost::asio::ip::address::from_string(guard_ip_addr), UDP_RECV_PORT+guard_rank_);
 
     }
 
@@ -276,7 +327,7 @@ HPX_REGISTER_ACTION(allscale::components::resilience::remote_unbackup_action, re
 HPX_REGISTER_ACTION(allscale::components::resilience::set_guard_action, set_guard_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::get_protectee_action, get_protectee_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::get_local_backups_action, get_local_backups_action);
-HPX_REGISTER_ACTION(allscale::components::resilience::send_heartbeat_action, send_heartbeat_action);
+//HPX_REGISTER_ACTION(allscale::components::resilience::send_heartbeat_action, send_heartbeat_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::shutdown_action, allscale_resilience_shutdown_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::kill_me_action, kill_me_action);
-//HPX_REGISTER_ACTION(allscale::components::resilience::get_ip_address_action, get_ip_address_action);
+HPX_REGISTER_ACTION(allscale::components::resilience::get_ip_address_action, get_ip_address_action);
