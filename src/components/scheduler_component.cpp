@@ -38,13 +38,13 @@ namespace allscale { namespace components {
             "scheduler::collect_counters",
             true
         )
-      , throttle_timer_(
+      , frequency_timer_(
            hpx::util::bind(
-               &scheduler::periodic_throttle,
+               &scheduler::periodic_frequency_scale,
                this
            ),
-           100000, //0.1 sec
-           "scheduler::periodic_throttle",
+           10000000, //0.1 sec
+           "scheduler::periodic_frequency_scale",
            true
         )
     {
@@ -137,9 +137,13 @@ namespace allscale { namespace components {
                 topo = hardware_reconf::read_hw_topology();
                 for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
                     int res = hardware_reconf::set_freq_policy(cpu_id, policy);
+
+                // Set frequency of all threads to max when we start
+                hardware_reconf::set_frequency(0, os_thread_count, cpu_freqs[0]);
+
+                frequency_timer_.start();
             }
 
-// 	    throttle_timer_.start();
         }
 
         std::cerr
@@ -287,7 +291,7 @@ namespace allscale { namespace components {
 
     bool scheduler::periodic_throttle()
     {
-        if ( num_threads_ > 1 && !input_objective.empty())
+        if ( num_threads_ > 1 && input_objective == "time_resource")
         {
             std::unique_lock<mutex_type> l(resize_mtx_);
             if ( current_avg_iter_time == 0.0 || allscale_monitor->get_number_of_iterations() < sampling_interval)
@@ -370,7 +374,6 @@ namespace allscale { namespace components {
             if ( current_energy_usage == 0 )
             {
                 current_energy_usage = hardware_reconf::read_system_energy();
-                cpu_to_freq_scale = 0;
 
                 return true;
             } else if ( current_energy_usage > 0 )
@@ -383,21 +386,28 @@ namespace allscale { namespace components {
                 if ( last_actual_energy_usage >= actual_energy_usage )
                 {
                     {
+                        unsigned long current_freq = hardware_reconf::get_hardware_freq(0);
                         hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
-                        int res = hardware_reconf::set_frequency(cpu_to_freq_scale, cpu_to_freq_scale + 1, cpu_freqs[0]);
-                        std::cout << "Increase frequency. res: " << res << ", last_actual_energy_usage: "
-                            << last_actual_energy_usage << ", actual_energy_usage: " << actual_energy_usage << ", cpu_to_freq_scale: " << cpu_to_freq_scale << std::endl;
+                        hardware_reconf::set_next_frequency(2, false);
+                        unsigned long target_freq = hardware_reconf::get_hardware_freq(0);
+                        std::cout << "Increase frequency. " << ", last_actual_energy_usage: "
+                            << last_actual_energy_usage << ", actual_energy_usage: " 
+                            << actual_energy_usage << ", current_freq: "
+                            << current_freq << ", target_freq: " << target_freq << std::endl;
                     }
-                    cpu_to_freq_scale++;
                 }
                 else if ( last_actual_energy_usage < actual_energy_usage )
                 {
                     {
-                        cpu_to_freq_scale++;
+                        unsigned long current_freq = hardware_reconf::get_hardware_freq(0);
                         hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
-                        int res = hardware_reconf::set_frequency(cpu_to_freq_scale, cpu_to_freq_scale + 1, cpu_freqs[3]);
-                        std::cout << "Decrease frequency. res: " << res << ", last_actual_energy_usage: "
-                             << last_actual_energy_usage << ", actual_energy_usage: " << actual_energy_usage << ", cpu_to_freq_scale: " << cpu_to_freq_scale << std::endl;
+                        // Decrease frequency by half, and start increasing from middle
+                        hardware_reconf::set_next_frequency(cpu_freqs.size() / 2, true);
+                        unsigned long target_freq = hardware_reconf::get_hardware_freq(0);
+                        std::cout << "Decrease frequency. " << ", last_actual_energy_usage: "
+                             << last_actual_energy_usage << ", actual_energy_usage: "
+                             << actual_energy_usage << ", current_freq: "
+                             << current_freq << ", target_freq: " << target_freq << std::endl;
                     }
                 }
             }
@@ -412,21 +422,14 @@ namespace allscale { namespace components {
     {
 //         timer_.stop();
 
-//         if (input_objective == scheduler::objectives.at(objective_IDs::TIME_RESOURCE))
-//             throttle_timer_.stop();
-
-//        for (int i = 0; i < thread_times.size(); i++)
-//        {
-//            if (thread_times[i].first > 0)
-//                std::cout << "times[" << i << "] = " << thread_times[i].first << ", " << thread_times[i].second << std::endl;
-//        }
-
+         if (input_objective == "energy")
+             frequency_timer_.stop();
 
         if(stopped_)
             return;
 
         //Resume all sleeping threads
-        if (!input_objective.empty())
+        if (!input_objective.empty() && input_objective != "energy")
        	    thread_scheduler->enable_more(os_thread_count);
 
         stopped_ = true;

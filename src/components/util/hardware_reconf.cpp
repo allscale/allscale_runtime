@@ -58,21 +58,43 @@ namespace allscale { namespace components { namespace util {
     }
 
     
-    int hardware_reconf::set_frequency_of_any(unsigned int min_cpu, unsigned int max_cpu, unsigned long target_frequency)
+    void hardware_reconf::set_next_frequency(unsigned int freq_step, bool dec)
     {
-        std::unique_lock<mutex_type> l(hardware_reconf::freq_mtx_);
-        int target_cpu = -1;
-        for (int cpu_id = min_cpu; cpu_id < max_cpu; cpu_id++)
-        {
-            if (get_hardware_freq(cpu_id) != target_frequency)
-            {
-                target_cpu = cpu_id;
-                break;
-            }
-        } 
+        // Get available frequencies of core 0, 
+        // we assume all cores have the same set of frequencies
+        // get_frequencies returns vector of freqs in decreasing order
+        std::vector<unsigned long> all_freqs = get_frequencies(0);
+        hardware_reconf::hw_topology topo = read_hw_topology();
+        unsigned int max_cpu_id = topo.num_logical_cores;
+        unsigned int hw_threads = topo.num_hw_threads;
 
-        cpufreq_set_frequency(target_cpu, target_frequency);
-        return target_cpu;
+        std::unique_lock<mutex_type> l(hardware_reconf::freq_mtx_);
+        unsigned int target_freq_idx = 0;
+        for (int cpu_id = 0; cpu_id < max_cpu_id; cpu_id += hw_threads)
+        {
+            unsigned long hw_freq = get_hardware_freq(cpu_id);
+            for (int freq_idx = 0; freq_idx < all_freqs.size(); freq_idx++)
+            {
+                if (hw_freq == all_freqs[freq_idx])
+                {
+                    if ( !dec && freq_idx - freq_step > 0 )
+                    {
+                        target_freq_idx = freq_idx - freq_step;
+                        cpufreq_set_frequency(cpu_id, all_freqs[target_freq_idx]);
+                        break;
+                    }
+                    else if ( dec && freq_idx + freq_step < all_freqs.size() )
+                    {
+                        target_freq_idx = freq_idx + freq_step;
+                        cpufreq_set_frequency(cpu_id, all_freqs[target_freq_idx]);
+                        break;
+                    } else {
+                        // If can't increse or decrease keep current
+                        target_freq_idx = freq_idx;
+                    }
+                }
+            }
+        }
     }
 
 

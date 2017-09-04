@@ -68,7 +68,7 @@ namespace allscale { namespace components {
         bool periodic_frequency_scale();
 
         hpx::util::interval_timer timer_;
-        hpx::util::interval_timer throttle_timer_;
+        hpx::util::interval_timer frequency_timer_;
 
         mutex_type counters_mtx_;
         hpx::id_type idle_rate_counter_;
@@ -95,7 +95,6 @@ namespace allscale { namespace components {
         std::vector<std::pair<double, unsigned int>> thread_times;
         hpx::threads::policies::throttling_scheduler<>* thread_scheduler;
 
-        std::size_t cpu_to_freq_scale;
         unsigned long long current_energy_usage;
         unsigned long long last_energy_usage;
         unsigned long long last_actual_energy_usage;
