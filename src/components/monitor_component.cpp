@@ -111,6 +111,7 @@ namespace allscale { namespace components {
 
 #endif
 
+#if 0
       // Update stats per work item name
       time = p->get_exclusive_time();
       auto it = work_item_stats_map.find(w.name());
@@ -159,7 +160,7 @@ namespace allscale { namespace components {
          parent = it_profiles->second;
          parent->push(time);
       }
-
+#endif
 
       // Save work item time in the times vector to compute stats on-the-fly if need be for the last X work items
       std::lock_guard<mutex_type> lock(work_items_vector);
@@ -221,16 +222,17 @@ namespace allscale { namespace components {
          update_work_item_stats(w, p);  // Item has already finish time
       }
 
+      if(output_treeture_ || output_iteration_trees_) {
+         w_graph.push_back(wd);
 
-      w_graph.push_back(wd);
-
-      auto it = graph.find(my_wid.parent().name());
-      if( it == graph.end() ) {
-         graph.insert(std::make_pair(my_wid.parent().name(),
+         auto it = graph.find(my_wid.parent().name());
+         if( it == graph.end() ) {
+            graph.insert(std::make_pair(my_wid.parent().name(),
                          std::vector<std::string>(1, my_wid.name())));
-      }
-      else it->second.push_back(my_wid.name());
-
+         }
+         else it->second.push_back(my_wid.name());
+       }
+	   
 #ifdef REALTIME_VIZ
       if(realtime_viz) {
          std::unique_lock<std::mutex> lock2(counter_mutex_);
