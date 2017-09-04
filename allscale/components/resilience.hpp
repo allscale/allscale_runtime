@@ -47,6 +47,7 @@ namespace allscale { namespace components {
            const std::size_t delta = 2000;
            boost::dynamic_bitset<> rank_running_;
            bool rank_running(uint64_t rank);
+           void send_handler(boost::shared_ptr<std::string>, const boost::system::error_code&, std::size_t);
            void handle_send(boost::shared_ptr<std::string> /*message*/, const boost::system::error_code& /*error*/, std::size_t /*bytes_transferred*/);
            void failure_detection_loop_async ();
            void failure_detection_loop ();
