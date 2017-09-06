@@ -44,14 +44,16 @@ namespace allscale { namespace components {
            std::chrono::high_resolution_clock::time_point start_time,trust_lease;
            std::size_t heartbeat_counter;
            const std::size_t miu = 1000;
-           const std::size_t delta = 2000;
+           const std::size_t delta = 4000;
            boost::dynamic_bitset<> rank_running_;
+           std::size_t get_running_ranks();
            bool rank_running(uint64_t rank);
            void send_handler(boost::shared_ptr<std::string>, const boost::system::error_code&, std::size_t);
            void handle_send(boost::shared_ptr<std::string> /*message*/, const boost::system::error_code& /*error*/, std::size_t /*bytes_transferred*/);
            void failure_detection_loop_async ();
-           void failure_detection_loop ();
-           void check_with_delay(std::size_t actual_epoch);
+           void send_heartbeat_loop ();
+           void receive_heartbeat_loop ();
+           void init_recovery();
            //void send_heartbeat(std::size_t counter);
            //HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,send_heartbeat);
            std::string get_ip_address();
@@ -75,7 +77,7 @@ namespace allscale { namespace components {
            void protectee_crashed();
            int get_cp_granularity();
 
-           void set_guard(hpx::id_type guard);
+           void set_guard(hpx::id_type guard, uint64_t guard_rank);
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,set_guard);
            std::pair<hpx::id_type,uint64_t> get_protectee();
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,get_protectee);
