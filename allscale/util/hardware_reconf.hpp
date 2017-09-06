@@ -64,14 +64,12 @@ namespace allscale { namespace components { namespace util {
         static int set_frequency(unsigned int min_cpu, unsigned int max_cpu, unsigned long target_frequency);
 
 
-        /// \brief This function changes the frequency of any cpu within the range of [min_cpu, max_cpu).
+        /// \brief This function increases or decreases the frequency of all cpus in the system
         /// 
-        /// \param min_cpu          [in] starting cpu id, inclusive
-        /// \param max_cpu          [in] ending cpu id, exclusive
-        /// \param target_frequency [in] target frequency that needs to be assigned
+        /// \param freq_step        [in] freq_step = abs(current_frequency - target_frequency)
+        /// \param dec              [in] if true decrease freq to the next available, else increase
         ///
-        /// \returns                If successfull returns the affected cpu id, otherwise -1.
-        static int set_frequency_of_any(unsigned int min_cpu, unsigned int max_cpu, unsigned long target_frequency);
+        static void set_next_frequency(unsigned int freq_step, bool dec = true);
 
 
         /// \brief This function sets/changes the governor and frequency of the given CPU.
