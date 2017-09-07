@@ -136,6 +136,7 @@ int main(int argc, char **argv)
 {
 //     std::cout << "Before register counter" << std::endl;
     hpx::register_pre_startup_function(&register_counter_type);
-    return hpx::init(argc, argv);
+    allscale::scheduler::setup_resources(argc, argv);
+    return hpx::init();
 }
 

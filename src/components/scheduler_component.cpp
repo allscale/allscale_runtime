@@ -22,7 +22,6 @@ namespace allscale { namespace components {
       , stopped_(false)
       , os_thread_count(hpx::get_os_thread_count())
       , active_threads(os_thread_count)
-      , depth_cap(1.5 * (std::log(os_thread_count)/std::log(2) + 0.5))
       , current_avg_iter_time(0.0)
       , sampling_interval(10)
       , regulatory_factor(1.0)
@@ -66,15 +65,7 @@ namespace allscale { namespace components {
         rp_ = &hpx::resource::get_partitioner();
         topo_ = &hpx::threads::get_topology();
 
-// FIXME
-//         auto const& numa_domains_ = rp_->numa_domains();
-//         for (std::size_t i = 0; i < numa_domains_.size(); ++i)
-//         {
-//             rp_->create_thread_pool("allscale/numa/" + std::to_string(i));
-//         }
-
         std::string input_objective_str = hpx::get_config_entry("allscale.objective", "");
-
         if ( !input_objective_str.empty() )
         {
             std::istringstream iss_leeways(input_objective_str);
@@ -90,7 +81,7 @@ namespace allscale { namespace components {
                 {
                     obj = objective_str.substr(0, idx);
                     leeway = std::stod( objective_str.substr(idx + 1) );
-                } 
+                }
 
                 if (obj == "time")
                 {
@@ -101,14 +92,14 @@ namespace allscale { namespace components {
                 {
                     resource_requested = true;
                     resource_leeway = leeway;
-                } 
+                }
                 else if (obj == "energy")
                 {
                     energy_requested = true;
                     energy_leeway = leeway;
                 }
                 else
-                {    
+                {
                     std::ostringstream all_keys;
                     copy(scheduler::objectives.begin(), scheduler::objectives.end(), std::ostream_iterator<std::string>(all_keys, ","));
                     std::string keys_str = all_keys.str();
@@ -145,33 +136,34 @@ namespace allscale { namespace components {
 
         collect_counters();
 
-        numa_domains = hpx::compute::host::numa_domains();
-        auto num_numa_domains = numa_domains.size();
-        executors.reserve(num_numa_domains);
-        for (hpx::compute::host::target const & domain : numa_domains) {
-            auto num_pus = domain.num_pus();
-            //Create executor per numa domain
-            executors.emplace_back(num_pus.first, num_pus.second);
-            std::cerr << "Numa num_pus.first: " << num_pus.first << ", num_pus.second: " << num_pus.second << ". Total numa domains: " << numa_domains.size() << std::endl;
+        auto const& numa_domains = rp_->numa_domains();
+        executors_.reserve(numa_domains.size());
+        thread_pools_.reserve(numa_domains.size());
+
+        for (std::size_t domain = 0; domain < numa_domains.size(); ++domain)
+        {
+            std::string pool_name;
+            if (domain == 0)
+                pool_name = "default";
+            else
+                pool_name = "allscale/numa/" + std::to_string(domain);
+
+            thread_pools_.push_back(
+                &hpx::resource::get_thread_pool(pool_name));
+            std::cout << "Attached to " << pool_name << " (" << thread_pools_.back() << '\n';
+            initial_masks_.push_back(thread_pools_.back()->get_used_processing_units());
+            executors_.emplace_back(pool_name);
         }
+
 //         timer_.start();
 
         if ( time_requested || resource_requested || energy_requested ) {
-            // TODO for frequency scaling we don't actually need throttling policy.
-            thread_scheduler = dynamic_cast<hpx::threads::policies::throttling_scheduler<>*>(hpx::resource::get_thread_pool(0).get_scheduler());
-            if (thread_scheduler != nullptr) {
-               std::cout << "We have a thread manager holding the throttling_scheduler" << std::endl;
-            } else {
-               HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
-                    "thread_scheduler is null. Make sure you select throttling scheduler via --hpx:queuing=throttling");
-            }
-
             if ( energy_requested )
             {
                 using hardware_reconf = allscale::components::util::hardware_reconf;
                 cpu_freqs = hardware_reconf::get_frequencies(0);
                 freq_step = 2; //cpu_freqs.size() / 2;
-                freq_times.resize(cpu_freqs.size());        
+                freq_times.resize(cpu_freqs.size());
 
                 auto min_max_freqs = std::minmax_element(cpu_freqs.begin(), cpu_freqs.end());
                 min_freq = *min_max_freqs.first;
@@ -201,7 +193,6 @@ namespace allscale { namespace components {
 
                 frequency_timer_.start();
             }
-
         }
 
         std::cerr
@@ -247,7 +238,7 @@ namespace allscale { namespace components {
                 }
                 allscale::monitor::signal(allscale::monitor::work_item_first, work);
 
-                if (current_id % 100)
+                if (current_id % 100 == 0)
                 {
                     periodic_throttle();
                 }
@@ -257,33 +248,15 @@ namespace allscale { namespace components {
             }
             allscale::monitor::signal(allscale::monitor::work_item_enqueued, work);
 
-            auto execute = [this](work_item work, this_work_item::id const& id = this_work_item::id())
-            {
-                if (id)
-                    this_work_item::set_id(id);
-                if (do_split(work))
-                {
-                    work.split();
-                }
-                else
-                {
-                    work.process();
-                }
-            };
-
             std::size_t numa_domain = work.id().numa_domain();
-            std::size_t pu_num = rp_->get_pu_num(hpx::get_worker_thread_num());
-            std::size_t my_numa_domain = topo_->get_numa_node_number(pu_num);
-            if (numa_domain == my_numa_domain)
+            HPX_ASSERT(numa_domain < executors_.size());
+            if (do_split(work))
             {
-                execute(std::move(work));
+                work.split(executors_[numa_domain]);
             }
-            // Dispatch to another numa domain
             else
             {
-                HPX_ASSERT(numa_domain < executors.size());
-                hpx::parallel::execution::post(
-                    executors[numa_domain], execute, std::move(work), id);
+                work.process(executors_[numa_domain]);
             }
 
             return;
@@ -363,14 +336,33 @@ namespace allscale { namespace components {
             {
                 last_avg_iter_time = current_avg_iter_time;
 
+                hpx::threads::mask_type active_mask;
+                std::size_t active_threads_ = 0;
+                std::size_t domain_active_threads = 0;
+                std::size_t pool_idx = 0;
                 {
                     hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
                     current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
+
+                    // Select thread pool with the highest number of activated threads
+                    for (std::size_t i = 0; i != thread_pools_.size(); ++i)
+                    {
+                        hpx::threads::mask_type curr_mask = thread_pools_[i]->get_used_processing_units();
+                        std::size_t curr_active_pus =
+                            hpx::threads::count(curr_mask);
+                        active_threads_ += curr_active_pus;
+                        if (curr_active_pus > domain_active_threads)
+                        {
+                            domain_active_threads = curr_active_pus;
+                            active_mask = curr_mask;
+                            pool_idx = i;
+                        }
+                    }
                 }
 
-                boost::dynamic_bitset<> const & blocked_os_threads_ =
-                    thread_scheduler->get_disabled_os_threads();
-                active_threads = os_thread_count - blocked_os_threads_.count();
+                active_threads = active_threads_;
+
+                auto blocked_os_threads = active_mask & hpx::threads::not_(initial_masks_[pool_idx]);
 
                 unsigned thread_use_count = thread_times[active_threads - 1].second;
                 double thread_exe_time = current_avg_iter_time + thread_times[active_threads - 1].first;
@@ -379,39 +371,73 @@ namespace allscale { namespace components {
                 std::size_t suspend_cap = 1; //active_threads < SMALL_SYSTEM  ? SMALL_SUSPEND_CAP : LARGE_SUSPEND_CAP;
                 std::size_t resume_cap = 1;  //active_threads < SMALL_SYSTEM  ? LARGE_RESUME_CAP : SMALL_RESUME_CAP;
 
-                double time_threshold = current_avg_iter_time; 
+                double time_threshold = current_avg_iter_time;
                 bool disable_flag = last_avg_iter_time >= time_threshold;
                 bool enable_flag = last_avg_iter_time * regulatory_factor < time_threshold;
-        
 
                 if ( time_requested && resource_requested )
                 {
                     // If we have a sublinear speedup then prefer resources over time and throttle
+                    if (active_threads <= suspend_cap)
+                    {
+                        suspend_cap = 0;
+                        disable_flag = false;
+                    }
                     time_threshold = current_avg_iter_time * (active_threads / (active_threads - suspend_cap)) * 1.2;
-                    disable_flag = last_avg_iter_time <= time_threshold;
+                    disable_flag = (active_threads > suspend_cap) && last_avg_iter_time <= time_threshold;
                     enable_flag = last_avg_iter_time > time_threshold;
                     min_threads = 1;
                 }
 
 
-                if ( active_threads > min_threads && disable_flag )
+                if (disable_flag && domain_active_threads > min_threads)
                 {
-                    depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5));
+                    std::vector<std::size_t> suspend_threads;
+                    std::size_t thread_count = thread_pools_[pool_idx]->get_os_thread_count();
+                    suspend_threads.reserve(thread_count);
+                    for (std::size_t i = 0; i < thread_count; ++i)
+                    {
+                        std::size_t pu_num = rp_->get_pu_num(i + thread_pools_[pool_idx]->get_thread_offset());
+                        if (hpx::threads::test(active_mask, pu_num))
+                        {
+                            suspend_threads.push_back(i);
+                            if (suspend_threads.size() == suspend_cap)
+                                break;
+                        }
+                    }
                     {
                         hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
-                        thread_scheduler->disable_more(suspend_cap);
+                        for(auto& pu: suspend_threads)
+                        {
+                            thread_pools_[pool_idx]->remove_processing_unit(pu);
+                        }
                     }
                     std::cout << "Sent disable signal. Active threads: " << active_threads - suspend_cap << std::endl;
                 }
-                else if ( blocked_os_threads_.any() && enable_flag )
+                else if (enable_flag && hpx::threads::any(blocked_os_threads))
                 {
-                    depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5));
                     if (regulatory_factor < 1.01)
                         regulatory_factor *= 1.0005;
 
+                    std::vector<std::size_t> resume_threads;
+                    std::size_t thread_count = thread_pools_[pool_idx]->get_os_thread_count();
+                    resume_threads.reserve(thread_count);
+                    for (std::size_t i = 0; i < thread_count; ++i)
+                    {
+                        std::size_t pu_num = rp_->get_pu_num(i + thread_pools_[pool_idx]->get_thread_offset());
+                        if (hpx::threads::test(blocked_os_threads, pu_num))
+                        {
+                            resume_threads.push_back(i);
+                            if (resume_threads.size() == resume_cap)
+                                break;
+                        }
+                    }
                     {
                         hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
-                        thread_scheduler->enable_more(resume_cap);
+                        for(auto& pu: resume_threads)
+                        {
+                            thread_pools_[pool_idx]->add_processing_unit(pu, pu + thread_pools_[pool_idx]->get_thread_offset());
+                        }
                     }
                     std::cout << "Sent enable signal. Active threads: " << active_threads + resume_cap << std::endl;
                 }
@@ -440,8 +466,16 @@ namespace allscale { namespace components {
 
                 last_avg_iter_time = current_avg_iter_time;
                 {
-                    hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                    current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
+                    {
+                        unsigned long current_freq = hardware_reconf::get_hardware_freq(0);
+                        hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+                        hardware_reconf::set_next_frequency(2, false);
+                        unsigned long target_freq = hardware_reconf::get_hardware_freq(0);
+                        std::cout << "Increase frequency. " << ", last_actual_energy_usage: "
+                            << last_actual_energy_usage << ", actual_energy_usage: "
+                            << actual_energy_usage << ", current_freq: "
+                            << current_freq << ", target_freq: " << target_freq << std::endl;
+                    }
                 }
 
                 unsigned int freq_idx = -1;
@@ -461,7 +495,7 @@ namespace allscale { namespace components {
                 }
 
                 freq_times[freq_idx] = std::make_pair(actual_energy_usage, current_avg_iter_time);
-        
+
                 unsigned long target_freq = current_freq_hw;
                 // If we have not finished until the minimum frequnecy then continue
                 if ( target_freq != min_freq ) {
@@ -486,7 +520,7 @@ namespace allscale { namespace components {
 
                     for (int i = 0; i < freq_times.size(); i++)
                     {
-                        // If we have frequencies with zero energy usage 
+                        // If we have frequencies with zero energy usage
                         // it means we haven't measured them, so skip them
                         if ( freq_times[i].first == 0 )
                             continue;
@@ -507,7 +541,7 @@ namespace allscale { namespace components {
                     // We will save minimum energy and execution time
                     // and use them for comparision using leeways
                     unsigned long long optimal_energy = min_energy;
-                    double optimal_exec_time = min_exec_time;  
+                    double optimal_exec_time = min_exec_time;
 
                     if ( time_requested && energy_requested )
                     {
@@ -528,7 +562,7 @@ namespace allscale { namespace components {
                             }
                             else if ( ( energy_leeway < 1 && time_leeway == 1.0 ) && freq_times[i].first  - min_energy <  min_energy * energy_leeway  )
                             {
-    
+
                                 if ( optimal_exec_time > freq_times[i].second )
                                 {
                                     min_energy_idx = i;
@@ -549,7 +583,7 @@ namespace allscale { namespace components {
                         }
                     }
 
-                    hardware_reconf::set_frequencies_bulk(os_thread_count, cpu_freqs[min_energy_idx]); 
+                    hardware_reconf::set_frequencies_bulk(os_thread_count, cpu_freqs[min_energy_idx]);
                     target_freq_found = true;
                     std::cout << "Min energy: " << freq_times[min_energy_idx].first << " with freq: "
                               << cpu_freqs[min_energy_idx] << ", Min time with freq: "
@@ -560,7 +594,7 @@ namespace allscale { namespace components {
 
         return true;
     }
- 
+
 
 
     void scheduler::stop()
@@ -573,15 +607,12 @@ namespace allscale { namespace components {
         if(stopped_)
             return;
 
-        //Resume all sleeping threads
-        if ( ( /* time_requested || */ resource_requested ) && !energy_requested)
-       	    thread_scheduler->enable_more(os_thread_count);
 
         if ( energy_requested )
         {
             std::string governor = "ondemand";
-            policy.governor = const_cast<char*>(governor.c_str());        
-    
+            policy.governor = const_cast<char*>(governor.c_str());
+
             for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
                 int res = hardware_reconf::set_freq_policy(cpu_id, policy);
 

@@ -78,7 +78,7 @@ int hpx_main( int argc, char *argv[] )
 
        // start allscale scheduler ...
        allscale::scheduler::run(hpx::get_locality_id());
-    
+
        simple_runner(7);
 
        allscale_monitor = allscale::monitor::get_ptr();
@@ -86,10 +86,10 @@ int hpx_main( int argc, char *argv[] )
        if(papi_counters[0] <= 0 || papi_counters[1] <= 0)
           std::cout << "FAILED: wrong PAPI counter values" << std::endl;
        else
-          std::cout << "PASSED: " << papi_counters[0] << " instructions and " << papi_counters[1] << 
+          std::cout << "PASSED: " << papi_counters[0] << " instructions and " << papi_counters[1] <<
                 " for work item 0.0" << std::endl;
 
-       free(papi_counters); 
+       free(papi_counters);
        allscale::scheduler::stop();
        allscale::monitor::stop();
 #else
@@ -101,5 +101,6 @@ int hpx_main( int argc, char *argv[] )
 
 int main(int argc, char **argv)
 {
-    return hpx::init(argc, argv);
+    allscale::scheduler::setup_resources(argc, argv);
+    return hpx::init();
 }

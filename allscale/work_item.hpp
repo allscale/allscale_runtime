@@ -119,11 +119,11 @@ namespace allscale {
             return impl_->get_treeture();
         }
 
-        void split()
+        void split(executor_type& exec)
         {
             HPX_ASSERT(valid());
             HPX_ASSERT(impl_->valid());
-            impl_->split();
+            impl_->split(exec);
     //         impl_.reset();
         }
     /*
@@ -146,10 +146,10 @@ namespace allscale {
             impl_->on_ready(std::move(f));
         }
 
-        void process() {
+        void process(executor_type& exec) {
             HPX_ASSERT(valid());
             HPX_ASSERT(impl_->valid());
-            impl_->process();
+            impl_->process(exec);
     //         impl_.reset();
         }
 

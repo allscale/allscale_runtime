@@ -21,10 +21,13 @@
 #include <allscale/data_item_requirement.hpp>
 #include <allscale/data_item_manager.hpp>
 
-#include <hpx/hpx_main.hpp>
+#include <hpx/hpx_init.hpp>
+#include <hpx/util/find_prefix.hpp>
 #include <hpx/util/invoke_fused.hpp>
 #include <hpx/util/unwrapped.hpp>
 #include <hpx/lcos/local/dataflow.hpp>
+
+#include <boost/program_options.hpp>
 
 namespace allscale {
 namespace runtime {
@@ -52,8 +55,9 @@ using DataItemManager = allscale::data_item_manager;
  * A wrapper for the main function of an applicaiton handling the startup and
  * shutdown procedure as well as lunching the first work item.
  */
-template<typename MainWorkItem, typename ... Args>
-int main_wrapper(const Args& ... args) {
+template<typename MainWorkItem>
+int allscale_main(boost::program_options::variables_map &)
+{
     // include monitoring support
     auto mon = allscale::monitor::run(hpx::get_locality_id());
     // include resilience support
@@ -65,17 +69,33 @@ int main_wrapper(const Args& ... args) {
     int res = 0;
     if (hpx::get_locality_id() == 0) {
 
-        res = allscale::spawn_first<MainWorkItem>(args...).get_result();
+        res = allscale::spawn_first<MainWorkItem>().get_result();
         allscale::scheduler::stop();
         allscale::resilience::stop();
         allscale::monitor::stop();
     }
+
+    hpx::finalize();
 
     // Force the optimizer to initialize the runtime...
     if (sched && mon && resi)
         // return result (only id == 0 will actually)
         return res;
     else return 1;
+}
+
+/**
+ * A wrapper for the main function of an applicaiton handling the startup and
+ * shutdown procedure as well as lunching the first work item.
+ */
+template<typename MainWorkItem>
+int main_wrapper(int argc = 0, char **argv = nullptr) {
+    typedef int(*hpx_main_type)(boost::program_options::variables_map &);
+    hpx_main_type f = &allscale_main<MainWorkItem>;
+    boost::program_options::options_description desc;
+    hpx::util::set_hpx_prefix(HPX_PREFIX);
+    allscale::scheduler::setup_resources(f, desc, argc, argv);
+    return hpx::init();
 }
 
 dependencies after() {
