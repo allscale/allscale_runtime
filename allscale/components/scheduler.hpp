@@ -4,6 +4,8 @@
 
 #include <allscale/work_item.hpp>
 #include <allscale/components/treeture_buffer.hpp>
+#include <allscale/components/scheduler_network.hpp>
+#include <allscale/util/hardware_reconf.hpp>
 
 #include <hpx/include/components.hpp>
 // #include <hpx/include/local_lcos.hpp>
@@ -13,8 +15,9 @@
 #include <hpx/compute/host/target.hpp>
 #include <hpx/runtime/threads/executors/thread_pool_attached_executors.hpp>
 #include <hpx/runtime/threads/policies/throttling_scheduler.hpp>
-#include <hpx/runtime/threads/threadmanager_impl.hpp>
+#include <hpx/runtime/threads/threadmanager.hpp>
 
+#include <atomic>
 #include <memory>
 #include <deque>
 #include <vector>
@@ -28,6 +31,7 @@ namespace allscale { namespace components {
       : hpx::components::component_base<scheduler>
     {
         typedef hpx::lcos::local::spinlock mutex_type;
+        using hardware_reconf = allscale::components::util::hardware_reconf;
 
         scheduler()
         {
@@ -44,13 +48,14 @@ namespace allscale { namespace components {
         HPX_DEFINE_COMPONENT_ACTION(scheduler, stop);
 
     private:
+        hpx::resource::detail::partitioner *rp_;
+        const hpx::threads::topology *topo_;
         std::uint64_t num_localities_;
         std::uint64_t num_threads_;
         std::uint64_t rank_;
-        boost::atomic<std::uint64_t> schedule_rank_;
-        boost::atomic<bool> stopped_;
-        hpx::id_type left_;
-        hpx::id_type right_;
+        std::atomic<bool> stopped_;
+
+        scheduler_network network_;
 
         mutex_type spawn_throttle_mtx_;
         std::unordered_map<const char*, treeture_buffer> spawn_throttle_;
@@ -60,9 +65,10 @@ namespace allscale { namespace components {
         bool collect_counters();
 
         bool periodic_throttle();
+        bool periodic_frequency_scale();
 
         hpx::util::interval_timer timer_;
-        hpx::util::interval_timer throttle_timer_;
+        hpx::util::interval_timer frequency_timer_;
 
         mutex_type counters_mtx_;
         hpx::id_type idle_rate_counter_;
@@ -78,13 +84,34 @@ namespace allscale { namespace components {
 
         std::vector<hpx::compute::host::target> numa_domains;
         std::vector<executor_type> executors;
-        boost::atomic<std::size_t> current_;
+        std::atomic<std::size_t> current_;
 
         std::size_t os_thread_count;
         std::size_t active_threads;
         std::size_t depth_cap;
 
-	hpx::threads::threadmanager_impl<hpx::threads::policies::throttling_scheduler<>>* thread_manager;
+        double regulatory_factor;
+        unsigned int min_threads;
+        // Indices show number of threads, which hold pair of 
+        // execution times and number of times that particular thread used 
+        // due to suspend and resume
+        std::vector<std::pair<double, unsigned int>> thread_times;
+        hpx::threads::policies::throttling_scheduler<>* thread_scheduler;
+
+        unsigned long min_freq;
+        unsigned long max_freq;
+        unsigned long long current_energy_usage;
+        unsigned long long last_energy_usage;
+        unsigned long long last_actual_energy_usage;
+        unsigned long long actual_energy_usage;
+        cpufreq_policy policy;
+        hardware_reconf::hw_topology topo;
+        std::vector<unsigned long> cpu_freqs;
+        // Indices correspond to the freq id in cpu_freqs, and 
+        // each pair holds energy usage and execution time
+        std::vector<std::pair<unsigned long long, double>> freq_times;
+        unsigned int freq_step;
+        bool target_freq_found;
 
         mutable mutex_type throttle_mtx_;
         mutable mutex_type resize_mtx_;
@@ -92,28 +119,22 @@ namespace allscale { namespace components {
         std::uint16_t sampling_interval;
         double last_avg_iter_time;
         double current_avg_iter_time;
-        std::shared_ptr<monitor> allscale_monitor;
+        monitor *allscale_monitor;
 
-        std::string input_objective;
+        std::vector<std::pair<std::string, double>> objectives_with_leeways;
         const std::vector<std::string> objectives = {
-		"time",
-		"resource",
-		"energy",
-		"time_resource",
-		"time_energy",
-		"resource_energy",
-		"time_resource_energy"
-	};
+            "time",
+            "resource",
+            "energy",
+    	};
 
-        enum objective_IDs {
-              TIME = 0,
-     	      RESOURCE,
-              ENERGY,
-              TIME_RESOURCE,
-              TIME_ENERGY,
-              RESOURCE_ENERGY,
-              TIME_RESOURCE_ENERGY
-        };
+        bool time_requested;
+        bool resource_requested;
+        bool energy_requested;
+
+        double time_leeway;
+        double resource_leeway;
+        double energy_leeway;
 
     };
 }}

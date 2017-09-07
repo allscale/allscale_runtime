@@ -6,6 +6,7 @@
 #include <allscale/spawn.hpp>
 #include <allscale/scheduler.hpp>
 #include <allscale/monitor.hpp>
+#include <allscale/resilience.hpp>
 #include <allscale/work_item_description.hpp>
 
 #include <hpx/include/unordered_map.hpp>
@@ -31,50 +32,6 @@ std::int64_t fib_ser(std::int64_t n)
 //  - SplitVariant: spawns fib(n-1) and fib(n-2) recursively as tasks
 //  - ProcessVariant: computes fib(n) recursively
 
-struct add_name
-{
-    static const char *name()
-    {
-        return "add";
-    }
-};
-
-struct add_variant;
-using add_work =
-    allscale::work_item_description<
-        std::int64_t,
-        add_name,
-        allscale::do_serialization,
-        allscale::no_split<std::int64_t>,
-        add_variant
-    >;
-
-struct add_variant
-{
-    static constexpr bool valid = true;
-    using result_type = std::int64_t;
-
-    // The split variant requires nothing ...
-//     template <typename Closure>
-//     static std::tuple<> requires(Closure const& closure)
-//     {
-//         return std::tuple<>{};
-//     }
-
-    // Just perform the addition, no extra tasks are spawned
-    template <typename Closure>
-    static allscale::treeture<std::int64_t> execute(Closure const& closure)
-    {
-//         std::cout << allscale::this_work_item::get_id().name() << " add ... \n";
-        return
-            allscale::treeture<std::int64_t>{
-                hpx::util::get<0>(closure) + hpx::util::get<1>(closure)
-            };
-    }
-};
-
-typedef std::tuple<std::int64_t> closure_type;
-
 struct split_variant;
 struct process_variant;
 
@@ -90,7 +47,7 @@ using fibonacci_work =
     allscale::work_item_description<
         std::int64_t,
         fib_name,
-        allscale::no_serialization,
+        allscale::do_serialization,
         split_variant,
         process_variant
     >;
@@ -114,14 +71,17 @@ struct split_variant
         if(hpx::util::get<0>(closure) <= 2)
             return allscale::treeture<std::int64_t>{1};
 
-        return allscale::spawn<add_work>(
+        return hpx::dataflow(
+            [](hpx::future<std::int64_t> a, hpx::future<std::int64_t> b)
+            {
+                return a.get() + b.get();
+            },
             allscale::spawn<fibonacci_work>(
                 hpx::util::get<0>(closure) - 1
-            ),
+            ).get_future(),
             allscale::spawn<fibonacci_work>(
                 hpx::util::get<0>(closure) - 2
-            )
-        );
+            ).get_future());
     }
 };
 
@@ -213,6 +173,9 @@ int hpx_main(int argc, char **argv)
     // start allscale monitoring
     allscale::monitor::run(hpx::get_locality_id());
 
+    // start allscale resilience
+    allscale::resilience::run(hpx::get_locality_id());
+
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
 
@@ -230,10 +193,12 @@ int hpx_main(int argc, char **argv)
            std::cout << "fib(" << n << ") = " << res << " taking " << fib_elapsed << " microseconds. Iter: " << i << "\n";
         }
         allscale::scheduler::stop();
+        allscale::resilience::stop();
         allscale::monitor::stop();
     }
 
-    return hpx::finalize();
+    //std::terminate();
+    return 0;
 }
 
 int main(int argc, char **argv)

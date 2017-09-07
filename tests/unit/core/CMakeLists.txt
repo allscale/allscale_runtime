@@ -1,9 +1,9 @@
 set(tests
-  data_item
-  data_item_manager_server
   #this_work_item
-  region
-  fragment
+  scalar_read_write
+  overlapping_async.insieme.seq
+  #overlapping_pfor.insieme.seq
+  data_item_manager
   treeture
   work_item)
 
@@ -15,6 +15,11 @@ foreach(test ${tests})
         SOURCES ${sources}
         COMPONENT_DEPENDENCIES allscale
     )
+  if (${test} STREQUAL "overlapping_async.insieme.seq")
+    add_test(NAME ${test}_test_exe COMMAND $<TARGET_FILE:${test}_test_exe> -Ihpx.stacks.use_guard_pages=0 --hpx:threads=1)
+  else()
     add_test(NAME ${test}_test_exe COMMAND $<TARGET_FILE:${test}_test_exe> -Ihpx.stacks.use_guard_pages=0)
+  endif()
+
 endforeach()
 

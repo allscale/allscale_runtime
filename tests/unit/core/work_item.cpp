@@ -4,11 +4,7 @@
 #include <allscale/treeture.hpp>
 #include <allscale/work_item_description.hpp>
 
-#include <allscale/data_item.hpp>
 #include <allscale/treeture.hpp>
-#include <allscale/data_item_description.hpp>
-#include <allscale/region.hpp>
-#include <allscale/fragment.hpp>
 
 
 #include <unistd.h>
@@ -17,18 +13,7 @@
 #include <hpx/hpx_main.hpp>
 #include <hpx/include/unordered_map.hpp>
 
-
-typedef std::int64_t int_type;
-
-typedef allscale::region<int> my_region;
-using my_fragment = allscale::fragment<my_region,int>;
-typedef allscale::data_item_description<my_region,my_fragment,int> descr;
-
-typedef allscale::data_item<descr> test_data_item;
-
-ALLSCALE_REGISTER_DATA_ITEM_TYPE(descr);
-ALLSCALE_REGISTER_TREETURE_TYPE(int_type);
-//ALLSCALE_REGISTER_FRAGMENT_TYPE(my_region,int);
+ALLSCALE_REGISTER_TREETURE_TYPE(long)
 
 struct simple_variant_simple_class
 {
@@ -37,11 +22,7 @@ struct simple_variant_simple_class
     template <typename Closure>
     static allscale::treeture<std::int64_t> execute(Closure const& closure)
     {
-        test_data_item td_one = hpx::util::get<1>(closure);
-        test_data_item td_two = hpx::util::get<2>(closure);
-        auto res = (std::int64_t) *(td_one.fragment_.ptr_);
-        auto res2 = (std::int64_t) *(td_two.fragment_.ptr_);
-        return allscale::treeture<std::int64_t>{ res*res2 };
+        return allscale::treeture<std::int64_t>{ 2 };
     }
 };
 
@@ -64,22 +45,13 @@ using ultra_simple_work_item_descr =
 
 bool test_work_item(){
     std::int64_t known_result = 42;
-    descr test_descr;
-    my_region test_region(2);
-    my_fragment frag(test_region,7);
-    test_data_item td(hpx::find_here(),test_descr,frag);
-
-    descr test_descr2;
-    my_region test_region2(2);
-    my_fragment frag2(test_region2,6);
-    test_data_item td2(hpx::find_here(),test_descr2,frag2);
 
     static allscale::this_work_item::id main_id(0);
     allscale::this_work_item::set_id(main_id);
 
     using result_type = ultra_simple_work_item_descr::result_type;
     allscale::treeture<result_type> trs(allscale::parent_arg{});
-    auto test_item = allscale::work_item(true,ultra_simple_work_item_descr(),trs,3,td,td2);
+    auto test_item = allscale::work_item(true,ultra_simple_work_item_descr(),trs);
 
     hpx::apply([test_item]() mutable {allscale::this_work_item::set_id(main_id); test_item.process();});
     HPX_ASSERT(trs.valid());
@@ -97,15 +69,6 @@ bool test_work_items_all_localities(){
         for(int i = 0; i < 10000; ++i){
 
             std::int64_t known_result = i*(i+1);
-            descr test_descr;
-            my_region test_region(2);
-            my_fragment frag(test_region,i);
-            test_data_item td(localities[0],test_descr,frag);
-
-            descr test_descr2;
-            my_region test_region2(2);
-            my_fragment frag2(test_region2,i+1);
-            test_data_item td2(localities[0],test_descr2,frag2);
 
             //std::cout<< hpx::naming::get_locality_from_gid((td.get_id()).get_gid()) << std::endl;
 
@@ -114,7 +77,7 @@ bool test_work_items_all_localities(){
 
             using result_type = ultra_simple_work_item_descr::result_type;
             allscale::treeture<result_type> trs(allscale::parent_arg{});
-            auto test_item = allscale::work_item(true,ultra_simple_work_item_descr(),trs,3,td,td2);
+            auto test_item = allscale::work_item(true,ultra_simple_work_item_descr(),trs);
 
             hpx::apply([test_item]()mutable{allscale::this_work_item::set_id(main_id); test_item.process();});
             HPX_ASSERT(trs.valid());
