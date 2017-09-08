@@ -30,7 +30,9 @@ namespace allscale { namespace components {
 	  , current_energy_usage(0)
       , last_actual_energy_usage(0)
       , actual_energy_usage(0)
+      #if defined(ALLSCALE_HAVE_CPUFREQ)
       , target_freq_found(false)
+      #endif
       , time_requested(false)
       , resource_requested(false)
       , energy_requested(false)
