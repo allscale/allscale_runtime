@@ -168,6 +168,7 @@ namespace allscale { namespace components {
 
             if ( energy_requested )
             {
+#if defined(ALLSCALE_HAVE_CPUFREQ)
                 using hardware_reconf = allscale::components::util::hardware_reconf;
                 cpu_freqs = hardware_reconf::get_frequencies(0);
                 freq_step = 2; //cpu_freqs.size() / 2;
@@ -200,6 +201,10 @@ namespace allscale { namespace components {
                 }
 
                 frequency_timer_.start();
+#else
+                HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
+                            "Requesting energy objective without having compiled with cpufreq");
+#endif
             }
 
         }
@@ -424,6 +429,7 @@ namespace allscale { namespace components {
 
     bool scheduler::periodic_frequency_scale()
     {
+#if defined(ALLSCALE_HAVE_CPUFREQ)
         std::unique_lock<mutex_type> l(resize_mtx_);
         if ( !target_freq_found )
         {
@@ -557,6 +563,7 @@ namespace allscale { namespace components {
                 }
             }
         }
+#endif
 
         return true;
     }
@@ -579,6 +586,7 @@ namespace allscale { namespace components {
 
         if ( energy_requested )
         {
+#if defined(ALLSCALE_HAVE_CPUFREQ)
             std::string governor = "ondemand";
             policy.governor = const_cast<char*>(governor.c_str());        
     
@@ -586,6 +594,7 @@ namespace allscale { namespace components {
                 int res = hardware_reconf::set_freq_policy(cpu_id, policy);
 
             std::cout << "Set CPU governors back to " << governor << std::endl;
+#endif
         }
 
         stopped_ = true;
