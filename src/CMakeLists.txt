@@ -19,7 +19,7 @@ if(CPUFREQ_FOUND)
     target_link_libraries(allscale_component cpufreq)
 
 elseif(NOT CPUFREQ_FOUND)
-    MESSAGE(STATUS "didnt find it compile without hardwarereconf crap")
+    MESSAGE(STATUS "didnt find it compile without hardwarereconf")
      add_hpx_component(
       allscale
       SOURCES
