@@ -36,13 +36,13 @@ namespace allscale
               , parent_(parent)
             {}
 
-            treeture<void> get_left_child()
+            treeture<void> get_left_child() const
             {
 //                 HPX_ASSERT(children_[0]);
                 return children_[0];
             }
 
-            treeture<void> get_right_child()
+            treeture<void> get_right_child() const
             {
 //                 HPX_ASSERT(children_[1]);
                 return children_[1];

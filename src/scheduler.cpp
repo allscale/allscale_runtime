@@ -5,6 +5,7 @@
 
 #include <hpx/include/components.hpp>
 #include <hpx/util/detail/yield_k.hpp>
+#include <hpx/util/register_locks.hpp>
 
 HPX_REGISTER_COMPONENT_MODULE()
 
@@ -47,7 +48,7 @@ namespace allscale
         components::scheduler* res = s.component_.get();
         for (std::size_t k = 0; !res; ++k)
         {
-            hpx::util::detail::yield_k(k, "get component...");
+            hpx::util::detail::yield_k(k, "scheduler::get_ptr");
             res = s.component_.get();
         }
         return res;
@@ -55,6 +56,9 @@ namespace allscale
 
     scheduler::scheduler(std::size_t rank)
     {
+        std::unique_lock<mutex_type> l(mtx_);
+        hpx::util::ignore_while_checking<std::unique_lock<mutex_type>> il(&l);
+
         hpx::id_type gid =
             hpx::local_new<components::scheduler>(rank).get();
 

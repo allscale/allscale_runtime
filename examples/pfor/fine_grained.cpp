@@ -13,19 +13,18 @@
 #include <hpx/include/performance_counters.hpp>
 #include <hpx/hpx_init.hpp>
 
+#include <atomic>
 #include <unistd.h>
-
-#include <boost/atomic.hpp>
 
 #include "pfor.hpp"
 
 
 static const int DEFAULT_SIZE = 128 * 1024 * 1024;
 
-static std::vector<int> dataA;
-static std::vector<int> dataB;
+static std::unique_ptr<int[]> dataA;
+static std::unique_ptr<int[]> dataB;
 
-boost::atomic<std::int64_t> app_elapsed(0);
+std::atomic<std::int64_t> app_elapsed(0);
 
 std::int64_t app_performance_data(bool reset)
 {
@@ -48,6 +47,20 @@ void register_counter_type()
     );
 }
 
+struct init_body {
+    void operator()(std::int64_t i, const hpx::util::tuple<std::int64_t>& params) const {
+        // extract parameters
+        auto n = hpx::util::get<0>(params);
+        HPX_ASSERT(i < n);
+
+        // figure out in which way to move the data
+        int* A = dataA.get();
+        int* B = dataB.get();
+
+        A[i] = 0;
+        B[i] = 0;
+    }
+};
 
 struct simple_stencil_body {
     void operator()(std::int64_t i, const hpx::util::tuple<std::int64_t,std::int64_t>& params) const {
@@ -56,12 +69,10 @@ struct simple_stencil_body {
         auto n = hpx::util::get<1>(params);
 
         HPX_ASSERT(i < n);
-        HPX_ASSERT(i < dataA.size());
-        HPX_ASSERT(i < dataB.size());
 
         // figure out in which way to move the data
-        int* A = (t%2) ? dataA.data() : dataB.data();
-        int* B = (t%2) ? dataB.data() : dataA.data();
+        int* A = (t%2) ? dataA.get() : dataB.get();
+        int* B = (t%2) ? dataB.get() : dataA.get();
 
         // check current state
         if ((i > 0 && A[i-1] != A[i]) || (i < n-1 && A[i] != A[i+1])) {
@@ -88,9 +99,10 @@ int hpx_main(int argc, char **argv)
     std::int64_t n = argc >= 2 ? std::stoi(std::string(argv[1])) : DEFAULT_SIZE;
     std::int64_t steps = argc >= 3 ? std::stoi(std::string(argv[2])) : 1000;
     std::int64_t iters = argc >= 4 ? std::stoi(std::string(argv[3])) : 1;
+
     // initialize the data array
-    dataA.resize(n, 0);
-    dataB.resize(n, 0);
+    dataA.reset(new int[n]);
+    dataB.reset(new int[n]);
 
     double mean = 0.0;
 
@@ -106,8 +118,7 @@ int hpx_main(int argc, char **argv)
                     last = pfor_neighbor_sync<simple_stencil_body>(last,0,n,t,n);
                 }
             }
-
-//             auto elapsed = t.elapsed_microseconds();
+            // auto elapsed = t.elapsed_microseconds();
 	        app_elapsed = t.elapsed_microseconds();
             mean += app_elapsed/steps;
             std::cout << "pfor(0.." << n << ") taking " << app_elapsed/steps << " microseconds. Iter: " << i << "\n";
@@ -116,7 +127,6 @@ int hpx_main(int argc, char **argv)
 
         std::cout << "mean: " << mean/iters << '\n';
     }
-
 
     return hpx::finalize();
 }

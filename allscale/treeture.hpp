@@ -271,7 +271,7 @@ namespace allscale {
 
         }
 
-        treeture<void> get_left_child()
+        treeture<void> get_left_child() const
         {
             if(fixed_children_) return *this;
 
@@ -294,7 +294,7 @@ namespace allscale {
             }
         }
 
-        treeture<void> get_right_child()
+        treeture<void> get_right_child() const
         {
             if(fixed_children_) return *this;
 
@@ -337,7 +337,12 @@ namespace allscale {
                 std::unique_lock<mutex_type> l(mtx_);
                 if (shared_state_ && !id_.valid())
                 {
-                    id_ = hpx::local_new<wrapped_type>(shared_state_);
+                    hpx::shared_future<hpx::id_type> id;
+                    {
+                        hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+                        id = hpx::local_new<wrapped_type>(shared_state_);
+                    }
+                    if (!id_.valid()) id_ = id;
                     valid = true;
                 }
             }

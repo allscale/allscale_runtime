@@ -5,11 +5,23 @@
 #include <allscale/work_item.hpp>
 #include <allscale/scheduler.hpp>
 
+#include <hpx/lcos/local/dataflow.hpp>
+
 namespace allscale
 {
+    // forward declaration for dependencies class
+    namespace runtime {
+        // A class aggregating task dependencies
+        struct dependencies
+        {
+            explicit dependencies(hpx::future<void>&& dep) : dep_(std::move(dep)) {}
+            hpx::shared_future<void> dep_;
+        };
+    }
+
     template <typename WorkItemDescription, typename ...Ts>
     treeture<typename WorkItemDescription::result_type>
-    spawn(Ts&&...vs)
+    spawn_with_dependencies(const runtime::dependencies& deps, Ts&&...vs)
     {
         typedef typename WorkItemDescription::result_type result_type;
         HPX_ASSERT(this_work_item::get_id().get_treeture());
@@ -17,7 +29,7 @@ namespace allscale
         allscale::treeture<void> parent(this_work_item::get_id().get_treeture());
         allscale::treeture<result_type> tres(parent_arg(), parent);
 
-        work_item wi(false, WorkItemDescription(), tres, std::forward<Ts>(vs)...);
+        work_item wi(false, WorkItemDescription(), deps.dep_, tres, std::forward<Ts>(vs)...);
 
         std::size_t idx = wi.id().last();
         parent.set_child(idx, tres);
@@ -29,17 +41,11 @@ namespace allscale
         return tres;
     }
 
-    // forward declaration for dependencies class
-    namespace runtime {
-        class dependencies;
-    }
-
     template <typename WorkItemDescription, typename ...Ts>
     treeture<typename WorkItemDescription::result_type>
-    spawn_with_dependencies(const runtime::dependencies&, Ts&&...vs)
+    spawn(Ts&&...vs)
     {
-        // TODO: handle dependencies
-        return spawn<WorkItemDescription>(std::forward<Ts>(vs)...);
+        return spawn_with_dependencies<WorkItemDescription>(runtime::dependencies(hpx::future<void>()), std::forward<Ts>(vs)...);
     }
 
     template <typename WorkItemDescription, typename ...Ts>
@@ -47,12 +53,11 @@ namespace allscale
     spawn_first(Ts&&...vs)
     {
         typedef typename WorkItemDescription::result_type result_type;
-        HPX_ASSERT(!this_work_item::get_id().get_treeture());
         allscale::treeture<void> null_parent;
         allscale::treeture<result_type> tres(parent_arg(), null_parent);
 
         scheduler::schedule(
-            work_item(true, WorkItemDescription(), tres, std::forward<Ts>(vs)...)
+            work_item(true, WorkItemDescription(), hpx::shared_future<void>(), tres, std::forward<Ts>(vs)...)
         );
 
         HPX_ASSERT(tres.valid());

@@ -8,13 +8,7 @@
 #include <allscale/this_work_item.hpp>
 #include <allscale/traits/is_treeture.hpp>
 #include <allscale/traits/treeture_traits.hpp>
-#include <allscale/traits/is_data_item.hpp>
-#include <allscale/traits/data_item_traits.hpp>
-#include <allscale/data_item_base.hpp>
-#include <allscale/data_item.hpp>
 
-
-#include <hpx/dataflow.hpp>
 #include <hpx/include/serialization.hpp>
 
 #include <utility>
@@ -41,7 +35,25 @@ namespace allscale {
             ),
             is_first_(is_first)
         {
-            impl_->set_this_id();
+            impl_->set_this_id(is_first);
+        }
+
+        template<typename WorkItemDescription, typename Treeture, typename ...Ts>
+        work_item(bool is_first, WorkItemDescription, hpx::shared_future<void> dep, Treeture tre, Ts&&... vs)
+          : impl_(
+                new detail::work_item_impl<
+                    WorkItemDescription,
+                    hpx::util::tuple<
+                        typename hpx::util::decay<
+                            decltype(detail::futurize_if(std::forward<Ts>(vs)))>::type...
+                    >
+                >(
+                    std::move(dep), std::move(tre),
+                    detail::futurize_if(std::forward<Ts>(vs))...)
+            ),
+            is_first_(is_first)
+        {
+            impl_->set_this_id(is_first);
         }
 
         bool is_first()
@@ -50,7 +62,7 @@ namespace allscale {
         }
 
         explicit work_item(std::shared_ptr<detail::work_item_impl_base> impl)
-          : impl_(std::move(impl))
+          : impl_(std::move(impl)), is_first_(false)
         {}
 
         work_item(work_item const& other)

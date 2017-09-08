@@ -6,7 +6,7 @@
 #include <boost/tokenizer.hpp>
 #include <string.h>
 #endif
- 
+
 namespace allscale { namespace components {
 
 
@@ -49,17 +49,17 @@ namespace allscale { namespace components {
      std::unique_lock<std::mutex> lock(counter_mutex_);
 
      idle_rate_ = idle_value.get_value<double>() * 0.01;
-     resident_memory_ = rss_value.get_value<double>() * 1e-6; 
+     resident_memory_ = rss_value.get_value<double>() * 1e-6;
 
-     data_file << sample_id_++ << "\t" << num_active_tasks_ << "\t" 
+     data_file << sample_id_++ << "\t" << num_active_tasks_ << "\t"
                << get_avg_task_duration() << "\t" << idle_rate_ << "\t" << resident_memory_ << std::endl;
-     
-//     std::cout << "Total number of tasks: " << total_tasks_ << " Number of active tasks: " << num_active_tasks_ 
-//	       << "Average time per task: " << get_avg_task_duration() <<  "IDLE RATE: " << idle_rate_ << std::endl; 
+
+//     std::cout << "Total number of tasks: " << total_tasks_ << " Number of active tasks: " << num_active_tasks_
+//	       << "Average time per task: " << get_avg_task_duration() <<  "IDLE RATE: " << idle_rate_ << std::endl;
      return true;
    }
 
- 
+
    double monitor::get_avg_task_duration()
    {
      if(!total_tasks_) return 0.0;
@@ -111,6 +111,7 @@ namespace allscale { namespace components {
 
 #endif
 
+#if 0
       // Update stats per work item name
       time = p->get_exclusive_time();
       auto it = work_item_stats_map.find(w.name());
@@ -159,11 +160,11 @@ namespace allscale { namespace components {
          parent = it_profiles->second;
          parent->push(time);
       }
+#endif
 
-      
       // Save work item time in the times vector to compute stats on-the-fly if need be for the last X work items
       std::lock_guard<mutex_type> lock(work_items_vector);
-      work_item_times.push_back(time); 
+      work_item_times.push_back(time);
 
    }
 
@@ -197,7 +198,7 @@ namespace allscale { namespace components {
 //         std::multimap<std::uint32_t, hpx::performance_counters::performance_counter>::const_iterator it1, it2;
          std::multimap<std::uint32_t, hpx::id_type>::const_iterator it1, it2;
          it1 = counters.lower_bound(tid);
-         it2 = counters.upper_bound(tid); 
+         it2 = counters.upper_bound(tid);
 
          std::uint32_t counter_num = 0;
 
@@ -206,8 +207,8 @@ namespace allscale { namespace components {
 //             p->papi_counters_start[counter_num] = (it1->second).get_value<long long>().get();
              papi_value = hpx::performance_counters::stubs::performance_counter::get_value(
 			hpx::launch::sync, it1->second);
-            
-             p->papi_counters_start[counter_num] = papi_value.get_value<long long>(); 
+
+             p->papi_counters_start[counter_num] = papi_value.get_value<long long>();
 	     ++it1; counter_num++;
          }
 #endif
@@ -215,22 +216,23 @@ namespace allscale { namespace components {
       else {
          // Profile exists, finish wrapper executed before than start wrapper
          p = it_profiles->second;
-         // We use current time as final time for the WI since this wrapper has 
+         // We use current time as final time for the WI since this wrapper has
          // been called after the WI finalization wrapper
          p->end = std::chrono::steady_clock::now();
          update_work_item_stats(w, p);  // Item has already finish time
       }
 
+      if(output_treeture_ || output_iteration_trees_) {
+         w_graph.push_back(wd);
 
-      w_graph.push_back(wd);
-
-      auto it = graph.find(my_wid.parent().name());
-      if( it == graph.end() ) {
-         graph.insert(std::make_pair(my_wid.parent().name(),
+         auto it = graph.find(my_wid.parent().name());
+         if( it == graph.end() ) {
+            graph.insert(std::make_pair(my_wid.parent().name(),
                          std::vector<std::string>(1, my_wid.name())));
-      }
-      else it->second.push_back(my_wid.name());
-
+         }
+         else it->second.push_back(my_wid.name());
+       }
+	   
 #ifdef REALTIME_VIZ
       if(realtime_viz) {
          std::unique_lock<std::mutex> lock2(counter_mutex_);
@@ -255,7 +257,7 @@ namespace allscale { namespace components {
 
    void monitor::global_w_exec_start_wrapper(work_item const& w)
    {
-        (allscale::monitor::get_ptr().get())->w_exec_start_wrapper(w);
+        allscale::monitor::get().w_exec_start_wrapper(w);
    }
 
 
@@ -296,7 +298,7 @@ namespace allscale { namespace components {
 
    void monitor::global_w_exec_finish_wrapper(work_item const& w)
    {
-        (allscale::monitor::get_ptr().get())->w_exec_finish_wrapper(w);
+        allscale::monitor::get().w_exec_finish_wrapper(w);
    }
 
 
@@ -332,7 +334,7 @@ namespace allscale { namespace components {
 
    void monitor::global_w_result_propagated_wrapper(work_item const& w)
    {
-        (allscale::monitor::get_ptr().get())->w_result_propagated_wrapper(w);
+        allscale::monitor::get().w_result_propagated_wrapper(w);
    }
 
 
@@ -353,7 +355,7 @@ namespace allscale { namespace components {
 
    void monitor::global_w_app_iteration(work_item const& w)
    {
-        (allscale::monitor::get_ptr().get())->w_app_iteration(w);
+        allscale::monitor::get().w_app_iteration(w);
    }
 
 
@@ -408,7 +410,7 @@ namespace allscale { namespace components {
    double monitor::get_average_exclusive_time(std::string w_name)
    {
       std::lock_guard<mutex_type> lock(work_map_mutex);
-      std::unordered_map<std::string, std::shared_ptr<allscale::work_item_stats>>::const_iterator it = 
+      std::unordered_map<std::string, std::shared_ptr<allscale::work_item_stats>>::const_iterator it =
 	  work_item_stats_map.find(w_name);
 
       if( it == work_item_stats_map.end() )
@@ -428,7 +430,7 @@ namespace allscale { namespace components {
    double monitor::get_minimum_exclusive_time(std::string w_name)
    {
       std::lock_guard<mutex_type> lock(work_map_mutex);
-      std::unordered_map<std::string, std::shared_ptr<allscale::work_item_stats>>::const_iterator it = 
+      std::unordered_map<std::string, std::shared_ptr<allscale::work_item_stats>>::const_iterator it =
           work_item_stats_map.find(w_name);
 
       if( it == work_item_stats_map.end() )
@@ -449,7 +451,7 @@ namespace allscale { namespace components {
    double monitor::get_maximum_exclusive_time(std::string w_name)
    {
       std::lock_guard<mutex_type> lock(work_map_mutex);
-      std::unordered_map<std::string, std::shared_ptr<allscale::work_item_stats>>::const_iterator it = 
+      std::unordered_map<std::string, std::shared_ptr<allscale::work_item_stats>>::const_iterator it =
           work_item_stats_map.find(w_name);
 
       if( it == work_item_stats_map.end() )
@@ -571,7 +573,7 @@ namespace allscale { namespace components {
 
 
 #if 0
-   // Returns the PAPI counter with name c_name for the work item 
+   // Returns the PAPI counter with name c_name for the work item
    // with ID w_id
    double get_papi_counter(std::string w_id, std::string c_name)
    {
@@ -608,7 +610,7 @@ namespace allscale { namespace components {
       double avg_time = 0.0;
       std::uint32_t j = num_iters;
 
-      for(std::vector<double>::reverse_iterator i = history->iteration_time.rbegin(); 
+      for(std::vector<double>::reverse_iterator i = history->iteration_time.rbegin();
 		   i != history->iteration_time.rend(); ++i)
       {
 	  if(!j) break;
@@ -623,14 +625,14 @@ namespace allscale { namespace components {
    }
 
 
-   // Translates a work ID changing it prefix with the last iteration root 
+   // Translates a work ID changing it prefix with the last iteration root
    // Returns the same label for work items of the first iteration
    std::string monitor::match_previous_treeture(std::string const& w_ID)
    {
       std::string match = w_ID;
       int last_iteration = history->current_iteration - 1;
 
-      if(last_iteration >= 0) { 
+      if(last_iteration >= 0) {
          std::string previous_root = history->iteration_roots[last_iteration];
 
          match.replace(0, previous_root.size(), previous_root);
@@ -668,7 +670,7 @@ namespace allscale { namespace components {
       for( auto children = graph[node].begin(); children != graph[node].end(); ++children )
      	  print_node(myfile, *children, total_tree_time);
 
-      return; 
+      return;
 
    }
 
@@ -732,7 +734,7 @@ namespace allscale { namespace components {
    {
       double excl_elapsed, incl_elapsed;
       std::ofstream myfile;
-      
+
       myfile.open(filename.c_str());
 
       // Init colour palette for graph colouring
@@ -806,18 +808,18 @@ namespace allscale { namespace components {
       myfile.close();
    }
 
-   void monitor::print_trees_per_iteration() 
+   void monitor::print_trees_per_iteration()
    {
       std::string filename;
 
-      // We don't print the last iteration cause it's a fake one created from doing new_iteration() in monitor_finalize() 
-      // to have some timing for the real last iteration. Notice this time for the real last 
+      // We don't print the last iteration cause it's a fake one created from doing new_iteration() in monitor_finalize()
+      // to have some timing for the real last iteration. Notice this time for the real last
       // iteration includes all the execution until the end of the program though
       std::vector<std::string>::const_iterator it1 = history->iteration_roots.begin();
       std::vector<double>::const_iterator it2 = history->iteration_time.begin();
       int iter_number = 0;
       for(; it1 != history->iteration_roots.end() && it2 != history->iteration_time.end(); ++it1, ++it2) {
-         
+
          filename = "treeture.ite.";
          filename += std::to_string(iter_number);
          filename += ".dot";
@@ -976,7 +978,7 @@ namespace allscale { namespace components {
 	 std::cerr << papi_counter_names[i] << "\t\t";
 
       std::cerr << std::endl;
- 
+
 
       std::vector<std::string> w_id;
       // sort work_item names
@@ -992,7 +994,7 @@ namespace allscale { namespace components {
         if (p) {
 
             counter_values = p->get_counters();
-           
+
             std::cerr << "   " << i + ' ' + w_names[i];
             for(int i = 0; i < num_counters; i++)
 		std::cerr << "\t\t" << counter_values[i];
@@ -1038,13 +1040,13 @@ namespace allscale { namespace components {
 
 
       // Dump profile reports and graphs
-      if(output_profile_table_)
+      if(output_profile_table_) {
 	 monitor_component_output();
 
 #ifdef HAVE_PAPI
          monitor_papi_output();
 #endif
-
+      }
 
       if(output_treeture_)
          create_work_item_graph();
@@ -1060,11 +1062,20 @@ namespace allscale { namespace components {
    }
 
    void monitor::init() {
+      bool enable_signals = true;
+      if(const char* env_p = std::getenv("ALLSCALE_MONITOR"))
+      {
+          if(atoi(env_p) == 0)
+              enable_signals = false;
+      }
 
-      allscale::monitor::connect(allscale::monitor::work_item_execution_started, monitor::global_w_exec_start_wrapper);
-      allscale::monitor::connect(allscale::monitor::work_item_execution_finished, monitor::global_w_exec_finish_wrapper);
-      allscale::monitor::connect(allscale::monitor::work_item_result_propagated, monitor::global_w_result_propagated_wrapper);
-      allscale::monitor::connect(allscale::monitor::work_item_first, monitor::global_w_app_iteration);
+      if(enable_signals)
+      {
+          allscale::monitor::connect(allscale::monitor::work_item_execution_started, monitor::global_w_exec_start_wrapper);
+          allscale::monitor::connect(allscale::monitor::work_item_execution_finished, monitor::global_w_exec_finish_wrapper);
+          allscale::monitor::connect(allscale::monitor::work_item_result_propagated, monitor::global_w_result_propagated_wrapper);
+          allscale::monitor::connect(allscale::monitor::work_item_first, monitor::global_w_app_iteration);
+      }
 
 //      const int result = std::atexit(global_finalize);
 //      if(result != 0) std::cerr << "Registration of monitor_finalize function failed!" << std::endl;
@@ -1084,7 +1095,7 @@ namespace allscale { namespace components {
 #ifdef REALTIME_VIZ
                realtime_viz = 1;
 
-	       data_file.open ("realtime_data.txt", std::ofstream::out | std::ofstream::trunc); 	
+	       data_file.open ("realtime_data.txt", std::ofstream::out | std::ofstream::trunc);
 
                // setup performance counter
                static const char * idle_counter_name = "/threads{locality#%d/total}/idle-rate";

@@ -15,8 +15,7 @@ namespace allscale { namespace detail
     template<typename F>
     typename std::enable_if<
         hpx::traits::is_future<F>::value &&
-        !std::is_same<void, typename hpx::traits::future_traits<F>::type>::value &&
-        !allscale::traits::is_data_item<F>::value,
+        !std::is_same<void, typename hpx::traits::future_traits<F>::type>::value,
         typename hpx::traits::future_traits<F>::result_type
     >::type
     unwrap_if(F && f)
@@ -28,34 +27,10 @@ namespace allscale { namespace detail
     typename std::enable_if<
 		hpx::traits::is_future<F>::value
 				&& std::is_same<void,
-						typename hpx::traits::future_traits<F>::type>::value
-				&& !allscale::traits::is_data_item<F>::value>::type
+						typename hpx::traits::future_traits<F>::type>::value>::type
     unwrap_if(F && f) {
         f.get(); // propagate exceptions...
     }
-
-    template<typename F>
-    typename std::enable_if<
-		hpx::traits::is_future<F>::value
-				&& allscale::traits::is_data_item<F>::value,
-		F&&>::type
-    unwrap_if(F && f)
-    {
-        return std::forward<F>(f);
-    }
-
-/*
-     template <typename D>
-     typename std::enable_if<
-     hpx::traits::is_future<D>::value && allscale::traits::is_data_item<D>::value,
-     typename hpx::traits::future_traits<D>::result_type
-     >::type
-     unwrap_if(D && d)
-     {
-     std::cout<<"checking if  i should unrwap data_item" << std::endl;
-     return d;
-     }
- */
 
 template<typename F>
 typename std::enable_if<!hpx::traits::is_future<F>::value,

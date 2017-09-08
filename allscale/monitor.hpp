@@ -36,7 +36,7 @@ namespace allscale {
         static void connect(event e, event_function f);
         static void signal(event e, work_item const& w);
         static components::monitor & get();
-        static std::shared_ptr<components::monitor> & get_ptr();
+        static components::monitor *get_ptr();
         static void stop();
 
     private:
