@@ -17,6 +17,7 @@ if(CPUFREQ_FOUND)
         components/resilience_component.cpp
     )
     target_link_libraries(allscale_component cpufreq)
+    target_compile_definitions(allscale_component PUBLIC ALLSCALE_HAVE_CPUFREQ)
 
 elseif(NOT CPUFREQ_FOUND)
     MESSAGE(STATUS "didnt find it compile without hardwarereconf")
