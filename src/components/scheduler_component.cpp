@@ -349,7 +349,7 @@ namespace allscale { namespace components {
 
     bool scheduler::periodic_throttle()
     {
-        if ( num_threads_ > 1 && ( /* time_requested || */ resource_requested ) )
+        if ( num_threads_ > 1 && ( time_requested || resource_requested ) )
         {
             std::unique_lock<mutex_type> l(resize_mtx_);
             if ( current_avg_iter_time == 0.0 || allscale_monitor->get_number_of_iterations() < sampling_interval)
