@@ -16,7 +16,7 @@
 #include "allscale/utils/serializer.h"
 #include <hpx/include/components.hpp>
 #include <hpx/include/actions.hpp>
-
+#include <hpx/util/register_locks.hpp>
 
 #include <allscale/util.hpp>
 
@@ -30,7 +30,8 @@ namespace{
 
 
 namespace allscale{
-
+    template<typename DataItemType>
+    struct data_item_server_name;
 
 namespace server {
 
@@ -99,10 +100,11 @@ public:
 
 	std::map<data_item_reference_client_type, fragment_info> store;
     network_type network_;
+    std::map<std::size_t,hpx::id_type> servers_;
     public:
 
 	data_item_server() {
-	}
+    }
 
 	template<typename ... T>
 	data_item_reference_client_type create(const T& ... args) {
@@ -115,6 +117,10 @@ public:
         auto dataItemID =  ret_val.get_id();
         store.emplace(ret_val, std::move(fragment_info(shared)));
         
+        for(auto& server : network_.servers){
+            std::cout<<"blub"<<std::endl;
+            server.register_data_item_ref(dataItemID,args...);
+        }
         /*
         auto s = store.size();
         std::cout<< "Store has size " << s << hpx::naming::get_locality_id_from_id(dataItemID)<<std::endl; 
@@ -144,7 +150,8 @@ public:
         auto tup   = hpx::util::make_tuple(args...);
         auto first = hpx::util::get<0>(tup);
         auto second = hpx::util::get<1>(tup);
-        std::cout<<"register dataitem ref called on " << this->get_id() << " " << second.get_id() << std::endl;
+        std::cout<<"register dataitem ref called for "  << first << std::endl;
+    //    std::cout<<"register dataitem ref called on " << this->get_id() << " " << second.get_id() << std::endl;
         /*
         typedef typename manual_tests::example::server::DataItemReference<DataItemType> data_item_reference_type;
         allscale::utils::Archive received(args...);
@@ -178,20 +185,41 @@ public:
 
     void print()
     {
-        std::cout<<"print method for server: " << this->get_id() << " " << this << std::endl;   
+        std::cout<<"print method for server: " << this->get_id() << " " << "store.size():" << store.size()<<std::endl;
+        /*
         for(auto& el : store){
             std::cout<<el.first.get_id()<<std::endl; 
-        }
+        }*/
     }
     
     void set_network(const network_type& network){
+
         network_ = network;
+    }
+
+    void set_servers(){
+        // servers_[hpx::naming::get_locality_id_from_id(this->get_id())] = this->get_id();
+        // std::cout << servers_[hpx::naming::get_locality_id_from_id(this->get_id())] << std::endl;
+        auto data_item_server_name = allscale::data_item_server_name<DataItemType>::name();
+        auto res =  hpx::find_all_from_basename(data_item_server_name, hpx::find_all_localities().size());
+        std::cout<<res.size()<<std::endl;
+        for(auto& fut : res ){
+            auto id = fut.get();
+            //servers_[hpx::naming::get_locality_id_from_id(fut.get())] = fut.get();    
+        }
+    }
+    void print_network(){
+        for(auto& server : network_.servers){
+            std::cout<<server.get_id()<<std::endl;
+        }
     }
     
     
     
     
     HPX_DEFINE_COMPONENT_ACTION(data_item_server, set_network);
+    HPX_DEFINE_COMPONENT_ACTION(data_item_server, set_servers);
+    HPX_DEFINE_COMPONENT_ACTION(data_item_server, print_network);
     HPX_DEFINE_COMPONENT_ACTION(data_item_server, print);
 };
 
@@ -200,11 +228,23 @@ public:
     HPX_REGISTER_ACTION_DECLARATION(                                          \
     	allscale::server::data_item_server<type>::print_action,           \
         BOOST_PP_CAT(__data_item_server_print_action_, type));            \
-     HPX_REGISTER_ACTION_DECLARATION(                                          \
+    HPX_REGISTER_ACTION_DECLARATION(                                          \
     	allscale::server::data_item_server<type>::set_network_action,           \
         BOOST_PP_CAT(__data_item_server_set_network_action_, type));            \
-    
-   
+    HPX_REGISTER_ACTION_DECLARATION(                                          \
+    	allscale::server::data_item_server<type>::print_network_action,           \
+        BOOST_PP_CAT(__data_item_server_print_network_action_, type));            \
+    HPX_REGISTER_ACTION_DECLARATION(                                          \
+    	allscale::server::data_item_server<type>::set_servers_action,           \
+        BOOST_PP_CAT(__data_item_server_set_servers_action_, type));            \
+    namespace allscale{                                                           \
+        template<>                                                                \
+        struct data_item_server_name<type>                                               \
+        {                                                                         \
+            static const char* name(){return BOOST_PP_STRINGIZE(BOOST_PP_CAT(allscale/data_item_manager/data_item_server_,type));}           \
+        };                                                                        \
+    }                                                                             \
+
 #define REGISTER_DATAITEMSERVER(type)                                   \
     HPX_REGISTER_ACTION(            \
         allscale::server::data_item_server<type>::print_action,           \
@@ -212,6 +252,12 @@ public:
     HPX_REGISTER_ACTION(            \
         allscale::server::data_item_server<type>::set_network_action,           \
         BOOST_PP_CAT(__data_item_server_set_network_action_, type));            \
+    HPX_REGISTER_ACTION(            \
+        allscale::server::data_item_server<type>::print_network_action,           \
+        BOOST_PP_CAT(__data_item_server_print_network_action_, type));            \
+    HPX_REGISTER_ACTION(            \
+        allscale::server::data_item_server<type>::set_servers_action,           \
+        BOOST_PP_CAT(__data_item_set_servers_network_action_, type));            \
     typedef ::hpx::components::component<                                     \
     	allscale::server::data_item_server<type>                         \
     > BOOST_PP_CAT(__data_item_server_, type);                            \
@@ -240,8 +286,22 @@ public:
 
 	data_item_server(hpx::future<hpx::id_type> && gid) :
 			base_type(std::move(gid)) {
-	}
+        //        std::cout<<"called on loc" << this->get_id() << std::endl;
+        auto data_item_server_name = allscale::data_item_server_name<DataItemType>::name();
+        //data_item_server_name += hpx::naming::get_locality_id_from_id(this->get_id());
+        // std::cout<< hpx::register_with_basename(data_item_server_name,
+        // this->get_id(),hpx::naming::get_locality_id_from_id(this->get_id())).get()<<std::endl;
 
+    }
+
+    data_item_server(hpx::id_type && gid) :
+			base_type(std::move(gid)) {
+        //        std::cout<<"called on loc" << this->get_id() << std::endl;
+        auto data_item_server_name = allscale::data_item_server_name<DataItemType>::name();
+        //data_item_server_name += hpx::naming::get_locality_id_from_id(this->get_id());
+        std::cout<< hpx::register_with_basename(data_item_server_name,this->get_id(),hpx::naming::get_locality_id_from_id(this->get_id())).get()<<std::endl;
+
+    }
 	template<typename ... T>
 	data_item_reference_client_type create(const T& ... args) {
 		HPX_ASSERT(this->get_id());
@@ -263,10 +323,21 @@ public:
 		action_type()(this->get_id());
 	}
 
+    void print_network() {
+		HPX_ASSERT(this->get_id());
+		typedef typename allscale::server::data_item_server<DataItemType>::print_network_action action_type;
+		action_type()(this->get_id());
+	}
     void set_network(const network_type& network){
         HPX_ASSERT(this->get_id());
         typedef typename allscale::server::data_item_server<DataItemType>::set_network_action action_type;
         action_type()(this->get_id(),network);
+    }
+
+    void set_servers(){
+        HPX_ASSERT(this->get_id());
+        typedef typename allscale::server::data_item_server<DataItemType>::set_servers_action action_type;
+        action_type()(this->get_id());
     }
     typename DataItemType::facade_type get(const data_item_reference_client_type& ref){
         using parent_type = typename allscale::server::data_item_server<DataItemType>;

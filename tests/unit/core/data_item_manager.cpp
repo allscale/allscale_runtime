@@ -3,6 +3,7 @@
 #include <allscale/data_item_reference.hpp>
 #include <allscale/data_item_server.hpp>
 #include <allscale/data_item_server_network.hpp>
+#include <allscale/data_item_manager.hpp>
 #include <algorithm>
 
 #include <hpx/hpx_main.hpp>
@@ -25,6 +26,7 @@ HPX_REGISTER_COMPONENT_MODULE();
 
 using data_item_type = Scalar<int>;
 REGISTER_DATAITEMREFERENCE(data_item_type);
+REGISTER_DATAITEMSERVER_DECLARATION(data_item_type);
 REGISTER_DATAITEMSERVER(data_item_type);
 
 
@@ -33,6 +35,7 @@ REGISTER_DATAITEMSERVER(data_item_type);
 
 using data_item_type_grid = Grid<int,1>;
 REGISTER_DATAITEMREFERENCE(data_item_type_grid);
+REGISTER_DATAITEMSERVER_DECLARATION(data_item_type_grid);
 REGISTER_DATAITEMSERVER(data_item_type_grid);
 
 
@@ -65,7 +68,10 @@ void test_data_item_server_creation(){
 
 
 
+
 }
+
+
 
 template <typename DataItemType, typename ... Args>
 auto simulate_data_item_manager_create(const Args& ... args){
@@ -75,8 +81,15 @@ auto simulate_data_item_manager_create(const Args& ... args){
     auto archive = allscale::utils::serialize(args...);
     std::vector<char> buffer;
     buffer = archive.getBuffer();
-    typedef typename allscale::server::data_item_server<DataItemType> data_item_server_type;
-    
+   
+
+    if (hpx::get_locality_id() == 0) {
+        auto sn = allscale::data_item_manager::create_server_network<DataItemType>();
+        std::cout<< sn.servers.size()<<std::endl;
+        allscale::data_item_manager::get_server<DataItemType>();   
+
+    } 
+    /*
     if (hpx::get_locality_id() == 0) {
 		//CYCLE THRU LOCALITIES
 		std::cout << "on locality " << hpx::get_locality_id() << " running test" << std::endl;
@@ -93,8 +106,23 @@ auto simulate_data_item_manager_create(const Args& ... args){
 
        allscale::data_item_server_network<DataItemType> sn;
        sn.servers = result;
-       std::cout<<sn.servers[0].get_id()<<std::endl;
-	}
+
+       for( auto& server : result){
+        server.set_network(sn);
+       }
+
+
+        auto data_item_server_name = allscale::data_item_server_name<DataItemType>::name();
+        auto res =  hpx::find_all_from_basename(data_item_server_name, 2);
+        for(auto& fut : res ){
+            typedef typename allscale::server::data_item_server<DataItemType>::print_action action_type;
+		    action_type()(fut.get());
+        }
+      
+
+	}*/
+    // auto server = allscale::data_item_manager::getServer<DataItemType>();
+    // server.set_servers();
     return result;
 }
 
@@ -115,6 +143,7 @@ int hpx_main(int argc, char* argv[]) {
    // test_data_item_server_creation();
 
 	test_grid_data_item_server_create();
+    
     //std::cout<<std::endl;
     //test_grid_data_item_server_create();
     //std::cout<<std::endl;
