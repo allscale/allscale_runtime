@@ -644,10 +644,6 @@ std::pair<IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_co
     allscale::utils::Vector<int32_t, 2 > var_9 = var_4;
     allscale::utils::Vector<int32_t, 2 > var_10 = var_3;
     var_9.operator[](var_5) = *cxx_style_assignment(&var_10.operator[](var_5), allscale_fun_280(IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_int(var_3.operator[](var_5), var_4.operator[](var_5))).first.end_returns_constint());
-    insieme::utils::detail::LazyAssertion var_11 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion(var_1.operator()(var_3, var_4) == var_1.operator()(var_3, var_9) + var_1.operator()(var_10, var_4));
-    if (var_11.operator bool()) {
-        std::cerr << "\nAssertion volume(begin,end) == volume(begin,midA) + volume(midB,end) of /home/herbert/coding/c++/allscale_compiler/code/compiler/include/allscale/compiler/../../../../../api/code/api/include/allscale/api/user/operator/pfor.h:820 failed!\n\tvolume(begin,end) = " << var_1.operator()(var_3, var_4) << "\n\tvolume(begin,midA) + volume(midB,end) = " << var_1.operator()(var_3, var_9) + var_1.operator()(var_10, var_4) << "\n";
-    };
     return (std::pair<IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__space_2_gt_, IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__space_2_gt_ >&&)std::make_pair(IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__space_2_gt_(var_3, var_9), IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__space_2_gt_(var_10, var_4));
 }
 /* ------- Function Definitions --------- */
@@ -818,10 +814,6 @@ std::pair<IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_co
     allscale::utils::Vector<int32_t, 2 > var_9 = var_4;
     allscale::utils::Vector<int32_t, 2 > var_10 = var_3;
     var_9.operator[](var_5) = *cxx_style_assignment(&var_10.operator[](var_5), allscale_fun_280(IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_int(var_3.operator[](var_5), var_4.operator[](var_5))).first.end_returns_constint());
-    insieme::utils::detail::LazyAssertion var_11 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion(var_1.operator()(var_3, var_4) == var_1.operator()(var_3, var_9) + var_1.operator()(var_10, var_4));
-    if (var_11.operator bool()) {
-        std::cerr << "\nAssertion volume(begin,end) == volume(begin,midA) + volume(midB,end) of /home/herbert/coding/c++/allscale_compiler/code/compiler/include/allscale/compiler/../../../../../api/code/api/include/allscale/api/user/operator/pfor.h:820 failed!\n\tvolume(begin,end) = " << var_1.operator()(var_3, var_4) << "\n\tvolume(begin,midA) + volume(midB,end) = " << var_1.operator()(var_3, var_9) + var_1.operator()(var_10, var_4) << "\n";
-    };
     return (std::pair<IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__space_2_gt_, IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__space_2_gt_ >&&)std::make_pair(IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__space_2_gt_(var_3, var_9), IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__space_2_gt_(var_10, var_4));
 }
 /* ------- Function Definitions --------- */

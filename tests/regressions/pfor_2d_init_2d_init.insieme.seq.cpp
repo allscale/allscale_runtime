@@ -467,10 +467,6 @@ struct std::pair<IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_de
     allscale::utils::Vector<int32_t, 2 > var_10 = var_3;
     struct std::pair<IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_int, IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_int > var_11 = IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_spliter_lt_int_gt__colon__colon_split_returns_std_colon__colon_pair_lt_rng_comma__rng_gt_(IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_int(var_3.operator[](var_5), var_4.operator[](var_5)));
     var_9.operator[](var_5) = *cxx_style_assignment(&var_10.operator[](var_5), var_11.first.end_returns_const_int_());
-    struct insieme::utils::detail::LazyAssertion var_12 = (struct insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion(var_1.operator()(var_3, var_4) == var_1.operator()(var_3, var_9) + var_1.operator()(var_10, var_4));
-    if (var_12.operator bool()) {
-        std::operator<<(std::operator<<(std::operator<<(std::cerr, "\nAssertion volume(begin,end) == volume(begin,midA) + volume(midB,end) of /home/zangerl/insieme_dev/allscale/code/include/allscale/compiler/../../../../api/code/api/include/allscale/api/user/operator/pfor.h:821 failed!\n\tvolume(begin,end) = ").operator<<(var_1.operator()(var_3, var_4)), "\n\tvolume(begin,midA) + volume(midB,end) = ").operator<<(var_1.operator()(var_3, var_9) + var_1.operator()(var_10, var_4)), "\n");
-    };
     return std::make_pair(IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__2_gt_(var_3, var_9), IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__2_gt_(var_10, var_4));
 }
 /* ------- Function Definitions --------- */
