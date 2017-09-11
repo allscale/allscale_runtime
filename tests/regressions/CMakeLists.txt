@@ -43,6 +43,12 @@ set(tests
   pfor_empty_loop_empty_loop.insieme.seq
   pfor_vector_add_vector_add.insieme.seq
   pfor_vector_update_vector_update.insieme.seq
+  sync_neighbor_2d.insieme.seq
+  sync_neighbor_different_size.insieme.seq
+  sync_neighbor.insieme.seq
+  sync_one_on_one_2d.insieme.seq
+  sync_one_on_one_different_size.insieme.seq
+  sync_one_on_one.insieme.seq
   tutorials_heat_stencil_01_basic_01_basic.insieme.seq
   tutorials_heat_stencil_02_data_structure_02_data_structure.insieme.seq
   tutorials_heat_stencil_04_pfor_collapsed_04_pfor_collapsed.insieme.seq

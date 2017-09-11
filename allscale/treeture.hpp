@@ -161,7 +161,7 @@ namespace allscale {
             return valid();
         }
 
-        explicit operator hpx::future<T>()
+        explicit operator hpx::future<T>() const
         {
             return get_future();
         }
@@ -195,7 +195,7 @@ namespace allscale {
             }
         }
 
-        hpx::future<T> get_future()
+        hpx::future<T> get_future() const
         {
             if (shared_state_)
             {
@@ -210,7 +210,7 @@ namespace allscale {
             }
         }
 
-        T get_result()
+        T get_result() const
         {
             return get_future().get();
         }
