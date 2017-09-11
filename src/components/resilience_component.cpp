@@ -164,7 +164,9 @@ namespace allscale { namespace components {
         if (get_running_ranks() < 2) {
             resilience_component_running = false;
             resilience_disabled = true;
+#ifdef DEBUG_
             std::cout << "Resilience disabled for single locality!\n";
+#endif
             return;
         }
         else {
