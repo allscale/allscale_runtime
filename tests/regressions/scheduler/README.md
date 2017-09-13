@@ -31,4 +31,4 @@ The test system consists of four main files:
 
 ## How plotting works
 
-The *plot* function in **utils.py** creates one pdf file per app_name and app_arg combination. Currently this function plots only execution time (y-axis) against different number of OS threads (x-axis). However, it should be easy to change, extend its functionalies depending on the need.
+The *plot* function in **utils.py** creates one pdf file per app_name and app_arg combination. Currently this function plots only execution time (y-axis) against different number of OS threads (x-axis). However, it should be easy to change and extend its functionalites depending on the need.
