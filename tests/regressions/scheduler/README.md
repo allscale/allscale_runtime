@@ -1,6 +1,6 @@
 The Python files in this folder provide automatic regression tests for AllScale runtime/scheduler. It can use any AllScale benchmark and poplulate performance data, such as execution time, energy consumption, initial number of threads,  statistics of the number of threads after throttling (min, max, mean, standard deviation). In addition, benchmark related data, such as benchmark name, benchmark arguments, etc. are populated as well. All these information are kept in SQLite3 database and can be used to plot the benchmark results and save it in pdf files.
 
-##Steps to run regression tests:
+## Steps to run regression tests:
 
 * Provide configurations in the config.json file by specifiying app_timeout, app_base_dir, app_names, app_arguments, hpx_threads, objectives, and hpx_queuing.
     * app_timeout:  this parameter is limit how long the benchmark/application may run. It is helpfull in case the application hangs due to deadlock.
@@ -20,5 +20,5 @@ The Python files in this folder provide automatic regression tests for AllScale 
     * h (--help): to print usage information into command line.
 
 
-##The design of the regression system:
+## The design of the regression system:
 
