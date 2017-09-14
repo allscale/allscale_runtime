@@ -36,9 +36,10 @@ namespace allscale { namespace components {
            // START failure detection here (Kiril)
            client * c;
            udp::endpoint * my_receiver_endpoint, *guard_receiver_endpoint;
-           enum state {TRUST, SUSPECT};
+           enum state {TRUST, SUSPECT, RECOVERING};
            std::condition_variable cv;
            std::mutex cv_m;
+           udp::socket *send_sock;
            bool recovery_done; // protected via cv and cv_m
            state my_state;
            std::chrono::high_resolution_clock::time_point start_time,trust_lease;
