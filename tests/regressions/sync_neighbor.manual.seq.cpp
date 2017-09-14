@@ -126,20 +126,6 @@ struct pfor_928_3 {
 
 struct range_int;
 
-struct neighbor_dot_24_23;
-
-
-struct neighbor_dot_24_23 {
-    std::vector<int32_t, std::allocator<int32_t > >& capture_0;
-    std::vector<int32_t, std::allocator<int32_t > >& capture_1;;
-    neighbor_dot_24_23(neighbor_dot_24_23 const& p2) = default;
-    neighbor_dot_24_23(neighbor_dot_24_23&& p2) = default;
-    neighbor_dot_24_23(std::vector<int32_t, std::allocator<int32_t > >& p2, std::vector<int32_t, std::allocator<int32_t > >& p3);
-    ~neighbor_dot_24_23() = default;
-    neighbor_dot_24_23& operator=(neighbor_dot_24_23 const& p2) = default;
-    neighbor_dot_24_23& operator=(neighbor_dot_24_23&& p2) = default;
-    void operator()(int32_t p2) const;
-};
 
 struct sub_no_dependencies;
 
@@ -323,87 +309,27 @@ struct __wi_allscale_wi_3_variant_1 {
     static constexpr bool valid = true;
 };
 
-/* ------- Function Definitions --------- */
-allscale::treeture<void > allscale_fun_315(allscale::runtime::dependencies const& var_0, hpx::util::tuple<pfor_928_3, neighbor_dot_24_23> const& var_1) {
-    return allscale::spawn_with_dependencies<__wi_allscale_wi_3_work >(var_0, hpx::util::get<0 >(var_1), hpx::util::get<1 >(var_1));
-}
-/* ------- Function Definitions --------- */
-iteration_reference_int allscale_fun_313(range_int const& var_0, neighbor_dot_24_23 const& var_1, dependency_int const& var_2) {
-    return {var_0, allscale::runtime::make_prec_operation<pfor_928_3, void >(hpx::util::make_tuple(var_1), &allscale_fun_315)(var_2.to_core_dependencies(), pfor_928_3{var_0, var_2})};
-}
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-void neighbor_dot_24_23::operator()(int32_t var_1) const {
-    if (var_1 != 0)
-    {
-        HPX_TEST_EQ(capture_0[var_1 - 1], 2);
-    }
-    if (var_1 != 10000000 - 1)
-    {
-        HPX_TEST_EQ(capture_0[var_1 + 1], 2);
-    }
-    HPX_TEST_EQ(capture_0[var_1], 2);
-    capture_1[var_1] = 3;
-}
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-neighbor_dot_24_23::neighbor_dot_24_23(std::vector<int32_t, std::allocator<int32_t > >& var_1, std::vector<int32_t, std::allocator<int32_t > >& var_2) : capture_0(var_1), capture_1(var_2) { }
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
 uint64_t range_int::size() const {
     return (uint64_t)(_begin < _end ? _end - _begin : 0);
 }
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
 int32_t const& range_int::end() const {
     return _end;
 }
-/* ------- Function Definitions --------- */
 int32_t const& range_int::begin() const {
     return _begin;
 }
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
 bool range_int::covers(range_int const& var_1) const {
     return var_1._begin >= var_1._end || _begin <= var_1._begin && var_1._end <= _end;
 }
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
 bool range_int::empty() const {
     return size() == (uint64_t)0;
 }
-/* ------- Function Definitions --------- */
 range_int::range_int(int32_t const& var_1, int32_t const& var_2) : _begin(var_1), _end(var_2) {
     if (empty()) {
         _end = _begin;
     };
 }
-/* ------- Function Definitions --------- */
 range_int::range_int() : _begin(0), _end(0) { }
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
-/* ------- Function Definitions --------- */
 std::pair<range_int, range_int > range_int::split() const {
     int32_t var_3 = _begin + (_end - _begin) / 2;
     return std::make_pair(range_int(_begin, var_3), range_int(var_3, _end));
@@ -515,10 +441,29 @@ struct __wi_main_variant_1 {
             capture_1[var_1] = 2;
         }
     };
+    struct fun3 {
+        std::vector<int32_t>& capture_0;
+        std::vector<int32_t>& capture_1;;
+        fun3(std::vector<int32_t>& p2, std::vector<int32_t>& p3)
+          : capture_0(p2), capture_1(p3) { }
+        void operator()(int32_t var_1) const
+        {
+            if (var_1 != 0)
+            {
+                HPX_TEST_EQ(capture_0[var_1 - 1], 2);
+            }
+            if (var_1 != 10000000 - 1)
+            {
+                HPX_TEST_EQ(capture_0[var_1 + 1], 2);
+            }
+            HPX_TEST_EQ(capture_0[var_1], 2);
+            capture_1[var_1] = 3;
+        }
+    };
 
     template <typename Work, typename T, typename F>
     static allscale::treeture<void > spawn(allscale::runtime::dependencies const& var_0, hpx::util::tuple<T, F> const& var_1) {
-        return allscale::spawn_with_dependencies<Work>(var_0, hpx::util::get<0 >(var_1), hpx::util::get<1>(var_1));
+        return allscale::spawn_first_with_dependencies<Work>(var_0, hpx::util::get<0 >(var_1), hpx::util::get<1>(var_1));
     }
 
     static allscale::treeture<int32_t > execute(hpx::util::tuple< > const&)
@@ -544,7 +489,14 @@ struct __wi_main_variant_1 {
             )(dep3.to_core_dependencies(), pfor_928_3{range_int(0, var_0), dep3})
         };
 
-        iteration_reference_int var_5 = allscale_fun_313(range_int(0, var_0), neighbor_dot_24_23{var_2, var_1}, dependency_int(var_4));
+        dependency_int dep4(var_4);
+        iteration_reference_int var_5 ={
+            range_int(0, var_0),
+            allscale::runtime::make_prec_operation<pfor_928_3, void >(
+                hpx::util::make_tuple(fun3{var_2, var_1}),
+                &__wi_main_variant_1::spawn<__wi_allscale_wi_3_work, pfor_928_3, fun3>
+            )(dep3.to_core_dependencies(), pfor_928_3{range_int(0, var_0), dep4})
+        };
 
         var_5.wait();
         {
@@ -563,7 +515,6 @@ struct __wi_main_variant_1 {
 
 using __wi_main_work = allscale::work_item_description<int32_t, __wi_main_name, allscale::no_serialization, allscale::no_split<int32_t>, __wi_main_variant_1>;
 
-/* ------- Function Definitions --------- */
 int32_t main() {
     HPX_TEST_EQ(allscale::runtime::main_wrapper<__wi_main_work >(), 0);
 

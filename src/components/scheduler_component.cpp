@@ -247,7 +247,7 @@ namespace allscale { namespace components {
                     if (it == spawn_throttle_.end())
                     {
                         auto em_res = spawn_throttle_.emplace(wi_name,
-                            treeture_buffer(4));//num_threads_));
+                            treeture_buffer(6));//num_threads_));
                         it = em_res.first;
                     }
                     it->second.add(std::move(lk), work.get_treeture());

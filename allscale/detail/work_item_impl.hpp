@@ -8,7 +8,6 @@
 #include <allscale/detail/unwrap_if.hpp>
 #include <allscale/detail/work_item_impl_base.hpp>
 
-#include <hpx/include/dataflow.hpp>
 #include <hpx/include/serialization.hpp>
 #include <hpx/util/assert.hpp>
 #include <hpx/util/tuple.hpp>
@@ -227,9 +226,8 @@ namespace allscale { namespace detail {
         }
 
         template<typename ...Ts, typename Leases>
-		void do_process(hpx::future<void>&& f, Leases leases, Ts ...vs)
+		void do_process(Leases leases, Ts ...vs)
         {
-            if (f.valid()) f.get();
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_execution_started,
                 work_item(this_));
@@ -275,42 +273,68 @@ namespace allscale { namespace detail {
         void get_deps(hpx::util::detail::pack_c<std::size_t, Is...>, Leases leases,
             decltype(&ProcessVariant::template deps<Closure>))
         {
-            void (work_item_impl::*f)(
-                    hpx::future<void>&&, Leases,
-                    typename hpx::util::decay<
-                    decltype(hpx::util::get<Is>(closure_))>::type...
-            ) = &work_item_impl::do_process;
-            auto deps = hpx::when_all(ProcessVariant::deps(closure_), dep_);
-            hpx::dataflow(f, shared_this(), std::move(deps), std::move(leases),
-                std::move(hpx::util::get<Is>(closure_))...);
+            typedef hpx::shared_future<void> deps_type;
+
+            deps_type deps;
+            if (dep_.valid())
+            {
+                deps = hpx::when_all(ProcessVariant::deps(closure_), dep_).share();
+            }
+            else
+            {
+                deps = ProcessVariant::deps(closure_);
+            }
+
+            typename hpx::traits::detail::shared_state_ptr_for<deps_type>::type const& state
+                = hpx::traits::future_access<deps_type>::get_shared_state(deps);
+
+            auto this_ = shared_this();
+            state->set_on_completed(
+                [state, this_, leases]()
+                {
+//                     state->get_result();
+                    void (work_item_impl::*f)(
+                            Leases,
+                            typename hpx::util::decay<
+                            decltype(hpx::util::get<Is>(closure_))>::type...
+                    ) = &work_item_impl::do_process;
+
+                    hpx::apply(f, this_,
+                        std::move(leases), std::move(hpx::util::get<Is>(this_->closure_))...);
+                });
         }
 
         template <typename ProcessVariant, typename Leases, std::size_t... Is>
         void get_deps(hpx::util::detail::pack_c<std::size_t, Is...>, Leases leases, ...)
         {
             void (work_item_impl::*f)(
-                    hpx::future<void>&&, Leases,
+                    Leases,
                     typename hpx::util::decay<
                     decltype(hpx::util::get<Is>(closure_))>::type...
             ) = &work_item_impl::do_process;
+
+            auto this_ = shared_this();
             if (dep_.valid())
             {
-                auto this_ = shared_this();
-                dep_.then(
-                    [f, this_, leases](hpx::shared_future<void> dep)
+                typedef hpx::shared_future<void> deps_type;
+
+                typename hpx::traits::detail::shared_state_ptr_for<deps_type>::type const& state
+                    = hpx::traits::future_access<deps_type>::get_shared_state(dep_);
+                state->set_on_completed(
+                    [state, f, this_, leases]()
                     {
-                        dep.get(); // propagate errors.
-                        hpx::apply(f, this_, hpx::future<void>(),
+//                         state->get_result();
+                        hpx::apply(f, this_,
                             std::move(leases), std::move(hpx::util::get<Is>(this_->closure_))...);
                     }
                 );
             }
             else
-                hpx::apply(f, shared_this(), hpx::future<void>(),
+            {
+                hpx::apply(f, this_,
                     std::move(leases), std::move(hpx::util::get<Is>(closure_))...);
+            }
         }
-
-//         template <typename
 
         template<std::size_t ... Is>
         void process(hpx::util::detail::pack_c<std::size_t, Is...> pack)
@@ -320,8 +344,6 @@ namespace allscale { namespace detail {
             auto reqs = acquire<typename WorkItemDescription::process_variant>(nullptr);
 
             get_deps<typename WorkItemDescription::process_variant>(pack, reqs, nullptr);
-//             do_process(std::move(hpx::util::get<Is>(closure_))...);
-//             hpx::apply(f, shared_this(), std::move(hpx::util::get<Is>(closure_))...);
         }
 
         void process()
@@ -341,8 +363,6 @@ namespace allscale { namespace detail {
                     decltype(hpx::util::get<Is>(closure_))>::type...
             ) = &work_item_impl::do_split;
             HPX_ASSERT(valid());
-//             do_split(std::move(hpx::util::get<Is>(closure_))...);
-//             hpx::dataflow(f, shared_this(), std::move(hpx::util::get<Is>(closure_))...);
             hpx::apply(f, shared_this(), std::move(reqs), std::move(hpx::util::get<Is>(closure_))...);
         }
 
