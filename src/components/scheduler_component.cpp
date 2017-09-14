@@ -92,7 +92,7 @@ namespace allscale { namespace components {
                 {
                     obj = objective_str.substr(0, idx);
                     leeway = std::stod( objective_str.substr(idx + 1) );
-                } 
+                }
 
                 if (obj == "time")
                 {
@@ -103,14 +103,14 @@ namespace allscale { namespace components {
                 {
                     resource_requested = true;
                     resource_leeway = leeway;
-                } 
+                }
                 else if (obj == "energy")
                 {
                     energy_requested = true;
                     energy_leeway = leeway;
                 }
                 else
-                {    
+                {
                     std::ostringstream all_keys;
                     copy(scheduler::objectives.begin(), scheduler::objectives.end(), std::ostream_iterator<std::string>(all_keys, ","));
                     std::string keys_str = all_keys.str();
@@ -174,7 +174,7 @@ namespace allscale { namespace components {
                 using hardware_reconf = allscale::components::util::hardware_reconf;
                 cpu_freqs = hardware_reconf::get_frequencies(0);
                 freq_step = 2; //cpu_freqs.size() / 2;
-                freq_times.resize(cpu_freqs.size());        
+                freq_times.resize(cpu_freqs.size());
 
                 auto min_max_freqs = std::minmax_element(cpu_freqs.begin(), cpu_freqs.end());
                 min_freq = *min_max_freqs.first;
@@ -247,7 +247,7 @@ namespace allscale { namespace components {
                     if (it == spawn_throttle_.end())
                     {
                         auto em_res = spawn_throttle_.emplace(wi_name,
-                            treeture_buffer(4));//num_threads_));
+                            treeture_buffer(6));//num_threads_));
                         it = em_res.first;
                     }
                     it->second.add(std::move(lk), work.get_treeture());
@@ -301,34 +301,21 @@ namespace allscale { namespace components {
 
     bool scheduler::do_split(work_item const& w)
     {
-        // FIXME: make the cut off runtime configurable...
-        if (!w.id().splittable()) return false;
+        // Check if the work item is splittable first
+        if (w.can_split())
+        {
+            // Check if we reached the required depth
+            // FIXME: make the cut off runtime configurable...
+            if (w.id().splittable())
+            {
+                // FIXME: add more elaborate splitting criterions
+                return true;
+            }
+            return false;
+        }
+        // return false if it isn't
+        return false;
 
-        if (!w.can_split()) return false;
-
-        return true;
-
-        // FIXME: this doesn't really work efficiently as of now. revisit later...
-        // the above works fine for now.
-        //FIXME: think about if locking
-        //counters_mtx_ could lead to a potential dead_lock situatione
-        //when more than one enque action is active (this can be the case due
-        //to hpx apply), and the thread holding the lock is suspended and the
-        //others start burning up cpu time by spinning to get the lock
-//         std::unique_lock<mutex_type> l(counters_mtx_);
-//         // Do we have enough tasks in the system?
-//         if (queue_length_ < num_threads_ * 10 )
-//         {
-// //        	std::cout<<"not enough tasks and total_idlerate: " << total_idle_rate_ << " queue length " << total_length_ << std::endl;
-//         	//TODO: Think of some smart way to solve this, as of now, having new split workitems spawned
-//         	// in system that does not have many tasks with idle_Rate>=x and x being to low can lead to endless loops:
-//         	// as new items get spawned, they are too fine  granular, leading to them being not further processed,but
-//         	// due to short queue length and too low idle rate requirement for NOT splitting anymore, splitting keeps going on
-//             return idle_rate_ >= 10.0;
-//         }
-// //    	std::cout<<"enough tasks and total_idlerate: " << total_idle_rate_ << " queue length " << total_length_ << std::endl;
-//
-//         return idle_rate_ < 10.0;
     }
 
     bool scheduler::collect_counters()
@@ -386,10 +373,10 @@ namespace allscale { namespace components {
                 std::size_t suspend_cap = 1; //active_threads < SMALL_SYSTEM  ? SMALL_SUSPEND_CAP : LARGE_SUSPEND_CAP;
                 std::size_t resume_cap = 1;  //active_threads < SMALL_SYSTEM  ? LARGE_RESUME_CAP : SMALL_RESUME_CAP;
 
-                double time_threshold = current_avg_iter_time; 
+                double time_threshold = current_avg_iter_time;
                 bool disable_flag = last_avg_iter_time >= time_threshold;
                 bool enable_flag = last_avg_iter_time * regulatory_factor < time_threshold;
-        
+
 
                 if ( time_requested && resource_requested )
                 {
@@ -469,7 +456,7 @@ namespace allscale { namespace components {
                 }
 
                 freq_times[freq_idx] = std::make_pair(actual_energy_usage, current_avg_iter_time);
-        
+
                 unsigned long target_freq = current_freq_hw;
                 // If we have not finished until the minimum frequnecy then continue
                 if ( target_freq != min_freq ) {
@@ -494,7 +481,7 @@ namespace allscale { namespace components {
 
                     for (int i = 0; i < freq_times.size(); i++)
                     {
-                        // If we have frequencies with zero energy usage 
+                        // If we have frequencies with zero energy usage
                         // it means we haven't measured them, so skip them
                         if ( freq_times[i].first == 0 )
                             continue;
@@ -515,7 +502,7 @@ namespace allscale { namespace components {
                     // We will save minimum energy and execution time
                     // and use them for comparision using leeways
                     unsigned long long optimal_energy = min_energy;
-                    double optimal_exec_time = min_exec_time;  
+                    double optimal_exec_time = min_exec_time;
 
                     if ( time_requested && energy_requested )
                     {
@@ -536,7 +523,7 @@ namespace allscale { namespace components {
                             }
                             else if ( ( energy_leeway < 1 && time_leeway == 1.0 ) && freq_times[i].first  - min_energy <  min_energy * energy_leeway  )
                             {
-    
+
                                 if ( optimal_exec_time > freq_times[i].second )
                                 {
                                     min_energy_idx = i;
@@ -557,7 +544,7 @@ namespace allscale { namespace components {
                         }
                     }
 
-                    hardware_reconf::set_frequencies_bulk(os_thread_count, cpu_freqs[min_energy_idx]); 
+                    hardware_reconf::set_frequencies_bulk(os_thread_count, cpu_freqs[min_energy_idx]);
                     target_freq_found = true;
                     std::cout << "Min energy: " << freq_times[min_energy_idx].first << " with freq: "
                               << cpu_freqs[min_energy_idx] << ", Min time with freq: "
@@ -569,7 +556,7 @@ namespace allscale { namespace components {
 
         return true;
     }
- 
+
 
 
     void scheduler::stop()
@@ -590,8 +577,8 @@ namespace allscale { namespace components {
         {
 #if defined(ALLSCALE_HAVE_CPUFREQ)
             std::string governor = "ondemand";
-            policy.governor = const_cast<char*>(governor.c_str());        
-    
+            policy.governor = const_cast<char*>(governor.c_str());
+
             for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
                 int res = hardware_reconf::set_freq_policy(cpu_id, policy);
 
