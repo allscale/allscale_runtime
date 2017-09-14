@@ -53,7 +53,7 @@ using __wi_main_work = allscale::work_item_description<int32_t, __wi_main_name, 
 int32_t main() {
     HPX_TEST_EQ(allscale::runtime::main_wrapper<__wi_main_work >(), 0);
 
-    return hpx::util::report_errors;
+    return hpx::util::report_errors();
 }
 
 ALLSCALE_REGISTER_TREETURE_TYPE(int32_t)

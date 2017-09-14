@@ -227,24 +227,24 @@ struct __wi_allscale_wi_2_name {
 
 struct __wi_allscale_wi_2_variant_0 {
     template <typename Closure>
-    static hpx::future<void > execute(Closure const& var_0)
+    static allscale::treeture<void > execute(Closure const& var_0)
     {
         std::pair<range_int, range_int > var_1 = hpx::util::get<0 >(var_0).range.split();
         range_int& var_2 = var_1.first;
         range_int& var_3 = var_1.second;
         sub_dependency_int var_4 = hpx::util::get<0 >(var_0).dependencies.split(var_2, var_3);
 
-        auto t1 = allscale::spawn_with_dependencies<__wi_allscale_wi_2_work >(
+        return allscale::runtime::treeture_parallel(
+            allscale::runtime::after(),
+            allscale::spawn_with_dependencies<__wi_allscale_wi_2_work >(
                 var_4.left.to_core_dependencies(),
                 pfor_928_3{var_2, var_4.left},
                 hpx::util::get<1 >(var_0)
-            );
-        auto t2 = allscale::spawn_with_dependencies<__wi_allscale_wi_2_work >(
+            ),
+            allscale::spawn_with_dependencies<__wi_allscale_wi_2_work >(
                 var_4.right.to_core_dependencies(),
                 pfor_928_3{var_3, var_4.right},
-                hpx::util::get<1 >(var_0));
-
-        return hpx::when_all(t1.get_future(), t2.get_future());
+                hpx::util::get<1 >(var_0)));
     }
     static constexpr bool valid = true;
 };
@@ -280,24 +280,26 @@ struct __wi_allscale_wi_3_name {
 
 struct __wi_allscale_wi_3_variant_0 {
     template <typename Closure>
-    static hpx::future<void > execute(Closure const& var_0)
+    static allscale::treeture<void > execute(Closure const& var_0)
     {
         std::pair<range_int, range_int > var_1 = hpx::util::get<0 >(var_0).range.split();
         range_int& var_2 = var_1.first;
         range_int& var_3 = var_1.second;
         sub_dependency_int var_4 = hpx::util::get<0 >(var_0).dependencies.split(var_2, var_3);
-        auto t1 = allscale::spawn_with_dependencies<__wi_allscale_wi_3_work >(
+
+        return allscale::runtime::treeture_parallel(
+            allscale::runtime::after(),
+            allscale::spawn_with_dependencies<__wi_allscale_wi_3_work >(
                 var_4.left.to_core_dependencies(),
                 pfor_928_3{var_2, var_4.left},
                 hpx::util::get<1 >(var_0)
-            );
-        auto t2 = allscale::spawn_with_dependencies<__wi_allscale_wi_3_work >(
+            ),
+            allscale::spawn_with_dependencies<__wi_allscale_wi_3_work >(
                 var_4.right.to_core_dependencies(),
                 pfor_928_3{var_3, var_4.right},
                 hpx::util::get<1 >(var_0)
-            );
-
-        return hpx::when_all(t1.get_future(), t2.get_future());
+            )
+        );
     }
     static constexpr bool valid = true;
 };
