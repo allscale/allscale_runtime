@@ -114,7 +114,8 @@ namespace allscale { namespace detail {
         work_item_impl(this_work_item::id const& id, hpx::shared_future<void> dep, treeture<result_type>&& tres, closure_type&& closure)
           : work_item_impl_base(id)
           , tres_(std::move(tres))
-          , closure_(std::move(closure)), dep_(dep)
+          , closure_(std::move(closure))
+          , dep_(dep)
         {}
 
         template<typename ...Ts>
@@ -241,6 +242,19 @@ namespace allscale { namespace detail {
             finalize(std::move(this_), std::move(work_res), std::move(leases));
 		}
 
+        template <typename T>
+        void set_children(treeture<T> const tre)
+        {
+            tres_.set_child(0, tre.get_left_child());
+            tres_.set_child(1, tre.get_right_child());
+        }
+
+        template <typename T>
+        void set_children(T const&)
+        {
+            // null-op as fallback...
+        }
+
         template<typename ...Ts, typename Leases>
 		void do_split(Leases leases, Ts ...vs)
         {
@@ -252,6 +266,7 @@ namespace allscale { namespace detail {
             auto work_res =
                 WorkItemDescription::split_variant::execute(
                     unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...));
+            set_children(work_res);
 
             finalize(std::move(this_), std::move(work_res), std::move(leases));
         }

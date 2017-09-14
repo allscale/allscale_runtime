@@ -243,15 +243,21 @@ namespace allscale { namespace this_work_item {
         }
         else
         {
-            if (id_.back() == 0)
+            if (parent.config_.thread_depth_ == 1)
             {
-                setup_left();
+                config_ = parent.config_;
             }
             else
             {
-                setup_right();
+                if (id_.back() == 0)
+                {
+                    setup_left();
+                }
+                else
+                {
+                    setup_right();
+                }
             }
-
         }
 
         // Once we reached out to the locality leaf, we need to set the
@@ -266,6 +272,10 @@ namespace allscale { namespace this_work_item {
                 config_.thread_depth_ = 1;
             else
                 config_.thread_depth_ = std::pow(num_cores, 1.5) + 0.5;
+            if (is_first)
+            {
+                std::cout << name() << ' ' << num_cores << '\n';
+            }
         }
 
 //         wi_ = std::move(wi);

@@ -31,9 +31,6 @@ namespace allscale
 
         work_item wi(false, WorkItemDescription(), deps.dep_, tres, std::forward<Ts>(vs)...);
 
-        std::size_t idx = wi.id().last();
-        parent.set_child(idx, tres);
-
         scheduler::schedule(std::move(wi));
 
         HPX_ASSERT(tres.valid());

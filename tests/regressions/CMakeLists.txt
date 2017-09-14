@@ -46,6 +46,7 @@ set(tests
   sync_neighbor_2d.insieme.seq
   sync_neighbor_different_size.insieme.seq
   sync_neighbor.insieme.seq
+  sync_neighbor.manual.seq
   sync_one_on_one_2d.insieme.seq
   sync_one_on_one_different_size.insieme.seq
   sync_one_on_one.insieme.seq
