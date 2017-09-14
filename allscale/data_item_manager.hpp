@@ -53,13 +53,13 @@ namespace allscale{
       */
                 
             auto data_item_server_name = allscale::data_item_server_name<DataItemType>::name();
-            auto res =  hpx::find_all_from_basename(data_item_server_name, 2);
+            auto res =  hpx::find_all_from_basename(data_item_server_name, hpx::find_all_localities().size());
             for(auto& fut : res ){
                 typedef typename allscale::server::data_item_server<DataItemType>::print_action action_type;
                 action_type()(fut.get());
             }
             
-            return hpx::find_here(); 
+            return fut.get();
             //return getLocalDataItemServer<DataItemType>();
         }
 
