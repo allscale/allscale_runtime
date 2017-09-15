@@ -46,6 +46,8 @@ public:
 	using data_item_region_type = typename DataItemType::region_type;
 	using data_item_reference_client_type = typename allscale::data_item_reference<DataItemType>;
     using network_type = typename allscale::data_item_server_network<DataItemType>;
+    using lease_type = typename allscale::lease<DataItemType>;
+
     // using network_type = data_item_server_network<DataItemType>;
     //using network_type = int;
 	struct fragment_info {
@@ -163,19 +165,35 @@ public:
 	struct register_data_item_ref_action : hpx::actions::make_action< void (data_item_server::*)(const T& ...),
 			&data_item_server::template register_data_item_ref<T...>, register_data_item_ref_action<T...> > {
 	};
+
+    template<typename T>
+    lease_type acquire(const T& req){
+        std::cout<<"acquire was called on loc : " << hpx::find_here() << req.region << std::endl;
+        lease_type l(req);
+        return l;
+    }
+	template<typename T>
+	struct acquire_action : hpx::actions::make_action< lease_type (data_item_server::*)(const T&),
+			&data_item_server::template acquire<T>, acquire_action<T> > {
+	};
+
    
 
-    typename DataItemType::facade_type  get(const data_item_reference_client_type& ref) 
+    std::size_t  get(const data_item_reference_client_type& ref) 
     {
         std::cout<<"get method called for id: " << ref.get_id()<<std::endl;
-        
-        
         auto pos = store.find(ref.get_id());
         assert_true(pos != store.end()) << "Requested invalid data item id: " << ref.get_id();
-        auto maski = pos->second.fragment.mask();
+        //auto fragment  = pos->second.fragment.mask();
+        auto *frag_ptr  = &(pos->second.fragment);
+        std::size_t k;
+        k = (std::size_t) frag_ptr;
+        //std::shared_ptr<decltype(pos->second.fragment.mask())> ptr(mask);
+
+
         //std::cout<<maski[10]<<std::endl; 
-        return maski;
-    
+        //return maski;
+        return k;
     }
 
 
@@ -212,6 +230,7 @@ public:
     
     
     
+    HPX_DEFINE_COMPONENT_ACTION(data_item_server, get);
     HPX_DEFINE_COMPONENT_ACTION(data_item_server, set_network);
     HPX_DEFINE_COMPONENT_ACTION(data_item_server, set_servers);
     HPX_DEFINE_COMPONENT_ACTION(data_item_server, print_network);
@@ -232,6 +251,9 @@ public:
     HPX_REGISTER_ACTION_DECLARATION(                                          \
     	allscale::server::data_item_server<type>::set_servers_action,           \
         BOOST_PP_CAT(__data_item_server_set_servers_action_, type));            \
+    HPX_REGISTER_ACTION_DECLARATION(                                          \
+    	allscale::server::data_item_server<type>::get_action,           \
+        BOOST_PP_CAT(__data_item_server_get_action_, type));            \
     namespace allscale{                                                           \
         template<>                                                                \
         struct data_item_server_name<type>                                               \
@@ -252,7 +274,10 @@ public:
         BOOST_PP_CAT(__data_item_server_print_network_action_, type));            \
     HPX_REGISTER_ACTION(            \
         allscale::server::data_item_server<type>::set_servers_action,           \
-        BOOST_PP_CAT(__data_item_set_servers_network_action_, type));            \
+        BOOST_PP_CAT(__data_item_set_servers_action_, type));            \
+    HPX_REGISTER_ACTION(            \
+        allscale::server::data_item_server<type>::get_action,           \
+        BOOST_PP_CAT(__data_item_get_action_, type));            \
     typedef ::hpx::components::component<                                     \
     	allscale::server::data_item_server<type>                         \
     > BOOST_PP_CAT(__data_item_server_, type);                            \
@@ -335,15 +360,16 @@ public:
         action_type()(this->get_id());
     }
     typename DataItemType::facade_type get(const data_item_reference_client_type& ref){
+        /*
         using parent_type = typename allscale::server::data_item_server<DataItemType>;
         hpx::future<std::shared_ptr<parent_type> > f = hpx::get_ptr<parent_type>(this->get_id());
         std::shared_ptr<parent_type> ptr = f.get();
         auto result = (ptr.get())->get(ref);
-        return result;   
-        /*HPX_ASSERT(this->get_id());
+        return result;   */
+        HPX_ASSERT(this->get_id());
         typedef typename allscale::server::data_item_server<DataItemType>::get_action action_type;
         action_type()(this->get_id(),ref);
-        */
+        
     }
 
 };

@@ -4,6 +4,7 @@
 #include <allscale/data_item_server.hpp>
 #include <allscale/data_item_server_network.hpp>
 #include <allscale/data_item_manager.hpp>
+#include <allscale/data_item_requirement.hpp>
 #include <algorithm>
 
 #include <hpx/hpx_main.hpp>
@@ -74,7 +75,7 @@ void test_data_item_server_creation(){
 
 
 template <typename DataItemType, typename ... Args>
-auto simulate_data_item_manager_create(const Args& ... args){
+auto simulate_data_item_manager_create_and_get(const Args& ... args){
     
     std::vector<allscale::data_item_server<DataItemType>> result;
     //SERIALIZE STUFF BY HAND FOR NOW
@@ -86,7 +87,14 @@ auto simulate_data_item_manager_create(const Args& ... args){
 
     if (hpx::get_locality_id() == 0) {
         auto sn = allscale::data_item_manager::create_server_network<DataItemType>();
-        allscale::data_item_manager::create<DataItemType>(args...);
+        auto dataRef = allscale::data_item_manager::create<DataItemType>(args...);
+        auto req = allscale::createDataItemRequirement(dataRef, GridRegion<1>(100,150), access_mode::ReadWrite); 
+	    auto lease = allscale::data_item_manager::acquire<DataItemType>(req);
+
+	    auto data = allscale::data_item_manager::get(dataRef);
+        std::cout<< data[120]<<std::endl;
+        data[120] = 5;
+        std::cout<< data[120]<<std::endl;
     }
     /*
     if (hpx::get_locality_id() == 0) {
@@ -126,11 +134,11 @@ auto simulate_data_item_manager_create(const Args& ... args){
 }
 
 
-void test_grid_data_item_server_create() {
+void test_grid_data_item_server_create_and_get() {
     GridPoint<1> size = 200;
 	using data_item_shared_data_type = typename data_item_type_grid::shared_data_type;
     data_item_shared_data_type sharedData(size);
-    simulate_data_item_manager_create<Grid<int,1>>(sharedData);
+    simulate_data_item_manager_create_and_get<Grid<int,1>>(sharedData);
 }
 
 
@@ -141,7 +149,7 @@ int hpx_main(int argc, char* argv[]) {
     test_scalar_data_item_reference();
    // test_data_item_server_creation();
 
-	test_grid_data_item_server_create();
+	test_grid_data_item_server_create_and_get();
     
     //std::cout<<std::endl;
     //test_grid_data_item_server_create();
