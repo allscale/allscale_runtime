@@ -94,7 +94,8 @@ namespace allscale { namespace components {
         std::size_t active_threads;
         std::size_t depth_cap;
 
-        double regulatory_factor;
+        double enable_factor;
+        double disable_factor;
         unsigned int min_threads;
         // Indices show number of threads, which hold pair of
         // execution times and number of times that particular thread used

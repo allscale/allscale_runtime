@@ -125,7 +125,7 @@ int hpx_main(int argc, char **argv)
         }
         allscale::scheduler::stop();
 
-        std::cout << "mean: " << mean/iters << '\n';
+        std::cout << "Mean time: " << mean/iters << std::endl;
     }
 
     return hpx::finalize();

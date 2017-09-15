@@ -25,7 +25,8 @@ namespace allscale { namespace components {
       , depth_cap(1.5 * (std::log(os_thread_count)/std::log(2) + 0.5))
       , current_avg_iter_time(0.0)
       , sampling_interval(10)
-      , regulatory_factor(1.0)
+      , enable_factor(1.0)
+      , disable_factor(1.0)
       , min_threads(4)
 	  , current_energy_usage(0)
       , last_actual_energy_usage(0)
@@ -375,15 +376,15 @@ namespace allscale { namespace components {
 
                 double time_threshold = current_avg_iter_time;
                 bool disable_flag = last_avg_iter_time >= time_threshold;
-                bool enable_flag = last_avg_iter_time * regulatory_factor < time_threshold;
+                bool enable_flag = last_avg_iter_time * enable_factor < time_threshold;
 
 
-                if ( time_requested && resource_requested )
+                if ( resource_requested )
                 {
                     // If we have a sublinear speedup then prefer resources over time and throttle
-                    time_threshold = current_avg_iter_time * (active_threads / (active_threads - suspend_cap)) * 1.2;
-                    disable_flag = last_avg_iter_time <= time_threshold;
-                    enable_flag = last_avg_iter_time > time_threshold;
+                    time_threshold = current_avg_iter_time * (active_threads - suspend_cap ) / active_threads;
+                    disable_flag = last_avg_iter_time >= time_threshold;
+                    enable_flag = last_avg_iter_time < time_threshold;
                     min_threads = 1;
                 }
 
@@ -400,8 +401,8 @@ namespace allscale { namespace components {
                 else if ( blocked_os_threads_.any() && enable_flag )
                 {
                     depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5));
-                    if (regulatory_factor < 1.01)
-                        regulatory_factor *= 1.0005;
+                    if (enable_factor < 1.01)
+                        enable_factor *= 1.0005;
 
                     {
                         hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
@@ -570,8 +571,18 @@ namespace allscale { namespace components {
             return;
 
         //Resume all sleeping threads
-        if ( ( /* time_requested || */ resource_requested ) && !energy_requested)
+        if ( ( time_requested || resource_requested ) && !energy_requested)
+        {
        	    thread_scheduler->enable_more(os_thread_count);
+       
+            double resource_usage = 0; 
+            for (int i = 0; i < thread_times.size(); i++)
+            {
+                resource_usage += thread_times[i].first * (i + 1);
+            }
+
+            std::cout << "Resource usage: " << resource_usage << std::endl;
+        }
 
         if ( energy_requested )
         {
