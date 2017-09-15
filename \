@@ -22,17 +22,16 @@ namespace allscale{
             buffer = archive.getBuffer();
 
             hpx::id_type server_id = allscale::data_item_manager::get_server<DataItemType>();
+            //typedef typename  allscale::server::data_item_server<DataItemType>::template create_action<buffer_type> action_type;
             
-            typedef typename  allscale::server::data_item_server<DataItemType>::template create_action<buffer_type> action_type;
+            typedef typename allscale::server::data_item_server<DataItemType>::print_action action_type;
+		    action_type()(server_id);
             
-             // typedef typename allscale::server::data_item_server<DataItemType>::print_action action_type;
-		     // action_type()(server_id);
+            std::cout<<server_id<<std::endl; 
+            //action_type()(server_id, buffer);
             
-            //std::cout<<server_id<<std::endl; 
-            auto res = action_type()(server_id, buffer);
-            
-            //data_item_reference_type ret_val( hpx::components::new_ < data_item_reference_type> (hpx::find_here()));
-            return res;    
+            data_item_reference_type ret_val( hpx::components::new_ < data_item_reference_type> (hpx::find_here()));
+            return ret_val;    
   // return fut.get();
             //return get_server<DataItemType>().create(args...);
         }

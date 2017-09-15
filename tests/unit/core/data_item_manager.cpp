@@ -86,13 +86,8 @@ auto simulate_data_item_manager_create(const Args& ... args){
 
     if (hpx::get_locality_id() == 0) {
         auto sn = allscale::data_item_manager::create_server_network<DataItemType>();
-        hpx::id_type server_id = allscale::data_item_manager::get_server<DataItemType>();  
-
-		typedef typename  allscale::server::data_item_server<DataItemType>::template create_action<buffer_type> action_type;
-		action_type()(server_id, buffer);
-
+        allscale::data_item_manager::create<DataItemType>(args...);
     }
-
     /*
     if (hpx::get_locality_id() == 0) {
 		//CYCLE THRU LOCALITIES

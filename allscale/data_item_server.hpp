@@ -98,7 +98,7 @@ public:
 
 	};
 
-	std::map<data_item_reference_client_type, fragment_info> store;
+	std::map<hpx::id_type, fragment_info> store;
     network_type network_;
     std::map<std::size_t,hpx::id_type> servers_;
     public:
@@ -115,11 +115,12 @@ public:
         auto p2 = allscale::utils::deserialize<data_item_shared_data_type>(received);
         data_item_shared_data_type shared(p2);
         auto dataItemID =  ret_val.get_id();
-        store.emplace(ret_val, std::move(fragment_info(shared)));
+        store.emplace(dataItemID, std::move(fragment_info(shared)));
         
         for(auto& server : network_.servers){
-            std::cout<<"blub"<<std::endl;
-            server.register_data_item_ref(dataItemID,args...);
+            if(server.get_id()  != this->get_id()){
+                server.register_data_item_ref(dataItemID,args...);
+            }
         }
         /*
         auto s = store.size();
@@ -150,16 +151,11 @@ public:
         auto tup   = hpx::util::make_tuple(args...);
         auto first = hpx::util::get<0>(tup);
         auto second = hpx::util::get<1>(tup);
-        std::cout<<"register dataitem ref called for "  << first << std::endl;
-    //    std::cout<<"register dataitem ref called on " << this->get_id() << " " << second.get_id() << std::endl;
-        /*
-        typedef typename manual_tests::example::server::DataItemReference<DataItemType> data_item_reference_type;
-        allscale::utils::Archive received(args...);
+        allscale::utils::Archive received(second);
         auto p2 = allscale::utils::deserialize<data_item_shared_data_type>(received);
         data_item_shared_data_type shared(p2);
-        auto dataItemID =  ret_val.get_id();
-        store.emplace(ret_val, std::move(fragment_info(shared)));
-        */
+        auto dataItemID =  first;
+        store.emplace(dataItemID, std::move(fragment_info(shared)));
     } 
 
 
@@ -174,7 +170,7 @@ public:
         std::cout<<"get method called for id: " << ref.get_id()<<std::endl;
         
         
-        auto pos = store.find(ref);
+        auto pos = store.find(ref.get_id());
         assert_true(pos != store.end()) << "Requested invalid data item id: " << ref.get_id();
         auto maski = pos->second.fragment.mask();
         //std::cout<<maski[10]<<std::endl; 
