@@ -56,10 +56,14 @@ namespace allscale{
             auto res =  hpx::find_all_from_basename(data_item_server_name, hpx::find_all_localities().size());
             for(auto& fut : res ){
                 typedef typename allscale::server::data_item_server<DataItemType>::print_action action_type;
-                action_type()(fut.get());
+               if( hpx::naming::get_locality_id_from_id(fut.get())==hpx::naming::get_locality_id_from_id(hpx::find_here()))
+               {
+                   std::cout<<"found matchin server "<< hpx::naming::get_locality_id_from_id(hpx::find_here()) << std::endl;
+               }
+               //action_type()(fut.get());
             }
             
-            return fut.get();
+            return hpx::find_here();
             //return getLocalDataItemServer<DataItemType>();
         }
 

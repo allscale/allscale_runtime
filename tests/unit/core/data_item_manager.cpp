@@ -79,16 +79,20 @@ auto simulate_data_item_manager_create(const Args& ... args){
     std::vector<allscale::data_item_server<DataItemType>> result;
     //SERIALIZE STUFF BY HAND FOR NOW
     auto archive = allscale::utils::serialize(args...);
-    std::vector<char> buffer;
+    using buffer_type = std::vector<char>;
+    buffer_type buffer;
     buffer = archive.getBuffer();
    
 
     if (hpx::get_locality_id() == 0) {
         auto sn = allscale::data_item_manager::create_server_network<DataItemType>();
-        std::cout<< sn.servers.size()<<std::endl;
-        allscale::data_item_manager::get_server<DataItemType>();   
+        hpx::id_type server_id = allscale::data_item_manager::get_server<DataItemType>();  
 
-    } 
+		typedef typename  allscale::server::data_item_server<DataItemType>::template create_action<buffer_type> action_type;
+		action_type()(server_id, buffer);
+
+    }
+
     /*
     if (hpx::get_locality_id() == 0) {
 		//CYCLE THRU LOCALITIES

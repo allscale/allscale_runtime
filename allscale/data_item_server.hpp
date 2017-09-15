@@ -177,7 +177,7 @@ public:
         auto pos = store.find(ref);
         assert_true(pos != store.end()) << "Requested invalid data item id: " << ref.get_id();
         auto maski = pos->second.fragment.mask();
-        std::cout<<maski[10]<<std::endl; 
+        //std::cout<<maski[10]<<std::endl; 
         return maski;
     
     }
@@ -202,7 +202,6 @@ public:
         // std::cout << servers_[hpx::naming::get_locality_id_from_id(this->get_id())] << std::endl;
         auto data_item_server_name = allscale::data_item_server_name<DataItemType>::name();
         auto res =  hpx::find_all_from_basename(data_item_server_name, hpx::find_all_localities().size());
-        std::cout<<res.size()<<std::endl;
         for(auto& fut : res ){
             auto id = fut.get();
             //servers_[hpx::naming::get_locality_id_from_id(fut.get())] = fut.get();    
@@ -299,7 +298,7 @@ public:
         //        std::cout<<"called on loc" << this->get_id() << std::endl;
         auto data_item_server_name = allscale::data_item_server_name<DataItemType>::name();
         //data_item_server_name += hpx::naming::get_locality_id_from_id(this->get_id());
-        std::cout<< hpx::register_with_basename(data_item_server_name,this->get_id(),hpx::naming::get_locality_id_from_id(this->get_id())).get()<<std::endl;
+        hpx::register_with_basename(data_item_server_name,this->get_id(),hpx::naming::get_locality_id_from_id(this->get_id())).get();
 
     }
 	template<typename ... T>
