@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
     for (unsigned int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
     {
         // changing frequency and governor requires root/sudo access
-        res = hardware_reconf::set_frequency(cpu_id, target_freq);
+        res = hardware_reconf::set_frequency(cpu_id, cpu_id + 1, target_freq);
         HPX_TEST_EQ(res, 0);
 
         //unsigned long latency = hardware_reconf::get_cpu_transition_latency(cpu_id);

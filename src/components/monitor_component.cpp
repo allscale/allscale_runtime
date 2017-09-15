@@ -111,6 +111,7 @@ namespace allscale { namespace components {
 
 #endif
 
+#if 0
       // Update stats per work item name
       time = p->get_exclusive_time();
       auto it = work_item_stats_map.find(w.name());
@@ -159,7 +160,7 @@ namespace allscale { namespace components {
          parent = it_profiles->second;
          parent->push(time);
       }
-
+#endif
 
       // Save work item time in the times vector to compute stats on-the-fly if need be for the last X work items
       std::lock_guard<mutex_type> lock(work_items_vector);
@@ -221,16 +222,17 @@ namespace allscale { namespace components {
          update_work_item_stats(w, p);  // Item has already finish time
       }
 
+      if(output_treeture_ || output_iteration_trees_) {
+         w_graph.push_back(wd);
 
-      w_graph.push_back(wd);
-
-      auto it = graph.find(my_wid.parent().name());
-      if( it == graph.end() ) {
-         graph.insert(std::make_pair(my_wid.parent().name(),
+         auto it = graph.find(my_wid.parent().name());
+         if( it == graph.end() ) {
+            graph.insert(std::make_pair(my_wid.parent().name(),
                          std::vector<std::string>(1, my_wid.name())));
-      }
-      else it->second.push_back(my_wid.name());
-
+         }
+         else it->second.push_back(my_wid.name());
+       }
+	   
 #ifdef REALTIME_VIZ
       if(realtime_viz) {
          std::unique_lock<std::mutex> lock2(counter_mutex_);
@@ -1060,11 +1062,20 @@ namespace allscale { namespace components {
    }
 
    void monitor::init() {
+      bool enable_signals = true;
+      if(const char* env_p = std::getenv("ALLSCALE_MONITOR"))
+      {
+          if(atoi(env_p) == 0)
+              enable_signals = false;
+      }
 
-      allscale::monitor::connect(allscale::monitor::work_item_execution_started, monitor::global_w_exec_start_wrapper);
-      allscale::monitor::connect(allscale::monitor::work_item_execution_finished, monitor::global_w_exec_finish_wrapper);
-      allscale::monitor::connect(allscale::monitor::work_item_result_propagated, monitor::global_w_result_propagated_wrapper);
-      allscale::monitor::connect(allscale::monitor::work_item_first, monitor::global_w_app_iteration);
+      if(enable_signals)
+      {
+          allscale::monitor::connect(allscale::monitor::work_item_execution_started, monitor::global_w_exec_start_wrapper);
+          allscale::monitor::connect(allscale::monitor::work_item_execution_finished, monitor::global_w_exec_finish_wrapper);
+          allscale::monitor::connect(allscale::monitor::work_item_result_propagated, monitor::global_w_result_propagated_wrapper);
+          allscale::monitor::connect(allscale::monitor::work_item_first, monitor::global_w_app_iteration);
+      }
 
 //      const int result = std::atexit(global_finalize);
 //      if(result != 0) std::cerr << "Registration of monitor_finalize function failed!" << std::endl;

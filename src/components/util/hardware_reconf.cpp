@@ -46,9 +46,60 @@ namespace allscale { namespace components { namespace util {
     }
 
 
-    int hardware_reconf::set_frequency(unsigned int cpu, unsigned long target_frequency)
+    int hardware_reconf::set_frequency(unsigned int min_cpu, unsigned int max_cpu, unsigned long target_frequency)
     {
-        return cpufreq_set_frequency(cpu, target_frequency);
+        int res = 0;
+        for (int cpu_id = min_cpu; cpu_id < max_cpu; cpu_id++)
+        {
+            res = cpufreq_set_frequency(cpu_id, target_frequency) && res;
+        }
+
+        return res;
+    }
+
+    
+    void hardware_reconf::set_next_frequency(unsigned int freq_step, bool dec)
+    {
+        // Get available frequencies of core 0, 
+        // we assume all cores have the same set of frequencies
+        // get_frequencies returns vector of freqs in decreasing order
+        std::vector<unsigned long> all_freqs = get_frequencies(0);
+        hardware_reconf::hw_topology topo = read_hw_topology();
+        unsigned int max_cpu_id = topo.num_logical_cores;
+        unsigned int hw_threads = topo.num_hw_threads;
+
+        std::unique_lock<mutex_type> l(hardware_reconf::freq_mtx_);
+        unsigned int target_freq_idx = 0;
+        for (int cpu_id = 0; cpu_id < max_cpu_id; cpu_id += hw_threads)
+        {
+            unsigned long hw_freq = get_hardware_freq(cpu_id);
+            for (int freq_idx = 0; freq_idx < all_freqs.size(); freq_idx++)
+            {
+                if (hw_freq == all_freqs[freq_idx])
+                {
+                    if ( !dec )
+                    {
+                        if ( freq_idx - freq_step >= 0 )
+                            target_freq_idx = freq_idx - freq_step;
+                        else if ( freq_idx >0 && freq_idx - freq_step < 0 )
+                            target_freq_idx = 0;
+
+                        cpufreq_set_frequency(cpu_id, all_freqs[target_freq_idx]);
+                        break;
+                    }
+                    else if ( dec )
+                    {
+                        if ( freq_idx + freq_step < all_freqs.size() )
+                            target_freq_idx = freq_idx + freq_step;
+                        else if ( freq_idx < all_freqs.size() && freq_idx + freq_step >= all_freqs.size() )
+                            target_freq_idx = all_freqs.size() - 1;
+
+                        cpufreq_set_frequency(cpu_id, all_freqs[target_freq_idx]);
+                        break;
+                    }
+                }
+            }
+        }
     }
 
 
@@ -84,9 +135,9 @@ namespace allscale { namespace components { namespace util {
 
         hardware_reconf::hw_topology topo = read_hw_topology();
         unsigned int max_cpu_id = topo.num_logical_cores;
-        unsigned int hw_threads = topo.num_hw_threads;  
+        unsigned int hw_threads = topo.num_hw_threads;
     
-        std::unique_lock<mutex_type> l(hardware_reconf::freq_mtx_);    
+        std::unique_lock<mutex_type> l(hardware_reconf::freq_mtx_);
         for(unsigned int cpu_id = 0; cpu_id < max_cpu_id; cpu_id += hw_threads)
         {
             if (get_hardware_freq(cpu_id) != target_frequency)
@@ -94,7 +145,7 @@ namespace allscale { namespace components { namespace util {
                 if (count == num_cpus)
                     break;
 
-                res = set_frequency(cpu_id, target_frequency);
+                res = set_frequency(cpu_id, cpu_id + 1, target_frequency);
                 HPX_ASSERT(res == 0);
                 count++;
             }

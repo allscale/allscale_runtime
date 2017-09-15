@@ -1,8 +1,6 @@
 #ifndef ALLSCALE_DATA_ITEM_REFERENCE_HPP
 #define ALLSCALE_DATA_ITEM_REFERENCE_HPP
 
-#include <hpx/include/components.hpp>
-#include <hpx/include/actions.hpp>
 
 using id_type = std::size_t;
 

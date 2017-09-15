@@ -23,44 +23,59 @@ namespace allscale
             typedef typename base_type::init_no_addref init_no_addref;
             treeture_task()
               : base_type()
+              , children_({treeture<void>(), treeture<void>()})
             {}
 
             treeture_task(treeture<void> parent, init_no_addref no_addref)
               : base_type(no_addref)
+              , children_({treeture<void>(), treeture<void>()})
               , parent_(parent)
             {}
 
             template <typename Target>
             treeture_task(treeture<void> parent, Target&& data, init_no_addref no_addref)
               : base_type(std::forward<Target>(data), no_addref)
+              , children_({treeture<void>(), treeture<void>()})
               , parent_(parent)
             {}
 
             treeture<void> get_left_child() const
             {
+                std::lock_guard<typename base_type::mutex_type> l(this->mtx_);
 //                 HPX_ASSERT(children_[0]);
                 return children_[0];
             }
 
             treeture<void> get_right_child() const
             {
+                std::lock_guard<typename base_type::mutex_type> l(this->mtx_);
 //                 HPX_ASSERT(children_[1]);
                 return children_[1];
             }
 
+            void set_children(treeture<void> left, treeture<void> right)
+            {
+                std::lock_guard<typename base_type::mutex_type> l(this->mtx_);
+                children_[0] = std::move(left);
+                children_[1] = std::move(right);
+            }
+
             void set_left_child(treeture<void> child)
             {
+                std::lock_guard<typename base_type::mutex_type> l(this->mtx_);
 //                 HPX_ASSERT(child);
                 children_[0] = std::move(child);
             }
 
             void set_right_child(treeture<void> child)
             {
+                std::lock_guard<typename base_type::mutex_type> l(this->mtx_);
 //                 HPX_ASSERT(child);
                 children_[1] = std::move(child);
             }
 
             treeture<void> parent_;
+
             std::array<treeture<void>, 2> children_;
         };
 
@@ -81,6 +96,12 @@ namespace allscale
         treeture<void> treeture_lco<T>::get_right_child()
         {
             return shared_state_->get_right_child();
+        }
+
+        template <typename T>
+        void treeture_lco<T>::set_children(treeture<void> left, treeture<void> right)
+        {
+            shared_state_->set_children(std::move(left), std::move(right));
         }
 
         template <typename T>

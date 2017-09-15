@@ -21,14 +21,6 @@
 #include <allscale/util.hpp>
 
 
-/*
-namespace{
-    template<typename DataItemType>
-    struct data_item_server;
-}*/
-
-
-
 namespace allscale{
     template<typename DataItemType>
     struct data_item_server_name;
@@ -124,24 +116,9 @@ public:
                 server.register_data_item_ref(dataItemID,args...);
             }
         }
-        /*
-        auto s = store.size();
-        std::cout<< "Store has size " << s << hpx::naming::get_locality_id_from_id(dataItemID)<<std::endl; 
-        auto mask = store[dataItemID].fragment.mask();
-        // create shared data
-        // prepare shared data to be distributed
-        auto sharedStateArchive = allscale::utils::serialize(shared);
-        // inform other servers
-        network.broadcast(
-        [&sharedStateArchive,dataItemID](data_item_server& server) {
-        // retrieve shared data
-        auto sharedData = allscale::utils::deserialize<data_item_shared_data_type>(sharedStateArchive);
-        // create new local fragment
-        server.store.emplaYce(dataItemID, std::move(fragment_info(sharedData)));
-        });
-        */
         return ret_val;
     }
+
 
 	template<typename ... T>
 	struct create_action: hpx::actions::make_action< data_item_reference_client_type (data_item_server::*)(const T& ...),

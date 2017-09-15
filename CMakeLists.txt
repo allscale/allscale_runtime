@@ -11,6 +11,10 @@ if (ALLSCALE_SHARED_MEMORY_ONLY)
   add_definitions(-DALLSCALE_SHARED_MEMORY_ONLY)
 endif()
 
+if (ALLSCALE_DEBUG_OUTPUT)
+    add_definitions(-DDEBUG_)
+endif()
+
 if (ALLSCALE_REALTIME_VIZ)
 add_definitions(-DREALTIME_VIZ)
 endif()

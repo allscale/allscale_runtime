@@ -46,19 +46,31 @@ namespace allscale { namespace components { namespace util {
         static std::vector<std::string> get_governors(unsigned int cpu);
 
 
-        /// \brief This function sets/changes the frequency of the given CPU
+        /// \brief This function sets/changes the frequency of the given CPUs with [min_cpu, max_cpu).
         ///
-        /// \param cpu                    [in] CPU number
+        /// \param min_cpu                [in] starting CPU number, inclusive
+        /// \param max_cpu                [in] ending CPU number, exclusive
         /// \param target_frequency       [in] CPU frequency
         ///
-        /// \returns            Returns zero if successful, otherwise a minus return code
+        /// \returns            Returns zero if all successful, otherwise a minus return code
         ///
         /// \note               This function requires a root/sudo access and
         ///                     only works if userspace governor can be used and no external
         ///                     interference (other calls to this function or to set/modify_policy) 
         ///                     occurs. Also does not work on ->range() cpufreq drivers. See
         ///                     /usr/include/cpufreq.h file for more info about cpufreq APIs.
-        static int set_frequency(unsigned int cpu, unsigned long target_frequency);
+        ///                     Also, it is a best effort API and it is up to user to query and 
+        ///                     check if the operation failed for one or more CPUs.
+        static int set_frequency(unsigned int min_cpu, unsigned int max_cpu, unsigned long target_frequency);
+
+
+        /// \brief This function increases or decreases the frequency of all cpus in the system
+        /// 
+        /// \param freq_step        [in] freq_step = abs(current_frequency - target_frequency)
+        /// \param dec              [in] if true decrease freq to the next available, else increase
+        ///
+        static void set_next_frequency(unsigned int freq_step, bool dec = true);
+
 
         /// \brief This function sets/changes the governor and frequency of the given CPU.
         ///

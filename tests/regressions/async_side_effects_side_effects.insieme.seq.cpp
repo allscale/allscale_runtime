@@ -168,10 +168,6 @@ struct allscale_type_68 {
 
 /* ------- Function Definitions --------- */
 void allscale_fun_70(hpx::util::tuple<IMP_empty_IMLOC__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_api_slash_code_slash_api_slash_include_slash_allscale_slash_api_slash_user_slash__operator_div_async_dot_h_42_3, IMP___anon_tagtype__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_async_slash_side_effects_slash_side_effects_dot_cpp_17_20_struct_std_colon__colon_atomic_lt_int_gt___ampersand__void_IMLOC__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_async_slash_side_effects_slash_side_effects_dot_cpp_17_20, IMP___anon_tagtype__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_async_slash_side_effects_slash_side_effects_dot_cpp_17_20_struct_std_colon__colon_atomic_lt_int_gt___ampersand__void_IMLOC__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_async_slash_side_effects_slash_side_effects_dot_cpp_17_20 > const& var_0) {
-    struct insieme::utils::detail::LazyAssertion var_1 = (struct insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion((bool)false);
-    if (var_1.operator bool()) {
-        std::operator<<(std::operator<<(std::cerr, "\nAssertion failed in /home/zangerl/insieme_dev/allscale/code/include/allscale/compiler/../../../../api/code/api/include/allscale/api/user/operator/async.h:49 - "), "Should not be reached!");
-    };
     (*(const IMP___anon_tagtype__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_async_slash_side_effects_slash_side_effects_dot_cpp_17_20_struct_std_colon__colon_atomic_lt_int_gt___ampersand__void_IMLOC__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_async_slash_side_effects_slash_side_effects_dot_cpp_17_20*)(&hpx::util::get<2 >(var_0))).operator()();
     return (void)0;
 }
@@ -197,10 +193,6 @@ allscale::treeture<void > __wi_allscale_wi_0_variant_1::execute(hpx::util::tuple
 }
 /* ------- Function Definitions --------- */
 allscale::treeture<void > allscale_fun_62(hpx::util::tuple<IMP_empty_IMLOC__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_api_slash_code_slash_api_slash_include_slash_allscale_slash_api_slash_user_slash__operator_div_async_dot_h_42_3, IMP___anon_tagtype__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_async_slash_side_effects_slash_side_effects_dot_cpp_17_20_struct_std_colon__colon_atomic_lt_int_gt___ampersand__void_IMLOC__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_async_slash_side_effects_slash_side_effects_dot_cpp_17_20, IMP___anon_tagtype__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_async_slash_side_effects_slash_side_effects_dot_cpp_17_20_struct_std_colon__colon_atomic_lt_int_gt___ampersand__void_IMLOC__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_async_slash_side_effects_slash_side_effects_dot_cpp_17_20 > const& var_0) {
-    struct insieme::utils::detail::LazyAssertion var_1 = (struct insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion((bool)false);
-    if (var_1.operator bool()) {
-        std::operator<<(std::operator<<(std::cerr, "\nAssertion failed in /home/zangerl/insieme_dev/allscale/code/include/allscale/compiler/../../../../api/code/api/include/allscale/api/user/operator/async.h:49 - "), "Should not be reached!");
-    };
     (*(const IMP___anon_tagtype__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_async_slash_side_effects_slash_side_effects_dot_cpp_17_20_struct_std_colon__colon_atomic_lt_int_gt___ampersand__void_IMLOC__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_async_slash_side_effects_slash_side_effects_dot_cpp_17_20*)(&hpx::util::get<2 >(var_0))).operator()();
     return (void)0,allscale::make_ready_treeture();
 }

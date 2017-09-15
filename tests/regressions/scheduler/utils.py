@@ -22,12 +22,19 @@ class Utils:
         if not (os.path.isfile(app) and os.access(app, os.X_OK)):
             logging.debug("File {0} either does not exist or it is not executable".format(app))
             raise Exception("File {0} either does not exist or it is not executable".format(app))
-        command = "{0} {1}".format(app_timeout, exe)
+
+        if "--hpx:ini=allscale.objective!=energy" in exe:
+            # energy policy requires sudo for dvfs
+            command = "sudo {0} {1}".format(app_timeout, exe)
+        else:
+            command = "{0} {1}".format(app_timeout, exe)
         print("Executing command: {0}".format(command))
+        logging.debug("Executing command: {0}".format(command))
         p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
         while (True):
             ret_code = p.poll()
             line = p.stdout.readline()
+            logging.debug(line)
             yield str(line)
             if (ret_code is not None): # break if subprocess is not running
                 break
@@ -98,8 +105,13 @@ class Utils:
         import statistics  # requires python3.4+
 
         active_threads = []
-        hpx_arg = "--hpx:threads={0} --hpx:queuing={1} --hpx:ini=allscale.objective!={2}".format(hpx_thread, hpx_queuing, objective)
-        command = "{0} {1} {2}".format(os.path.join(os.sep, app_base_dir, app), app_arg, hpx_arg)
+
+        if (objective != "none"):
+            hpx_arg = "--hpx:threads={0} --hpx:queuing={1} --hpx:ini=allscale.objective!={2}".format(hpx_thread, hpx_queuing, objective)
+        else:
+            hpx_arg = "--hpx:threads={0}".format(hpx_thread)
+            
+        command = "{0} {1} {2}".format(os.path.join(os.sep, app_base_dir, app), app_arg, hpx_arg) 
 
         exceptions = ["std::exception", "hpx::exception"]
 

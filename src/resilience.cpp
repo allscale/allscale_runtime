@@ -26,6 +26,7 @@ namespace allscale {
 
         component_ = hpx::get_ptr<components::resilience>(gid).get();
         component_->init();
+        hpx::lcos::barrier::synchronize();
         component_->failure_detection_loop_async();
     }
 
@@ -56,6 +57,9 @@ namespace allscale {
     }
 
     bool resilience::rank_running(uint64_t rank) {
-       return  get_ptr()->rank_running(rank);
+        if (rank_ == std::size_t(-1) || rank == rank_)
+            return true;
+
+        return get_ptr()->rank_running(rank);
     }
 }

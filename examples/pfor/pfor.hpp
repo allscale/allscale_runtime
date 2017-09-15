@@ -6,6 +6,7 @@
 #include <allscale/spawn.hpp>
 #include <allscale/scheduler.hpp>
 #include <allscale/work_item_description.hpp>
+#include <allscale/this_work_item.hpp>
 
 //#include <allscale/runtime.hpp>
 
@@ -257,6 +258,8 @@ struct pfor_neighbor_sync_split_variant
                 std::move(drl)
             )
         );
+        allscale::treeture<void> parent(allscale::this_work_item::get_id().get_treeture());
+        parent.set_children(left, right);
 
         return
             hpx::when_all(
