@@ -100,34 +100,78 @@ public:
 	data_item_server() {
     }
 
-	template<typename ... T>
-	data_item_reference_client_type create(const T& ... args) {
+    
+    data_item_reference_client_type  create_impl()
+    {
+        //typedef typename allscale::data_item_reference<DataItemType> data_item_reference_type;
         
-        typedef typename allscale::data_item_reference<DataItemType> data_item_reference_type;
-        data_item_reference_client_type ret_val( hpx::components::new_ < data_item_reference_type> (hpx::find_here()));
-        allscale::utils::Archive received(args...);
-        auto p2 = allscale::utils::deserialize<data_item_shared_data_type>(received);
-        data_item_shared_data_type shared(p2);
-        auto dataItemID =  ret_val.get_id();
+        data_item_reference_client_type ret_val;
+        //data_item_reference_client_type ret_val( hpx::components::new_ < data_item_reference_type> (hpx::find_here()));
+        data_item_shared_data_type shared;
+        auto dataItemID =  ret_val.id_;
         store.emplace(dataItemID, std::move(fragment_info(shared)));
         
         for(auto& server : network_.servers){
             if(server.get_id()  != this->get_id()){
-                server.register_data_item_ref(dataItemID,args...);
+                server.register_data_item_ref(dataItemID);
             }
         }
         return ret_val;
     }
 
 
+    
+	template <typename T, typename ... Ts>
+    data_item_reference_client_type create_impl(const T& arg, const Ts& ... args) 
+    {
+        typedef typename allscale::data_item_reference<DataItemType> data_item_reference_type;
+        
+        data_item_reference_client_type ret_val;
+        //data_item_reference_client_type ret_val( hpx::components::new_ < data_item_reference_type> (hpx::find_here()));
+        allscale::utils::Archive received(arg, args...);
+        auto p2 = allscale::utils::deserialize<data_item_shared_data_type>(received);
+        data_item_shared_data_type shared(p2);
+        auto dataItemID =  ret_val.id_;
+        store.emplace(dataItemID, std::move(fragment_info(shared)));
+        
+        for(auto& server : network_.servers){
+            if(server.get_id()  != this->get_id()){
+                server.register_data_item_ref(dataItemID,arg, args...);
+            }
+        }
+        return ret_val;
+    }
+
+	template <typename ... T>
+    data_item_reference_client_type create(const T& ... args) 
+    {
+        return create_impl(args...);
+    }
+
+    /*
+    template <typename T>
+    class foo<T, typename std::enable_if<std::is_integral<T>::value>::type>
+    { };
+    
+    
+    static typename std::enable_if<sizeof...(Args) == 0,allscale::data_item_reference<DataItemType> >::type create()
+*/
+     
+
 	template<typename ... T>
 	struct create_action: hpx::actions::make_action< data_item_reference_client_type (data_item_server::*)(const T& ...),
 			&data_item_server::template create<T...>, create_action<T...> > {
 	};
-   
-    template<typename ... T>
-	void register_data_item_ref(const T& ... args) {
-        auto tup   = hpx::util::make_tuple(args...);
+
+	void register_data_item_ref_impl(hpx::id_type id) {
+        data_item_shared_data_type shared;
+        auto dataItemID =  id;
+        store.emplace(dataItemID, std::move(fragment_info(shared)));
+    }
+
+    template<typename T, typename T2, typename ... Ts>
+	void register_data_item_ref_impl(const T& arg,const T2& arg2, const Ts& ... args) {
+        auto tup   = hpx::util::make_tuple(arg,arg2,args...);
         auto first = hpx::util::get<0>(tup);
         auto second = hpx::util::get<1>(tup);
         allscale::utils::Archive received(second);
@@ -135,10 +179,16 @@ public:
         data_item_shared_data_type shared(p2);
         auto dataItemID =  first;
         store.emplace(dataItemID, std::move(fragment_info(shared)));
+    }
+
+    template<typename ... T>
+	void register_data_item_ref(const T& ... args) {
+        register_data_item_ref_impl(args...);
     } 
 
 
-	template<typename ... T>
+
+    template<typename ... T>
 	struct register_data_item_ref_action : hpx::actions::make_action< void (data_item_server::*)(const T& ...),
 			&data_item_server::template register_data_item_ref<T...>, register_data_item_ref_action<T...> > {
 	};
@@ -212,9 +262,23 @@ public:
     HPX_DEFINE_COMPONENT_ACTION(data_item_server, set_servers);
     HPX_DEFINE_COMPONENT_ACTION(data_item_server, print_network);
     HPX_DEFINE_COMPONENT_ACTION(data_item_server, print);
+//    HPX_DEFINE_COMPONENT_ACTION(data_item_server, create_zero);
+//    HPX_DEFINE_COMPONENT_ACTION(data_item_server, register_data_item_ref_zero);
 };
 
 }}
+
+/*
+    HPX_REGISTER_ACTION_DECLARATION(                                          \
+    	allscale::server::data_item_server<type>::create_zero_action,           \
+        BOOST_PP_CAT(__data_item_server_create_zero_action_, type));            \
+    HPX_REGISTER_ACTION_DECLARATION(                                          \
+    	allscale::server::data_item_server<type>::register_data_item_ref_zero_action,           \
+        BOOST_PP_CAT(__data_item_server_register_data_item_ref_zero_action_, type));            \
+ 
+*/
+
+
 #define REGISTER_DATAITEMSERVER_DECLARATION(type)                       \
     HPX_REGISTER_ACTION_DECLARATION(                                          \
     	allscale::server::data_item_server<type>::print_action,           \
@@ -239,6 +303,19 @@ public:
         };                                                                        \
     }                                                                             \
 
+
+
+
+
+/*
+ *
+ * HPX_REGISTER_ACTION(            \
+        allscale::server::data_item_server<type>::create_zero_action,           \
+        BOOST_PP_CAT(__data_item_create_zero_action_, type));            \
+    HPX_REGISTER_ACTION(            \
+        allscale::server::data_item_server<type>::register_data_item_ref_zero_action,           \
+        BOOST_PP_CAT(__data_item_register_data_item_ref_zero_action_, type));            \
+ */ 
 #define REGISTER_DATAITEMSERVER(type)                                   \
     HPX_REGISTER_ACTION(            \
         allscale::server::data_item_server<type>::print_action,           \

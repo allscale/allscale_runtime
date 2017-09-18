@@ -16,6 +16,7 @@
 #include <hpx/runtime/serialization/input_archive.hpp>
 #include <hpx/runtime/serialization/output_archive.hpp>
 #include <hpx/runtime/serialization/vector.hpp>
+
 #define EXPECT_EQ(X,Y)  X==Y
 #define EXPECT_NE(X,Y)  X!=Y
 
@@ -86,7 +87,7 @@ auto simulate_data_item_manager_create_and_get(const Args& ... args){
    
 
     if (hpx::get_locality_id() == 0) {
-        auto sn = allscale::data_item_manager::create_server_network<DataItemType>();
+        //auto sn = allscale::data_item_manager::create_server_network<DataItemType>();
         auto dataRef = allscale::data_item_manager::create<DataItemType>(args...);
         auto req = allscale::createDataItemRequirement(dataRef, GridRegion<1>(100,150), access_mode::ReadWrite); 
 	    auto lease = allscale::data_item_manager::acquire<DataItemType>(req);
@@ -148,7 +149,6 @@ void test_grid_data_item_server_create_and_get() {
 int hpx_main(int argc, char* argv[]) {
     test_scalar_data_item_reference();
    // test_data_item_server_creation();
-
 	test_grid_data_item_server_create_and_get();
     
     //std::cout<<std::endl;

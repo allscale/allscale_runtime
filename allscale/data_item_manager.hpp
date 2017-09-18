@@ -6,15 +6,39 @@
 #include <allscale/data_item_server_network.hpp>
 #include <allscale/data_item_requirement.hpp>
 #include <allscale/lease.hpp>
+#include "allscale/utils/serializer.h"
+#include <type_traits>
+
 namespace allscale{
     struct data_item_manager{
         
         
         public:
+       
+        template <typename DataItemType, typename ... Args>
+        static typename std::enable_if<sizeof...(Args) == 0,allscale::data_item_reference<DataItemType> >::type create()
+        { 
+
+            if(hpx::get_locality_id() == 0){
+                static auto sn = allscale::data_item_manager::create_server_network<DataItemType>();
+            } 
+            using data_item_reference_type = allscale::data_item_reference<DataItemType>;
+            hpx::id_type server_id = allscale::data_item_manager::get_server<DataItemType>();
+
+            typedef typename allscale::server::data_item_server<DataItemType>::template create_action<> action_type;
+            auto res = action_type()(server_id);
+            return res;    
+        }
         
+
+            
         template <typename DataItemType, typename ... Args>
         static allscale::data_item_reference<DataItemType> create(const Args& ... args)
         {
+
+            if(hpx::get_locality_id() == 0){
+                static auto sn = allscale::data_item_manager::create_server_network<DataItemType>();
+            } 
             using data_item_reference_type = allscale::data_item_reference<DataItemType>;
             auto archive = allscale::utils::serialize(args...);
             using buffer_type = std::vector<char>;
@@ -51,12 +75,12 @@ namespace allscale{
             //return get_server<DataItemType>().acquire(requirement);
 		}
 	    
-        /*	
         template<typename DataItemType>
-		static void release(const lease<DataItemType>& lease) {
-			get_server<DataItemType>().release(lease);
-		}
-		template<typename DataItemType>
+		static void release(const allscale::lease<DataItemType>& lease) {
+		    std::cout<<"lease called"<<std::endl;
+        }
+		/*
+        template<typename DataItemType>
 		static void destroy(const data_item_reference<DataItemType>& ref) {
 			get_server<DataItemType>().destroy(ref);
 		}
