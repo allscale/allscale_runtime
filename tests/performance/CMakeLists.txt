@@ -1,5 +1,6 @@
 set(tests
   fibonacci-dump-trg
+  fibonacci-manual
   heat_stencil-dump-trg
   matrix-dump-trg
   matrix-manual
