@@ -27,7 +27,6 @@ HPX_REGISTER_COMPONENT_MODULE();
 
 
 using data_item_type = Scalar<int>;
-REGISTER_DATAITEMREFERENCE(data_item_type);
 REGISTER_DATAITEMSERVER_DECLARATION(data_item_type);
 REGISTER_DATAITEMSERVER(data_item_type);
 
@@ -36,7 +35,6 @@ REGISTER_DATAITEMSERVER(data_item_type);
 
 
 using data_item_type_grid = Grid<int,1>;
-REGISTER_DATAITEMREFERENCE(data_item_type_grid);
 REGISTER_DATAITEMSERVER_DECLARATION(data_item_type_grid);
 REGISTER_DATAITEMSERVER(data_item_type_grid);
 
@@ -49,11 +47,11 @@ REGISTER_DATAITEMSERVER(data_item_type_grid);
 
 void test_scalar_data_item_reference() {
 
-    typedef typename server::data_item_reference<data_item_type> data_item_reference_type;
+   // typedef typename server::data_item_reference<data_item_type> data_item_reference_type;
 
     if (hpx::get_locality_id() == 0) {
         std::vector < hpx::id_type > localities = hpx::find_all_localities();
-
+/*
         for (auto& loc : localities) {
             data_item_reference<data_item_type> ref(
                     hpx::components::new_ < data_item_reference_type > (loc));
@@ -62,7 +60,9 @@ void test_scalar_data_item_reference() {
             //ref.print();
 
         }
-    }
+    */
+        }
+
 }
 
 

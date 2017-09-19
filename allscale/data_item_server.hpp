@@ -208,9 +208,9 @@ public:
 
     std::size_t  get(const data_item_reference_client_type& ref) 
     {
-        std::cout<<"get method called for id: " << ref.get_id()<<std::endl;
-        auto pos = store.find(ref.get_id());
-        assert_true(pos != store.end()) << "Requested invalid data item id: " << ref.get_id();
+        std::cout<<"get method called for id: " << ref.id_<<std::endl;
+        auto pos = store.find(ref.id_);
+        assert_true(pos != store.end()) << "Requested invalid data item id: " << ref.id_;
         //auto fragment  = pos->second.fragment.mask();
         auto *frag_ptr  = &(pos->second.fragment);
         std::size_t k;

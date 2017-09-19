@@ -3,10 +3,7 @@
 
 #include <hpx/include/components.hpp>
 #include <hpx/include/actions.hpp>
-#include <hpx/runtime/serialization/serialize.hpp>
-#include <hpx/runtime/serialization/input_archive.hpp>
-#include <hpx/runtime/serialization/output_archive.hpp>
-
+#include <hpx/include/serialization.hpp>
 
 using id_type = std::size_t;
 
@@ -28,7 +25,10 @@ namespace allscale {
             id_ = hpx::new_<stub_comp_server>(hpx::find_here()).get();
         }
         
-        void serialize(Archive& ar,const unsigned int){
+        
+        template <typename Archive>
+        void serialize(Archive & ar, unsigned)
+        {
             ar & id_;
         }
         
