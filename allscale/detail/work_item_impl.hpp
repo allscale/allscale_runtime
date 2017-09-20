@@ -215,6 +215,9 @@ namespace allscale { namespace detail {
         void finalize(
             std::shared_ptr<work_item_impl>&& this_, hpx::util::unused_type, Leases leases)
         {
+            monitor::signal(monitor::work_item_execution_finished,
+                work_item(this_));
+
             typename hpx::util::detail::make_index_pack<
                 hpx::util::tuple_size<Leases>::type::value>::type pack;
             release(pack, leases);
