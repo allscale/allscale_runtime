@@ -37,4 +37,4 @@ The *plot* function in **utils.py** creates one pdf file per app_name and app_ar
 
 ## Notes
 
-The *collect_data* function in *utils.py* assumes that scheduler_component.cpp prints active threads as "It is assumed that the scheduler prints out *... Active threads: num_threads* and resource usage as *Resource usage: num_resource_usage*.
+The *collect_data* function in *utils.py* assumes that scheduler_component.cpp prints active threads as *... Active threads: num_threads* and resource usage as *Resource usage: num_resource_usage*. These outputs are parsed and inserted into SQLite table.
