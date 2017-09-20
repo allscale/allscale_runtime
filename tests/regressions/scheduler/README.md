@@ -18,8 +18,10 @@ The test system consists of four main files:
     * **app_names**: comma separated list of benchmark names that reside in the app_base_dir. The regression test will be executed for all of them in a loop. It is true for any config parameter that is list.
     * **app_arguments**: comma separated list of benchmark arguments. Please note that if a given benchmark has more than one argument, all of them considered as a single list element. For example, fine_grained can have three arguments as 10000 10 2. They all needs to be included as a single list element as "10000 10 2".
     * **hpx_threads**: comma separated list of number of OS threads that HPX should use.
-    * **objectives**: comma separated list of objectives that AllScale runtime can understand. E.g. *"time"*, *"resource"*, *"energy"*, *"time:0.1 energy"*, *"none"*. The last one will execute the benchmark wihout using any strategic optimization policy.
+    * **objectives**: comma separated list of objectives that AllScale runtime can understand. E.g. *time*, *resource*, *energy*, *time:0.1 energy*, *none*. The last one will execute the benchmark wihout using any strategic optimization policy.
+    * **plot_keys**: comma separated list of measurements that is going to be on the *y-axis* of the generated plots. E.g.  *time*, *resource*, *energy*.
     * **hpx_queueing**: it is the name of HPX scheduling policy. It needs to be "throttle" always. Objective with "none" will ignore it.
+    * **arch**: the system architecture that the experiments were performed on. It is used on the plot title.
  
 * Once the configuration defined, the test can be executed by simply running scheduler_tester.py. To see different options for running this file pleaes use *./scheduler_tester.py -h* .
     * **f**: this command line option is optional and needs to be used only if you would like to give a specific name to the generated sqlite3 db file. By default the file name is as following: *allscale_benchmarks_<timestamp>.sqlite*. 
@@ -31,4 +33,4 @@ The test system consists of four main files:
 
 ## How plotting works
 
-The *plot* function in **utils.py** creates one pdf file per app_name and app_arg combination. Currently this function plots only execution time (y-axis) against different number of OS threads (x-axis). However, it should be easy to change and extend its functionalites depending on the need.
+The *plot* function in **utils.py** creates one pdf file per app_name and app_arg combination. This function can plot either execution time, resource usage, or energy (y-axis) against different number of OS threads (x-axis). The *plot_keys* config parameter defines the desired y-axis values.
