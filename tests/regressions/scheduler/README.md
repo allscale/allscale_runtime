@@ -34,3 +34,7 @@ The test system consists of four main files:
 ## How plotting works
 
 The *plot* function in **utils.py** creates one pdf file per app_name and app_arg combination. This function can plot either execution time, resource usage, or energy (y-axis) against different number of OS threads (x-axis). The *plot_keys* config parameter defines the desired y-axis values.
+
+## Notes
+
+The *collect_data* function in *utils.py* assumes that scheduler_component.cpp prints active threads as "It is assumed that the scheduler prints out *... Active threads: num_threads* and resource usage as *Resource usage: num_resource_usage*.
