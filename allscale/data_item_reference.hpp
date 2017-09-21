@@ -1,31 +1,39 @@
 #ifndef ALLSCALE_DATA_ITEM_REFERENCE_HPP
 #define ALLSCALE_DATA_ITEM_REFERENCE_HPP
 
-#include <allscale/utils/serializer.h>
-
-
+#include <hpx/include/components.hpp>
+#include <hpx/include/actions.hpp>
+#include <hpx/include/serialization.hpp>
 
 using id_type = std::size_t;
 
-namespace allscale
+///////////////////////////////////////////////////////////////////////////////
+struct stub_comp_server : hpx::components::simple_component_base<stub_comp_server>
 {
+};
+
+
+///////////////////////////////////////////////////////////////////////////
+
+namespace allscale {
     template<typename DataItemType>
-    struct data_item_reference
-    {
+    class data_item_reference  {   
+    public:
+        data_item_reference() 
+        {
 
+            id_ = hpx::new_<stub_comp_server>(hpx::find_here()).get();
+        }
+        
+        
+        template <typename Archive>
+        void serialize(Archive & ar, unsigned)
+        {
+            ar & id_;
+        }
+        
+        hpx::id_type id_;
         id_type id;
-
-        bool operator==(const data_item_reference& other) const {
-            return id == other.id;
-        }
-
-        static data_item_reference load(allscale::utils::ArchiveReader& reader) {
-            return { reader.read<id_type>() };
-        }
-
-        void store(allscale::utils::ArchiveWriter& writer) const {
-            writer.write(id);
-        }
     };
 }
 

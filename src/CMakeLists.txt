@@ -8,6 +8,7 @@ if(CPUFREQ_FOUND)
         scheduler.cpp
         this_work_item.cpp
         treeture.cpp
+        data_item_reference.cpp
         detail/work_item_impl_base.cpp
         components/scheduler_component.cpp
         components/scheduler_network.cpp
@@ -29,6 +30,7 @@ elseif(NOT CPUFREQ_FOUND)
         scheduler.cpp
         this_work_item.cpp
         treeture.cpp
+        data_item_reference.cpp
         detail/work_item_impl_base.cpp
         components/scheduler_component.cpp
         components/scheduler_network.cpp

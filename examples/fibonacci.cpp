@@ -186,7 +186,7 @@ int hpx_main(int argc, char **argv)
         std::int64_t iters = argc >= 3 ? std::stoi(std::string(argv[2])) : 1;
 
         for(int i=0; i<iters; i++) {
-	   std::cout << "Starting fib(" << n << "), " << "Iter: " << i << "\n";
+           std::cout << "Starting fib(" << n << "), " << "Iter: " << i << "\n";
            hpx::util::high_resolution_timer t;
            std::int64_t res = fib_runner(n);
            fib_elapsed = t.elapsed_microseconds();
@@ -198,7 +198,7 @@ int hpx_main(int argc, char **argv)
     }
 
     //std::terminate();
-    return 0;
+    return hpx::finalize();
 }
 
 int main(int argc, char **argv)

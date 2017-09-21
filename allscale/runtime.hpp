@@ -152,8 +152,7 @@ allscale::treeture<R> treeture_combine(
         hpx::dataflow(hpx::util::unwrapped(std::forward<Op>(op)),
         a.get_future(), b.get_future(), dep.dep_));
 
-    res.set_child(0, a);
-    res.set_child(1, b);
+    res.set_children(std::move(a), std::move(b));
 
     return res;
 }
@@ -168,8 +167,7 @@ allscale::treeture<R> treeture_combine(
         hpx::dataflow(hpx::util::unwrapped(std::forward<Op>(op)),
         a.get_future(), b.get_future()));
 
-    res.set_child(0, a);
-    res.set_child(1, b);
+    res.set_children(std::move(a), std::move(b));
 
     return res;
 }
@@ -182,8 +180,7 @@ allscale::treeture<void> treeture_combine(
     allscale::treeture<void> res(hpx::when_all(dep.dep_,
         a.get_future(), b.get_future()));
 
-    res.set_child(0, a);
-    res.set_child(1, b);
+    res.set_children(std::move(a), std::move(b));
 
     return res;
 }
@@ -191,8 +188,7 @@ allscale::treeture<void> treeture_combine(
 allscale::treeture<void> treeture_combine(allscale::treeture<void>&& a, allscale::treeture<void>&& b) {
     allscale::treeture<void> res(hpx::when_all(a.get_future(), b.get_future()));
 
-    res.set_child(0, a);
-    res.set_child(1, b);
+    res.set_children(std::move(a), std::move(b));
 
     return res;
 }

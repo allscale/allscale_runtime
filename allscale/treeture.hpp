@@ -228,6 +228,19 @@ namespace allscale {
             return action(id_.get());
         }
 
+        void set_children(treeture<void> left, treeture<void> right)
+        {
+            if (shared_state_)
+            {
+                shared_state_->set_children(std::move(left), std::move(right));
+            }
+            else
+            {
+                typename wrapped_type::set_children_action action;
+                hpx::apply(action, id_.get(), std::move(left), std::move(right));
+            }
+        }
+
         void set_child(std::size_t idx, treeture<void> child)
         {
             // FIXME in future versions ... the compiler only generates
