@@ -72,6 +72,7 @@ namespace allscale { namespace components {
         bool periodic_frequency_scale();
 
         hpx::util::interval_timer timer_;
+        hpx::util::interval_timer throttle_timer_;
         hpx::util::interval_timer frequency_timer_;
 
         mutex_type counters_mtx_;

@@ -50,6 +50,16 @@ namespace allscale { namespace components {
             "scheduler::collect_counters",
             true
         )
+
+      , throttle_timer_(
+           hpx::util::bind(
+               &scheduler::periodic_throttle,
+               this
+           ),
+           100000, //0.1 sec
+           "scheduler::periodic_throttle",
+           true
+        )
       , frequency_timer_(
            hpx::util::bind(
                &scheduler::periodic_frequency_scale,
@@ -169,12 +179,15 @@ namespace allscale { namespace components {
                     "thread_scheduler is null. Make sure you select throttling scheduler via --hpx:queuing=throttling");
             }
 
+//            if ( time_requested || resource_requested )
+//                throttle_timer_.start();
+
             if ( energy_requested )
             {
 #if defined(ALLSCALE_HAVE_CPUFREQ)
                 using hardware_reconf = allscale::components::util::hardware_reconf;
                 cpu_freqs = hardware_reconf::get_frequencies(0);
-                freq_step = 2; //cpu_freqs.size() / 2;
+                freq_step = 8; //cpu_freqs.size() / 2;
                 freq_times.resize(cpu_freqs.size());
 
                 auto min_max_freqs = std::minmax_element(cpu_freqs.begin(), cpu_freqs.end());
@@ -203,6 +216,7 @@ namespace allscale { namespace components {
                     HPX_ASSERT(hardware_freq == cpu_freqs[0]);
                 }
 
+            
                 frequency_timer_.start();
 #else
                 HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
@@ -352,6 +366,8 @@ namespace allscale { namespace components {
                 {
                     hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
                     current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
+//                    current_avg_iter_time = allscale_monitor->get_last_iteration_time();
+//                    current_avg_iter_time = allscale_monitor->get_avg_work_item_times(sampling_interval);
                 }
                 return true;
             } else if ( current_avg_iter_time > 0 )
@@ -360,7 +376,9 @@ namespace allscale { namespace components {
 
                 {
                     hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+//                    current_avg_iter_time = allscale_monitor->get_last_iteration_time();
                     current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
+//                    current_avg_iter_time = allscale_monitor->get_avg_work_item_times(sampling_interval);
                 }
 
                 boost::dynamic_bitset<> const & blocked_os_threads_ =
@@ -375,7 +393,7 @@ namespace allscale { namespace components {
                 std::size_t resume_cap = 1;  //active_threads < SMALL_SYSTEM  ? LARGE_RESUME_CAP : SMALL_RESUME_CAP;
 
                 double time_threshold = current_avg_iter_time;
-                bool disable_flag = last_avg_iter_time >= time_threshold;
+                bool disable_flag = last_avg_iter_time > time_threshold;
                 bool enable_flag = last_avg_iter_time * enable_factor < time_threshold;
 
 
@@ -383,7 +401,7 @@ namespace allscale { namespace components {
                 {
                     // If we have a sublinear speedup then prefer resources over time and throttle
                     time_threshold = current_avg_iter_time * (active_threads - suspend_cap ) / active_threads;
-                    disable_flag = last_avg_iter_time >= time_threshold;
+                    disable_flag = last_avg_iter_time > time_threshold;
                     enable_flag = last_avg_iter_time < time_threshold;
                     min_threads = 1;
                 }
@@ -401,8 +419,9 @@ namespace allscale { namespace components {
                 else if ( blocked_os_threads_.any() && enable_flag )
                 {
                     depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5));
-                    if (enable_factor < 1.01)
+                    if ( active_threads < topo.num_logical_cores / topo.num_hw_threads + min_threads &&  enable_factor < 1.01 )
                         enable_factor *= 1.0005;
+                        
 
                     {
                         hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
@@ -437,7 +456,8 @@ namespace allscale { namespace components {
                 last_avg_iter_time = current_avg_iter_time;
                 {
                     hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                    current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
+//                    current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
+                    current_avg_iter_time = allscale_monitor->get_last_iteration_time();
                 }
 
                 unsigned int freq_idx = -1;
@@ -563,6 +583,9 @@ namespace allscale { namespace components {
     void scheduler::stop()
     {
 //         timer_.stop();
+
+//        if ( time_requested || resource_requested )
+//            throttle_timer_.stop();
 
         if ( energy_requested )
             frequency_timer_.stop();

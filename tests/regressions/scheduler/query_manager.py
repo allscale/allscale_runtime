@@ -17,7 +17,7 @@ def create_table(sqlite3_file, table_name):
     table_fields = """
                    app_name TEXT, 
                    app_args TEXT, 
-                   exec_time FLOAT, 
+                   time FLOAT, 
                    energy INTEGER, 
                    power INTEGER, 
                    initial_threads INTEGER, 
@@ -26,6 +26,7 @@ def create_table(sqlite3_file, table_name):
                    mean_threads FLOAT,
                    mode_threads FLOAT,
                    stdev_threads FLOAT,
+                   resource FLOAT,
                    hpx_queuing TEXT,
                    objective TEXT,
                    date TEXT
@@ -44,7 +45,7 @@ def insert_query(sqlite3_file, params):
     values = (\
               params['app_name'],\
               params['app_arg'],\
-              params['exec_time'],\
+              params['time'],\
               params['energy'],\
               params['power'],\
               params['initial_threads'],\
@@ -53,12 +54,13 @@ def insert_query(sqlite3_file, params):
               params.get('mean_threads', params['initial_threads']),\
               params.get('mode_threads', params['initial_threads']),\
               params.get('stdev_threads', 0),\
+              params.get('resource'),\
               params['hpx_queuing'],\
               params['objective'],\
               params['date']\
              )
 
-    insert_query = "INSERT INTO SCHEDULER VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    insert_query = "INSERT INTO SCHEDULER VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
     connection = sqlite3.connect(sqlite3_file)
 
     with connection:
@@ -74,17 +76,19 @@ def read_from_sqlite3(sqlite3_db_file, app_name, app_arg, hpx_threads, objective
                           app_name, 
                           app_args,
                           initial_threads,
-                          exec_time,
+                          time,
                           min_threads,
                           mean_threads,
                           stdev_threads,
                           energy,
+                          resource,
                           objective
                       FROM scheduler WHERE
                           app_name=? AND
                           app_args=? AND
                           objective=? AND
                           initial_threads in ({0})
+                      ORDER BY initial_threads
                    """
     connection = sqlite3.connect(sqlite3_db_file)
     connection.row_factory = dict_factory

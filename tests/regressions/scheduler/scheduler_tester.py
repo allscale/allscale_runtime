@@ -73,6 +73,7 @@ if __name__ == "__main__":
         hpx_threads = config_data['hpx_threads']
         hpx_queuing = config_data['hpx_queuing']
         allscale_objectives = config_data['objectives']
+        sys_architecture = config_data['arch']
     except KeyError as ke:
         print("KeyError: {0}. Check config file {1}.".format(ke,config_file))
         sys.exit(-1)
@@ -90,5 +91,6 @@ if __name__ == "__main__":
     elif mode == "plot":
         for app in app_names:
             for app_arg in app_arguments:
-                utils.plot(sqlite3_db_file, table_name, app, app_arg, hpx_threads, allscale_objectives)
+                for plot_key in ["time", "resource", "energy"]:
+                    utils.plot(sqlite3_db_file, table_name, app, app_arg, hpx_threads, allscale_objectives, plot_key, sys_architecture)
 
