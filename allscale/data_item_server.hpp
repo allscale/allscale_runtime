@@ -204,7 +204,25 @@ public:
 			&data_item_server::template acquire<T>, acquire_action<T> > {
 	};
 
-   
+ 
+    location_info<DataItemType> locate(const data_item_reference_client_type& ref, const data_item_region_type& region) {
+        location_info<DataItemType> res;
+        /*network.broadcast([&](const DataItemServer& server) {
+
+            if (!server.alive) return;
+
+            auto& info = server.getInfo(ref);
+
+            auto part = data_item_region_type::intersect(region,info.fragment.getCoveredRegion());
+
+            if (part.empty()) return;
+
+            res.addPart(part,server.myLocality);
+
+        });*/
+        return res;
+    }
+
 
     std::size_t  get(const data_item_reference_client_type& ref) 
     {
@@ -262,6 +280,7 @@ public:
     HPX_DEFINE_COMPONENT_ACTION(data_item_server, set_servers);
     HPX_DEFINE_COMPONENT_ACTION(data_item_server, print_network);
     HPX_DEFINE_COMPONENT_ACTION(data_item_server, print);
+    HPX_DEFINE_COMPONENT_ACTION(data_item_server, locate);
 //    HPX_DEFINE_COMPONENT_ACTION(data_item_server, create_zero);
 //    HPX_DEFINE_COMPONENT_ACTION(data_item_server, register_data_item_ref_zero);
 };
@@ -295,6 +314,9 @@ public:
     HPX_REGISTER_ACTION_DECLARATION(                                          \
     	allscale::server::data_item_server<type>::get_action,           \
         BOOST_PP_CAT(__data_item_server_get_action_, type));            \
+    HPX_REGISTER_ACTION_DECLARATION(                                          \
+    	allscale::server::data_item_server<type>::locate_action,           \
+        BOOST_PP_CAT(__data_item_server_locate_action_, type));            \
     namespace allscale{                                                           \
         template<>                                                                \
         struct data_item_server_name<type>                                               \
@@ -332,6 +354,9 @@ public:
     HPX_REGISTER_ACTION(            \
         allscale::server::data_item_server<type>::get_action,           \
         BOOST_PP_CAT(__data_item_get_action_, type));            \
+    HPX_REGISTER_ACTION(            \
+        allscale::server::data_item_server<type>::locate_action,           \
+        BOOST_PP_CAT(__data_item_locate_action_, type));            \
     typedef ::hpx::components::component<                                     \
     	allscale::server::data_item_server<type>                         \
     > BOOST_PP_CAT(__data_item_server_, type);                            \

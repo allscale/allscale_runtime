@@ -5,7 +5,7 @@
 #include <hpx/include/actions.hpp>
 #include <hpx/include/serialization.hpp>
 
-using id_type = std::size_t;
+//using id_type = std::size_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 struct stub_comp_server : hpx::components::simple_component_base<stub_comp_server>
@@ -29,11 +29,11 @@ namespace allscale {
         template <typename Archive>
         void serialize(Archive & ar, unsigned)
         {
-            ar & id_;
-        }
         
+        }
+    
         hpx::id_type id_;
-        id_type id;
+ //       id_type id;
     };
 }
 
