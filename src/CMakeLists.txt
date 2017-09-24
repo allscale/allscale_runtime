@@ -8,6 +8,7 @@ if(CPUFREQ_FOUND)
         scheduler.cpp
         this_work_item.cpp
         treeture.cpp
+        data_item_reference.cpp
         detail/work_item_impl_base.cpp
         components/scheduler_component.cpp
         components/scheduler_network.cpp
@@ -17,9 +18,10 @@ if(CPUFREQ_FOUND)
         components/resilience_component.cpp
     )
     target_link_libraries(allscale_component cpufreq)
+    target_compile_definitions(allscale_component PUBLIC ALLSCALE_HAVE_CPUFREQ)
 
 elseif(NOT CPUFREQ_FOUND)
-    MESSAGE(STATUS "didnt find it compile without hardwarereconf crap")
+    MESSAGE(STATUS "didnt find it compile without hardwarereconf")
      add_hpx_component(
       allscale
       SOURCES
@@ -28,6 +30,7 @@ elseif(NOT CPUFREQ_FOUND)
         scheduler.cpp
         this_work_item.cpp
         treeture.cpp
+        data_item_reference.cpp
         detail/work_item_impl_base.cpp
         components/scheduler_component.cpp
         components/scheduler_network.cpp

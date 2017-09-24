@@ -15,7 +15,51 @@
 #include <iostream>
 
 
+#include <allscale/data_item_reference.hpp>
+#include <allscale/data_item_server.hpp>
+#include <allscale/data_item_server_network.hpp>
+#include <allscale/data_item_manager.hpp>
+#include <allscale/data_item_requirement.hpp>
+#include <algorithm>
+
+#include <hpx/hpx_main.hpp>
+#include <hpx/hpx_init.hpp>
+#include <hpx/config.hpp>
+#include <hpx/include/components.hpp>
+
+#include <hpx/runtime/serialization/serialize.hpp>
+#include <hpx/runtime/serialization/input_archive.hpp>
+#include <hpx/runtime/serialization/output_archive.hpp>
+#include <hpx/runtime/serialization/vector.hpp>
+
+
+
 ALLSCALE_REGISTER_TREETURE_TYPE(int32_t)
+
+
+
+#define EXPECT_EQ(X,Y)  X==Y
+#define EXPECT_NE(X,Y)  X!=Y
+
+
+HPX_REGISTER_COMPONENT_MODULE();
+
+
+using data_item_type = allscale::api::user::data::Scalar<int32_t>;
+
+REGISTER_DATAITEMSERVER_DECLARATION(data_item_type);
+REGISTER_DATAITEMSERVER(data_item_type);
+
+
+
+
+
+
+
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // scalar read
@@ -47,7 +91,8 @@ struct scalar_read_process {
 
     template <typename Closure>
     static hpx::util::tuple<
-        allscale::data_item_requirement<allscale::api::user::data::Scalar<int32_t > >
+        //allscale::data_item_requirement<allscale::api::user::data::Scalar<int32_t > >
+        allscale::data_item_requirement<data_item_type >
     >
     get_requirements(Closure const& c)
     {
@@ -82,13 +127,13 @@ struct main_process
     template <typename Closure>
     static allscale::treeture<int> execute(Closure const& c)
     {
-        allscale::data_item_reference<allscale::api::user::data::Scalar<int32_t > > s
-            = allscale::data_item_manager::create<allscale::api::user::data::Scalar<int32_t > >();
+        allscale::data_item_reference<data_item_type> s
+            = allscale::data_item_manager::create<data_item_type>();
 
         allscale::spawn<scalar_read_work >(s).wait();
 
         {
-            auto lease = allscale::data_item_manager::acquire(
+            auto lease = allscale::data_item_manager::acquire<data_item_type>(
                 allscale::createDataItemRequirement(
                     s,
                     allscale::api::user::data::detail::ScalarRegion(true),

@@ -5,7 +5,9 @@
 #include <allscale/work_item.hpp>
 #include <allscale/components/treeture_buffer.hpp>
 #include <allscale/components/scheduler_network.hpp>
+#if defined(ALLSCALE_HAVE_CPUFREQ)
 #include <allscale/util/hardware_reconf.hpp>
+#endif
 
 #include <hpx/include/components.hpp>
 // #include <hpx/include/local_lcos.hpp>
@@ -31,7 +33,9 @@ namespace allscale { namespace components {
       : hpx::components::component_base<scheduler>
     {
         typedef hpx::lcos::local::spinlock mutex_type;
+#if defined(ALLSCALE_HAVE_CPUFREQ)
         using hardware_reconf = allscale::components::util::hardware_reconf;
+#endif
 
         scheduler()
         {
@@ -68,6 +72,7 @@ namespace allscale { namespace components {
         bool periodic_frequency_scale();
 
         hpx::util::interval_timer timer_;
+        hpx::util::interval_timer throttle_timer_;
         hpx::util::interval_timer frequency_timer_;
 
         mutex_type counters_mtx_;
@@ -90,18 +95,31 @@ namespace allscale { namespace components {
         std::size_t active_threads;
         std::size_t depth_cap;
 
-        double time_leeway;
+        double enable_factor;
+        double disable_factor;
         unsigned int min_threads;
+        // Indices show number of threads, which hold pair of
+        // execution times and number of times that particular thread used
+        // due to suspend and resume
         std::vector<std::pair<double, unsigned int>> thread_times;
         hpx::threads::policies::throttling_scheduler<>* thread_scheduler;
 
+        unsigned long min_freq;
+        unsigned long max_freq;
         unsigned long long current_energy_usage;
         unsigned long long last_energy_usage;
         unsigned long long last_actual_energy_usage;
         unsigned long long actual_energy_usage;
+#if defined(ALLSCALE_HAVE_CPUFREQ)
         cpufreq_policy policy;
         hardware_reconf::hw_topology topo;
         std::vector<unsigned long> cpu_freqs;
+        // Indices correspond to the freq id in cpu_freqs, and
+        // each pair holds energy usage and execution time
+        std::vector<std::pair<unsigned long long, double>> freq_times;
+        unsigned int freq_step;
+        bool target_freq_found;
+#endif
 
         mutable mutex_type throttle_mtx_;
         mutable mutex_type resize_mtx_;
@@ -111,26 +129,20 @@ namespace allscale { namespace components {
         double current_avg_iter_time;
         monitor *allscale_monitor;
 
-        std::string input_objective;
+        std::vector<std::pair<std::string, double>> objectives_with_leeways;
         const std::vector<std::string> objectives = {
             "time",
             "resource",
             "energy",
-            "time_resource",
-            "time_energy",
-            "resource_energy",
-            "time_resource_energy"
     	};
 
-        enum objective_IDs {
-              TIME = 0,
-     	      RESOURCE,
-              ENERGY,
-              TIME_RESOURCE,
-              TIME_ENERGY,
-              RESOURCE_ENERGY,
-              TIME_RESOURCE_ENERGY
-        };
+        bool time_requested;
+        bool resource_requested;
+        bool energy_requested;
+
+        double time_leeway;
+        double resource_leeway;
+        double energy_leeway;
 
     };
 }}

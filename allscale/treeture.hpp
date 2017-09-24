@@ -26,7 +26,8 @@ namespace allscale {
         using future_type = hpx::future<T>;
 
         treeture()
-          : fixed_children_(false)
+          : shared_state_(nullptr)
+          , fixed_children_(false)
         {}
 
         treeture(parent_arg, treeture<void> const& parent = treeture<void>())
@@ -161,7 +162,7 @@ namespace allscale {
             return valid();
         }
 
-        explicit operator hpx::future<T>()
+        explicit operator hpx::future<T>() const
         {
             return get_future();
         }
@@ -195,7 +196,7 @@ namespace allscale {
             }
         }
 
-        hpx::future<T> get_future()
+        hpx::future<T> get_future() const
         {
             if (shared_state_)
             {
@@ -210,7 +211,7 @@ namespace allscale {
             }
         }
 
-        T get_result()
+        T get_result() const
         {
             return get_future().get();
         }
@@ -225,6 +226,19 @@ namespace allscale {
             typename wrapped_type::get_parent_action action;
 //             return hpx::async(action, id_);
             return action(id_.get());
+        }
+
+        void set_children(treeture<void> left, treeture<void> right)
+        {
+            if (shared_state_)
+            {
+                shared_state_->set_children(std::move(left), std::move(right));
+            }
+            else
+            {
+                typename wrapped_type::set_children_action action;
+                hpx::apply(action, id_.get(), std::move(left), std::move(right));
+            }
         }
 
         void set_child(std::size_t idx, treeture<void> child)
@@ -273,11 +287,11 @@ namespace allscale {
 
         treeture<void> get_left_child() const
         {
-            if(fixed_children_) return *this;
+            if (fixed_children_) return *this;
 
             if (shared_state_)
             {
-                auto res = shared_state_->get_left_child();
+                auto const& res = shared_state_->get_left_child();
                 if(!res.valid())
                 {
                     treeture<void> t(*this);

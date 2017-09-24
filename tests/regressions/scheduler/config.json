@@ -1,9 +1,11 @@
 {
   "app_timeout":"timeout 30m",
-  "app_base_dir":"/home/khalid/workspace/allscale_runtime/my_build_release/examples/pfor/",
-  "app_names":["fine_grained", "chain"],
-  "app_arguments":["33554432 50 10", "67108864 50 10", "134217728 50 10", "268435456 50 10"],
-  "hpx_threads":[10, 16, 20, 40, 60, 80],
-  "objectives":["time_resource", "time"],
-  "hpx_queuing":"throttling"
+  "app_base_dir":"/home/khalid/workspace/allscale_runtime_latest/my_build_release/examples/pfor/",
+  "app_names":["fine_grained"],
+  "app_arguments":["42335544 200 10"],
+  "hpx_threads":[60, 50, 40, 30, 20, 16, 8, 4, 2, 1],
+  "objectives":["resource", "time", "none"],
+  "plot_keys":["resource", "time", "energy"],
+  "hpx_queuing":"throttle",
+  "arch":"POWER8 Firestone"
 }
