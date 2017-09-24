@@ -24,12 +24,12 @@ namespace allscale { namespace components {
     void resilience::set_guard(hpx::id_type guard, uint64_t guard_rank) {
         guard_ = guard;
         guard_rank_ = guard_rank;
-#ifdef DEBUG_
-        std::cout << "My rank: " << rank_ << " and my new guard = " << guard_rank << "\n";
-#endif
         std::string guard_ip_addr = hpx::async<get_ip_address_action>(guard_).get();
         delete guard_receiver_endpoint;
         guard_receiver_endpoint = new udp::endpoint(boost::asio::ip::address::from_string(guard_ip_addr), UDP_RECV_PORT+guard_rank_);
+#ifdef DEBUG_
+        std::cout << "My rank: " << rank_ << "; my new guard = " << guard_rank << "; my guard listen port = " << (UDP_RECV_PORT+guard_rank_) << "\n";
+#endif
     }
 
     void resilience::kill_me() {
@@ -45,9 +45,6 @@ namespace allscale { namespace components {
         //hpx::apply(&resilience::send_heartbeat_loop, this);
         hpx::apply(&resilience::receive_heartbeat_loop, this);
 
-#ifdef DEBUG_ 
-        std::cout << "Before failure detection loop thread ...\n";
-#endif
         scheduler->add(hpx::util::bind(&resilience::send_heartbeat_loop, this));
         //scheduler->add(hpx::util::bind(&resilience::receive_heartbeat_loop, this));
     }
@@ -107,7 +104,7 @@ namespace allscale { namespace components {
             boost::shared_ptr<std::string> data(new std::string(state_msg)); // before -> std::to_string(actual_epoch)
             std::this_thread::sleep_for(milliseconds(miu));
 #ifdef DEBUG_
-            std::cout << "Send: " << rank_ << " -> " << guard_rank_ << "\n";
+            std::cout << "Send: " << rank_ << " -> " << guard_rank_ << "( port = " << (UDP_RECV_PORT+guard_rank_) << ")\n";
 #endif
             // ToDo: protect access to guard_receiver_endpoint (which I may modify) !!!
             send_sock->async_send_to(boost::asio::buffer(*data), *guard_receiver_endpoint, boost::bind(&resilience::send_handler, this, data,
@@ -119,7 +116,14 @@ namespace allscale { namespace components {
 
     // Run detection forever ...
     void resilience::receive_heartbeat_loop () {
+
         //udp::endpoint sender_endpoint(boost::asio::ip::address::from_string(protectee_ip_addr), UDP_SEND_PORT);
+        hpx::lcos::barrier::synchronize();
+        auto t_now =  std::chrono::high_resolution_clock::now();
+        std::time_t now_c = std::chrono::system_clock::to_time_t(t_now);
+#ifdef DEBUG_ 
+        std::cout << "Start receive loop at " << std::put_time(std::localtime(&now_c), "%F %T") << "\n";
+#endif
         while (resilience_component_running && (get_running_ranks() > 1)) {
             std::size_t actual_epoch = 0;
 #ifdef DEBUG_
@@ -128,7 +132,7 @@ namespace allscale { namespace components {
             char rcv_buf[16];
             std::size_t n;
             boost::system::error_code ec;
-            auto t_now =  std::chrono::high_resolution_clock::now();
+            t_now =  std::chrono::high_resolution_clock::now();
             actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
 
             if (my_state == TRUST) {
@@ -140,7 +144,7 @@ namespace allscale { namespace components {
                 if (ec)
                 {
 #ifdef DEBUG_
-                    std::cout << "Receive error: " << ec.message() << "\n"; 
+                    std::cout << "Receive error: " << ec.message() << " in epoch " << actual_epoch << "\n"; 
 #endif
                     my_state = SUSPECT;
                     init_recovery();
@@ -198,6 +202,9 @@ namespace allscale { namespace components {
 
         recovery_done = false;
         start_time = std::chrono::high_resolution_clock::now();
+//#ifdef DEBUG_
+        //std::cout << "Rank: " << rank_ << " sets start time to " << start_time << "\n";
+//#endif
         scheduler.reset(new hpx::threads::executors::io_pool_executor);
 
         allscale::monitor::connect(allscale::monitor::work_item_execution_started, resilience::global_w_exec_start_wrapper);
@@ -224,6 +231,10 @@ namespace allscale { namespace components {
         //std::string protectee_ip_addr = hpx::async<get_ip_address_action>(protectee_).get();
         std::string my_ip_addr = hpx::async<get_ip_address_action>(hpx::find_here()).get();
         my_receiver_endpoint = new udp::endpoint(boost::asio::ip::address::from_string(my_ip_addr), UDP_RECV_PORT+rank_);
+
+#ifdef DEBUG_
+        std::cout << "My receiver endpoint = " << my_ip_addr << ":" << (UDP_RECV_PORT+rank_) << "\n";
+#endif
         c = new client(*my_receiver_endpoint);
         std::string guard_ip_addr = hpx::async<get_ip_address_action>(guard_).get();
         guard_receiver_endpoint = new udp::endpoint(boost::asio::ip::address::from_string(guard_ip_addr), UDP_RECV_PORT+guard_rank_);
