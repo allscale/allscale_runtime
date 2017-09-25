@@ -18,6 +18,7 @@ namespace allscale {
         static components::resilience *get_ptr();
         static components::resilience &get();
         static std::pair<hpx::id_type, uint64_t> get_protectee();
+        static void handle_my_crash(int signum);
         static bool rank_running(uint64_t rank);
         private:
             static std::size_t rank_;

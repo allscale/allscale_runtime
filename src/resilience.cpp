@@ -4,6 +4,8 @@
 #include <hpx/include/components.hpp>
 #include <hpx/util/detail/yield_k.hpp>
 
+#include <csignal>
+
 typedef hpx::components::component<allscale::components::resilience> resilience_component;
 HPX_REGISTER_COMPONENT(resilience_component)
 
@@ -27,7 +29,8 @@ namespace allscale {
         component_ = hpx::get_ptr<components::resilience>(gid).get();
         component_->init();
         hpx::lcos::barrier::synchronize();
-        component_->failure_detection_loop_async();
+        signal(SIGINT, &handle_my_crash);
+        //component_->failure_detection_loop_async();
     }
 
     void resilience::stop() {
@@ -61,5 +64,12 @@ namespace allscale {
             return true;
 
         return get_ptr()->rank_running(rank);
+    }
+
+    // ignore signum here ...
+    void resilience::handle_my_crash(int signum)
+    {
+        HPX_ASSERT(get_ptr());
+        get_ptr()->handle_my_crash();
     }
 }

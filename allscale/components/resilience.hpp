@@ -76,6 +76,8 @@ namespace allscale { namespace components {
            void init();
            resilience(std::uint64_t rank);
            void protectee_crashed();
+           HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,protectee_crashed);
+           void handle_my_crash();
            int get_cp_granularity();
 
            void set_guard(hpx::id_type guard, uint64_t guard_rank);
@@ -105,6 +107,7 @@ namespace allscale { namespace components {
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::remote_backup_action, remote_backup_action)
 //HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::send_heartbeat_action, send_heartbeat_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::remote_unbackup_action, remote_unbackup_action)
+HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::protectee_crashed_action, protectee_crashed_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::set_guard_action, set_guard_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_protectee_action, get_protectee_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_local_backups_action, get_local_backups_action)

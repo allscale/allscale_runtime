@@ -176,7 +176,14 @@ namespace allscale { namespace components {
     }
 
     std::pair<hpx::id_type,uint64_t> resilience::get_protectee() {
-        return std::make_pair(protectee_,protectee_rank_);
+        return std::make_pair(protectee_, protectee_rank_);
+    }
+
+    void resilience::handle_my_crash() {
+        hpx::apply<protectee_crashed_action>(guard_);
+        sleep(1);
+        std::cout << "I just crashed, bye ...\n";
+        hpx::async<kill_me_action>(hpx::find_here()).get();
     }
 
     std::map<this_work_item::id,work_item> resilience::get_local_backups() {
@@ -184,6 +191,7 @@ namespace allscale { namespace components {
     }
 
     void resilience::init() {
+
 
 
         num_localities = hpx::get_num_localities().get();
@@ -368,6 +376,7 @@ HPX_REGISTER_ACTION(allscale::components::resilience::remote_backup_action, remo
 HPX_REGISTER_ACTION(allscale::components::resilience::remote_unbackup_action, remote_unbackup_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::set_guard_action, set_guard_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::get_protectee_action, get_protectee_action);
+HPX_REGISTER_ACTION(allscale::components::resilience::protectee_crashed_action, protectee_crashed_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::get_local_backups_action, get_local_backups_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::shutdown_action, allscale_resilience_shutdown_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::kill_me_action, kill_me_action);
