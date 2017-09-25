@@ -1,4 +1,5 @@
-#include <allscale/api/user/data/scalar.h>
+/*#include <allscale/api/user/data/scalar.h>
+
 #include <allscale/serialization_wrapper.hpp>
 
 #include <hpx/hpx.hpp>
@@ -35,3 +36,6 @@ int main(int argc, char **argv)
 {
     return hpx::init(argc, argv);
 }
+
+
+*/

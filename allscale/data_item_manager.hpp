@@ -77,13 +77,14 @@ namespace allscale{
 	    
         template<typename DataItemType>
 		static void release(const allscale::lease<DataItemType>& lease) {
-		    std::cout<<"lease called"<<std::endl;
+		    std::cout<<"Releasing DataItem"<<std::endl;
         }
-		/*
         template<typename DataItemType>
 		static void destroy(const data_item_reference<DataItemType>& ref) {
-			get_server<DataItemType>().destroy(ref);
-		}
+		    std::cout<<"Destroying DataItem"<< std::endl;
+        }
+
+        /*```
         template<typename DataItemType>
         static data_item_server<DataItemType>& getLocalDataItemServer(){
             typedef typename allscale::server::data_item_server<DataItemType> data_item_server_type;

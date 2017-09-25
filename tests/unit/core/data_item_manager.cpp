@@ -90,7 +90,7 @@ auto simulate_data_item_manager_create_and_get(const Args& ... args){
         //auto sn = allscale::data_item_manager::create_server_network<DataItemType>();
         auto dataRef = allscale::data_item_manager::create<DataItemType>(args...);
         auto req = allscale::createDataItemRequirement(dataRef, GridRegion<1>(100,150), access_mode::ReadWrite); 
-	    auto lease = allscale::data_item_manager::acquire<DataItemType>(req);
+        auto lease = allscale::data_item_manager::acquire<DataItemType>(req);
 
 	    auto data = allscale::data_item_manager::get(dataRef);
         std::cout<< data[120]<<std::endl;

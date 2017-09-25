@@ -17,7 +17,7 @@
 #include <hpx/include/components.hpp>
 #include <hpx/include/actions.hpp>
 #include <hpx/util/register_locks.hpp>
-
+#include <hpx/include/serialization.hpp>
 #include <allscale/util.hpp>
 
 
@@ -39,7 +39,7 @@ public:
 	using data_item_reference_client_type = typename allscale::data_item_reference<DataItemType>;
     using network_type = typename allscale::data_item_server_network<DataItemType>;
     using lease_type = typename allscale::lease<DataItemType>;
-
+    using location_info_type = typename allscale::location_info<DataItemType>;
     // using network_type = data_item_server_network<DataItemType>;
     //using network_type = int;
 	struct fragment_info {
@@ -195,7 +195,22 @@ public:
 
     template<typename T>
     lease_type acquire(const T& req){
-        std::cout<<"acquire was called on loc : " << hpx::find_here() << req.region << std::endl;
+		//auto locationInfo = locate(req.ref,req.region);
+				// collect data on data distribution
+				//auto locationInfo = locate(request.ref,request.region);
+
+				// get local fragment info
+	    auto& info = get_info(req.ref);
+/*
+				// allocate storage for requested data on local fragment
+				info.fragment.resize(merge(info.fragment.getCoveredRegion(), request.region));
+
+				// transfer data using a transfer plan
+				auto success = execute(buildPlan(locationInfo,myLocality,request));
+
+				// make sure the transfer was ok
+				assert_true(success);
+    */
         lease_type l(req);
         return l;
     }
@@ -204,11 +219,53 @@ public:
 			&data_item_server::template acquire<T>, acquire_action<T> > {
 	};
 
-   
+
+
+    location_info_type locate(const data_item_reference_client_type& ref, const data_item_region_type& region) {
+
+        location_info_type res;
+        
+        for(auto& server : network_.servers){
+            std::cout<< server.get_id() << std::endl;
+             typedef typename allscale::server::data_item_server<DataItemType>::get_info_action action_type;
+		        action_type()(server.get_id(),ref);
+            /*if(server.get_id() != this->get_id()){
+                typedef typename allscale::server::data_item_server<DataItemType>::get_info_action action_type;
+		        action_type()(server.get_id(),ref);
+            }*/
+	      
+        }
+        /*
+
+        network.broadcast([&](const DataItemServer& server) {
+
+            if (!server.alive) return;
+
+            auto& info = server.getInfo(ref);
+
+            auto part = data_item_region_type::intersect(region,info.fragment.getCoveredRegion());
+
+            if (part.empty()) return;
+
+            res.addPart(part,server.myLocality);
+
+        });
+        */
+        return res;
+    }
+
+    //std::vector<char> get_info(const data_item_reference_client_type& ref) {
+    fragment_info& get_info(const data_item_reference_client_type& ref ) {
+        auto pos = store.find(ref.id_);
+        assert_true(pos != store.end()) << "Requested invalid data item id: " << ref.id;
+        return pos->second;
+          
+        //std::cout<<"get_info_action called on loc: " << hpx::find_here() << std::endl;	
+    }
 
     std::size_t  get(const data_item_reference_client_type& ref) 
     {
-        std::cout<<"get method called for id: " << ref.id_<<std::endl;
+        //std::cout<<"get method called for id: " << ref.id_<<std::endl;
         auto pos = store.find(ref.id_);
         assert_true(pos != store.end()) << "Requested invalid data item id: " << ref.id_;
         //auto fragment  = pos->second.fragment.mask();
@@ -262,6 +319,7 @@ public:
     HPX_DEFINE_COMPONENT_ACTION(data_item_server, set_servers);
     HPX_DEFINE_COMPONENT_ACTION(data_item_server, print_network);
     HPX_DEFINE_COMPONENT_ACTION(data_item_server, print);
+//    HPX_DEFINE_COMPONENT_ACTION(data_item_server, get_info);
 //    HPX_DEFINE_COMPONENT_ACTION(data_item_server, create_zero);
 //    HPX_DEFINE_COMPONENT_ACTION(data_item_server, register_data_item_ref_zero);
 };
