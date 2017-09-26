@@ -3,6 +3,7 @@
 #define ALLSCALE_RESILIENCE_HPP
 
 #include <allscale/this_work_item.hpp>
+#include <allscale/work_item.hpp>
 
 #include <functional>
 #include <memory>
@@ -18,6 +19,8 @@ namespace allscale {
         static components::resilience *get_ptr();
         static components::resilience &get();
         static std::pair<hpx::id_type, uint64_t> get_protectee();
+        static void handle_my_crash(int signum);
+        static void global_w_exec_start_wrapper(work_item const &w);
         static bool rank_running(uint64_t rank);
         private:
             static std::size_t rank_;
