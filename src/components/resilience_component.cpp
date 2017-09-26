@@ -215,7 +215,7 @@ namespace allscale { namespace components {
 //#endif
         scheduler.reset(new hpx::threads::executors::io_pool_executor);
 
-        allscale::monitor::connect(allscale::monitor::work_item_execution_started, resilience::global_w_exec_start_wrapper);
+        allscale::monitor::connect(allscale::monitor::work_item_execution_started, allscale::resilience::global_w_exec_start_wrapper);
         allscale::monitor::connect(allscale::monitor::work_item_result_propagated, resilience::global_w_exec_finish_wrapper);
         hpx::get_num_localities().get();
 
@@ -256,10 +256,6 @@ namespace allscale { namespace components {
         return hpx::util::resolve_public_ip_address();
     }
 
-    void resilience::global_w_exec_start_wrapper(work_item const& w)
-    {
-        allscale::resilience::get().w_exec_start_wrapper(w);
-    }
 
     void resilience::global_w_exec_finish_wrapper(work_item const& w)
     {
@@ -276,6 +272,10 @@ namespace allscale { namespace components {
         if (get_running_ranks() > 1)
             hpx::async<remote_backup_action>(guard_, w).get();
         local_backups_[w.id()] = w;
+
+#ifdef DEBUG_
+        std::cout << "Done backing up : " << w.id().name() << std::endl;
+#endif
     }
 
     void resilience::w_exec_finish_wrapper(work_item const& w) {

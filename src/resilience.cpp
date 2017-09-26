@@ -37,6 +37,10 @@ namespace allscale {
         get_ptr()->shutdown();
     }
 
+    void resilience::global_w_exec_start_wrapper(const work_item &work) {
+        get().w_exec_start_wrapper(work);
+    }
+
     components::resilience *resilience::get_ptr()
     {
         static resilience m(rank_);
