@@ -267,7 +267,8 @@ namespace allscale { namespace components {
             }
             allscale::monitor::signal(allscale::monitor::work_item_enqueued, work);
 
-            std::size_t numa_domain = work.id().numa_domain();
+            // FIXME: modulus shouldn't be needed here
+            std::size_t numa_domain = work.id().numa_domain() % executors_.size();
             HPX_ASSERT(numa_domain < executors_.size());
             if (do_split(work))
             {

@@ -67,9 +67,12 @@ int allscale_main(boost::program_options::variables_map &)
 
     // trigger first work item on first node
     int res = 0;
-    if (hpx::get_locality_id() == 0) {
+    if (hpx::get_locality_id() == 0)
+    {
+        static const char* argv[] = {"allscale"};
+        int argc = 1;
 
-        res = allscale::spawn_first<MainWorkItem>().get_result();
+        res = allscale::spawn_first<MainWorkItem>(argc, const_cast<char **>(argv)).get_result();
         allscale::scheduler::stop();
         allscale::resilience::stop();
         allscale::monitor::stop();
