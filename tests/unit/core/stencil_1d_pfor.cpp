@@ -15,8 +15,6 @@ ALLSCALE_REGISTER_TREETURE_TYPE(int32_t);
 #include <allscale/data_item_requirement.hpp>
 #include <algorithm>
 
-#include <hpx/hpx_main.hpp>
-#include <hpx/hpx_init.hpp>
 #include <hpx/config.hpp>
 #include <hpx/include/components.hpp>
 
@@ -284,7 +282,7 @@ int32_t IMP_main() {
 
 // -- main work item --
 
-allscale::treeture<int32_t > allscale_fun_1(hpx::util::tuple< > const&) {
+allscale::treeture<int32_t > allscale_fun_1(hpx::util::tuple<int,char**> const&) {
     return allscale::treeture<int32_t >(IMP_main());
 }
 
