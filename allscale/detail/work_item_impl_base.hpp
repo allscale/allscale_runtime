@@ -7,8 +7,13 @@
 
 #include <hpx/include/serialization.hpp>
 #include <hpx/util/unique_function.hpp>
+#include <hpx/runtime/threads/executors/customized_pool_executors.hpp>
 
 #include <memory>
+
+namespace allscale {
+    using executor_type = hpx::threads::executors::customized_pool_executor;
+}
 
 namespace allscale { namespace detail {
     struct work_item_impl_base
@@ -37,8 +42,8 @@ namespace allscale { namespace detail {
         virtual void on_ready(hpx::util::unique_function_nonser<void()> f)=0;
 
 		virtual bool can_split() const=0;
-		virtual void process()=0;
-		virtual void split()=0;
+		virtual void process(executor_type& exec)=0;
+		virtual void split(executor_type& exec)=0;
 
 //		virtual void requires()=0;
 
