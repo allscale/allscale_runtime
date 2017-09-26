@@ -116,7 +116,7 @@ namespace allscale { namespace components {
 
     // Run detection forever ...
     void resilience::receive_heartbeat_loop () {
-
+/*
         //udp::endpoint sender_endpoint(boost::asio::ip::address::from_string(protectee_ip_addr), UDP_SEND_PORT);
         hpx::lcos::barrier::synchronize();
         auto t_now =  std::chrono::high_resolution_clock::now();
@@ -173,7 +173,8 @@ namespace allscale { namespace components {
             }
         }
         std::cout << "Rank " << rank_ << " exits receiver loop ...\n";
-    }
+  */
+  }
 
     std::pair<hpx::id_type,uint64_t> resilience::get_protectee() {
         return std::make_pair(protectee_, protectee_rank_);

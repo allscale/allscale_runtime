@@ -294,14 +294,14 @@ struct __wi_main_name {
 
 struct __wi_main_process {
     static constexpr bool valid = true;
-    static allscale::treeture<int32_t > execute(hpx::util::tuple< > const& var_0) {
+    static allscale::treeture<int32_t > execute(hpx::util::tuple<int,char**> const& var_0) {
     	return allscale_fun_1(var_0);
     }
 };
 
 struct __wi_main_split {
     static constexpr bool valid = true;
-    static allscale::treeture<int32_t > execute(hpx::util::tuple< > const& var_0) {
+    static allscale::treeture<int32_t > execute(hpx::util::tuple<int,char**> const& var_0) {
     	return allscale_fun_1(var_0);
     }
 };
@@ -317,6 +317,7 @@ using __wi_main_work = allscale::work_item_description<
 
 // -- entry point --
 
-int main() {
-    return allscale::runtime::main_wrapper<__wi_main_work>();
+int main(int argc, char* argv[]) {
+
+    return allscale::runtime::main_wrapper<__wi_main_work>(argc,argv);
 }
