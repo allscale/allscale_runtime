@@ -22,8 +22,6 @@
 #include <allscale/data_item_requirement.hpp>
 #include <algorithm>
 
-#include <hpx/hpx_main.hpp>
-#include <hpx/hpx_init.hpp>
 #include <hpx/config.hpp>
 #include <hpx/include/components.hpp>
 
