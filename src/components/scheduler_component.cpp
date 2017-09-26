@@ -216,7 +216,7 @@ namespace allscale { namespace components {
                     HPX_ASSERT(hardware_freq == cpu_freqs[0]);
                 }
 
-            
+
                 frequency_timer_.start();
 #else
                 HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
@@ -419,9 +419,9 @@ namespace allscale { namespace components {
                 else if ( blocked_os_threads_.any() && enable_flag )
                 {
                     depth_cap = (1.5 * (std::log(active_threads)/std::log(2) + 0.5));
-                    if ( active_threads < topo.num_logical_cores / topo.num_hw_threads + min_threads &&  enable_factor < 1.01 )
+                    if ( active_threads < topo_->get_number_of_pus() / topo_->get_number_of_cores() + min_threads &&  enable_factor < 1.01 )
                         enable_factor *= 1.0005;
-                        
+
 
                     {
                         hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
@@ -597,8 +597,8 @@ namespace allscale { namespace components {
         if ( ( time_requested || resource_requested ) && !energy_requested)
         {
        	    thread_scheduler->enable_more(os_thread_count);
-       
-            double resource_usage = 0; 
+
+            double resource_usage = 0;
             for (int i = 0; i < thread_times.size(); i++)
             {
                 resource_usage += thread_times[i].first * (i + 1);

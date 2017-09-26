@@ -3,6 +3,7 @@
 
 
 #include <chrono>
+#include <hpx/include/lcos.hpp>
 
 namespace allscale
 {
@@ -12,6 +13,9 @@ namespace allscale
         int current_iteration;
         std::vector<double> iteration_time;       // Time for each iteration
 	std::vector<std::string> iteration_roots; // Tree root per iteration
+
+	typedef hpx::lcos::local::spinlock mutex_type;
+        mutex_type history_mutex;
 
         historical_data()
         {
@@ -27,6 +31,7 @@ namespace allscale
         
            std::chrono::duration<double> time_elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(t - last_iteration_start);
 
+	   std::lock_guard<mutex_type> lock(history_mutex);
            iteration_time.push_back(time_elapsed.count());
 	   iteration_roots.push_back(node_label);
 	   last_iteration_start = t;
