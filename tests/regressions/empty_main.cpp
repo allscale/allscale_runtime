@@ -43,8 +43,8 @@ typedef struct __wi_main_variant_1 __wi_main_variant_1;
 using __wi_main_work = allscale::work_item_description<int32_t, __wi_main_name, allscale::no_serialization, __wi_main_variant_0, __wi_main_variant_1 >;
 
 /* ------- Function Definitions --------- */
-int main() {
-    return allscale::runtime::main_wrapper<__wi_main_work >();
+int main(int argc, char**argv) {
+    return allscale::runtime::main_wrapper<__wi_main_work >(argc, argv);
 }
 
 ALLSCALE_REGISTER_TREETURE_TYPE(int32_t)
@@ -53,23 +53,23 @@ int32_t IMP_main() {
     return 0;
 }
 /* ------- Function Definitions --------- */
-allscale::treeture<int32_t > allscale_fun_1(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > allscale_fun_1(hpx::util::tuple< int, char**> const& var_0) {
     return allscale::treeture<int32_t >(IMP_main());
 }
 struct __wi_main_variant_0 {
-    static allscale::treeture<int32_t > execute(hpx::util::tuple< > const& var_0);
+    static allscale::treeture<int32_t > execute(hpx::util::tuple< int, char**> const& var_0);
     static constexpr bool valid = true;
 };
 
-allscale::treeture<int32_t > __wi_main_variant_0::execute(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > __wi_main_variant_0::execute(hpx::util::tuple< int, char**> const& var_0) {
     return allscale_fun_1(var_0);
 }
 struct __wi_main_variant_1 {
-    static allscale::treeture<int32_t > execute(hpx::util::tuple< > const& var_0);
+    static allscale::treeture<int32_t > execute(hpx::util::tuple< int, char**> const& var_0);
     static constexpr bool valid = true;
 };
 
-allscale::treeture<int32_t > __wi_main_variant_1::execute(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > __wi_main_variant_1::execute(hpx::util::tuple< int, char**> const& var_0) {
     return allscale_fun_1(var_0);
 }
 
