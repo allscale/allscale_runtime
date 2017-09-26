@@ -466,7 +466,7 @@ struct __wi_main_variant_1 {
         return allscale::spawn_first_with_dependencies<Work>(var_0, hpx::util::get<0 >(var_1), hpx::util::get<1>(var_1));
     }
 
-    static allscale::treeture<int32_t > execute(hpx::util::tuple< > const&)
+    static allscale::treeture<int32_t > execute(hpx::util::tuple<int, char** > const&)
     {
         const int32_t var_0 = 10000000;
         std::vector<int32_t> var_1(var_0);

@@ -250,11 +250,11 @@ int32_t IMP_main() {
     return var_5.operator[](allscale::utils::Vector<int64_t, 2 >(var_0 / 2, var_0 / 2)) < (double)97?0:1;
 }
 /* ------- Function Definitions --------- */
-allscale::treeture<int32_t > allscale_fun_3(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > allscale_fun_3(hpx::util::tuple<int, char**> const& var_0) {
     return allscale::treeture<int32_t >(IMP_main());
 }
 struct __wi_main_variant_1 {
-    static allscale::treeture<int32_t > execute(hpx::util::tuple< > const& var_0);
+    static allscale::treeture<int32_t > execute(hpx::util::tuple<int, char**> const& var_0);
     static constexpr bool valid = true;
 };
 
@@ -769,15 +769,15 @@ struct __wi_allscale_wi_0_variant_0 {
 allscale::treeture<void > __wi_allscale_wi_0_variant_0::execute(hpx::util::tuple<IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__2_gt_, IMP___anon_tagtype__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_api_slash_code_slash_tutorials_slash_src_slash_heat_stencil_slash_04_pfor_collapsed_dot_cxx_26_33_allscale_colon__colon_api_colon__colon_user_colon__colon_data_colon__colon_StaticGrid_lt_double_comma__50_comma__50_gt___ampersand__void_const_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__2_gt___ampersand__IMLOC__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_api_slash_code_slash_tutorials_slash_src_slash_heat_stencil_slash_04_pfor_collapsed_dot_cxx_26_33, IMP___anon_tagtype__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_api_slash_code_slash_tutorials_slash_src_slash_heat_stencil_slash_04_pfor_collapsed_dot_cxx_26_33_allscale_colon__colon_api_colon__colon_user_colon__colon_data_colon__colon_StaticGrid_lt_double_comma__50_comma__50_gt___ampersand__void_const_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__2_gt___ampersand__IMLOC__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_api_slash_code_slash_tutorials_slash_src_slash_heat_stencil_slash_04_pfor_collapsed_dot_cxx_26_33 > const& var_0) {
     return allscale_fun_325(var_0);
 }
-allscale::treeture<int32_t > __wi_main_variant_1::execute(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > __wi_main_variant_1::execute(hpx::util::tuple<int, char**> const& var_0) {
     return allscale_fun_3(var_0);
 }
 struct __wi_main_variant_0 {
-    static allscale::treeture<int32_t > execute(hpx::util::tuple< > const& var_0);
+    static allscale::treeture<int32_t > execute(hpx::util::tuple<int, char**> const& var_0);
     static constexpr bool valid = true;
 };
 
-allscale::treeture<int32_t > __wi_main_variant_0::execute(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > __wi_main_variant_0::execute(hpx::util::tuple<int, char**> const& var_0) {
     return allscale_fun_3(var_0);
 }
 

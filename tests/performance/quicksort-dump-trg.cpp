@@ -119,11 +119,11 @@ int32_t IMP_main() {
     return 0;
 }
 /* ------- Function Definitions --------- */
-allscale::treeture<int32_t > allscale_fun_1(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > allscale_fun_1(hpx::util::tuple<int, char** > const& var_0) {
     return allscale::treeture<int32_t >(IMP_main());
 }
 struct __wi_main_variant_1 {
-    static allscale::treeture<int32_t > execute(hpx::util::tuple< > const& var_0);
+    static allscale::treeture<int32_t > execute(hpx::util::tuple<int, char** > const& var_0);
     static constexpr bool valid = true;
 };
 
@@ -231,26 +231,26 @@ void rec(hpx::util::tuple<IMP_array_indices, int32_t* > const& var_0) {
 allscale::treeture<void > __wi_allscale_wi_1_variant_1::execute(hpx::util::tuple<IMP_array_indices, int32_t* > const& var_0) {
     return allscale_fun_34(var_0);
 }
-allscale::treeture<int32_t > __wi_main_variant_1::execute(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > __wi_main_variant_1::execute(hpx::util::tuple<int, char** > const& var_0) {
     return allscale_fun_1(var_0);
 }
 /* ------- Function Definitions --------- */
-bool allscale_fun_52(hpx::util::tuple< > const& var_0) {
+bool allscale_fun_52(hpx::util::tuple<int, char** > const& var_0) {
     return (bool)false;
 }
 struct __wi_main_can_split {
-    static bool call(hpx::util::tuple< > const& var_0);
+    static bool call(hpx::util::tuple<int, char** > const& var_0);
 };
 
-bool __wi_main_can_split::call(hpx::util::tuple< > const& var_0) {
+bool __wi_main_can_split::call(hpx::util::tuple<int, char** > const& var_0) {
     return allscale_fun_52(var_0);
 }
 struct __wi_main_variant_0 {
-    static allscale::treeture<int32_t > execute(hpx::util::tuple< > const& var_0);
+    static allscale::treeture<int32_t > execute(hpx::util::tuple<int, char** > const& var_0);
     static constexpr bool valid = true;
 };
 
-allscale::treeture<int32_t > __wi_main_variant_0::execute(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > __wi_main_variant_0::execute(hpx::util::tuple<int, char** > const& var_0) {
     return allscale_fun_1(var_0);
 }
 
