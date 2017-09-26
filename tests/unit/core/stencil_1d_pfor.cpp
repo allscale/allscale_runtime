@@ -161,15 +161,15 @@ struct __wi_stencil_update_process {
 		);
 	}
 
-    static allscale::treeture<void> execute(hpx::util::tuple<stencil_update_closure> const& var_0) {
+    static hpx::util::unused_type execute(hpx::util::tuple<stencil_update_closure> const& var_0) {
 
     	int a = hpx::util::get<0>(var_0).a;
     	int b = hpx::util::get<0>(var_0).b;
-        
+
         auto dataRef = hpx::util::get<0>(var_0).src;
 
     	auto src = data_item_manager::get(dataRef);
- 
+
     	//StaticGrid<int,N>& src = data_item_manager::get(hpx::util::get<0>(var_0).src);
     	auto dst = data_item_manager::get(hpx::util::get<0>(var_0).dst);
 
@@ -183,7 +183,7 @@ struct __wi_stencil_update_process {
     		dst[i] = src[i] + 1;
     	}
 
-    	return allscale::make_ready_treeture();
+    	return hpx::util::unused;
     }
 };
 
@@ -245,10 +245,10 @@ int32_t IMP_main() {
 	for(int t=0; t<T; t+=2) {
 
 		// B := f(A)
-		allscale::spawn<__wi_stencil_update_work>(stencil_update_closure { 0, N, vecA, vecB }).get_future().wait();
+		allscale::spawn_first<__wi_stencil_update_work>(stencil_update_closure { 0, N, vecA, vecB }).wait();
 
 		// A := f(B)
-		allscale::spawn<__wi_stencil_update_work>(stencil_update_closure { 0, N, vecB, vecA }).get_future().wait();
+		allscale::spawn_first<__wi_stencil_update_work>(stencil_update_closure { 0, N, vecB, vecA }).wait();
 
 	}
 
