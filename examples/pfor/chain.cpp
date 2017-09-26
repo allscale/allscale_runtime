@@ -130,6 +130,7 @@ int hpx_main(int argc, char **argv)
 int main(int argc, char **argv)
 {
     hpx::register_pre_startup_function(&register_counter_type);
-    return hpx::init(argc, argv);
+    allscale::scheduler::setup_resources(argc, argv);
+    return hpx::init();
 }
 

@@ -194,5 +194,6 @@ int hpx_main(boost::program_options::variables_map & vm)
 int main(int argc, char** argv)
 {
     boost::program_options::options_description desc = uts_params_desc();
-    return hpx::init(desc, argc, argv);
+    allscale::scheduler::setup_resources(desc, argc, argv);
+    return hpx::init();
 }

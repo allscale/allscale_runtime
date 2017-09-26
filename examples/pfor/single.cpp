@@ -72,6 +72,7 @@ int hpx_main(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-    return hpx::init(argc, argv);
+    allscale::scheduler::setup_resources(argc, argv);
+    return hpx::init();
 }
 

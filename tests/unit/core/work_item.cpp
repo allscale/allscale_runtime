@@ -53,7 +53,8 @@ bool test_work_item(){
     allscale::treeture<result_type> trs(allscale::parent_arg{});
     auto test_item = allscale::work_item(true,ultra_simple_work_item_descr(),trs);
 
-    hpx::apply([test_item]() mutable {allscale::this_work_item::set_id(main_id); test_item.process();});
+    allscale::executor_type exec("default");
+    hpx::apply([test_item, &exec]() mutable {allscale::this_work_item::set_id(main_id); test_item.process(exec);});
     HPX_ASSERT(trs.valid());
     auto res = trs.get_future().get();
 
@@ -66,6 +67,7 @@ bool test_work_items_all_localities(){
     std::cout<< "starting timer!!" << std::endl;
     hpx::util::high_resolution_timer kernel1time;
     {
+        allscale::executor_type exec("default");
         for(int i = 0; i < 10000; ++i){
 
             std::int64_t known_result = i*(i+1);
@@ -79,7 +81,7 @@ bool test_work_items_all_localities(){
             allscale::treeture<result_type> trs(allscale::parent_arg{});
             auto test_item = allscale::work_item(true,ultra_simple_work_item_descr(),trs);
 
-            hpx::apply([test_item]()mutable{allscale::this_work_item::set_id(main_id); test_item.process();});
+            hpx::apply([test_item, &exec]()mutable{allscale::this_work_item::set_id(main_id); test_item.process(exec);});
             HPX_ASSERT(trs.valid());
             auto res = trs.get_future().get();
         }

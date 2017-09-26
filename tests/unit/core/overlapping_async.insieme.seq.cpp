@@ -50,8 +50,8 @@ struct __wi_main_name {
 using __wi_main_work = allscale::work_item_description<int32_t, __wi_main_name, allscale::no_serialization, __wi_main_variant_0, __wi_main_variant_1 >;
 
 /* ------- Function Definitions --------- */
-int32_t main() {
-    HPX_TEST_EQ(allscale::runtime::main_wrapper<__wi_main_work >(), 0);
+int32_t main(int argc, char** argv) {
+    HPX_TEST_EQ(allscale::runtime::main_wrapper<__wi_main_work >(argc, argv), 0);
 
     return hpx::util::report_errors();
 }
