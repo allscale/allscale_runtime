@@ -1,41 +1,98 @@
-/*#include <allscale/api/user/data/scalar.h>
+#include <allscale/utils/serializer.h>
+#include <allscale/utils/serializer/vectors.h>
 
-#include <allscale/serialization_wrapper.hpp>
-
+#include <hpx/util/lightweight_test.hpp>
 #include <hpx/hpx.hpp>
 #include <hpx/hpx_main.hpp>
 
-template <typename T>
-T test(T t)
+struct Serializable
 {
-    return t;
-}
+    Serializable(int j) : i(j) {}
+    Serializable() : i(0) {}
 
-template <typename T>
-struct test_action
-  : hpx::actions::make_action<decltype(&test<T>), &test<T>, test_action<T>>
-{};
+    int i;
+    static Serializable load(allscale::utils::ArchiveReader& ar)
+    {
+        Serializable s;
+        s.i = ar.read<int>();
+        return s;
+    }
 
-template <typename T>
-void do_test()
+    void store(allscale::utils::ArchiveWriter& ar) const
+    {
+        ar.write(i);
+    }
+};
+
+struct VectorSerializable
 {
-    test_action<T> action;
+    VectorSerializable(std::vector<int> j) : i(j) {}
+    VectorSerializable() {}
 
-    T t;
-    action(hpx::find_here(), std::move(t));
-}
+    std::vector<int> i;
+    static VectorSerializable load(allscale::utils::ArchiveReader& ar)
+    {
+        VectorSerializable s;
+        s.i = ar.read<std::vector<int>>();
+        return s;
+    }
+
+    void store(allscale::utils::ArchiveWriter& ar) const
+    {
+        ar.write(i);
+    }
+};
 
 int hpx_main(int argc, char **argv)
 {
-    do_test<allscale::api::user::data::Scalar<int>::region_type>();
-    do_test<allscale::api::user::data::Scalar<int>::fragment_type>();
+    std::vector<char> buffer;
+
+    static_assert(allscale::utils::is_serializable<Serializable>::value,
+        "Serializable class not covered by trait");
+
+    {
+        hpx::serialization::output_archive oa(buffer);
+        Serializable s(42);
+        oa & s;
+    }
+    {
+        hpx::serialization::input_archive ia(buffer);
+        Serializable s;
+        ia & s;
+        HPX_TEST_EQ(s.i, 42);
+    }
+    {
+        hpx::serialization::output_archive oa(buffer);
+        std::vector<Serializable> s({42, 57, 1337});
+        oa & s;
+    }
+    {
+        hpx::serialization::input_archive ia(buffer);
+        std::vector<Serializable> s;
+        ia & s;
+        HPX_TEST_EQ(s[0].i, 42);
+        HPX_TEST_EQ(s[1].i, 57);
+        HPX_TEST_EQ(s[2].i, 1337);
+    }
+    {
+        hpx::serialization::output_archive oa(buffer);
+        VectorSerializable s({42, 57, 1337});
+        oa & s;
+    }
+    {
+        hpx::serialization::input_archive ia(buffer);
+        VectorSerializable s;
+        ia & s;
+        HPX_TEST_EQ(s.i[0], 42);
+        HPX_TEST_EQ(s.i[1], 57);
+        HPX_TEST_EQ(s.i[2], 1337);
+    }
     return hpx::finalize();
 }
 
 int main(int argc, char **argv)
 {
-    return hpx::init(argc, argv);
+    hpx::init(argc, argv);
+
+    return hpx::util::report_errors();
 }
-
-
-*/

@@ -5,6 +5,7 @@ set(tests
   overlapping_async.insieme.seq
   #overlapping_pfor.insieme.seq
   data_item_manager
+  serialization
   treeture
   work_item)
 
