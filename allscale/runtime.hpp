@@ -76,9 +76,9 @@ int allscale_main(boost::program_options::variables_map &)
         allscale::scheduler::stop();
         allscale::resilience::stop();
         allscale::monitor::stop();
-    }
 
-    hpx::finalize();
+        hpx::finalize();
+    }
 
     // Force the optimizer to initialize the runtime...
     if (sched && mon && resi)

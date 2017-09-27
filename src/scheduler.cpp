@@ -130,8 +130,9 @@ namespace allscale
         hpx::id_type gid =
             hpx::local_new<components::scheduler>(rank).get();
 
-        component_ = hpx::get_ptr<components::scheduler>(gid).get();
-        component_->init();
+        auto component = hpx::get_ptr<components::scheduler>(gid).get();
+        component->init();
         hpx::register_with_basename("allscale/scheduler", gid, rank).get();
+        component_ = component;
     }
 }
