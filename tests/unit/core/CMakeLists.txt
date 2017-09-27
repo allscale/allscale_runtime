@@ -1,8 +1,6 @@
 set(tests
   #this_work_item
 #  1d_stencil
-  stencil_1d_pfor
-  stencil_2d_pfor
   scalar_read_write
   overlapping_async.insieme.seq
   #overlapping_pfor.insieme.seq

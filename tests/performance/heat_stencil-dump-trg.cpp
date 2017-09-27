@@ -308,7 +308,7 @@ int32_t IMP_main(int32_t var_0, char** var_1) {
             return 1;
         };
     };
-    std::cout << &std::fixed << (std::_Setprecision&&)std::setprecision(2);
+    std::cout << &std::fixed << std::setprecision(2);
     int32_t** var_6 = IMP_init(var_2);
     int32_t** var_7 = IMP_init(var_2);
     IMP_execute(var_6, var_7, var_3, var_2);
