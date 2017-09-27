@@ -174,7 +174,7 @@ int hpx_main(int argc, char **argv)
     allscale::monitor::run(hpx::get_locality_id());
 
     // start allscale resilience
-//     allscale::resilience::run(hpx::get_locality_id());
+    allscale::resilience::run(hpx::get_locality_id());
 
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
@@ -193,7 +193,7 @@ int hpx_main(int argc, char **argv)
            std::cout << "fib(" << n << ") = " << res << " taking " << fib_elapsed << " microseconds. Iter: " << i << "\n";
         }
         allscale::scheduler::stop();
-//         allscale::resilience::stop();
+        allscale::resilience::stop();
         allscale::monitor::stop();
         return hpx::finalize();
     }

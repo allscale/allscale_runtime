@@ -16,6 +16,7 @@
 
 #include "pfor.hpp"
 
+ALLSCALE_REGISTER_TREETURE_TYPE(int)
 
 static const int DEFAULT_SIZE = 256 * 1024 * 1024;
 

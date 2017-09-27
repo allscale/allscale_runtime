@@ -51,6 +51,31 @@ data_item_requirement<DataItemType> createDataItemRequirement
 }
 
 using DataItemManager = allscale::data_item_manager;
+
+inline int spawn_main(int(*main_work)(hpx::util::tuple<int, char**> const&), int argc, char** argv)
+{
+    auto clos = hpx::util::make_tuple(argc, argv);
+    return main_work(clos);
+}
+
+inline int spawn_main(int(*main_work)(hpx::util::tuple<> const&), int argc, char** argv)
+{
+    auto clos = hpx::util::make_tuple();
+    return main_work(clos);
+}
+
+inline int spawn_main(treeture<int>(*main_work)(hpx::util::tuple<int, char**> const&), int argc, char** argv)
+{
+    auto clos = hpx::util::make_tuple(argc, argv);
+    return main_work(clos).get_result();
+}
+
+inline int spawn_main(treeture<int>(*main_work)(hpx::util::tuple<> const&), int argc, char** argv)
+{
+    auto clos = hpx::util::make_tuple();
+    return main_work(clos).get_result();
+}
+
 /**
  * A wrapper for the main function of an applicaiton handling the startup and
  * shutdown procedure as well as lunching the first work item.
@@ -72,7 +97,7 @@ int allscale_main(boost::program_options::variables_map &)
         static const char* argv[] = {"allscale"};
         int argc = 1;
 
-        res = allscale::spawn_first<MainWorkItem>(argc, const_cast<char **>(argv)).get_result();
+        res = spawn_main(&MainWorkItem::process_variant::execute, argc, const_cast<char **>(argv));
         allscale::scheduler::stop();
         allscale::resilience::stop();
         allscale::monitor::stop();
