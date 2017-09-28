@@ -55,28 +55,28 @@ namespace allscale { namespace components {
 
     void resilience::init_recovery() {
         if (my_state == SUSPECT) {
-#ifdef DEBUG_ 
+#ifdef DEBUG_
             std::cout << "protectee state = SUSPECT\n";
 #endif
             hpx::apply(&resilience::protectee_crashed, this);
             std::unique_lock<std::mutex> lk(cv_m);
-#ifdef DEBUG_ 
+#ifdef DEBUG_
             std::cout << "waiting on finished recovery...\n";
 #endif
             cv.wait(lk, [this]{return recovery_done;});
-#ifdef DEBUG_ 
+#ifdef DEBUG_
             std::cout << "done waiting on finished recovery...\n";
 #endif
             recovery_done = false;
             my_state = TRUST;
         }
         else {
-#ifdef DEBUG_ 
+#ifdef DEBUG_
             std::cout << "protectee state = TRUST\n";
 #endif
         }
     }
-   
+
     // ignore errors while sending -- we don't care about our guard
     void resilience::send_handler(boost::shared_ptr<std::string> message, const boost::system::error_code& error, std::size_t bytes_transferred) {
 #ifdef DEBUG_
@@ -116,12 +116,12 @@ namespace allscale { namespace components {
 
     // Run detection forever ...
     void resilience::receive_heartbeat_loop () {
-/*
         //udp::endpoint sender_endpoint(boost::asio::ip::address::from_string(protectee_ip_addr), UDP_SEND_PORT);
         hpx::lcos::barrier::synchronize();
         auto t_now =  std::chrono::high_resolution_clock::now();
-        std::time_t now_c = std::chrono::system_clock::to_time_t(t_now);
-#ifdef DEBUG_ 
+        std::time_t now_c = std::chrono::system_clock::to_time_t(
+            std::chrono::system_clock::now());
+#ifdef DEBUG_
         std::cout << "Start receive loop at " << std::put_time(std::localtime(&now_c), "%F %T") << "\n";
 #endif
         while (resilience_component_running && (get_running_ranks() > 1)) {
@@ -144,7 +144,7 @@ namespace allscale { namespace components {
                 if (ec)
                 {
 #ifdef DEBUG_
-                    std::cout << "Receive error: " << ec.message() << " in epoch " << actual_epoch << "\n"; 
+                    std::cout << "Receive error: " << ec.message() << " in epoch " << actual_epoch << "\n";
 #endif
                     my_state = SUSPECT;
                     init_recovery();
@@ -173,7 +173,6 @@ namespace allscale { namespace components {
             }
         }
         std::cout << "Rank " << rank_ << " exits receiver loop ...\n";
-  */
   }
 
     std::pair<hpx::id_type,uint64_t> resilience::get_protectee() {
@@ -198,7 +197,8 @@ namespace allscale { namespace components {
         num_localities = hpx::get_num_localities().get();
         rank_running_.resize(num_localities, true);
 
-        if (get_running_ranks() < 2) {
+        char *env = std::getenv("ALLSCALE_RESILIENCE");
+        if (get_running_ranks() < 2 || (env && env[0] == '0')) {
             resilience_component_running = false;
             resilience_disabled = true;
             std::cout << "Resilience disabled for single locality!\n";
@@ -282,14 +282,14 @@ namespace allscale { namespace components {
     void resilience::w_exec_finish_wrapper(work_item const& w) {
         if (resilience_disabled) return;
 
-#ifdef DEBUG_ 
+#ifdef DEBUG_
         std::cout << "Finish " << w.id().name() << "\n";
 #endif // DEBUG_
 
         if (w.id().depth() != get_cp_granularity()) return;
 
         //@ToDo: do I really need to block (via get) here?
-        if (get_running_ranks() > 1) 
+        if (get_running_ranks() > 1)
             hpx::async<remote_unbackup_action>(guard_, w).get();
         local_backups_.erase(w.id());
 
@@ -301,20 +301,20 @@ namespace allscale { namespace components {
 
     void resilience::protectee_crashed() {
 
-#ifdef DEBUG_ 
+#ifdef DEBUG_
         std::cout << "Begin recovery ...\n";
         std::cout << "set bitrank of " << protectee_rank_ << " to false\n";
-#endif // DEBUG_ 
+#endif // DEBUG_
         rank_running_[protectee_rank_] = false;
 
         for (auto c : remote_backups_) {
             work_item restored = c.second;
-#ifdef DEBUG_ 
+#ifdef DEBUG_
             std::cout << "Will reschedule task " << restored.id().name() << "\n";
 #endif // DEBUG_
             allscale::scheduler::schedule(std::move(restored));
         }
-#ifdef DEBUG_ 
+#ifdef DEBUG_
         std::cout << "Done rescheduling ...\n";
 #endif
         // restore guard / protectee connections
@@ -332,7 +332,7 @@ namespace allscale { namespace components {
             recovery_done = true;
         }
         cv.notify_one();
-#ifdef DEBUG_ 
+#ifdef DEBUG_
         std::cout << "Finish recovery\n";
 #endif // DEBUG_
     }
