@@ -89,13 +89,22 @@ auto simulate_data_item_manager_create_and_get(const Args& ... args){
     if (hpx::get_locality_id() == 0) {
         //auto sn = allscale::data_item_manager::create_server_network<DataItemType>();
         auto dataRef = allscale::data_item_manager::create<DataItemType>(args...);
+
+        // acquire small lease
         auto req = allscale::createDataItemRequirement(dataRef, GridRegion<1>(100,150), access_mode::ReadWrite); 
         auto lease = allscale::data_item_manager::acquire<DataItemType>(req);
 
+
+        // acquire bigger lease
+        auto req2 = allscale::createDataItemRequirement(dataRef, GridRegion<1>(,5100), access_mode::ReadWrite); 
+        auto lease2 = allscale::data_item_manager::acquire<DataItemType>(req2);
+
+
 	    auto data = allscale::data_item_manager::get(dataRef);
-        std::cout<< data[120]<<std::endl;
-        data[120] = 5;
-        std::cout<< data[120]<<std::endl;
+        
+        //std::cout<<data[150]<<std::endl;
+        //data[5000] = 5;
+        //std::cout<<data[5000]<<std::endl;
     }
     /*
     if (hpx::get_locality_id() == 0) {

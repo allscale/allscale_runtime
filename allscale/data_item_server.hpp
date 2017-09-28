@@ -200,11 +200,10 @@ public:
 				//auto locationInfo = locate(request.ref,request.region);
 
 				// get local fragment info
-	    auto& info = get_info(req.ref);
-/*
+	            auto& info = get_info(req.ref);
 				// allocate storage for requested data on local fragment
-				info.fragment.resize(merge(info.fragment.getCoveredRegion(), request.region));
-
+				info.fragment.resize(merge(info.fragment.getCoveredRegion(), req.region));
+                /*
 				// transfer data using a transfer plan
 				auto success = execute(buildPlan(locationInfo,myLocality,request));
 

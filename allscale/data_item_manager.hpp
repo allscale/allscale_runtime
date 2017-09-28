@@ -66,23 +66,24 @@ namespace allscale{
             // ptr = (DataItemType::facade_type*) raw_ptr_as_sizet;
             return frag_ptr->mask();
 		}
-/*
- 		template<typename DataItemType>
+
+        template<typename DataItemType>
 		static allscale::lease<DataItemType> acquire(const allscale::data_item_requirement<DataItemType>& requirement) {
             hpx::id_type server_id = allscale::data_item_manager::get_server<DataItemType>();
             typedef typename  allscale::server::data_item_server<DataItemType>::template acquire_action<allscale::data_item_requirement<DataItemType>> action_type;
 		    return action_type()(server_id, requirement);
             //return get_server<DataItemType>().acquire(requirement);
 		}
-*/
 
+
+/*
  		template<typename DataItemType>
 		static allscale::lease<DataItemType>  acquire(const allscale::data_item_requirement<DataItemType>& requirement) {
             allscale::lease<DataItemType> lease;
             return lease;
 		}
 	
-
+*/
 
 
         template<typename DataItemType>
