@@ -334,37 +334,33 @@ namespace allscale {
         void load(Archive & ar, unsigned)
         {
             HPX_ASSERT(!shared_state_);
-            bool valid = true;
-            ar & valid;
-            if (valid)
-            {
-                ar & id_;
-            }
+            ar & id_;
             ar & fixed_children_;
         }
 
         template <typename Archive>
         void save(Archive & ar, unsigned) const
         {
-            bool valid = id_.valid();
+            bool valid = false;
             {
                 std::unique_lock<mutex_type> l(mtx_);
-                if (shared_state_ && !id_.valid())
+                if (shared_state_)
                 {
                     hpx::shared_future<hpx::id_type> id;
+                    if (!id_.valid())
                     {
-                        hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                        id = hpx::local_new<wrapped_type>(shared_state_);
+                        {
+                            hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+                            id = hpx::local_new<wrapped_type>(shared_state_);
+                        }
                     }
-                    if (!id_.valid()) id_ = id;
-                    valid = true;
+                    if (!id_.valid())
+                    {
+                        id_ = id;
+                    }
                 }
             }
-            ar & valid;
-            if (valid)
-            {
-                ar & id_;
-            }
+            ar & id_;
             ar & fixed_children_;
         }
 

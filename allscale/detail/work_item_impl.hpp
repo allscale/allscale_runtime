@@ -279,7 +279,7 @@ namespace allscale { namespace detail {
             typedef hpx::shared_future<void> deps_type;
 
             deps_type deps;
-            if (dep_.valid())
+            if (dep_.valid() && !dep_.is_ready())
             {
                 deps = hpx::when_all(ProcessVariant::deps(closure_), dep_).share();
             }
@@ -317,7 +317,7 @@ namespace allscale { namespace detail {
             ) = &work_item_impl::do_process;
 
             auto this_ = shared_this();
-            if (dep_.valid())
+            if (dep_.valid() && !dep_.is_ready())
             {
                 typedef hpx::shared_future<void> deps_type;
 
@@ -347,8 +347,6 @@ namespace allscale { namespace detail {
             auto reqs = acquire<typename WorkItemDescription::process_variant>(nullptr);
 
             get_deps<typename WorkItemDescription::process_variant>(exec, pack, reqs, nullptr);
-//             do_process(std::move(hpx::util::get<Is>(closure_))...);
-//             hpx::apply(f, shared_this(), std::move(hpx::util::get<Is>(closure_))...);
         }
 
         void process(executor_type& exec)
@@ -368,8 +366,6 @@ namespace allscale { namespace detail {
                     decltype(hpx::util::get<Is>(closure_))>::type...
             ) = &work_item_impl::do_split;
             HPX_ASSERT(valid());
-//             do_split(std::move(hpx::util::get<Is>(closure_))...);
-//             hpx::dataflow(f, shared_this(), std::move(hpx::util::get<Is>(closure_))...);
             hpx::apply(exec, f, shared_this(), std::move(reqs), std::move(hpx::util::get<Is>(closure_))...);
         }
 

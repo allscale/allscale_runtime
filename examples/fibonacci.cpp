@@ -195,10 +195,11 @@ int hpx_main(int argc, char **argv)
         allscale::scheduler::stop();
         allscale::resilience::stop();
         allscale::monitor::stop();
+        return hpx::finalize();
     }
 
     //std::terminate();
-    return hpx::finalize();
+    return 0;
 }
 
 int main(int argc, char **argv)

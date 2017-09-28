@@ -22,8 +22,6 @@
 #include <allscale/data_item_requirement.hpp>
 #include <algorithm>
 
-#include <hpx/hpx_main.hpp>
-#include <hpx/hpx_init.hpp>
 #include <hpx/config.hpp>
 #include <hpx/include/components.hpp>
 
@@ -32,34 +30,17 @@
 #include <hpx/runtime/serialization/output_archive.hpp>
 #include <hpx/runtime/serialization/vector.hpp>
 
-
-
 ALLSCALE_REGISTER_TREETURE_TYPE(int32_t)
-
-
 
 #define EXPECT_EQ(X,Y)  X==Y
 #define EXPECT_NE(X,Y)  X!=Y
 
-
 HPX_REGISTER_COMPONENT_MODULE();
-
 
 using data_item_type = allscale::api::user::data::Scalar<int32_t>;
 
 REGISTER_DATAITEMSERVER_DECLARATION(data_item_type);
 REGISTER_DATAITEMSERVER(data_item_type);
-
-
-
-
-
-
-
-
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // scalar read
@@ -124,8 +105,7 @@ using main_work = allscale::work_item_description<
 
 struct main_process
 {
-    template <typename Closure>
-    static allscale::treeture<int> execute(Closure const& c)
+    static allscale::treeture<int> execute(hpx::util::tuple<> const& c)
     {
         allscale::data_item_reference<data_item_type> s
             = allscale::data_item_manager::create<data_item_type>();

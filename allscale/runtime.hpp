@@ -21,13 +21,16 @@
 #include <allscale/data_item_requirement.hpp>
 #include <allscale/data_item_manager.hpp>
 
+#include <hpx/config.hpp>
 #include <hpx/hpx_init.hpp>
+#include <hpx/runtime/config_entry.hpp>
 #include <hpx/util/find_prefix.hpp>
 #include <hpx/util/invoke_fused.hpp>
 #include <hpx/util/unwrapped.hpp>
 #include <hpx/lcos/local/dataflow.hpp>
 
 #include <boost/program_options.hpp>
+#include <boost/program_options/parsers.hpp>
 
 namespace allscale {
 namespace runtime {
@@ -51,6 +54,35 @@ data_item_requirement<DataItemType> createDataItemRequirement
 }
 
 using DataItemManager = allscale::data_item_manager;
+
+template<typename MainWorkItem>
+inline int spawn_main(int(*main_work)(hpx::util::tuple<int, char**> const&), int argc, char** argv)
+{
+    auto clos = hpx::util::make_tuple(argc, argv);
+    return spawn_first<MainWorkItem>(argc, argv).get_result();
+}
+
+template<typename MainWorkItem>
+inline int spawn_main(int(*main_work)(hpx::util::tuple<> const&), int argc, char** argv)
+{
+    auto clos = hpx::util::make_tuple();
+    return spawn_first<MainWorkItem>().get_result();
+}
+
+template<typename MainWorkItem>
+inline int spawn_main(treeture<int>(*main_work)(hpx::util::tuple<int, char**> const&), int argc, char** argv)
+{
+    auto clos = hpx::util::make_tuple(argc, argv);
+    return spawn_first<MainWorkItem>(argc, argv).get_result();
+}
+
+template<typename MainWorkItem>
+inline int spawn_main(treeture<int>(*main_work)(hpx::util::tuple<> const&), int argc, char** argv)
+{
+    auto clos = hpx::util::make_tuple();
+    return spawn_first<MainWorkItem>().get_result();
+}
+
 /**
  * A wrapper for the main function of an applicaiton handling the startup and
  * shutdown procedure as well as lunching the first work item.
@@ -69,16 +101,43 @@ int allscale_main(boost::program_options::variables_map &)
     int res = 0;
     if (hpx::get_locality_id() == 0)
     {
-        static const char* argv[] = {"allscale"};
-        int argc = 1;
+        std::string cmdline(hpx::get_config_entry("hpx.reconstructed_cmd_line", ""));
 
-        res = allscale::spawn_first<MainWorkItem>(argc, const_cast<char **>(argv)).get_result();
+        using namespace boost::program_options;
+#if defined(HPX_WINDOWS)
+        std::vector<std::string> args = split_winmain(cmdline);
+#else
+        std::vector<std::string> args = split_unix(cmdline);
+#endif
+
+        // Copy all arguments which are not hpx related to a temporary array
+        std::vector<char*> argv(args.size()+1);
+        std::size_t argcount = 0;
+        for (std::size_t i = 0; i < args.size(); ++i)
+        {
+            if (0 != args[i].find("--hpx:")) {
+                argv[argcount++] = const_cast<char*>(args[i].data());
+            }
+            else if (6 == args[i].find("positional", 6)) {
+                std::string::size_type p = args[i].find_first_of("=");
+                if (p != std::string::npos) {
+                    args[i] = args[i].substr(p+1);
+                    argv[argcount++] = const_cast<char*>(args[i].data());
+                }
+            }
+        }
+
+        // add a single nullptr in the end as some application rely on that
+        argv[argcount] = nullptr;
+
+        res = spawn_main<MainWorkItem>(
+            &MainWorkItem::process_variant::execute, static_cast<int>(argcount), argv.data());
         allscale::scheduler::stop();
         allscale::resilience::stop();
         allscale::monitor::stop();
-    }
 
-    hpx::finalize();
+        hpx::finalize();
+    }
 
     // Force the optimizer to initialize the runtime...
     if (sched && mon && resi)

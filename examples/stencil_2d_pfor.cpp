@@ -304,7 +304,7 @@ int32_t IMP_main() {
 
 // -- main work item --
 
-allscale::treeture<int32_t > allscale_fun_1(hpx::util::tuple< > const&) {
+allscale::treeture<int32_t > allscale_fun_1(hpx::util::tuple<int, char**> const&) {
     return allscale::treeture<int32_t >(IMP_main());
 }
 
@@ -314,14 +314,14 @@ struct __wi_main_name {
 
 struct __wi_main_process {
     static constexpr bool valid = true;
-    static allscale::treeture<int32_t > execute(hpx::util::tuple< > const& var_0) {
+    static allscale::treeture<int32_t > execute(hpx::util::tuple<int, char**> const& var_0) {
     	return allscale_fun_1(var_0);
     }
 };
 
 struct __wi_main_split {
     static constexpr bool valid = true;
-    static allscale::treeture<int32_t > execute(hpx::util::tuple< > const& var_0) {
+    static allscale::treeture<int32_t > execute(hpx::util::tuple<int, char**> const& var_0) {
     	return allscale_fun_1(var_0);
     }
 };
