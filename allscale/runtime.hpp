@@ -20,6 +20,7 @@
 #include <allscale/data_item_reference.hpp>
 #include <allscale/data_item_requirement.hpp>
 #include <allscale/data_item_manager.hpp>
+#include <allscale/data_requirements_check.hpp>
 
 #include <hpx/hpx_main.hpp>
 #include <hpx/util/invoke_fused.hpp>
