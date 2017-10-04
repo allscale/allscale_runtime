@@ -20,14 +20,17 @@ void check_read(void* base, std::size_t size) {
 }
 
 void mark_readwriteable(void* from, void* to) {
+//	std::cout << "Granting access to " << from << " - " << to << "\n";
 	// TODO: implement
 }
 
 void remove_readwriteable(void* from,void* to) {
+//	std::cout << "Revoking access to " << from << " - " << to << "\n";
 	// TODO: implement
 }
 
-void check_write(void*, std::size_t) {
+void check_write(void* base, std::size_t) {
+//	std::cout << "Checking access to " << base << "\n";
 	// TODO: implement
 }
 

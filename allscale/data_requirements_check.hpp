@@ -33,13 +33,13 @@ inline bool summarize_access_checks() {
 // -- generic interface --
 
 template<typename DataItem>
-void mark_readable(const typename DataItem::fragment_type& item, const typename DataItem::region_type& region) {
-	// TODO: implement
+void mark_readable(const typename DataItem::fragment_type& fragment, const typename DataItem::region_type& region) {
+//	fragment.enumerateMemoryBlocksFor(region,&mark_readable);
 }
 
 template<typename DataItem>
-void remove_readable(const typename DataItem::fragment_type& item, const typename DataItem::region_type& region) {
-	// TODO: implement
+void remove_readable(const typename DataItem::fragment_type& fragment, const typename DataItem::region_type& region) {
+//	fragment.enumerateMemoryBlocksFor(region,&remove_readable);
 }
 
 template<typename T>
@@ -49,13 +49,13 @@ const T& check_read(const T& data) {
 }
 
 template<typename DataItem>
-void mark_readwriteable(const typename DataItem::fragment_type& item, const typename DataItem::region_type& region) {
-	// TODO: implement
+void mark_readwriteable(const typename DataItem::fragment_type& fragment, const typename DataItem::region_type& region) {
+//	fragment.enumerateMemoryBlocksFor(region,&mark_readwriteable);
 }
 
 template<typename DataItem>
-void remove_readwriteable(const typename DataItem::fragment_type& item, const typename DataItem::region_type& region) {
-	// TODO: implement
+void remove_readwriteable(const typename DataItem::fragment_type& fragment, const typename DataItem::region_type& region) {
+//	fragment.enumerateMemoryBlocksFor(region,&remove_readwriteable);
 }
 
 template<typename T>
@@ -70,12 +70,12 @@ T& check_write(T& data) {
 // -- empty implementations of the same interface --
 
 template<typename DataItem>
-void mark_readable(const typename DataItem::fragment_type& item, const typename DataItem::region_type& region) {
+void mark_readable(const typename DataItem::fragment_type&, const typename DataItem::region_type&) {
 	// ignored
 }
 
 template<typename DataItem>
-void remove_readable(const typename DataItem::fragment_type& item, const typename DataItem::region_type& region) {
+void remove_readable(const typename DataItem::fragment_type&, const typename DataItem::region_type&) {
 	// ignored
 }
 
@@ -86,12 +86,12 @@ const T& check_read(const T& data) {
 }
 
 template<typename DataItem>
-void mark_readwriteable(const typename DataItem::fragment_type& item, const typename DataItem::region_type& region) {
+void mark_readwriteable(const typename DataItem::fragment_type&, const typename DataItem::region_type&) {
 	// ignored
 }
 
 template<typename DataItem>
-void remove_readwriteable(const typename DataItem::fragment_type& item, const typename DataItem::region_type& region) {
+void remove_readwriteable(const typename DataItem::fragment_type&, const typename DataItem::region_type&) {
 	// ignored
 }
 
