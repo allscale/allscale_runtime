@@ -128,15 +128,30 @@ public:
         
         data_item_reference_client_type ret_val;
         //data_item_reference_client_type ret_val( hpx::components::new_ < data_item_reference_type> (hpx::find_here()));
+        /*
         allscale::utils::Archive received(arg, args...);
         auto p2 = allscale::utils::deserialize<data_item_shared_data_type>(received);
         data_item_shared_data_type shared(p2);
+        
+        */
+        using size_type = typename data_item_shared_data_type::size_type;
+        data_item_shared_data_type first= arg; 
+        //hpx::util::tuple<size_type> tup = hpx::util::make_tuple(arg);
+      
+     // auto tup   = hpx::util::make_tuple(arg,args...);
+        //size_type first = hpx::util::get<0>(tup);
+
+//        auto second = hpx::util::get<1>(tup);
+     
+        data_item_shared_data_type shared(first);
+        
+        
         auto dataItemID =  ret_val.id_;
         store.emplace(dataItemID, std::move(fragment_info(shared)));
         
         for(auto& server : network_.servers){
             if(server.get_id()  != this->get_id()){
-                server.register_data_item_ref(dataItemID,arg, args...);
+//                server.register_data_item_ref(dataItemID,arg, args...);
             }
         }
         return ret_val;
@@ -171,14 +186,17 @@ public:
 
     template<typename T, typename T2, typename ... Ts>
 	void register_data_item_ref_impl(const T& arg,const T2& arg2, const Ts& ... args) {
-        auto tup   = hpx::util::make_tuple(arg,arg2,args...);
+       /* auto tup   = hpx::util::make_tuple(arg,arg2,args...);
         auto first = hpx::util::get<0>(tup);
         auto second = hpx::util::get<1>(tup);
         allscale::utils::Archive received(second);
         auto p2 = allscale::utils::deserialize<data_item_shared_data_type>(received);
+        */
+        /*
         data_item_shared_data_type shared(p2);
         auto dataItemID =  first;
         store.emplace(dataItemID, std::move(fragment_info(shared)));
+        */
     }
 
     template<typename ... T>

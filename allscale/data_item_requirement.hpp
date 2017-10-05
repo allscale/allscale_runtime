@@ -3,10 +3,10 @@
 
 #include <allscale/data_item_reference.hpp>
 #include <allscale/access_mode.hpp>
-#include "allscale/utils/serializer.h"
-#include <hpx/runtime/serialization/input_archive.hpp>
-#include <hpx/runtime/serialization/output_archive.hpp>
-
+//#include <allscale/utils/serializer.h>
+//#include <hpx/runtime/serialization/input_archive.hpp>
+//#include <hpx/runtime/serialization/output_archive.hpp>
+#include <hpx/include/serialization.hpp>
 namespace allscale{
 
     template<typename DataItemType>
@@ -25,8 +25,7 @@ namespace allscale{
         data_item_requirement(const data_item_reference<DataItemType>& pref, 
         const typename DataItemType::region_type& pregion, 
         const access_mode& pmode) : ref(pref) , region(pregion) , mode(pmode){}
-
-        void serialize(hpx::serialization::output_archive & ar,unsigned)
+/*       void serialize(hpx::serialization::output_archive & ar,unsigned)
         {
             ar & ref;
             ar & mode;
@@ -50,15 +49,16 @@ namespace allscale{
             region  = allscale::utils::deserialize<region_type>(received);
         }
 
-/*
+*/
+
+        template <typename Archive>
         void serialize(Archive& ar, unsigned)
         {
            ar & ref;
 
            ar & region;
-           ar & mode;
+           //ar & mode;
         }
- */
     };
 
 

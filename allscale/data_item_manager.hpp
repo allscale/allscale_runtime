@@ -40,13 +40,16 @@ namespace allscale{
                 static auto sn = allscale::data_item_manager::create_server_network<DataItemType>();
             } 
             using data_item_reference_type = allscale::data_item_reference<DataItemType>;
+         /*   
             auto archive = allscale::utils::serialize(args...);
             using buffer_type = std::vector<char>;
             buffer_type buffer;
             buffer = archive.getBuffer();
+           */ 
             hpx::id_type server_id = allscale::data_item_manager::get_server<DataItemType>();
-            typedef typename  allscale::server::data_item_server<DataItemType>::template create_action<buffer_type> action_type;
-            auto res = action_type()(server_id, buffer);
+            typedef typename  allscale::server::data_item_server<DataItemType>::template create_action<Args...> action_type;
+            //auto res = action_type()(server_id, buffer);
+            auto res = action_type()(server_id, args...);
             return res;    
         }
         
