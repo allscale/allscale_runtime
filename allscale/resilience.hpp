@@ -22,10 +22,10 @@ namespace allscale {
         static void handle_my_crash(int signum);
         static void global_w_exec_start_wrapper(work_item const &w);
         static bool rank_running(uint64_t rank);
-        private:
-            static std::size_t rank_;
-            resilience(std::uint64_t rank);
-            std::shared_ptr<components::resilience> component_;
+    private:
+        static std::size_t rank_;
+        resilience(std::uint64_t rank);
+        std::shared_ptr<components::resilience> component_;
     };
 }
 

@@ -67,7 +67,8 @@ namespace allscale
         boost::program_options::options_description const & desc,
         int argc, char** argv)
     {
-        hpx::resource::partitioner rp(desc, argc, argv);
+        std::vector<std::string> cfg = {"hpx.run_hpx_main!=1"};
+        hpx::resource::partitioner rp(desc, argc, argv, cfg);
         partition_resources(rp);
     }
 
@@ -76,7 +77,7 @@ namespace allscale
         boost::program_options::options_description const & desc,
         int argc, char** argv)
     {
-        std::vector<std::string> cfg;
+        std::vector<std::string> cfg = {"hpx.run_hpx_main!=1"};
         if (argc == 0)
         {
             static const char* argv_[] = {"allscale"};
