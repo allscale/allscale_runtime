@@ -5,6 +5,7 @@
 #include <allscale/locality.h>
 #include <allscale/data_item_requirement.hpp>
 #include <allscale/data_item_reference.hpp>
+#include <allscale/data_requirements_check.hpp>
 #include <allscale/lease.hpp>
 #include <allscale/location_info.hpp>
 #include <map>
@@ -229,6 +230,9 @@ namespace allscale{
                 // lock data for read
                 info.addReadLease(request.region);
 
+                // inform access check (zero-cost if not enabled)
+                runtime::mark_readable<DataItemType>(info.fragment,request.region);
+
                 break;
             }
             case access_mode::ReadWrite: {
@@ -257,9 +261,13 @@ namespace allscale{
                 // lock data for write
                 info.writeLocked = data_item_region_type::merge(info.writeLocked, request.region);
 
+                // inform access check (zero-cost if not enabled)
+                runtime::mark_readwriteable<DataItemType>(info.fragment,request.region);
+
                 break;
             }
         }
+
         return request;
     }
 
@@ -290,6 +298,9 @@ namespace allscale{
                 // remove read lease
                 info.removeReadLease(lease.region);
 
+                // inform access check (zero-cost if not enabled)
+                runtime::remove_readable<DataItemType>(info.fragment,lease.region);
+
                 break;
             }
             case access_mode::ReadWrite: {
@@ -300,6 +311,9 @@ namespace allscale{
 
                 // lock data for write
                 info.writeLocked = data_item_region_type::difference(info.writeLocked, lease.region);
+
+                // inform access check (zero-cost if not enabled)
+                runtime::remove_readwriteable<DataItemType>(info.fragment,lease.region);
 
                 break;
             }

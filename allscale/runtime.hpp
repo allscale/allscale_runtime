@@ -20,6 +20,7 @@
 #include <allscale/data_item_reference.hpp>
 #include <allscale/data_item_requirement.hpp>
 #include <allscale/data_item_manager.hpp>
+#include <allscale/data_requirements_check.hpp>
 
 #include <hpx/hpx_main.hpp>
 #include <hpx/util/invoke_fused.hpp>
@@ -62,7 +63,7 @@ int main_wrapper(const Args& ... args) {
     auto sched = allscale::scheduler::run(hpx::get_locality_id());
 
     // trigger first work item on first node
-    int res = 0;
+    int res = EXIT_SUCCESS;
     if (hpx::get_locality_id() == 0) {
 
         res = allscale::spawn_first<MainWorkItem>(args...).get_result();
@@ -71,11 +72,17 @@ int main_wrapper(const Args& ... args) {
         allscale::monitor::stop();
     }
 
+    // also deliver data item access checks
+    auto error_free = allscale::runtime::summarize_access_checks();
+    if (!error_free && res == EXIT_SUCCESS) {
+    	res = EXIT_FAILURE;	// mark as failed
+    }
+
     // Force the optimizer to initialize the runtime...
     if (sched && mon && resi)
         // return result (only id == 0 will actually)
         return res;
-    else return 1;
+    else return EXIT_FAILURE;
 }
 
 dependencies after() {

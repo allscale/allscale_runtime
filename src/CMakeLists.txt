@@ -3,6 +3,7 @@ if(CPUFREQ_FOUND)
     add_hpx_component(
       allscale
       SOURCES
+        data_requirements_check.cpp
         monitor.cpp
         resilience.cpp
         scheduler.cpp
