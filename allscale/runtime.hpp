@@ -117,12 +117,11 @@ prepend(A&& a, hpx::util::tuple<Cs...> const& rest) {
         hpx::util::tuple<Cs...>>()(rest, std::forward<A>(a));
 }
 
-template<typename A, typename R, typename ... Cs>
+template<typename A, typename R, typename F, typename ... Cs>
 struct prec_operation {
 
     hpx::util::tuple<Cs...> closure;
-
-    treeture<R>(*impl)(const dependencies& d, const hpx::util::tuple<A,Cs...>&);
+    F impl;
 
     treeture<R> operator()(const A& a) {
         return (*this).operator()(dependencies(hpx::make_ready_future()),a);
@@ -135,75 +134,78 @@ struct prec_operation {
 
 };
 
-template<typename A, typename R, typename ... Cs>
-prec_operation<A,R,Cs...> make_prec_operation(
-        const hpx::util::tuple<Cs...>& closure, treeture<R>(*impl)(const dependencies& d, const hpx::util::tuple<A,Cs...>&)) {
-    return prec_operation<A,R,Cs...>{closure,impl};
+template<typename A, typename R, typename F, typename ... Cs>
+prec_operation<A,R,F,Cs...> make_prec_operation(
+        const hpx::util::tuple<Cs...>& closure, F impl) {
+    return prec_operation<A,R,F,Cs...>{closure,impl};
 }
 
 // ---- a generic treeture combine operator ----
-
-struct combine_name {
-    static const char *name() {
-        return "combine";
-    }
-};
-
-template<typename Result>
-struct combine_operation {
-
-    static constexpr bool valid = true;
-    using result_type = Result;
-
-    // Just perform the addition, no extra tasks are spawned
-    template <typename Closure>
-    static allscale::treeture<result_type> execute(Closure const& closure) {
-        return
-            allscale::treeture<result_type>{
-                hpx::util::invoke(hpx::util::get<2>(closure), hpx::util::get<0>(closure), hpx::util::get<1>(closure))
-            };
-    }
-};
-
-template<typename Result>
-using combine =
-    allscale::work_item_description<
-        Result,
-        combine_name,
-        allscale::no_serialization,
-        allscale::no_split<Result>,
-        combine_operation<Result>
-    >;
-
 template<typename A, typename B, typename Op, typename R = std::result_of_t<Op(A,B)>>
-allscale::treeture<R> treeture_combine(const dependencies& dep, allscale::treeture<A>&& a, allscale::treeture<B>&& b, Op&& op) {
-    return allscale::treeture<R>(
-        hpx::dataflow(hpx::util::unwrapped(std::forward<Op>(op)), a.get_future(), b.get_future(), dep.dep_));
+allscale::treeture<R> treeture_combine(
+    const dependencies& dep,
+    allscale::treeture<A>&& a,
+    allscale::treeture<B>&& b,
+    Op&& op)
+{
+    allscale::treeture<R> res(
+        hpx::dataflow(hpx::util::unwrapped(std::forward<Op>(op)),
+        a.get_future(), b.get_future(), dep.dep_));
+
+    res.set_child(0, a);
+    res.set_child(1, b);
+
+    return res;
 }
 
 template<typename A, typename B, typename Op, typename R = std::result_of_t<Op(A,B)>>
-allscale::treeture<R> treeture_combine(allscale::treeture<A>&& a, allscale::treeture<B>&& b, Op op) {
-    return allscale::treeture<R>(
-        hpx::dataflow(hpx::util::unwrapped(std::forward<Op>(op)), a.get_future(), b.get_future()));
+allscale::treeture<R> treeture_combine(
+    allscale::treeture<A>&& a,
+    allscale::treeture<B>&& b,
+    Op op)
+{
+    allscale::treeture<R> res(
+        hpx::dataflow(hpx::util::unwrapped(std::forward<Op>(op)),
+        a.get_future(), b.get_future()));
+
+    res.set_child(0, a);
+    res.set_child(1, b);
+
+    return res;
 }
 
-allscale::treeture<void> treeture_combine(const dependencies& dep, allscale::treeture<void>&& a, allscale::treeture<void>&& b) {
-    return allscale::treeture<void>(hpx::when_all(dep.dep_, a.get_future(), b.get_future()));
+allscale::treeture<void> treeture_combine(
+    const dependencies& dep,
+    allscale::treeture<void>&& a,
+    allscale::treeture<void>&& b)
+{
+    allscale::treeture<void> res(hpx::when_all(dep.dep_,
+        a.get_future(), b.get_future()));
+
+    res.set_child(0, a);
+    res.set_child(1, b);
+
+    return res;
 }
 
 allscale::treeture<void> treeture_combine(allscale::treeture<void>&& a, allscale::treeture<void>&& b) {
-    return allscale::treeture<void>(hpx::when_all(a.get_future(), b.get_future()));
+    allscale::treeture<void> res(hpx::when_all(a.get_future(), b.get_future()));
+
+    res.set_child(0, a);
+    res.set_child(1, b);
+
+    return res;
 }
 
 
 template<typename A, typename B>
 allscale::treeture<void> treeture_parallel(const dependencies& dep, allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
-	return allscale::treeture<void>(hpx::when_all(dep.dep_, a.get_future(), b.get_future()));
+    return treeture_combine(dep, std::move(a), std::move(b));
 }
 
 template<typename A, typename B>
 allscale::treeture<void> treeture_parallel(allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
-	return allscale::treeture<void>(hpx::when_all(a.get_future(), b.get_future()));
+    return treeture_combine(std::move(a), std::move(b));
 }
 
 
@@ -217,78 +219,6 @@ template<typename A, typename B>
 allscale::treeture<void> treeture_sequential(allscale::treeture<A>&& a, allscale::treeture<B>&& b) {
 	return treeture_sequential(dependencies{hpx::future<void>()}, std::move(a),std::move(b));
 }
-
-
-// --- Data Item & Manager ---
-
-
-
-template<typename DataItemType>
-struct DataItemReference {
-
-    // ---- <REPLACE> ----
-    mutable std::shared_ptr<DataItemType> dataItem;
-    // ---- <\REPLACE> ----
-
-};
-
-
-enum class AccessMode {
-    ReadOnly, ReadWrite
-};
-
-template<typename DataItemType>
-struct DataItemRequirement {
-    using ref_type = DataItemReference<DataItemType>;
-    using region_type = typename DataItemType::region_type;
-
-
-    ref_type ref;
-    region_type region;
-    AccessMode mode;
-
-};
-
-template<typename DataItemType>
-DataItemRequirement<DataItemType> createDataItemRequirement(const DataItemReference<DataItemType>& ref, const typename DataItemType::region_type& region, const AccessMode& mode) {
-    return { ref, region, mode };
-}
-
-template<typename DataItemType>
-struct Lease {
-
-};
-
-struct DataItemManager {
-
-    template<typename DataItemType, typename ... Args>
-    static DataItemReference<DataItemType> create(const Args& ... args) {
-        return { std::make_shared<DataItemType>(args...) }; 
-    }
-
-    template<typename DataItemType>
-    static typename DataItemType::facade_type& get(const DataItemReference<DataItemType>& ref) {
-        return *ref.dataItem;
-    }
-
-    template<typename DataItemType>
-    static Lease<DataItemType> acquire(const DataItemRequirement<DataItemType>& requirement) {
-        // TODO: implement
-    }
-    
-    template<typename DataItemType>
-    static void release(const Lease<DataItemType>& lease) {
-        // TODO: implement
-    }
-
-    template<typename DataItemType>
-    static void destroy(const DataItemReference<DataItemType>&) {
-        // TODO: implement
-    }
-
-};
-
-
 
 
 } // end namespace runtime

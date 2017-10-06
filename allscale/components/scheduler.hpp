@@ -5,7 +5,9 @@
 #include <allscale/work_item.hpp>
 #include <allscale/components/treeture_buffer.hpp>
 #include <allscale/components/scheduler_network.hpp>
+#if defined(ALLSCALE_HAVE_CPUFREQ)
 #include <allscale/util/hardware_reconf.hpp>
+#endif
 
 #include <hpx/include/components.hpp>
 // #include <hpx/include/local_lcos.hpp>
@@ -31,7 +33,9 @@ namespace allscale { namespace components {
       : hpx::components::component_base<scheduler>
     {
         typedef hpx::lcos::local::spinlock mutex_type;
+#if defined(ALLSCALE_HAVE_CPUFREQ)
         using hardware_reconf = allscale::components::util::hardware_reconf;
+#endif
 
         scheduler()
         {
@@ -92,8 +96,8 @@ namespace allscale { namespace components {
 
         double regulatory_factor;
         unsigned int min_threads;
-        // Indices show number of threads, which hold pair of 
-        // execution times and number of times that particular thread used 
+        // Indices show number of threads, which hold pair of
+        // execution times and number of times that particular thread used
         // due to suspend and resume
         std::vector<std::pair<double, unsigned int>> thread_times;
         hpx::threads::policies::throttling_scheduler<>* thread_scheduler;
@@ -104,14 +108,16 @@ namespace allscale { namespace components {
         unsigned long long last_energy_usage;
         unsigned long long last_actual_energy_usage;
         unsigned long long actual_energy_usage;
+#if defined(ALLSCALE_HAVE_CPUFREQ)
         cpufreq_policy policy;
         hardware_reconf::hw_topology topo;
         std::vector<unsigned long> cpu_freqs;
-        // Indices correspond to the freq id in cpu_freqs, and 
+        // Indices correspond to the freq id in cpu_freqs, and
         // each pair holds energy usage and execution time
         std::vector<std::pair<unsigned long long, double>> freq_times;
         unsigned int freq_step;
         bool target_freq_found;
+#endif
 
         mutable mutex_type throttle_mtx_;
         mutable mutex_type resize_mtx_;

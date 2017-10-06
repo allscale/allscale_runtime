@@ -77,20 +77,25 @@ namespace allscale { namespace components { namespace util {
             {
                 if (hw_freq == all_freqs[freq_idx])
                 {
-                    if ( !dec && freq_idx - freq_step > 0 )
+                    if ( !dec )
                     {
-                        target_freq_idx = freq_idx - freq_step;
+                        if ( freq_idx - freq_step >= 0 )
+                            target_freq_idx = freq_idx - freq_step;
+                        else if ( freq_idx >0 && freq_idx - freq_step < 0 )
+                            target_freq_idx = 0;
+
                         cpufreq_set_frequency(cpu_id, all_freqs[target_freq_idx]);
                         break;
                     }
-                    else if ( dec && freq_idx + freq_step < all_freqs.size() )
+                    else if ( dec )
                     {
-                        target_freq_idx = freq_idx + freq_step;
+                        if ( freq_idx + freq_step < all_freqs.size() )
+                            target_freq_idx = freq_idx + freq_step;
+                        else if ( freq_idx < all_freqs.size() && freq_idx + freq_step >= all_freqs.size() )
+                            target_freq_idx = all_freqs.size() - 1;
+
                         cpufreq_set_frequency(cpu_id, all_freqs[target_freq_idx]);
                         break;
-                    } else {
-                        // If can't increse or decrease keep current
-                        target_freq_idx = freq_idx;
                     }
                 }
             }
