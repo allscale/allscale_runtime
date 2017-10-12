@@ -17,7 +17,7 @@ if(CPUFREQ_FOUND)
         components/monitor_component.cpp
         components/resilience_component.cpp
     )
-    target_link_libraries(allscale_component cpufreq)
+    target_link_libraries(allscale_component ${CPUFREQ_LIBRARIES})
     target_compile_definitions(allscale_component PUBLIC ALLSCALE_HAVE_CPUFREQ)
 
 elseif(NOT CPUFREQ_FOUND)
