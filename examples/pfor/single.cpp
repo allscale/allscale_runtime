@@ -16,6 +16,7 @@
 
 #include "pfor.hpp"
 
+ALLSCALE_REGISTER_TREETURE_TYPE(int)
 
 static const int DEFAULT_SIZE = 256 * 1024 * 1024;
 
@@ -72,6 +73,7 @@ int hpx_main(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-    return hpx::init(argc, argv);
+    allscale::scheduler::setup_resources(argc, argv);
+    return hpx::init();
 }
 

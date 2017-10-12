@@ -186,7 +186,7 @@ int hpx_main(int argc, char **argv)
         std::int64_t iters = argc >= 3 ? std::stoi(std::string(argv[2])) : 1;
 
         for(int i=0; i<iters; i++) {
-	   std::cout << "Starting fib(" << n << "), " << "Iter: " << i << "\n";
+           std::cout << "Starting fib(" << n << "), " << "Iter: " << i << "\n";
            hpx::util::high_resolution_timer t;
            std::int64_t res = fib_runner(n);
            fib_elapsed = t.elapsed_microseconds();
@@ -195,6 +195,7 @@ int hpx_main(int argc, char **argv)
         allscale::scheduler::stop();
         allscale::resilience::stop();
         allscale::monitor::stop();
+        return hpx::finalize();
     }
 
     //std::terminate();
@@ -205,6 +206,8 @@ int main(int argc, char **argv)
 {
     hpx::register_pre_startup_function(&register_counter_type);
 
-    return hpx::init(argc, argv);
+    allscale::scheduler::setup_resources(argc, argv);
+
+    return hpx::init();
 }
 

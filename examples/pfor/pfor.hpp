@@ -240,7 +240,6 @@ struct pfor_neighbor_sync_split_variant
         auto dcl = dc.get_left_child();
         auto dcr = dc.get_right_child();
         auto drl = dr.get_left_child();
-        allscale::treeture<void> parent(allscale::this_work_item::get_id().get_treeture());
 
         // spawn two new sub-tasks
         auto left = allscale::spawn<pfor_neighbor_sync_work<Body,ExtraParams...>>(
@@ -251,7 +250,6 @@ struct pfor_neighbor_sync_split_variant
                 dcr//std::move(dcr)
             )
         );
-        parent.set_child(0, left);
         auto right = allscale::spawn<pfor_neighbor_sync_work<Body,ExtraParams...>>(
             mid, end, extra,
             hpx::util::make_tuple(
@@ -260,7 +258,8 @@ struct pfor_neighbor_sync_split_variant
                 std::move(drl)
             )
         );
-        parent.set_child(1, right);
+        allscale::treeture<void> parent(allscale::this_work_item::get_id().get_treeture());
+        parent.set_children(left, right);
 
         return
             hpx::when_all(

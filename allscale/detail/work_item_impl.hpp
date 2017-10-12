@@ -215,6 +215,9 @@ namespace allscale { namespace detail {
         void finalize(
             std::shared_ptr<work_item_impl>&& this_, hpx::util::unused_type, Leases leases)
         {
+            monitor::signal(monitor::work_item_execution_finished,
+                work_item(this_));
+
             typename hpx::util::detail::make_index_pack<
                 hpx::util::tuple_size<Leases>::type::value>::type pack;
             release(pack, leases);
@@ -225,7 +228,7 @@ namespace allscale { namespace detail {
                 work_item(std::move(this_)));
         }
 
-        template<typename ...Ts, typename Leases>
+        template<typename Leases, typename ...Ts>
 		void do_process(Leases leases, Ts ...vs)
         {
             std::shared_ptr < work_item_impl > this_(shared_this());
@@ -270,13 +273,13 @@ namespace allscale { namespace detail {
         }
 
         template <typename ProcessVariant, typename Leases, std::size_t... Is>
-        void get_deps(hpx::util::detail::pack_c<std::size_t, Is...>, Leases leases,
+        void get_deps(executor_type& exec, hpx::util::detail::pack_c<std::size_t, Is...>, Leases leases,
             decltype(&ProcessVariant::template deps<Closure>))
         {
             typedef hpx::shared_future<void> deps_type;
 
             deps_type deps;
-            if (dep_.valid())
+            if (dep_.valid() && !dep_.is_ready())
             {
                 deps = hpx::when_all(ProcessVariant::deps(closure_), dep_).share();
             }
@@ -290,7 +293,7 @@ namespace allscale { namespace detail {
 
             auto this_ = shared_this();
             state->set_on_completed(
-                [state, this_, leases]()
+                [exec, state, this_, leases]() mutable
                 {
 //                     state->get_result();
                     void (work_item_impl::*f)(
@@ -299,13 +302,13 @@ namespace allscale { namespace detail {
                             decltype(hpx::util::get<Is>(closure_))>::type...
                     ) = &work_item_impl::do_process;
 
-                    hpx::apply(f, this_,
+                    hpx::apply(exec, f, this_,
                         std::move(leases), std::move(hpx::util::get<Is>(this_->closure_))...);
                 });
         }
 
         template <typename ProcessVariant, typename Leases, std::size_t... Is>
-        void get_deps(hpx::util::detail::pack_c<std::size_t, Is...>, Leases leases, ...)
+        void get_deps(executor_type& exec, hpx::util::detail::pack_c<std::size_t, Is...>, Leases leases, ...)
         {
             void (work_item_impl::*f)(
                     Leases,
@@ -314,46 +317,46 @@ namespace allscale { namespace detail {
             ) = &work_item_impl::do_process;
 
             auto this_ = shared_this();
-            if (dep_.valid())
+            if (dep_.valid() && !dep_.is_ready())
             {
                 typedef hpx::shared_future<void> deps_type;
 
                 typename hpx::traits::detail::shared_state_ptr_for<deps_type>::type const& state
                     = hpx::traits::future_access<deps_type>::get_shared_state(dep_);
                 state->set_on_completed(
-                    [state, f, this_, leases]()
+                    [exec, state, f, this_, leases]() mutable
                     {
 //                         state->get_result();
-                        hpx::apply(f, this_,
+                        hpx::apply(exec, f, this_,
                             std::move(leases), std::move(hpx::util::get<Is>(this_->closure_))...);
                     }
                 );
             }
             else
             {
-                hpx::apply(f, this_,
+                hpx::apply(exec, f, shared_this(),
                     std::move(leases), std::move(hpx::util::get<Is>(closure_))...);
             }
         }
 
         template<std::size_t ... Is>
-        void process(hpx::util::detail::pack_c<std::size_t, Is...> pack)
+        void process(executor_type& exec, hpx::util::detail::pack_c<std::size_t, Is...> pack)
         {
             HPX_ASSERT(valid());
             // FIXME: Do we need to futurizing the acquisition of leases?
             auto reqs = acquire<typename WorkItemDescription::process_variant>(nullptr);
 
-            get_deps<typename WorkItemDescription::process_variant>(pack, reqs, nullptr);
+            get_deps<typename WorkItemDescription::process_variant>(exec, pack, reqs, nullptr);
         }
 
-        void process()
+        void process(executor_type& exec)
         {
-            process(typename hpx::util::detail::make_index_pack<
+            process(exec, typename hpx::util::detail::make_index_pack<
                 hpx::util::tuple_size<closure_type>::type::value>::type());
         }
 
         template<std::size_t ... Is>
-        void split_impl(hpx::util::detail::pack_c<std::size_t, Is...>) {
+        void split_impl(executor_type& exec, hpx::util::detail::pack_c<std::size_t, Is...>) {
             // FIXME: Do we need to futurizing the acquisition of leases?
             auto reqs = acquire<typename WorkItemDescription::split_variant>(nullptr);
 
@@ -363,29 +366,29 @@ namespace allscale { namespace detail {
                     decltype(hpx::util::get<Is>(closure_))>::type...
             ) = &work_item_impl::do_split;
             HPX_ASSERT(valid());
-            hpx::apply(f, shared_this(), std::move(reqs), std::move(hpx::util::get<Is>(closure_))...);
+            hpx::apply(exec, f, shared_this(), std::move(reqs), std::move(hpx::util::get<Is>(closure_))...);
         }
 
         template <typename WorkItemDescription_>
         typename std::enable_if<
             WorkItemDescription_::split_variant::valid
-        >::type split_impl()
+        >::type split_impl(executor_type& exec)
         {
-            split_impl(typename hpx::util::detail::make_index_pack<
+            split_impl(exec, typename hpx::util::detail::make_index_pack<
                 hpx::util::tuple_size<closure_type>::type::value>::type());
         }
 
         template <typename WorkItemDescription_>
         typename std::enable_if<
             !WorkItemDescription_::split_variant::valid
-        >::type split_impl()
+        >::type split_impl(executor_type& exec)
         {
-            process();
+            process(exec);
         }
 
-        void split()
+        void split(executor_type& exec)
         {
-            split_impl<WorkItemDescription>();
+            split_impl<WorkItemDescription>(exec);
         }
 
         bool enqueue_remote() const

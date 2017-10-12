@@ -53,6 +53,13 @@ namespace allscale
                 return children_[1];
             }
 
+            void set_children(treeture<void> left, treeture<void> right)
+            {
+                std::lock_guard<typename base_type::mutex_type> l(this->mtx_);
+                children_[0] = std::move(left);
+                children_[1] = std::move(right);
+            }
+
             void set_left_child(treeture<void> child)
             {
                 std::lock_guard<typename base_type::mutex_type> l(this->mtx_);
@@ -89,6 +96,12 @@ namespace allscale
         treeture<void> treeture_lco<T>::get_right_child()
         {
             return shared_state_->get_right_child();
+        }
+
+        template <typename T>
+        void treeture_lco<T>::set_children(treeture<void> left, treeture<void> right)
+        {
+            shared_state_->set_children(std::move(left), std::move(right));
         }
 
         template <typename T>

@@ -319,11 +319,11 @@ int32_t IMP_main() {
     return 0;
 }
 /* ------- Function Definitions --------- */
-allscale::treeture<int32_t > allscale_fun_1(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > allscale_fun_1(hpx::util::tuple<int, char** > const& var_0) {
     return allscale::treeture<int32_t >(IMP_main());
 }
 struct __wi_main_variant_0 {
-    static allscale::treeture<int32_t > execute(hpx::util::tuple< > const& var_0);
+    static allscale::treeture<int32_t > execute(hpx::util::tuple<int, char** > const& var_0);
     static constexpr bool valid = true;
 };
 
@@ -1147,26 +1147,26 @@ struct __wi_allscale_wi_3_variant_0 {
 allscale::treeture<void > __wi_allscale_wi_3_variant_0::execute(hpx::util::tuple<IMP_rangeHelper_IMLOC__slash_home_slash_herbert_slash_coding_slash_c_plus__plus__slash_allscale_compiler_slash_api_slash_code_slash_api_slash_include_slash_allscale_slash_api_slash_user_slash__operator_div_pfor_dot_h_928_3, IMP___anon_tagtype__slash_home_slash_herbert_slash_coding_slash_c_plus__plus__slash_allscale_compiler_slash_test_slash_pfor_slash_sync_neighbor_2d_slash_sync_neighbor_2d_dot_cpp_66_47_const_space_int_struct_space_std_colon__colon_array_lt_struct_space_std_colon__colon_array_lt_int_comma__space_500_gt__comma__space_500_gt__space__star__void_const_space_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__space_2_gt__space__ampersand__IMLOC__slash_home_slash_herbert_slash_coding_slash_c_plus__plus__slash_allscale_compiler_slash_test_slash_pfor_slash_sync_neighbor_2d_slash_sync_neighbor_2d_dot_cpp_66_47, IMP___anon_tagtype__slash_home_slash_herbert_slash_coding_slash_c_plus__plus__slash_allscale_compiler_slash_test_slash_pfor_slash_sync_neighbor_2d_slash_sync_neighbor_2d_dot_cpp_66_47_const_space_int_struct_space_std_colon__colon_array_lt_struct_space_std_colon__colon_array_lt_int_comma__space_500_gt__comma__space_500_gt__space__star__void_const_space_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__space_2_gt__space__ampersand__IMLOC__slash_home_slash_herbert_slash_coding_slash_c_plus__plus__slash_allscale_compiler_slash_test_slash_pfor_slash_sync_neighbor_2d_slash_sync_neighbor_2d_dot_cpp_66_47 > const& var_0) {
     return allscale_fun_468(var_0);
 }
-allscale::treeture<int32_t > __wi_main_variant_0::execute(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > __wi_main_variant_0::execute(hpx::util::tuple<int, char** > const& var_0) {
     return allscale_fun_1(var_0);
 }
 /* ------- Function Definitions --------- */
-bool allscale_fun_480(hpx::util::tuple< > const& var_0) {
+bool allscale_fun_480(hpx::util::tuple<int, char** > const& var_0) {
     return (bool)false;
 }
 struct __wi_main_can_split {
-    static bool call(hpx::util::tuple< > const& var_0);
+    static bool call(hpx::util::tuple<int, char** > const& var_0);
 };
 
-bool __wi_main_can_split::call(hpx::util::tuple< > const& var_0) {
+bool __wi_main_can_split::call(hpx::util::tuple<int, char** > const& var_0) {
     return allscale_fun_480(var_0);
 }
 struct __wi_main_variant_1 {
-    static allscale::treeture<int32_t > execute(hpx::util::tuple< > const& var_0);
+    static allscale::treeture<int32_t > execute(hpx::util::tuple<int, char** > const& var_0);
     static constexpr bool valid = true;
 };
 
-allscale::treeture<int32_t > __wi_main_variant_1::execute(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > __wi_main_variant_1::execute(hpx::util::tuple<int, char** > const& var_0) {
     return allscale_fun_1(var_0);
 }
 

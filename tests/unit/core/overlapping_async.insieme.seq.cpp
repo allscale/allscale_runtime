@@ -50,8 +50,8 @@ struct __wi_main_name {
 using __wi_main_work = allscale::work_item_description<int32_t, __wi_main_name, allscale::no_serialization, __wi_main_variant_0, __wi_main_variant_1 >;
 
 /* ------- Function Definitions --------- */
-int32_t main() {
-    HPX_TEST_EQ(allscale::runtime::main_wrapper<__wi_main_work >(), 0);
+int32_t main(int argc, char** argv) {
+    HPX_TEST_EQ(allscale::runtime::main_wrapper<__wi_main_work >(argc, argv), 0);
 
     return hpx::util::report_errors();
 }
@@ -206,11 +206,11 @@ int32_t IMP_main() {
     return 0;
 }
 /* ------- Function Definitions --------- */
-allscale::treeture<int32_t > allscale_fun_4(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > allscale_fun_4(hpx::util::tuple<int, char**> const& var_0) {
     return allscale::treeture<int32_t >(IMP_main());
 }
 struct __wi_main_variant_0 {
-    static allscale::treeture<int32_t > execute(hpx::util::tuple< > const& var_0);
+    static allscale::treeture<int32_t > execute(hpx::util::tuple<int, char**> const& var_0);
     static constexpr bool valid = true;
 };
 
@@ -446,15 +446,15 @@ struct __wi_allscale_wi_0_variant_1 {
 allscale::treeture<void > __wi_allscale_wi_0_variant_1::execute(hpx::util::tuple<IMP_empty_IMLOC__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_api_slash_code_slash_api_slash_include_slash_allscale_slash_api_slash_user_slash__operator_div_async_dot_h_62_3, IMP___anon_tagtype__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_dependencies_slash_overlapping_async_slash_overlapping_async_dot_cpp_17_17_int__ampersand__void_IMLOC__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_dependencies_slash_overlapping_async_slash_overlapping_async_dot_cpp_17_17, IMP___anon_tagtype__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_dependencies_slash_overlapping_async_slash_overlapping_async_dot_cpp_17_17_int__ampersand__void_IMLOC__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_dependencies_slash_overlapping_async_slash_overlapping_async_dot_cpp_17_17 > const& var_0) {
     return allscale_fun_58(var_0);
 }
-allscale::treeture<int32_t > __wi_main_variant_0::execute(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > __wi_main_variant_0::execute(hpx::util::tuple<int, char**> const& var_0) {
     return allscale_fun_4(var_0);
 }
 struct __wi_main_variant_1 {
-    static allscale::treeture<int32_t > execute(hpx::util::tuple< > const& var_0);
+    static allscale::treeture<int32_t > execute(hpx::util::tuple<int, char**> const& var_0);
     static constexpr bool valid = true;
 };
 
-allscale::treeture<int32_t > __wi_main_variant_1::execute(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > __wi_main_variant_1::execute(hpx::util::tuple<int, char**> const& var_0) {
     return allscale_fun_4(var_0);
 }
 

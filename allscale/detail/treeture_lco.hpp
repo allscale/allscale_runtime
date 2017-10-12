@@ -56,6 +56,8 @@ namespace allscale { namespace detail {
         HPX_DEFINE_COMPONENT_DIRECT_ACTION(treeture_lco, set_left_child);
         void set_right_child(treeture<void>);
         HPX_DEFINE_COMPONENT_DIRECT_ACTION(treeture_lco, set_right_child);
+        void set_children(treeture<void>, treeture<void>);
+        HPX_DEFINE_COMPONENT_DIRECT_ACTION(treeture_lco, set_children);
 
         void set_value(remote_result&& result)
         {

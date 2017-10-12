@@ -1,6 +1,7 @@
 #ifndef ALLSCALE_LOCATION_INFO
 #define ALLSCALE_LOCATION_INFO
 #include <allscale/locality.h>
+#include <hpx/include/serialization.hpp>
 
 namespace allscale{
     /**
@@ -33,8 +34,20 @@ namespace allscale{
 		std::vector<part> parts;
 
 	public:
+        
+        template<typename Archive>
+        void serialize(Archive & ar, location_info<DataItemType> & li, unsigned)
+        {
+            //TODO implement me;
+        }
 
-		std::size_t getNumParts() const {
+        template<typename Archive>
+        void serialize(Archive & ar, unsigned)
+        {
+            //TODO implement me;
+ 
+        }
+        std::size_t getNumParts() const {
 			return parts.size();
 		}
 

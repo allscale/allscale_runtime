@@ -15,7 +15,7 @@
 
 #include <hpx/compute/host.hpp>
 #include <hpx/compute/host/target.hpp>
-#include <hpx/runtime/threads/executors/thread_pool_attached_executors.hpp>
+#include <hpx/runtime/threads/executors/pool_executor.hpp>
 #include <hpx/runtime/threads/policies/throttling_scheduler.hpp>
 #include <hpx/runtime/threads/threadmanager.hpp>
 
@@ -25,7 +25,6 @@
 #include <vector>
 #include <unordered_map>
 
-using executor_type = hpx::threads::executors::local_priority_queue_attached_executor;
 
 namespace allscale { namespace components {
 
@@ -72,6 +71,7 @@ namespace allscale { namespace components {
         bool periodic_frequency_scale();
 
         hpx::util::interval_timer timer_;
+        hpx::util::interval_timer throttle_timer_;
         hpx::util::interval_timer frequency_timer_;
 
         mutex_type counters_mtx_;
@@ -86,21 +86,21 @@ namespace allscale { namespace components {
 
         hpx::id_type allscale_app_counter_id;
 
-        std::vector<hpx::compute::host::target> numa_domains;
-        std::vector<executor_type> executors;
+        std::vector<hpx::threads::detail::thread_pool_base*> thread_pools_;
+        std::vector<hpx::threads::mask_type> initial_masks_;
+        std::vector<executor_type> executors_;
         std::atomic<std::size_t> current_;
 
         std::size_t os_thread_count;
         std::size_t active_threads;
-        std::size_t depth_cap;
 
-        double regulatory_factor;
+        double enable_factor;
+        double disable_factor;
         unsigned int min_threads;
         // Indices show number of threads, which hold pair of
         // execution times and number of times that particular thread used
         // due to suspend and resume
         std::vector<std::pair<double, unsigned int>> thread_times;
-        hpx::threads::policies::throttling_scheduler<>* thread_scheduler;
 
         unsigned long min_freq;
         unsigned long max_freq;

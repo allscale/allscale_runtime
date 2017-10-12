@@ -1,9 +1,11 @@
 set(tests
   #this_work_item
+#  1d_stencil
   scalar_read_write
   overlapping_async.insieme.seq
   #overlapping_pfor.insieme.seq
-  data_item_manager
+#  data_item_manager
+  serialization
   treeture
   work_item)
 

@@ -6,6 +6,7 @@
 #include <allscale/third-party/blocking_udp_client.hpp>
 
 #include <hpx/hpx.hpp>
+#include <hpx/traits/action_schedule_thread.hpp>
 #include <hpx/include/actions.hpp>
 #include <hpx/include/lcos.hpp>
 #include <hpx/include/components.hpp>
@@ -36,9 +37,10 @@ namespace allscale { namespace components {
            // START failure detection here (Kiril)
            client * c;
            udp::endpoint * my_receiver_endpoint, *guard_receiver_endpoint;
-           enum state {TRUST, SUSPECT};
+           enum state {TRUST, SUSPECT, RECOVERING};
            std::condition_variable cv;
            std::mutex cv_m;
+           udp::socket *send_sock;
            bool recovery_done; // protected via cv and cv_m
            state my_state;
            std::chrono::high_resolution_clock::time_point start_time,trust_lease;
@@ -75,6 +77,8 @@ namespace allscale { namespace components {
            void init();
            resilience(std::uint64_t rank);
            void protectee_crashed();
+           HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,protectee_crashed);
+           void handle_my_crash();
            int get_cp_granularity();
 
            void set_guard(hpx::id_type guard, uint64_t guard_rank);
@@ -84,7 +88,7 @@ namespace allscale { namespace components {
            std::map<this_work_item::id,work_item> get_local_backups();
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,get_local_backups);
            void remote_backup(work_item wi);
-           HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,remote_backup);
+           HPX_DEFINE_COMPONENT_ACTION(resilience,remote_backup);
            void kill_me();
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,kill_me);
            void remote_unbackup(work_item wi);
@@ -101,9 +105,23 @@ namespace allscale { namespace components {
            //void do_receive(udp::endpoint sender);
        };
 }}
+
+namespace hpx { namespace traits {
+    template <>
+    struct action_schedule_thread<allscale::components::resilience::remote_backup_action>
+    {
+        static void call(naming::address_type lva, naming::component_type comp_type,
+            threads::thread_init_data& data, threads::thread_state_enum initial)
+        {
+            data.func(hpx::threads::wait_signaled);
+        }
+    };
+}}
+
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::remote_backup_action, remote_backup_action)
 //HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::send_heartbeat_action, send_heartbeat_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::remote_unbackup_action, remote_unbackup_action)
+HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::protectee_crashed_action, protectee_crashed_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::set_guard_action, set_guard_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_protectee_action, get_protectee_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_local_backups_action, get_local_backups_action)

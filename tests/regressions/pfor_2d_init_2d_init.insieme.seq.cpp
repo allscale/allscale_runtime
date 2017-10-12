@@ -223,11 +223,11 @@ int32_t IMP_main() {
 }
 ALLSCALE_REGISTER_TREETURE_TYPE(int32_t)
 /* ------- Function Definitions --------- */
-allscale::treeture<int32_t > allscale_fun_2(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > allscale_fun_2(hpx::util::tuple<int, char** > const& var_0) {
     return allscale::treeture<int32_t >(IMP_main());
 }
 struct __wi_main_variant_0 {
-    static allscale::treeture<int32_t > execute(hpx::util::tuple< > const& var_0);
+    static allscale::treeture<int32_t > execute(hpx::util::tuple<int, char** > const& var_0);
     static constexpr bool valid = true;
 };
 
@@ -626,15 +626,15 @@ struct __wi_allscale_wi_0_variant_0 {
 allscale::treeture<void > __wi_allscale_wi_0_variant_0::execute(hpx::util::tuple<IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__2_gt_, IMP___anon_tagtype__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_pfor_slash_2d_init_slash_2d_init_dot_cpp_16_18_struct_std_colon__colon_array_lt_struct_std_colon__colon_array_lt_int_comma__10_gt__comma__10_gt___ampersand__void_const_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__2_gt___ampersand__IMLOC__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_pfor_slash_2d_init_slash_2d_init_dot_cpp_16_18, IMP___anon_tagtype__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_pfor_slash_2d_init_slash_2d_init_dot_cpp_16_18_struct_std_colon__colon_array_lt_struct_std_colon__colon_array_lt_int_comma__10_gt__comma__10_gt___ampersand__void_const_allscale_colon__colon_utils_colon__colon_Vector_lt_int_comma__2_gt___ampersand__IMLOC__slash_home_slash_zangerl_slash_insieme_dev_slash_allscale_slash_test_slash_pfor_slash_2d_init_slash_2d_init_dot_cpp_16_18 > const& var_0) {
     return allscale_fun_293(var_0);
 }
-allscale::treeture<int32_t > __wi_main_variant_0::execute(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > __wi_main_variant_0::execute(hpx::util::tuple<int, char** > const& var_0) {
     return allscale_fun_2(var_0);
 }
 struct __wi_main_variant_1 {
-    static allscale::treeture<int32_t > execute(hpx::util::tuple< > const& var_0);
+    static allscale::treeture<int32_t > execute(hpx::util::tuple<int, char** > const& var_0);
     static constexpr bool valid = true;
 };
 
-allscale::treeture<int32_t > __wi_main_variant_1::execute(hpx::util::tuple< > const& var_0) {
+allscale::treeture<int32_t > __wi_main_variant_1::execute(hpx::util::tuple<int, char** > const& var_0) {
     return allscale_fun_2(var_0);
 }
 

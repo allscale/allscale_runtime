@@ -125,7 +125,7 @@ int hpx_main(int argc, char **argv)
         }
         allscale::scheduler::stop();
 
-        std::cout << "mean: " << mean/iters << '\n';
+        std::cout << "Mean time: " << mean/iters << std::endl;
     }
 
     return hpx::finalize();
@@ -136,6 +136,7 @@ int main(int argc, char **argv)
 {
 //     std::cout << "Before register counter" << std::endl;
     hpx::register_pre_startup_function(&register_counter_type);
-    return hpx::init(argc, argv);
+    allscale::scheduler::setup_resources(argc, argv);
+    return hpx::init();
 }
 
