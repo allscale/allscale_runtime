@@ -7,12 +7,12 @@
 
 #include <hpx/include/serialization.hpp>
 #include <hpx/util/unique_function.hpp>
-#include <hpx/runtime/threads/executors/customized_pool_executors.hpp>
+#include <hpx/runtime/threads/executors/pool_executor.hpp>
 
 #include <memory>
 
 namespace allscale {
-    using executor_type = hpx::threads::executors::customized_pool_executor;
+    using executor_type = hpx::threads::executors::pool_executor;
 }
 
 namespace allscale { namespace detail {

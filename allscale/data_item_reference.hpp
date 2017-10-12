@@ -38,9 +38,10 @@ namespace allscale {
     public:
         data_item_reference() 
         {
-            id_ = hpx::new_<stub_comp_server>(hpx::find_here()).get();
+            //id_ = hpx::new_<stub_comp_server>(hpx::find_here()).get();
         }
         
+
         data_item_reference(const data_item_reference& ref)
         {
             id_ = ref.id_;
@@ -49,6 +50,16 @@ namespace allscale {
         void serialize(Archive & ar, unsigned)
         {
         
+        }
+
+        void set_id(){
+            id_ = hpx::new_<stub_comp_server>(hpx::find_here()).get();
+        }
+
+
+
+        void set_id(hpx::id_type id){
+            id_ = id; 
         }
     
         hpx::id_type id_;

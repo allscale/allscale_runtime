@@ -80,32 +80,48 @@ auto simulate_data_item_manager_create_and_get(const Args& ... args){
     
     std::vector<allscale::data_item_server<DataItemType>> result;
     //SERIALIZE STUFF BY HAND FOR NOW
-    auto archive = allscale::utils::serialize(args...);
-    using buffer_type = std::vector<char>;
-    buffer_type buffer;
-    buffer = archive.getBuffer();
+    //auto archive = allscale::utils::serialize(args...);
+    //using buffer_type = std::vector<char>;
+    //buffer_type buffer;
+    //buffer = archive.getBuffer();
    
+    typedef typename allscale::data_item_manager manager_type;
 
     if (hpx::get_locality_id() == 0) {
         //auto sn = allscale::data_item_manager::create_server_network<DataItemType>();
-        auto dataRef = allscale::data_item_manager::create<DataItemType>(args...);
+        //auto dataRef = allscale::data_item_manager::create<DataItemType>(args...);
+        auto dataRef = manager_type::create<DataItemType>(args...);
+        
+        auto res = manager_type::get_server<DataItemType>(1);
 
+        std::cout << res << std::endl;
+
+        //std::cout << allscale::data_item_manager::sn.servers.size() << std::endl;
         // acquire small lease
         auto req = allscale::createDataItemRequirement(dataRef, GridRegion<1>(100,150), access_mode::ReadWrite); 
         auto lease = allscale::data_item_manager::acquire<DataItemType>(req);
 
-
+    
+        //acquire from loc 1 instead 0 
+        typedef typename  allscale::server::data_item_server<DataItemType>::template acquire_action<allscale::data_item_requirement<DataItemType>> action_type;
+		
+		//typedef typename allscale::server::data_item_server<DataItemType>::print_action action_type;
+        
+        action_type()(res,req);
+     
         // acquire bigger lease
-        auto req2 = allscale::createDataItemRequirement(dataRef, GridRegion<1>(,5100), access_mode::ReadWrite); 
-        auto lease2 = allscale::data_item_manager::acquire<DataItemType>(req2);
+    //    auto req2 = allscale::createDataItemRequirement(dataRef, GridRegion<1>(5000,5100), access_mode::ReadWrite); 
+      //  auto lease2 = allscale::data_item_manager::acquire<DataItemType>(req2);
 
 
-	    auto data = allscale::data_item_manager::get(dataRef);
+	    //auto data = allscale::data_item_manager::get(dataRef);
         
         //std::cout<<data[150]<<std::endl;
         //data[5000] = 5;
         //std::cout<<data[5000]<<std::endl;
     }
+
+
     /*
     if (hpx::get_locality_id() == 0) {
 		//CYCLE THRU LOCALITIES

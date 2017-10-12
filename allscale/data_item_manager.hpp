@@ -12,9 +12,9 @@
 namespace allscale{
     struct data_item_manager{
         
+
         
         public:
-       
         template <typename DataItemType, typename ... Args>
         static typename std::enable_if<sizeof...(Args) == 0,allscale::data_item_reference<DataItemType> >::type create()
         { 
@@ -40,13 +40,14 @@ namespace allscale{
                 static auto sn = allscale::data_item_manager::create_server_network<DataItemType>();
             } 
             using data_item_reference_type = allscale::data_item_reference<DataItemType>;
-            auto archive = allscale::utils::serialize(args...);
-            using buffer_type = std::vector<char>;
-            buffer_type buffer;
-            buffer = archive.getBuffer();
+          //  auto archive = allscale::utils::serialize(args...);
+          //  using buffer_type = std::vector<char>;
+          //  buffer_type buffer;
+            //buffer = archive.getBuffer();
             hpx::id_type server_id = allscale::data_item_manager::get_server<DataItemType>();
-            typedef typename  allscale::server::data_item_server<DataItemType>::template create_action<buffer_type> action_type;
-            auto res = action_type()(server_id, buffer);
+           // typedef typename  allscale::server::data_item_server<DataItemType>::template create_action<buffer_type> action_type;
+            typedef typename  allscale::server::data_item_server<DataItemType>::template create_action<Args...> action_type;
+            auto res = action_type()(server_id, args...);
             return res;    
         }
         
@@ -119,7 +120,6 @@ namespace allscale{
             auto res =  hpx::find_all_from_basename(data_item_server_name, hpx::find_all_localities().size());
             hpx::id_type result;
             for(auto& fut : res ){
-                typedef typename allscale::server::data_item_server<DataItemType>::print_action action_type;
                result = fut.get();
                if( hpx::naming::get_locality_id_from_id(result) == hpx::naming::get_locality_id_from_id(hpx::find_here()))
                {
@@ -129,6 +129,22 @@ namespace allscale{
             
             return result;
             //return getLocalDataItemServer<DataItemType>();
+        }
+
+        template<typename DataItemType>
+        static hpx::id_type get_server(uint32_t loc){
+            auto data_item_server_name = allscale::data_item_server_name<DataItemType>::name();
+            auto res =  hpx::find_all_from_basename(data_item_server_name, hpx::find_all_localities().size());
+            hpx::id_type result;
+            for(auto& fut : res ){
+               result = fut.get();
+               if( hpx::naming::get_locality_id_from_id(result) == loc)
+               {
+                   return result;
+               }
+            }
+            
+            return result;
         }
 
         template<typename DataItemType>
