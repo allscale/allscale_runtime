@@ -101,7 +101,6 @@ auto simulate_data_item_manager_create_and_get(const Args& ... args){
         auto req = allscale::createDataItemRequirement(dataRef, GridRegion<1>(100,150), access_mode::ReadWrite); 
         auto lease = allscale::data_item_manager::acquire<DataItemType>(req);
 
-    
         //acquire from loc 1 instead 0 
         typedef typename  allscale::server::data_item_server<DataItemType>::template acquire_action<allscale::data_item_requirement<DataItemType>> action_type;
 		

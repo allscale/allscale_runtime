@@ -22,14 +22,10 @@ namespace allscale{
         data_item_requirement(){}
 
         data_item_requirement(const data_item_requirement& req){
-            std::cout<<"1"<<std::endl;
             ref = req.ref;
-            std::cout<<"2"<<std::endl;
             region = req.region;
-            std::cout<<"3"<<std::endl;
             mode = req.mode;
 
-            std::cout<<"4"<<std::endl;
         }
          
         data_item_requirement(const data_item_reference<DataItemType>& pref, 
@@ -55,7 +51,6 @@ namespace allscale{
             ar & mode;
             ar & region;
 
-            std::cout<<"serialized following region in : " << region << std::endl;
             
             /*
             using buffer_type = std::vector<char>;

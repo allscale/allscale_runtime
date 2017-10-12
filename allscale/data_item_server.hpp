@@ -174,17 +174,8 @@ public:
 
     template<typename T, typename T2, typename ... Ts>
 	void register_data_item_ref_impl(const T& arg,const T2& arg2, const Ts& ... args) {
-        /*
-        auto tup   = hpx::util::make_tuple(arg,arg2,args...);
-        auto first = hpx::util::get<0>(tup);
-        auto second = hpx::util::get<1>(tup);
-        allscale::utils::Archive received(second);
-        auto p2 = allscale::utils::deserialize<data_item_shared_data_type>(received);
-        */
         data_item_shared_data_type shared(arg2);
-        std::cout<<" on loc " << hpx::find_here()<< " size : " << shared.size << std::endl;
         auto frag = fragment_info(shared);
-        std::cout << " total size when registering : " << frag.fragment.getTotalSize() << std::endl;
         auto dataItemID =  arg;
         store.emplace(dataItemID, std::move(fragment_info(shared)));
         
@@ -205,25 +196,12 @@ public:
     template<typename T>
     lease_type acquire(const T& req){
 		//auto locationInfo = locate(req.ref,req.region);
-				// collect data on data distribution
-				//auto locationInfo = locate(request.ref,request.region);
-				// get local fragment info
-	            auto& info = get_info(req.ref);
-
-                std::cout<<"hurei2 " << info.fragment.getTotalSize() << " " << req.region << std::endl;
-				info.fragment.resize(merge(info.fragment.getCoveredRegion(), req.region));
-                
-                /*
-				// transfer data using a transfer plan
-				auto success = execute(buildPlan(locationInfo,myLocality,request));
-
-				// make sure the transfer was ok
-				assert_true(success);
-    */
+        // get local fragment inf;
+        auto& info = get_info(req.ref);
+        //std::cout<<"hurei2 " << info.fragment.getTotalSize() << " " << req.region << std::endl;
+        info.fragment.resize(merge(info.fragment.getCoveredRegion(), req.region));
         lease_type l(req);
-
-
-                std::cout<<"hurei3"<<std::endl;
+        //std::cout<<"hurei3"<<std::endl;
         return l;
     }
 	template<typename T>
@@ -270,6 +248,7 @@ public:
     fragment_info& get_info(const data_item_reference_client_type& ref ) {
         auto pos = store.find(ref.id_);
         assert_true(pos != store.end()) << "Requested invalid data item id: " << ref.id;
+        std::cout<< " total size is " << pos->second.fragment.getTotalSize() << " id " << ref.id_ << std::endl; 
         return pos->second;
           
         //std::cout<<"get_info_action called on loc: " << hpx::find_here() << std::endl;	

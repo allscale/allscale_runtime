@@ -49,7 +49,8 @@ namespace allscale {
         template <typename Archive>
         void serialize(Archive & ar, unsigned)
         {
-        
+            ar & id_;
+            ar & id;
         }
 
         void set_id(){
