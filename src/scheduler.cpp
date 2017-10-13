@@ -1,6 +1,7 @@
 
 #include <allscale/scheduler.hpp>
 #include <allscale/monitor.hpp>
+#include <allscale/resilience.hpp>
 #include <allscale/components/scheduler.hpp>
 
 #include <hpx/include/components.hpp>
@@ -27,6 +28,7 @@ namespace allscale
         std::cout << "  Scheduling is using " << numa_domains.size() << " NUMA Domains\n";
 
         std::size_t domain = 0;
+        bool skip = true;
         for (auto& numa: numa_domains)
         {
             std::string pool_name;
@@ -73,8 +75,17 @@ namespace allscale
             {
                 for (auto& pu: core.pus())
                 {
-                    std::cout << "    Adding PU " << pu.id() << '\n';
-                    rp.add_resource(pu, pool_name);
+//                     if (skip && core.pus().size() > 1 && resilience::enabled())
+//                     {
+//                         std::cout << "    Using PU " << pu.id() << " for performing backups\n";
+//                         rp.add_resource(pu, "resilience");
+//                         skip = false;
+//                     }
+//                     else
+//                     {
+                        std::cout << "    Adding PU " << pu.id() << '\n';
+                        rp.add_resource(pu, pool_name);
+//                     }
                 }
             }
 

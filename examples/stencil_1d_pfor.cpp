@@ -1,4 +1,4 @@
-
+/*
 #include <allscale/runtime.hpp>
 #include <vector>
 
@@ -319,3 +319,6 @@ int main(int argc, char* argv[]) {
 
     return allscale::runtime::main_wrapper<__wi_main_work>(argc,argv);
 }
+
+
+*/

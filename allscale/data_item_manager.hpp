@@ -52,48 +52,48 @@ namespace allscale{
         }
         
         template<typename DataItemType>
-		 static typename DataItemType::facade_type get(const allscale::data_item_reference<DataItemType>& ref) {
-		 // static std::size_t get(const allscale::data_item_reference<DataItemType>& ref) {
+         static typename DataItemType::facade_type get(const allscale::data_item_reference<DataItemType>& ref) {
+         // static std::size_t get(const allscale::data_item_reference<DataItemType>& ref) {
 
             using facade_type = typename DataItemType::facade_type;
             hpx::id_type server_id = allscale::data_item_manager::get_server<DataItemType>();
             typedef typename allscale::server::data_item_server<DataItemType>::get_action action_type;
             std::size_t res  = action_type()(server_id,ref);
             
-	        using data_item_fragment_type = typename DataItemType::fragment_type;
+            using data_item_fragment_type = typename DataItemType::fragment_type;
             data_item_fragment_type* frag_ptr;
             frag_ptr = (data_item_fragment_type*) res;
             // DataItemType::facade_type* ptr;
             // ptr = (DataItemType::facade_type*) raw_ptr_as_sizet;
             return frag_ptr->mask();
-		}
+        }
 
         template<typename DataItemType>
-		static allscale::lease<DataItemType> acquire(const allscale::data_item_requirement<DataItemType>& requirement) {
+        static allscale::lease<DataItemType> acquire(const allscale::data_item_requirement<DataItemType>& requirement) {
             hpx::id_type server_id = allscale::data_item_manager::get_server<DataItemType>();
             typedef typename  allscale::server::data_item_server<DataItemType>::template acquire_action<allscale::data_item_requirement<DataItemType>> action_type;
-		    return action_type()(server_id, requirement);
+            return action_type()(server_id, requirement);
             //return get_server<DataItemType>().acquire(requirement);
-		}
+        }
 
 
 /*
- 		template<typename DataItemType>
-		static allscale::lease<DataItemType>  acquire(const allscale::data_item_requirement<DataItemType>& requirement) {
+        template<typename DataItemType>
+        static allscale::lease<DataItemType>  acquire(const allscale::data_item_requirement<DataItemType>& requirement) {
             allscale::lease<DataItemType> lease;
             return lease;
-		}
-	
+        }
+    
 */
 
 
         template<typename DataItemType>
-		static void release(const allscale::lease<DataItemType>& lease) {
-		    std::cout<<"Releasing DataItem"<<std::endl;
+        static void release(const allscale::lease<DataItemType>& lease) {
+            std::cout<<"Releasing DataItem"<<std::endl;
         }
         template<typename DataItemType>
-		static void destroy(const data_item_reference<DataItemType>& ref) {
-		    std::cout<<"Destroying DataItem"<< std::endl;
+        static void destroy(const data_item_reference<DataItemType>& ref) {
+            std::cout<<"Destroying DataItem"<< std::endl;
         }
 
         /*```
@@ -102,10 +102,8 @@ namespace allscale{
             typedef typename allscale::server::data_item_server<DataItemType> data_item_server_type;
             static allscale::data_item_server<DataItemType> server(
                             hpx::components::new_ < data_item_server_type > (hpx::find_here()));
-
             return server;
         }
-
         */
 
         template<typename DataItemType>

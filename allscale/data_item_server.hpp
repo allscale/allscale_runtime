@@ -29,68 +29,68 @@ namespace server {
 
 template<typename DataItemType>
 class data_item_server: public hpx::components::locking_hook<
-		hpx::components::component_base<data_item_server<DataItemType> > > {
+        hpx::components::component_base<data_item_server<DataItemType> > > {
 
 public:
-	using data_item_type = DataItemType;
-	using data_item_shared_data_type = typename DataItemType::shared_data_type;
-	using data_item_fragment_type = typename DataItemType::fragment_type;
-	using data_item_region_type = typename DataItemType::region_type;
-	using data_item_reference_client_type = typename allscale::data_item_reference<DataItemType>;
+    using data_item_type = DataItemType;
+    using data_item_shared_data_type = typename DataItemType::shared_data_type;
+    using data_item_fragment_type = typename DataItemType::fragment_type;
+    using data_item_region_type = typename DataItemType::region_type;
+    using data_item_reference_client_type = typename allscale::data_item_reference<DataItemType>;
     using network_type = typename allscale::data_item_server_network<DataItemType>;
     using lease_type = typename allscale::lease<DataItemType>;
     using location_info_type = typename allscale::location_info<DataItemType>;
     // using network_type = data_item_server_network<DataItemType>;
     //using network_type = int;
-	struct fragment_info {
-		// the managed fragment
-		data_item_fragment_type fragment;
+    struct fragment_info {
+        // the managed fragment
+        data_item_fragment_type fragment;
 
-		// the regions currently locked through read leases
-		data_item_region_type readLocked;
+        // the regions currently locked through read leases
+        data_item_region_type readLocked;
 
-		// the list of all granted read leases
-		std::vector<data_item_region_type> readLeases;
+        // the list of all granted read leases
+        std::vector<data_item_region_type> readLeases;
 
-		// the regions currently locked through write access
-		data_item_region_type writeLocked;
+        // the regions currently locked through write access
+        data_item_region_type writeLocked;
         
         fragment_info(){}
 
-		fragment_info(const data_item_shared_data_type& shared) :
-				fragment(shared), readLocked(), writeLocked() {
-		}
+        fragment_info(const data_item_shared_data_type& shared) :
+                fragment(shared), readLocked(), writeLocked() {
+        }
 
-		fragment_info(const fragment_info&) = default;
-		fragment_info(fragment_info&&) = default;
+        fragment_info(const fragment_info&) = default;
+        fragment_info(fragment_info&&) = default;
 
-		void addReadLease(const data_item_region_type& region) {
+        void addReadLease(const data_item_region_type& region) {
 
-			// add to lease set
-			readLeases.push_back(region);
+            // add to lease set
+            readLeases.push_back(region);
 
-			// merge into read locked region
-			readLocked = data_item_region_type::merge(readLocked, region);
-		}
+            // merge into read locked region
+            readLocked = data_item_region_type::merge(readLocked, region);
+        }
 
-		void removeReadLease(const data_item_region_type& region) {
+        void removeReadLease(const data_item_region_type& region) {
 
-			// remove lease from lease set
-			auto pos = std::find(readLeases.begin(), readLeases.end(), region);
-			assert_true(pos != readLeases.end())
-					<< "Attempting to delete non-existing read-lease: "
-					<< region << " in " << readLeases;
-			readLeases.erase(pos);
+            // remove lease from lease set
+            auto pos = std::find(readLeases.begin(), readLeases.end(), region);
+            assert_true(pos != readLeases.end())
+                    << "Attempting to delete non-existing read-lease: "
+                    << region << " in " << readLeases;
+            readLeases.erase(pos);
 
-			// update readLocked status
-			data_item_region_type locked = data_item_region_type();
-			for (const auto& cur : readLeases) {
-				locked = data_item_region_type::merge(locked, cur);
-			}
+            // update readLocked status
+            data_item_region_type locked = data_item_region_type();
+            for (const auto& cur : readLeases) {
+                locked = data_item_region_type::merge(locked, cur);
+            }
 
-			// exchange read locked region
-			std::swap(readLocked, locked);
-		}
+            // exchange read locked region
+            std::swap(readLocked, locked);
+        }
     
         template <typename Archive>
         void serialize(Archive & ar, unsigned){
@@ -100,14 +100,14 @@ public:
             ar & writeLocked;
         */
         }
-	};
+    };
 
-	std::map<hpx::id_type, fragment_info> store;
+    std::map<hpx::id_type, fragment_info> store;
     network_type network_;
     std::map<std::size_t,hpx::id_type> servers_;
     public:
 
-	data_item_server() {
+    data_item_server() {
     }
 
     
@@ -132,7 +132,7 @@ public:
 
 
     
-	template <typename T, typename ... Ts>
+    template <typename T, typename ... Ts>
     data_item_reference_client_type create_impl(const T& arg, const Ts& ... args) 
     {
         typedef typename allscale::data_item_reference<DataItemType> data_item_reference_type;
@@ -155,7 +155,7 @@ public:
         return ret_val;
     }
 
-	template <typename ... T>
+    template <typename ... T>
     data_item_reference_client_type create(const T& ... args) 
     {
         return create_impl(args...);
@@ -171,19 +171,19 @@ public:
 */
      
 
-	template<typename ... T>
-	struct create_action: hpx::actions::make_action< data_item_reference_client_type (data_item_server::*)(const T& ...),
-			&data_item_server::template create<T...>, create_action<T...> > {
-	};
+    template<typename ... T>
+    struct create_action: hpx::actions::make_action< data_item_reference_client_type (data_item_server::*)(const T& ...),
+            &data_item_server::template create<T...>, create_action<T...> > {
+    };
 
-	void register_data_item_ref_impl(hpx::id_type id) {
+    void register_data_item_ref_impl(hpx::id_type id) {
         data_item_shared_data_type shared;
         auto dataItemID =  id;
         store.emplace(dataItemID, std::move(fragment_info(shared)));
     }
 
     template<typename T, typename T2, typename ... Ts>
-	void register_data_item_ref_impl(const T& arg,const T2& arg2, const Ts& ... args) {
+    void register_data_item_ref_impl(const T& arg,const T2& arg2, const Ts& ... args) {
         data_item_shared_data_type shared(arg2);
         auto frag = fragment_info(shared);
         auto dataItemID =  arg;
@@ -192,20 +192,20 @@ public:
     }
 
     template<typename ... T>
-	void register_data_item_ref(const T& ... args) {
+    void register_data_item_ref(const T& ... args) {
         register_data_item_ref_impl(args...);
     } 
 
 
 
     template<typename ... T>
-	struct register_data_item_ref_action : hpx::actions::make_action< void (data_item_server::*)(const T& ...),
-			&data_item_server::template register_data_item_ref<T...>, register_data_item_ref_action<T...> > {
-	};
+    struct register_data_item_ref_action : hpx::actions::make_action< void (data_item_server::*)(const T& ...),
+            &data_item_server::template register_data_item_ref<T...>, register_data_item_ref_action<T...> > {
+    };
 
     template<typename T>
     lease_type acquire(const T& req){
-		auto location_info = locate(req.ref,req.region);
+        auto location_info = locate(req.ref,req.region);
         // get local fragment inf;
         //auto& info = get_info(req.ref);
         auto& info = get_local_info(req.ref);
@@ -216,10 +216,10 @@ public:
         //std::cout<<"hurei3"<<std::endl;
         return l;
     }
-	template<typename T>
-	struct acquire_action : hpx::actions::make_action< lease_type (data_item_server::*)(const T&),
-			&data_item_server::template acquire<T>, acquire_action<T> > {
-	};
+    template<typename T>
+    struct acquire_action : hpx::actions::make_action< lease_type (data_item_server::*)(const T&),
+            &data_item_server::template acquire<T>, acquire_action<T> > {
+    };
 
 
 
@@ -229,27 +229,20 @@ public:
          
         for(auto& server : network_.servers){
              typedef typename allscale::server::data_item_server<DataItemType>::get_info_action action_type;
-		        action_type()(server.get_id(),ref);
+                action_type()(server.get_id(),ref);
             /*if(server.get_id() != this->get_id()){
                 typedef typename allscale::server::data_item_server<DataItemType>::get_info_action action_type;
-		        action_type()(server.get_id(),ref);
+                action_type()(server.get_id(),ref);
             }*/
-	      
+          
         }
         /*
-
         network.broadcast([&](const DataItemServer& server) {
-
             if (!server.alive) return;
-
             auto& info = server.getInfo(ref);
-
             auto part = data_item_region_type::intersect(region,info.fragment.getCoveredRegion());
-
             if (part.empty()) return;
-
             res.addPart(part,server.myLocality);
-
         });
         */
         return res;
@@ -262,7 +255,7 @@ public:
         assert_true(pos != store.end()) << "Requested invalid data item id: " << ref.id;
         return pos->second;
           
-        //std::cout<<"get_info_action called on loc: " << hpx::find_here() << std::endl;	
+        //std::cout<<"get_info_action called on loc: " << hpx::find_here() << std::endl;    
     }
 
     void get_info(const data_item_reference_client_type & ref ){
@@ -334,10 +327,10 @@ public:
 
 /*
     HPX_REGISTER_ACTION_DECLARATION(                                          \
-    	allscale::server::data_item_server<type>::create_zero_action,           \
+        allscale::server::data_item_server<type>::create_zero_action,           \
         BOOST_PP_CAT(__data_item_server_create_zero_action_, type));            \
     HPX_REGISTER_ACTION_DECLARATION(                                          \
-    	allscale::server::data_item_server<type>::register_data_item_ref_zero_action,           \
+        allscale::server::data_item_server<type>::register_data_item_ref_zero_action,           \
         BOOST_PP_CAT(__data_item_server_register_data_item_ref_zero_action_, type));            \
  
 */
@@ -345,22 +338,22 @@ public:
 
 #define REGISTER_DATAITEMSERVER_DECLARATION(type)                       \
     HPX_REGISTER_ACTION_DECLARATION(                                          \
-    	allscale::server::data_item_server<type>::print_action,           \
+        allscale::server::data_item_server<type>::print_action,           \
         BOOST_PP_CAT(__data_item_server_print_action_, type));            \
     HPX_REGISTER_ACTION_DECLARATION(                                          \
-    	allscale::server::data_item_server<type>::set_network_action,           \
+        allscale::server::data_item_server<type>::set_network_action,           \
         BOOST_PP_CAT(__data_item_server_set_network_action_, type));            \
     HPX_REGISTER_ACTION_DECLARATION(                                          \
-    	allscale::server::data_item_server<type>::print_network_action,           \
+        allscale::server::data_item_server<type>::print_network_action,           \
         BOOST_PP_CAT(__data_item_server_print_network_action_, type));            \
     HPX_REGISTER_ACTION_DECLARATION(                                          \
-    	allscale::server::data_item_server<type>::set_servers_action,           \
+        allscale::server::data_item_server<type>::set_servers_action,           \
         BOOST_PP_CAT(__data_item_server_set_servers_action_, type));            \
     HPX_REGISTER_ACTION_DECLARATION(                                          \
-    	allscale::server::data_item_server<type>::get_action,           \
+        allscale::server::data_item_server<type>::get_action,           \
         BOOST_PP_CAT(__data_item_server_get_action_, type));            \
     HPX_REGISTER_ACTION_DECLARATION(                                          \
-    	allscale::server::data_item_server<type>::get_info_action,           \
+        allscale::server::data_item_server<type>::get_info_action,           \
         BOOST_PP_CAT(__data_item_server_get_info_action_, type));            \
     namespace allscale{                                                           \
         template<>                                                                \
@@ -403,7 +396,7 @@ public:
         allscale::server::data_item_server<type>::get_info_action,           \
         BOOST_PP_CAT(__data_item_get_info_action_, type));            \
     typedef ::hpx::components::component<                                     \
-    	allscale::server::data_item_server<type>                         \
+        allscale::server::data_item_server<type>                         \
     > BOOST_PP_CAT(__data_item_server_, type);                            \
     HPX_REGISTER_COMPONENT(BOOST_PP_CAT(__data_item_server_, type))       \
 
@@ -411,13 +404,13 @@ public:
 namespace allscale {
    template<typename DataItemType>
 class data_item_server: public hpx::components::client_base<
-		data_item_server<DataItemType>,
-		allscale::server::data_item_server<DataItemType> > {
-	typedef hpx::components::client_base<data_item_server<DataItemType>,
-			allscale::server::data_item_server<DataItemType> > base_type;
+        data_item_server<DataItemType>,
+        allscale::server::data_item_server<DataItemType> > {
+    typedef hpx::components::client_base<data_item_server<DataItemType>,
+            allscale::server::data_item_server<DataItemType> > base_type;
 
-	typedef typename allscale::server::data_item_server<
-			DataItemType>::data_item_type data_item_type;
+    typedef typename allscale::server::data_item_server<
+            DataItemType>::data_item_type data_item_type;
     typedef typename allscale::data_item_reference<DataItemType> data_item_reference_client_type;
 
     //using network_type = int;
@@ -425,11 +418,11 @@ class data_item_server: public hpx::components::client_base<
 
 public:
 
-	data_item_server() {
-	}
+    data_item_server() {
+    }
 
-	data_item_server(hpx::future<hpx::id_type> && gid) :
-			base_type(std::move(gid)) {
+    data_item_server(hpx::future<hpx::id_type> && gid) :
+            base_type(std::move(gid)) {
         //        std::cout<<"called on loc" << this->get_id() << std::endl;
         auto data_item_server_name = allscale::data_item_server_name<DataItemType>::name();
         //data_item_server_name += hpx::naming::get_locality_id_from_id(this->get_id());
@@ -439,20 +432,20 @@ public:
     }
 
     data_item_server(hpx::id_type && gid) :
-			base_type(std::move(gid)) {
+            base_type(std::move(gid)) {
         //        std::cout<<"called on loc" << this->get_id() << std::endl;
         auto data_item_server_name = allscale::data_item_server_name<DataItemType>::name();
         //data_item_server_name += hpx::naming::get_locality_id_from_id(this->get_id());
         hpx::register_with_basename(data_item_server_name,this->get_id(),hpx::naming::get_locality_id_from_id(this->get_id())).get();
 
     }
-	template<typename ... T>
-	data_item_reference_client_type create(const T& ... args) {
-		HPX_ASSERT(this->get_id());
+    template<typename ... T>
+    data_item_reference_client_type create(const T& ... args) {
+        HPX_ASSERT(this->get_id());
 
-		typedef typename  allscale::server::data_item_server<DataItemType>::template create_action<T...> action_type;
-		return action_type()(this->get_id(), args...);
-	}
+        typedef typename  allscale::server::data_item_server<DataItemType>::template create_action<T...> action_type;
+        return action_type()(this->get_id(), args...);
+    }
 
     template<typename ...T>
     void register_data_item_ref(const T& ... args){
@@ -462,16 +455,16 @@ public:
     }
 
     void print() {
-		HPX_ASSERT(this->get_id());
-		typedef typename allscale::server::data_item_server<DataItemType>::print_action action_type;
-		action_type()(this->get_id());
-	}
+        HPX_ASSERT(this->get_id());
+        typedef typename allscale::server::data_item_server<DataItemType>::print_action action_type;
+        action_type()(this->get_id());
+    }
 
     void print_network() {
-		HPX_ASSERT(this->get_id());
-		typedef typename allscale::server::data_item_server<DataItemType>::print_network_action action_type;
-		action_type()(this->get_id());
-	}
+        HPX_ASSERT(this->get_id());
+        typedef typename allscale::server::data_item_server<DataItemType>::print_network_action action_type;
+        action_type()(this->get_id());
+    }
     void set_network(const network_type& network){
         HPX_ASSERT(this->get_id());
         typedef typename allscale::server::data_item_server<DataItemType>::set_network_action action_type;
@@ -499,27 +492,6 @@ public:
 };
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

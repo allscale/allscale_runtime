@@ -37,12 +37,6 @@ namespace allscale{
             ar & ref;
             ar & mode;
             ar & region;
-            /*auto archive = allscale::utils::serialize(region);
-            using buffer_type = std::vector<char>;
-            buffer_type buffer;
-            buffer = archive.getBuffer();
-            ar & buffer;*/
-
         }
         
         void serialize(hpx::serialization::input_archive & ar,unsigned)
@@ -50,26 +44,8 @@ namespace allscale{
             ar & ref;
             ar & mode;
             ar & region;
-
-            
-            /*
-            using buffer_type = std::vector<char>;
-            buffer_type buffer;
-            ar & buffer;
-            allscale::utils::Archive received(buffer);
-            region  = allscale::utils::deserialize<region_type>(received);
-            */
         }
 
-/*
-        void serialize(Archive& ar, unsigned)
-        {
-           ar & ref;
-
-           ar & region;
-           ar & mode;
-        }
- */
     };
 
 
