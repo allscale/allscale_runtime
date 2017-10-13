@@ -21,7 +21,7 @@ if(CPUFREQ_FOUND)
     target_compile_definitions(allscale_component PUBLIC ALLSCALE_HAVE_CPUFREQ)
 
 elseif(NOT CPUFREQ_FOUND)
-    MESSAGE(STATUS "didnt find it compile without hardwarereconf")
+    MESSAGE(STATUS "Didnt find CPUFREQ, will compile without hardware reconf support")
      add_hpx_component(
       allscale
       SOURCES
