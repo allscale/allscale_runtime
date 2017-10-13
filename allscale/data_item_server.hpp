@@ -54,12 +54,14 @@ public:
 
 		// the regions currently locked through write access
 		data_item_region_type writeLocked;
+        
+        fragment_info(){}
 
 		fragment_info(const data_item_shared_data_type& shared) :
 				fragment(shared), readLocked(), writeLocked() {
 		}
 
-		fragment_info(const fragment_info&) = delete;
+		fragment_info(const fragment_info&) = default;
 		fragment_info(fragment_info&&) = default;
 
 		void addReadLease(const data_item_region_type& region) {
@@ -89,7 +91,15 @@ public:
 			// exchange read locked region
 			std::swap(readLocked, locked);
 		}
-
+    
+        template <typename Archive>
+        void serialize(Archive & ar, unsigned){
+        /*    ar & fragment;
+            ar & readLocked;
+            ar & readLeases;
+            ar & writeLocked;
+        */
+        }
 	};
 
 	std::map<hpx::id_type, fragment_info> store;
@@ -195,9 +205,11 @@ public:
 
     template<typename T>
     lease_type acquire(const T& req){
-		//auto locationInfo = locate(req.ref,req.region);
+		auto location_info = locate(req.ref,req.region);
         // get local fragment inf;
-        auto& info = get_info(req.ref);
+        //auto& info = get_info(req.ref);
+        auto& info = get_local_info(req.ref);
+        std::cout << hpx::naming::get_locality_id_from_id(req.ref.id_) << std::endl;
         //std::cout<<"hurei2 " << info.fragment.getTotalSize() << " " << req.region << std::endl;
         info.fragment.resize(merge(info.fragment.getCoveredRegion(), req.region));
         lease_type l(req);
@@ -214,9 +226,8 @@ public:
     location_info_type locate(const data_item_reference_client_type& ref, const data_item_region_type& region) {
 
         location_info_type res;
-        
+         
         for(auto& server : network_.servers){
-            std::cout<< server.get_id() << std::endl;
              typedef typename allscale::server::data_item_server<DataItemType>::get_info_action action_type;
 		        action_type()(server.get_id(),ref);
             /*if(server.get_id() != this->get_id()){
@@ -245,13 +256,17 @@ public:
     }
 
     //std::vector<char> get_info(const data_item_reference_client_type& ref) {
-    fragment_info& get_info(const data_item_reference_client_type& ref ) {
+    fragment_info& get_local_info(const data_item_reference_client_type& ref ) {
+    //void get_info(const data_item_reference_client_type& ref ) {
         auto pos = store.find(ref.id_);
         assert_true(pos != store.end()) << "Requested invalid data item id: " << ref.id;
-        std::cout<< " total size is " << pos->second.fragment.getTotalSize() << " id " << ref.id_ << std::endl; 
         return pos->second;
           
         //std::cout<<"get_info_action called on loc: " << hpx::find_here() << std::endl;	
+    }
+
+    void get_info(const data_item_reference_client_type & ref ){
+        std::cout<< "get_info action called" << std::endl;
     }
 
     std::size_t  get(const data_item_reference_client_type& ref) 
@@ -310,7 +325,7 @@ public:
     HPX_DEFINE_COMPONENT_ACTION(data_item_server, set_servers);
     HPX_DEFINE_COMPONENT_ACTION(data_item_server, print_network);
     HPX_DEFINE_COMPONENT_ACTION(data_item_server, print);
-//    HPX_DEFINE_COMPONENT_ACTION(data_item_server, get_info);
+    HPX_DEFINE_COMPONENT_ACTION(data_item_server, get_info);
 //    HPX_DEFINE_COMPONENT_ACTION(data_item_server, create_zero);
 //    HPX_DEFINE_COMPONENT_ACTION(data_item_server, register_data_item_ref_zero);
 };
@@ -344,6 +359,9 @@ public:
     HPX_REGISTER_ACTION_DECLARATION(                                          \
     	allscale::server::data_item_server<type>::get_action,           \
         BOOST_PP_CAT(__data_item_server_get_action_, type));            \
+    HPX_REGISTER_ACTION_DECLARATION(                                          \
+    	allscale::server::data_item_server<type>::get_info_action,           \
+        BOOST_PP_CAT(__data_item_server_get_info_action_, type));            \
     namespace allscale{                                                           \
         template<>                                                                \
         struct data_item_server_name<type>                                               \
@@ -381,6 +399,9 @@ public:
     HPX_REGISTER_ACTION(            \
         allscale::server::data_item_server<type>::get_action,           \
         BOOST_PP_CAT(__data_item_get_action_, type));            \
+    HPX_REGISTER_ACTION(            \
+        allscale::server::data_item_server<type>::get_info_action,           \
+        BOOST_PP_CAT(__data_item_get_info_action_, type));            \
     typedef ::hpx::components::component<                                     \
     	allscale::server::data_item_server<type>                         \
     > BOOST_PP_CAT(__data_item_server_, type);                            \

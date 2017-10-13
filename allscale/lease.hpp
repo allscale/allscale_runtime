@@ -13,7 +13,6 @@ namespace allscale{
         lease(const data_item_requirement<DataItemType>& requirement)
             : data_item_requirement<DataItemType>(requirement) 
         {
-            std::cout<<"muell"<<std::endl;
         }
 
     };
