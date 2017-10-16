@@ -172,7 +172,9 @@ namespace allscale { namespace components {
             //scheduler->add(hpx::util::bind(&resilience::send_heartbeat_loop, this));
             }
         }
+#ifdef DEBUG_
         std::cout << "Rank " << rank_ << " exits receiver loop ...\n";
+#endif
   }
 
     std::pair<hpx::id_type,uint64_t> resilience::get_protectee() {

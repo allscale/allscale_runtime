@@ -163,7 +163,7 @@ namespace allscale { namespace components {
 
             thread_pools_.push_back(
                 &hpx::resource::get_thread_pool(pool_name));
-            std::cout << "Attached to " << pool_name << " (" << thread_pools_.back() << '\n';
+            std::cerr << "Attached to " << pool_name << " (" << thread_pools_.back() << '\n';
             initial_masks_.push_back(thread_pools_.back()->get_used_processing_units());
             executors_.emplace_back(pool_name);
         }

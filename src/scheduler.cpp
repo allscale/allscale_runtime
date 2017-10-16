@@ -23,9 +23,9 @@ namespace allscale
     {
         auto const& numa_domains = rp.numa_domains();
 //         rp.create_thread_pool("default");
-        std::cout << "===============================================================================\n";
-        std::cout << "Setting up Scheduler\n";
-        std::cout << "  Scheduling is using " << numa_domains.size() << " NUMA Domains\n";
+        std::cerr << "===============================================================================\n";
+        std::cerr << "Setting up Scheduler\n";
+        std::cerr << "  Scheduling is using " << numa_domains.size() << " NUMA Domains\n";
 
         std::size_t domain = 0;
         bool skip = true;
@@ -36,7 +36,7 @@ namespace allscale
                 pool_name = "default";
             else
                 pool_name = "allscale/numa/" + std::to_string(domain);
-            std::cout << "  Creating \"" << pool_name << "\" thread pool:\n";
+            std::cerr << "  Creating \"" << pool_name << "\" thread pool:\n";
 
             rp.create_thread_pool(pool_name,
                 [domain](hpx::threads::policies::callback_notifier& notifier,
@@ -77,13 +77,13 @@ namespace allscale
                 {
 //                     if (skip && core.pus().size() > 1 && resilience::enabled())
 //                     {
-//                         std::cout << "    Using PU " << pu.id() << " for performing backups\n";
+//                         std::cerr << "    Using PU " << pu.id() << " for performing backups\n";
 //                         rp.add_resource(pu, "resilience");
 //                         skip = false;
 //                     }
 //                     else
 //                     {
-                        std::cout << "    Adding PU " << pu.id() << '\n';
+                        std::cerr << "    Adding PU " << pu.id() << '\n';
                         rp.add_resource(pu, pool_name);
 //                     }
                 }
@@ -92,12 +92,12 @@ namespace allscale
             ++domain;
         }
 
-        std::cout << "===============================================================================\n";
+        std::cerr << "===============================================================================\n";
     }
 
     void scheduler::schedule(work_item work)
     {
-//    	std::cout<<"schedulign work item on loc " << hpx::get_locality_id()<<std::endl;
+//    	std::cerr<<"schedulign work item on loc " << hpx::get_locality_id()<<std::endl;
         get().enqueue(work, this_work_item::id());
     }
 
