@@ -7,6 +7,8 @@ set(tests
   pi-dump-trg
   quicksort-dump-trg
   vector_add-dump-trg
+  data_item_get
+  data_item_get_invariant
 )
 
 foreach(test ${tests})
