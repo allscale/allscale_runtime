@@ -206,10 +206,13 @@ public:
     template<typename T>
     lease_type acquire(const T& req){
         auto location_info = locate(req.ref,req.region);
+        
+        for(const auto& p : location_info.getParts()){
+            std::cout << p << std::endl;
+        }
         // get local fragment inf;
         //auto& info = get_info(req.ref);
         auto& info = get_local_info(req.ref);
-        std::cout << hpx::naming::get_locality_id_from_id(req.ref.id_) << std::endl;
         //std::cout<<"hurei2 " << info.fragment.getTotalSize() << " " << req.region << std::endl;
         info.fragment.resize(merge(info.fragment.getCoveredRegion(), req.region));
         lease_type l(req);
@@ -224,28 +227,17 @@ public:
 
 
     location_info_type locate(const data_item_reference_client_type& ref, const data_item_region_type& region) {
-
-        location_info_type res;
-         
+        location_info_type result;
         for(auto& server : network_.servers){
-             typedef typename allscale::server::data_item_server<DataItemType>::get_info_action action_type;
-                action_type()(server.get_id(),ref);
-            /*if(server.get_id() != this->get_id()){
+            if(server.get_id() != this->get_id()){
                 typedef typename allscale::server::data_item_server<DataItemType>::get_info_action action_type;
-                action_type()(server.get_id(),ref);
-            }*/
-          
+                auto res = action_type()(server.get_id(),ref);
+                auto part = data_item_region_type::intersect(region,res);
+                if(part.empty()) break;
+                result.addPart(part,hpx::naming::get_locality_id_from_id(server.get_id()));
+            }
         }
-        /*
-        network.broadcast([&](const DataItemServer& server) {
-            if (!server.alive) return;
-            auto& info = server.getInfo(ref);
-            auto part = data_item_region_type::intersect(region,info.fragment.getCoveredRegion());
-            if (part.empty()) return;
-            res.addPart(part,server.myLocality);
-        });
-        */
-        return res;
+        return result;
     }
 
     //std::vector<char> get_info(const data_item_reference_client_type& ref) {
@@ -258,8 +250,10 @@ public:
         //std::cout<<"get_info_action called on loc: " << hpx::find_here() << std::endl;    
     }
 
-    void get_info(const data_item_reference_client_type & ref ){
-        std::cout<< "get_info action called" << std::endl;
+    const data_item_region_type get_info(const data_item_reference_client_type & ref ){
+        auto pos = store.find(ref.id_);
+        assert_true(pos != store.end()) << "Requested invalid data item id: " << ref.id_;
+        return pos->second.fragment.getCoveredRegion();    
     }
 
     std::size_t  get(const data_item_reference_client_type& ref) 

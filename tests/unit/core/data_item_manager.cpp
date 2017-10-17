@@ -1,4 +1,4 @@
-#include "allscale/api/user/data/scalar.h"
+//#include "allscale/api/user/data/scalar.h"
 #include "allscale/api/user/data/grid.h"
 #include <allscale/data_item_reference.hpp>
 #include <allscale/data_item_server.hpp>
@@ -25,11 +25,11 @@ using namespace allscale::api::user::data;
 using namespace allscale;
 HPX_REGISTER_COMPONENT_MODULE();
 
-
+/*
 using data_item_type = Scalar<int>;
 REGISTER_DATAITEMSERVER_DECLARATION(data_item_type);
 REGISTER_DATAITEMSERVER(data_item_type);
-
+*/
 
 
 
@@ -45,67 +45,28 @@ REGISTER_DATAITEMSERVER(data_item_type_grid);
 
 
 
-void test_scalar_data_item_reference() {
-
-   // typedef typename server::data_item_reference<data_item_type> data_item_reference_type;
-
-    if (hpx::get_locality_id() == 0) {
-        std::vector < hpx::id_type > localities = hpx::find_all_localities();
-/*
-        for (auto& loc : localities) {
-            data_item_reference<data_item_type> ref(
-                    hpx::components::new_ < data_item_reference_type > (loc));
-            //ref.print();
-            ref.set_value(133);
-            //ref.print();
-        }
-    */
-        }
-
-}
-
-
-void test_data_item_server_creation(){
-
-
-
-
-}
-
-
-
 template <typename DataItemType, typename ... Args>
 auto simulate_data_item_manager_create_and_get(const Args& ... args){
     
     std::vector<allscale::data_item_server<DataItemType>> result;
-    //SERIALIZE STUFF BY HAND FOR NOW
-    //auto archive = allscale::utils::serialize(args...);
-    //using buffer_type = std::vector<char>;
-    //buffer_type buffer;
-    //buffer = archive.getBuffer();
-   
     typedef typename allscale::data_item_manager manager_type;
 
     if (hpx::get_locality_id() == 0) {
-        //auto sn = allscale::data_item_manager::create_server_network<DataItemType>();
-        //auto dataRef = allscale::data_item_manager::create<DataItemType>(args...);
+        typedef typename  allscale::server::data_item_server<DataItemType>::template acquire_action<allscale::data_item_requirement<DataItemType>> action_type;
         auto dataRef = manager_type::create<DataItemType>(args...);
         
-        auto res = manager_type::get_server<DataItemType>(1);
-
-
-        //std::cout << allscale::data_item_manager::sn.servers.size() << std::endl;
-        // acquire small lease
-        auto req = allscale::createDataItemRequirement(dataRef, GridRegion<1>(100,150), access_mode::ReadWrite); 
-        //auto lease = allscale::data_item_manager::acquire<DataItemType>(req);
-
-        //acquire from loc 1 instead 0 
-        typedef typename  allscale::server::data_item_server<DataItemType>::template acquire_action<allscale::data_item_requirement<DataItemType>> action_type;
+        auto res0 = manager_type::get_server<DataItemType>();
+        auto res1 = manager_type::get_server<DataItemType>(1);
+        auto res2 = manager_type::get_server<DataItemType>(2);
         
-        //typedef typename allscale::server::data_item_server<DataItemType>::print_action action_type;
+        auto req0 = allscale::createDataItemRequirement(dataRef, GridRegion<1>(100,150), access_mode::ReadWrite); 
+        auto req1 = allscale::createDataItemRequirement(dataRef, GridRegion<1>(50,99), access_mode::ReadWrite); 
+        auto req2 = allscale::createDataItemRequirement(dataRef, GridRegion<1>(50,150), access_mode::ReadWrite); 
         
-        action_type()(res,req);
-     
+        action_type()(res0,req0);
+        
+        action_type()(res1,req1);
+        action_type()(res2,req2);
         // acquire bigger lease
     //    auto req2 = allscale::createDataItemRequirement(dataRef, GridRegion<1>(5000,5100), access_mode::ReadWrite); 
       //  auto lease2 = allscale::data_item_manager::acquire<DataItemType>(req2);
@@ -119,33 +80,6 @@ auto simulate_data_item_manager_create_and_get(const Args& ... args){
     }
 
 
-    /*
-    if (hpx::get_locality_id() == 0) {
-        //CYCLE THRU LOCALITIES
-        std::cout << "on locality " << hpx::get_locality_id() << " running test" << std::endl;
-        std::vector < hpx::id_type > localities = hpx::find_all_localities();
-        //CREATE DATA ITEM SERVER INSTANCES ON LOCALITIES
-        for (auto& loc : localities) {
-            allscale::data_item_server<DataItemType> server(
-                    hpx::components::new_ < data_item_server_type > (loc));
-            auto res = server.create(buffer);
-            result.push_back(server);
-        }
-       allscale::data_item_server_network<DataItemType> sn;
-       sn.servers = result;
-       for( auto& server : result){
-        server.set_network(sn);
-       }
-        auto data_item_server_name = allscale::data_item_server_name<DataItemType>::name();
-        auto res =  hpx::find_all_from_basename(data_item_server_name, 2);
-        for(auto& fut : res ){
-            typedef typename allscale::server::data_item_server<DataItemType>::print_action action_type;
-            action_type()(fut.get());
-        }
-      
-    }*/
-    // auto server = allscale::data_item_manager::getServer<DataItemType>();
-    // server.set_servers();
     return result;
 }
 
@@ -162,14 +96,6 @@ void test_grid_data_item_server_create_and_get() {
 
 
 int hpx_main(int argc, char* argv[]) {
-    test_scalar_data_item_reference();
-   // test_data_item_server_creation();
     test_grid_data_item_server_create_and_get();
-    
-    //std::cout<<std::endl;
-    //test_grid_data_item_server_create();
-    //std::cout<<std::endl;
-    //test_grid_data_item_server_get();
- //   test_grid_data_item_server_network_creation();
     return hpx::finalize();
 }
