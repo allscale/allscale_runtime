@@ -1,6 +1,5 @@
 #ifndef ALLSCALE_LOCATION_INFO
 #define ALLSCALE_LOCATION_INFO
-#include <allscale/locality.h>
 #include <hpx/include/serialization.hpp>
 
 namespace allscale{
@@ -11,7 +10,7 @@ namespace allscale{
 	template<typename DataItemType>
 	struct location_info {
 
-	    using locality_type = simulator::locality_type;
+	    using locality_type = hpx::id_type;
 		using region_type = typename DataItemType::region_type;
 
 		/**

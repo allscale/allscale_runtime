@@ -7,6 +7,8 @@
 #include <allscale/data_item_reference.hpp>
 #include <allscale/lease.hpp>
 #include <allscale/location_info.hpp>
+#include <allscale/transfer_plan.hpp>
+#include <allscale/simple_transfer_plan_generator.hpp>
 #include <map>
 
 
@@ -40,6 +42,7 @@ public:
     using network_type = typename allscale::data_item_server_network<DataItemType>;
     using lease_type = typename allscale::lease<DataItemType>;
     using location_info_type = typename allscale::location_info<DataItemType>;
+    using locality_type = hpx::id_type;
     // using network_type = data_item_server_network<DataItemType>;
     //using network_type = int;
     struct fragment_info {
@@ -206,19 +209,45 @@ public:
     template<typename T>
     lease_type acquire(const T& req){
         auto location_info = locate(req.ref,req.region);
-        
-        for(const auto& p : location_info.getParts()){
-            std::cout << p << std::endl;
-        }
-        // get local fragment inf;
-        //auto& info = get_info(req.ref);
         auto& info = get_local_info(req.ref);
-        //std::cout<<"hurei2 " << info.fragment.getTotalSize() << " " << req.region << std::endl;
         info.fragment.resize(merge(info.fragment.getCoveredRegion(), req.region));
+        
+        auto tfp = build_plan(location_info,hpx::find_here(),req);
+        auto transfers = tfp.getTransfers();
+
+        for(const auto& tf : transfers){
+            std::cout << tf << std::endl;
+        }
+
+        //assert_true(success);
+     //   using transfer = typename allscale::transfer_plan<data_item_type>::transfer;
+       // transfer tf;
+        //transfer and make sure transfer was ok
+        //auto success = execute(buildPlan(location_info,hpx::find_here(),req));
+        //assert_true(success);
+
+        
         lease_type l(req);
-        //std::cout<<"hurei3"<<std::endl;
         return l;
     }
+
+
+     /*
+	 * A utility computing a transfer plan based on a given data distribution information,
+	 * a target location, a region to be targeted, and a desired access mode.
+	 *
+	 * @param info a summary of the data distribution state covering the provided region
+	 * @param targetLocation the location where the given region should be moved to
+	 * @param region the region to be moved
+	 * @param mode the intended access mode of the targeted region after the transfer
+	 */
+	template<typename TransferPlanGenerator = simple_transfer_plan_generator>
+	transfer_plan<DataItemType> build_plan(const location_info<DataItemType>& info, locality_type targetLocation, const data_item_requirement<DataItemType>& requirement) {
+		// use the transfer plan generator policy as requested
+		return TransferPlanGenerator()(info,targetLocation,requirement);
+	}
+
+
     template<typename T>
     struct acquire_action : hpx::actions::make_action< lease_type (data_item_server::*)(const T&),
             &data_item_server::template acquire<T>, acquire_action<T> > {
@@ -228,26 +257,25 @@ public:
 
     location_info_type locate(const data_item_reference_client_type& ref, const data_item_region_type& region) {
         location_info_type result;
-        for(auto& server : network_.servers){
+        for(const auto& server : network_.servers){
             if(server.get_id() != this->get_id()){
                 typedef typename allscale::server::data_item_server<DataItemType>::get_info_action action_type;
                 auto res = action_type()(server.get_id(),ref);
                 auto part = data_item_region_type::intersect(region,res);
-                if(part.empty()) break;
-                result.addPart(part,hpx::naming::get_locality_id_from_id(server.get_id()));
+                if(!part.empty())
+                {
+                    result.addPart(part,server.get_id());
+                }
             }
         }
+        
         return result;
     }
 
-    //std::vector<char> get_info(const data_item_reference_client_type& ref) {
     fragment_info& get_local_info(const data_item_reference_client_type& ref ) {
-    //void get_info(const data_item_reference_client_type& ref ) {
         auto pos = store.find(ref.id_);
         assert_true(pos != store.end()) << "Requested invalid data item id: " << ref.id;
         return pos->second;
-          
-        //std::cout<<"get_info_action called on loc: " << hpx::find_here() << std::endl;    
     }
 
     const data_item_region_type get_info(const data_item_reference_client_type & ref ){
@@ -284,7 +312,6 @@ public:
     }
     
     void set_network(const network_type& network){
-
         network_ = network;
     }
 
