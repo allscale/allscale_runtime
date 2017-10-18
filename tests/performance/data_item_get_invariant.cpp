@@ -122,16 +122,21 @@ struct main_process {
             }
             std::swap(var_3, var_4);
         }
-        allscale::data_item_manager::release(lease1);
-        allscale::data_item_manager::release(lease2);
         double elapsed = timer.elapsed();
 
         std::cout << "t=" << var_1 << " - center: " <<
             DataItemManager::get(var_5)[Vector<long, 2 >(var_0 / 2, var_0 / 2)] <<
             std::endl;
         std::cout << "Elapsed time: " << elapsed << '\n';
-        return allscale::make_ready_treeture(
-            DataItemManager::get(var_5)[Vector<long, 2 >(var_0 / 2, var_0 / 2)] < 100. ? 0 : 1);
+        auto res =
+            allscale::make_ready_treeture(
+                DataItemManager::get(var_5)[Vector<long, 2 >(var_0 / 2, var_0 / 2)] < 100. ? 0 : 1);
+        allscale::data_item_manager::release(lease1);
+        allscale::data_item_manager::release(lease2);
+        allscale::data_item_manager::destroy(var_3);
+        allscale::data_item_manager::destroy(var_4);
+
+        return res;
     }
     static constexpr bool valid = true;
 };

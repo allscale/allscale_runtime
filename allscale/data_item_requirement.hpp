@@ -20,59 +20,39 @@ namespace allscale{
         region_type region;
         access_mode mode;
 
-        data_item_requirement(){}
-         
-        data_item_requirement(const data_item_reference<DataItemType>& pref, 
-        const typename DataItemType::region_type& pregion, 
-        const access_mode& pmode) : ref(pref) , region(pregion) , mode(pmode){}
-/*       void serialize(hpx::serialization::output_archive & ar,unsigned)
+        data_item_requirement()
+          : mode(access_mode::Invalid)
         {
-            ar & ref;
-            ar & mode;
-            auto archive = allscale::utils::serialize(region);
-            using buffer_type = std::vector<char>;
-            buffer_type buffer;
-            buffer = archive.getBuffer();
-            ar & buffer;
-            std::cout<<"ser called"<<std::endl;
-
-        }
-        
-        void serialize(hpx::serialization::input_archive & ar,unsigned)
-        {
-            ar & ref;
-            ar & mode;
-            using buffer_type = std::vector<char>;
-            buffer_type buffer;
-            ar & buffer;
-            allscale::utils::Archive received(buffer);
-            region  = allscale::utils::deserialize<region_type>(received);
         }
 
-*/
+        data_item_requirement(
+                const data_item_reference<DataItemType>& pref,
+                const typename DataItemType::region_type& pregion,
+                const access_mode& pmode)
+          : ref(pref) , region(pregion) , mode(pmode)
+        {}
 
         template <typename Archive>
         void serialize(Archive& ar, unsigned)
         {
            ar & ref;
-
            ar & region;
-           //ar & mode;
+           ar & mode;
         }
     };
 
 
     template<typename DataItemType>
     data_item_requirement<DataItemType> createDataItemRequirement
-    (   const data_item_reference<DataItemType>& ref, 
-        const typename DataItemType::region_type& region, 
-        const access_mode& mode
-    ) 
+    (   const data_item_reference<DataItemType>& ref,
+        const typename DataItemType::region_type& region,
+        access_mode mode
+    )
     {
         //instance a data_item_requirement
         return { ref, region, mode };
     }
- 
+
 
 }
 #endif

@@ -3,7 +3,7 @@
 
 namespace allscale{
     enum class access_mode{
-        ReadOnly, ReadWrite
+        ReadOnly, ReadWrite, Invalid
     };
 }
 #endif

@@ -2,6 +2,7 @@ set(tests
   #this_work_item
 #  1d_stencil
   scalar_read_write
+  grid_init
   overlapping_async.insieme.seq
   #overlapping_pfor.insieme.seq
 #  data_item_manager

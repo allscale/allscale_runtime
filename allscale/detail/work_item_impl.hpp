@@ -165,11 +165,20 @@ namespace allscale { namespace detail {
             typedef typename hpx::util::detail::make_index_pack<
                 hpx::util::tuple_size<reqs>::type::value>::type pack;
 
-            typedef decltype(get_leases(pack(), std::declval<reqs>())) type;
+            typedef decltype(get_leases(std::declval<pack>(), std::declval<reqs>())) type;
         };
 
         template <typename Variant>
         auto acquire(decltype(&Variant::template get_requirements<Closure>))
+         -> typename acquire_result<Variant>::type
+        {
+            typename acquire_result<Variant>::pack pack;
+            return get_leases(pack, Variant::get_requirements(closure_));
+        }
+
+        // Overload for non templates...
+        template <typename Variant>
+        auto acquire(decltype(&Variant::get_requirements))
          -> typename acquire_result<Variant>::type
         {
             typename acquire_result<Variant>::pack pack;

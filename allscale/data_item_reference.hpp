@@ -5,54 +5,89 @@
 #include <hpx/include/actions.hpp>
 #include <hpx/include/serialization.hpp>
 
-using id_type = std::size_t;
-
-
-/*
-///////////////////////////////////////////////////////////////////////////////
-struct stub_comp_server : hpx::components::simple_component_base<stub_comp_server>
-{
-};
-*/
-struct stub_comp_server : public hpx::components::locking_hook<
-            hpx::components::component_base<stub_comp_server> >
-{
-};
-
-
-
-
-/*
-
-
-        typedef hpx::components::client_base<
-            template_accumulator<T>, server::template_accumulator<T>
-        > base_type;
-
-*/
 ///////////////////////////////////////////////////////////////////////////
 
 namespace allscale {
+    namespace detail
+    {
+        struct id_holder
+          : hpx::components::component_base<id_holder>
+        {};
+    }
+
     template<typename DataItemType>
-    class data_item_reference  {   
+    class data_item_reference
+    {
     public:
-        data_item_reference() 
+        typedef typename DataItemType::shared_data_type shared_data_type;
+        typedef typename DataItemType::fragment_type fragment_type;
+
+        data_item_reference()
+          : fragment(nullptr)
+        {}
+
+        template <typename...Args>
+        data_item_reference(hpx::future<hpx::id_type> id, Args&&...args)
+          : fragment(nullptr)
+          , shared_data_(std::forward<Args>(args)...)
+          , id_(id.get())
         {
-            id_ = hpx::new_<stub_comp_server>(hpx::find_here()).get();
         }
-        
-        data_item_reference(const data_item_reference& ref)
+
+        data_item_reference(data_item_reference const& other)
+          : fragment(nullptr)
+          , shared_data_(other.shared_data_)
+          , id_(other.id_)
         {
-            id_ = ref.id_;
         }
+
+        data_item_reference(data_item_reference&& other)
+          : fragment(nullptr)
+          , shared_data_(std::move(other.shared_data_))
+          , id_(std::move(other.id_))
+        {}
+
+        data_item_reference& operator=(data_item_reference const& other)
+        {
+            fragment = nullptr;
+            shared_data_ = other.shared_data_;
+            id_ = other.id_;
+
+            return *this;
+        }
+
+
+        data_item_reference& operator=(data_item_reference&& other)
+        {
+            fragment = nullptr;
+            shared_data_ = std::move(other.shared_data_);
+            id_ = std::move(other.id_);
+
+            return *this;
+        }
+
         template <typename Archive>
         void serialize(Archive & ar, unsigned)
         {
-        
+            ar & shared_data_;
+            ar & id_;
         }
-    
+
+        hpx::id_type const& id() const
+        {
+            return id_;
+        }
+
+        shared_data_type const& shared_data() const
+        {
+            return shared_data_;
+        }
+
+        mutable fragment_type *__restrict__ fragment;
+
+    private:
+        shared_data_type shared_data_;
         hpx::id_type id_;
-        id_type id;
     };
 }
 

@@ -129,8 +129,8 @@ struct main_process
     static constexpr bool valid = true;
 };
 
-int main() {
-    allscale::runtime::main_wrapper<main_work>();
+int main(int argc, char **argv) {
+    allscale::runtime::main_wrapper<main_work>(argc, argv);
 
     return hpx::util::report_errors();
 }

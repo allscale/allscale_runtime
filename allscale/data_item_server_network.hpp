@@ -13,31 +13,31 @@
 namespace allscale{
 
 
-    
+
 
     template<typename DataItemType>
     class data_item_server;
-    
-    
+
+
     template<typename DataItemType>
     struct data_item_server_network {
-        
+
         using server_type = typename allscale::data_item_server<DataItemType>;
-        
+
 	    using locality_type = simulator::locality_type;
 
 
 		public:
 
-        
-        std::vector<server_type> servers;
- 
+
+//         std::vector<server_type> servers;
+
         template <class Archive>
         void serialize(Archive& ar, unsigned)
         {
-           ar & servers;
+//            ar & servers;
         }
-            
+
             /*
             data_item_server_network() {
                 for(locality_type i=0; i<simulator::getNumLocations(); ++i) {
@@ -67,7 +67,7 @@ namespace allscale{
             */
     };
 
-    
+
 }
 
 /*
@@ -75,7 +75,7 @@ namespace allscale{
 
     template<typename DataItemType>
     struct data_item_server;
-    
+
     namespace server{
 ////////////////////////////////////////////////////////////////////////////////
 // SERVERNETWORK  SERVER CLASS and CLIENT CLASS  AND MACRO DEFINITIONS
@@ -91,7 +91,7 @@ class data_item_server_network: public hpx::components::locking_hook<
     std::vector<server_type> servers_;
 
     data_item_server_network(){}
-    
+
     void set_servers(const std::vector<server_type>& existing_servers){
         std::cout<<"set_servers called on loc: " << hpx::get_locality_id()<<std::endl;
         for(auto& el : existing_servers){
@@ -110,7 +110,7 @@ class data_item_server_network: public hpx::components::locking_hook<
         {
             el.print();
             //std::cout<<el.get_id()<< " " << hpx::naming::get_locality_id_from_id(el.get_id())<<std::endl;
-            
+
         }
     }
 
@@ -154,7 +154,7 @@ template<typename DataItemType>
 class data_item_server_network: public hpx::components::client_base<
         data_item_server_network<DataItemType>,
         server::data_item_server_network<DataItemType> > {
-    
+
     typedef hpx::components::client_base<data_item_server_network<DataItemType>,
             server::data_item_server_network<DataItemType> > base_type;
 
@@ -162,7 +162,7 @@ class data_item_server_network: public hpx::components::client_base<
             DataItemType>::data_item_type data_item_type;
 
     using server_type = data_item_server<DataItemType>;
-    
+
     public:
 
     data_item_server_network() {
