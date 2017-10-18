@@ -1,0 +1,3 @@
+[submodule "hpx"]
+	path = hpx
+	url = https://github.com/STEllAR-GROUP/hpx.git
