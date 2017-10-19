@@ -195,7 +195,7 @@ public:
             case access_mode::ReadOnly:
             {
                 // check that this region is actually protected
-                HPX_ASSERT(allscale::api::core::isSubRegion(info.readLocked,lease.region));
+                HPX_ASSERT(allscale::api::core::isSubRegion(lease.region,info.readLocked));
 
                 // remove read lease
                 info.removeReadLease(lease.region);
