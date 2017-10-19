@@ -48,7 +48,6 @@ using grid_init = allscale::work_item_description<
     grid_init_name,
     allscale::do_serialization,
     grid_init_split,
-//     allscale::no_split<void>,
     grid_init_process,
     grid_init_can_split
 >;
@@ -60,8 +59,6 @@ struct grid_init_can_split
     {
         auto begin = hpx::util::get<1>(c);
         auto end = hpx::util::get<2>(c);
-
-//         std::cout << "can split " << begin << ' ' << end << ' ' << sumOfSquares(end - begin) << '\n';
 
         return sumOfSquares(end - begin) > 1;
     }
