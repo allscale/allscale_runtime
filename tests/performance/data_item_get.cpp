@@ -39,9 +39,6 @@ int32_t main(int argc, char** argv) {
 }
 
 /* ------- Function Definitions --------- */
-int32_t IMP_main() {
-}
-/* ------- Function Definitions --------- */
 struct main_process {
     static allscale::treeture<int32_t > execute(hpx::util::tuple< > const&)
     {
@@ -64,14 +61,14 @@ struct main_process {
         auto lease1 = allscale::data_item_manager::acquire<StaticGrid<double, 200, 200 >>(
             allscale::createDataItemRequirement(
                 var_3,
-                StaticGridRegion<2>(200, 200),
+                StaticGridRegion<2>({0,0}, {200, 200}),
                 allscale::access_mode::ReadWrite)
         );
 
         auto lease2 = allscale::data_item_manager::acquire<StaticGrid<double, 200, 200 >>(
             allscale::createDataItemRequirement(
                 var_4,
-                StaticGridRegion<2>(200, 200),
+                StaticGridRegion<2>({0,0}, {200, 200}),
                 allscale::access_mode::ReadWrite)
         );
 
