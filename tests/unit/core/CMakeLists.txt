@@ -3,6 +3,7 @@ set(tests
 #  1d_stencil
   scalar_read_write
   grid_init
+  grid_init_overlap
   overlapping_async.insieme.seq
   #overlapping_pfor.insieme.seq
 #  data_item_manager

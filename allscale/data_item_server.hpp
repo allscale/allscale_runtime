@@ -93,6 +93,7 @@ public:
     typedef hpx::lcos::local::spinlock mutex_type;
 
     mutable mutex_type mtx_;
+    hpx::lcos::local::detail::condition_variable write_cv;
 	std::map<hpx::id_type, fragment_info> store;
     network_type network_;
     std::map<std::size_t,hpx::id_type> servers_;
@@ -140,11 +141,24 @@ public:
                 }
             case access_mode::ReadWrite:
                 {
-                    HPX_ASSERT(!allscale::api::core::isSubRegion(req.region, info.writeLocked));
+                    // Block if another task has a write lease...
+                    // This should ideally not happen...
+                    auto to_test = data_item_region_type::difference(info.writeLocked, req.region);
+                    while (!(to_test.empty() || to_test == info.writeLocked))
+                    {
+                        // TODO: add monitoring event!
+                        write_cv.wait(l);
+                        to_test = data_item_region_type::difference(info.writeLocked, req.region);
+                    }
+
+
                     // FIXME: add debug check that all other fragments don't have
                     // any kinds of locks on this fragment...
                     info.writeLocked = data_item_region_type::merge(
                         info.writeLocked, req.region);
+
+//                     write_cv.notify_all(std::move(l));
+
                     break;
                 }
             default:
@@ -177,10 +191,13 @@ public:
             }
             case access_mode::ReadWrite: {
                 // check that this region is actually protected
+
                 HPX_ASSERT(allscale::api::core::isSubRegion(lease.region, info.writeLocked));
 
                 // lock data for write
                 info.writeLocked = data_item_region_type::difference(info.writeLocked, lease.region);
+
+                write_cv.notify_all(std::move(l));
 
                 break;
             }
