@@ -77,7 +77,7 @@ namespace allscale { namespace detail {
     inline auto get_leases(hpx::util::detail::pack_c<std::size_t, Is...>, Requirements const& reqs)
      -> hpx::util::tuple<
             typename hpx::util::decay<decltype(
-                allscale::data_item_manager::acquire(hpx::util::get<Is>(reqs)))>::type...
+                allscale::data_item_manager::acquire(hpx::util::get<Is>(reqs)) )>::type...
         >
     {
         return hpx::util::make_tuple(

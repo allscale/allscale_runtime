@@ -8,7 +8,8 @@
 #include <hpx/util/assert.hpp>
 #include <hpx/util/detail/yield_k.hpp>
 
-namespace allscale{
+namespace allscale
+{
     template <typename DataItemType>
     struct data_item_manager_impl
     {

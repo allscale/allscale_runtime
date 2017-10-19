@@ -14,11 +14,11 @@
 
 #include <type_traits>
 
-namespace allscale{
+namespace allscale
+{
 
     struct data_item_manager
     {
-
         template <typename DataItemType, typename...Args>
         static allscale::data_item_reference<DataItemType>
         create(Args&&...args)
@@ -44,12 +44,14 @@ namespace allscale{
 		}
 
         template<typename DataItemType>
-		static void release(const allscale::lease<DataItemType>& lease) {
+		static void release(const allscale::lease<DataItemType>& lease)
+        {
             return data_item_manager_impl<DataItemType>::release(lease);
         }
 
         template<typename DataItemType>
-		static void destroy(const data_item_reference<DataItemType>& ref) {
+		static void destroy(const data_item_reference<DataItemType>& ref)
+        {
             data_item_manager_impl<DataItemType>::destroy(ref);
         }
 

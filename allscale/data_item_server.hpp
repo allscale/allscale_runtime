@@ -7,6 +7,8 @@
 #include <allscale/data_item_reference.hpp>
 #include <allscale/lease.hpp>
 #include <allscale/location_info.hpp>
+#include <allscale/transfer_plan.hpp>
+#include <allscale/simple_transfer_plan_generator.hpp>
 #include <map>
 
 
@@ -29,66 +31,78 @@ namespace server {
 
 template<typename DataItemType>
 class data_item_server
-  : public hpx::components::component_base<data_item_server<DataItemType> > {
+  : public hpx::components::component_base<data_item_server<DataItemType> >
+{
 
 public:
-	using data_item_type = DataItemType;
-	using data_item_shared_data_type = typename DataItemType::shared_data_type;
-	using data_item_fragment_type = typename DataItemType::fragment_type;
-	using data_item_region_type = typename DataItemType::region_type;
-	using data_item_reference_client_type = typename allscale::data_item_reference<DataItemType>;
+    using data_item_type = DataItemType;
+    using data_item_shared_data_type = typename DataItemType::shared_data_type;
+    using data_item_fragment_type = typename DataItemType::fragment_type;
+    using data_item_region_type = typename DataItemType::region_type;
+    using data_item_reference_client_type = typename allscale::data_item_reference<DataItemType>;
     using network_type = typename allscale::data_item_server_network<DataItemType>;
     using lease_type = typename allscale::lease<DataItemType>;
     using location_info_type = typename allscale::location_info<DataItemType>;
+    using locality_type = hpx::id_type;
     // using network_type = data_item_server_network<DataItemType>;
     //using network_type = int;
-	struct fragment_info {
-		// the managed fragment
-		data_item_fragment_type fragment;
+    struct fragment_info {
+        // the managed fragment
+        data_item_fragment_type fragment;
 
-		// the regions currently locked through read leases
-		data_item_region_type readLocked;
+        // the regions currently locked through read leases
+        data_item_region_type readLocked;
 
-		// the list of all granted read leases
-		std::vector<data_item_region_type> readLeases;
+        // the list of all granted read leases
+        std::vector<data_item_region_type> readLeases;
 
-		// the regions currently locked through write access
-		data_item_region_type writeLocked;
+        // the regions currently locked through write access
+        data_item_region_type writeLocked;
 
-		fragment_info(const data_item_shared_data_type& shared) :
-				fragment(shared), readLocked(), writeLocked() {
-		}
+        fragment_info(){}
 
-		fragment_info(const fragment_info&) = delete;
-		fragment_info(fragment_info&&) = default;
+        fragment_info(const data_item_shared_data_type& shared) :
+                fragment(shared), readLocked(), writeLocked() {
+        }
 
-		void addReadLease(const data_item_region_type& region) {
+        fragment_info(const fragment_info&) = default;
+        fragment_info(fragment_info&&) = default;
 
-			// add to lease set
-			readLeases.push_back(region);
+        void addReadLease(const data_item_region_type& region) {
 
-			// merge into read locked region
-			readLocked = data_item_region_type::merge(readLocked, region);
-		}
+            // add to lease set
+            readLeases.push_back(region);
 
-		void removeReadLease(const data_item_region_type& region) {
+            // merge into read locked region
+            readLocked = data_item_region_type::merge(readLocked, region);
+        }
+
+        void removeReadLease(const data_item_region_type& region) {
 
 			// remove lease from lease set
 			auto pos = std::find(readLeases.begin(), readLeases.end(), region);
             HPX_ASSERT(pos != readLeases.end());
-			readLeases.erase(pos);
+            readLeases.erase(pos);
 
-			// update readLocked status
-			data_item_region_type locked = data_item_region_type();
-			for (const auto& cur : readLeases) {
-				locked = data_item_region_type::merge(locked, cur);
-			}
+            // update readLocked status
+            data_item_region_type locked = data_item_region_type();
+            for (const auto& cur : readLeases) {
+                locked = data_item_region_type::merge(locked, cur);
+            }
 
-			// exchange read locked region
-			std::swap(readLocked, locked);
-		}
+            // exchange read locked region
+            std::swap(readLocked, locked);
+        }
 
-	};
+        template <typename Archive>
+        void serialize(Archive & ar, unsigned){
+        /*    ar & fragment;
+            ar & readLocked;
+            ar & readLeases;
+            ar & writeLocked;
+        */
+        }
+    };
 
     typedef hpx::lcos::local::spinlock mutex_type;
 
@@ -119,7 +133,6 @@ public:
         }
 //         auto locationInfo = locate(req.ref,req.region);
 //         // collect data on data distribution
-//         auto locationInfo = locate(request.ref,request.region);
 
         // get local fragment info
         auto& info = store_it->second;
@@ -229,44 +242,42 @@ public:
 
     }
 
-    location_info_type locate(const data_item_reference_client_type& ref, const data_item_region_type& region)
-    {
 
-        location_info_type res;
-//
-//         for(auto& server : network_.servers){
-//             std::cout<< server.get_id() << std::endl;
-//              typedef typename allscale::server::data_item_server<DataItemType>::get_info_action action_type;
-// 		        action_type()(server.get_id(),ref);
-//             /*if(server.get_id() != this->get_id()){
+     /*
+	 * A utility computing a transfer plan based on a given data distribution information,
+	 * a target location, a region to be targeted, and a desired access mode.
+	 *
+	 * @param info a summary of the data distribution state covering the provided region
+	 * @param targetLocation the location where the given region should be moved to
+	 * @param region the region to be moved
+	 * @param mode the intended access mode of the targeted region after the transfer
+	 */
+	template<typename TransferPlanGenerator = simple_transfer_plan_generator>
+	transfer_plan<DataItemType> build_plan(const location_info<DataItemType>& info, locality_type targetLocation, const data_item_requirement<DataItemType>& requirement) {
+		// use the transfer plan generator policy as requested
+		return TransferPlanGenerator()(info,targetLocation,requirement);
+	}
+
+    location_info_type locate(const data_item_reference_client_type& ref, const data_item_region_type& region) {
+        location_info_type result;
+//         for(const auto& server : network_.servers){
+//             if(server.get_id() != this->get_id()){
 //                 typedef typename allscale::server::data_item_server<DataItemType>::get_info_action action_type;
-// 		        action_type()(server.get_id(),ref);
-//             }*/
-//
+//                 auto res = action_type()(server.get_id(),ref);
+//                 auto part = data_item_region_type::intersect(region,res);
+//                 if(!part.empty())
+//                 {
+//                     result.addPart(part,server.get_id());
+//                 }
+//             }
 //         }
-        /*
 
-        network.broadcast([&](const DataItemServer& server) {
-
-            if (!server.alive) return;
-
-            auto& info = server.getInfo(ref);
-
-            auto part = data_item_region_type::intersect(region,info.fragment.getCoveredRegion());
-
-            if (part.empty()) return;
-
-            res.addPart(part,server.myLocality);
-
-        });
-        */
-        return res;
+        return result;
     }
 
     data_item_fragment_type& get(const data_item_reference_client_type& ref)
     {
         std::unique_lock<mutex_type> l(mtx_);
-        //std::cout<<"get method called for id: " << ref.id()<<std::endl;
         auto pos = store.find(ref.id());
         HPX_ASSERT(pos != store.end());
         return pos->second.fragment;
@@ -284,8 +295,7 @@ public:
     }
 
     void set_network(const network_type& network){
-
-//         network_ = network;
+        network_ = network;
     }
 
     void set_servers(){
@@ -303,13 +313,6 @@ public:
 //             std::cout<<server.get_id()<<std::endl;
 //         }
     }
-
-//     HPX_DEFINE_COMPONENT_ACTION(data_item_server, get);
-//     HPX_DEFINE_COMPONENT_ACTION(data_item_server, set_network);
-//     HPX_DEFINE_COMPONENT_ACTION(data_item_server, set_servers);
-//     HPX_DEFINE_COMPONENT_ACTION(data_item_server, print_network);
-//     HPX_DEFINE_COMPONENT_ACTION(data_item_server, print);
-//    HPX_DEFINE_COMPONENT_ACTION(data_item_server, get_info);
 //    HPX_DEFINE_COMPONENT_ACTION(data_item_server, create_zero);
 };
 
@@ -317,7 +320,7 @@ public:
 
 /*
     HPX_REGISTER_ACTION_DECLARATION(                                          \
-    	allscale::server::data_item_server<type>::create_zero_action,           \
+        allscale::server::data_item_server<type>::create_zero_action,           \
         BOOST_PP_CAT(__data_item_server_create_zero_action_, type));            \
 */
 
@@ -343,94 +346,8 @@ public:
  */
 #define REGISTER_DATAITEMSERVER(type)                                   \
     typedef ::hpx::components::component<                                     \
-    	allscale::server::data_item_server<type>                         \
+        allscale::server::data_item_server<type>                         \
     > BOOST_PP_CAT(__data_item_server_, type);                            \
     HPX_REGISTER_COMPONENT(BOOST_PP_CAT(__data_item_server_, type))       \
-
-
-namespace allscale {
-//    template<typename DataItemType>
-// class data_item_server: public hpx::components::client_base<
-// 		data_item_server<DataItemType>,
-// 		allscale::server::data_item_server<DataItemType> > {
-// 	typedef hpx::components::client_base<data_item_server<DataItemType>,
-// 			allscale::server::data_item_server<DataItemType> > base_type;
-//
-// 	typedef typename allscale::server::data_item_server<
-// 			DataItemType>::data_item_type data_item_type;
-//     typedef typename allscale::data_item_reference<DataItemType> data_item_reference_client_type;
-//
-//     //using network_type = int;
-//     using network_type = typename allscale::data_item_server_network<DataItemType>;
-//
-// public:
-//
-// 	data_item_server() {
-// 	}
-//
-// 	data_item_server(hpx::future<hpx::id_type> && gid) :
-// 			base_type(std::move(gid)) {
-//         //        std::cout<<"called on loc" << this->get_id() << std::endl;
-//         auto data_item_server_name = allscale::data_item_server_name<DataItemType>::name();
-//         //data_item_server_name += hpx::naming::get_locality_id_from_id(this->get_id());
-//         // std::cout<< hpx::register_with_basename(data_item_server_name,
-//         // this->get_id(),hpx::naming::get_locality_id_from_id(this->get_id())).get()<<std::endl;
-//
-//     }
-//
-//     data_item_server(hpx::id_type && gid) :
-// 			base_type(std::move(gid)) {
-//         //        std::cout<<"called on loc" << this->get_id() << std::endl;
-//         auto data_item_server_name = allscale::data_item_server_name<DataItemType>::name();
-//         //data_item_server_name += hpx::naming::get_locality_id_from_id(this->get_id());
-//         hpx::register_with_basename(data_item_server_name,this->get_id(),hpx::naming::get_locality_id_from_id(this->get_id())).get();
-//
-//     }
-// 	template<typename ... T>
-// 	data_item_reference_client_type create(const T& ... args) {
-// 		HPX_ASSERT(this->get_id());
-//
-// 		typedef typename  allscale::server::data_item_server<DataItemType>::template create_action<T...> action_type;
-// 		return action_type()(this->get_id(), args...);
-// 	}
-//
-//     void print() {
-// 		HPX_ASSERT(this->get_id());
-// 		typedef typename allscale::server::data_item_server<DataItemType>::print_action action_type;
-// 		action_type()(this->get_id());
-// 	}
-//
-//     void print_network() {
-// 		HPX_ASSERT(this->get_id());
-// 		typedef typename allscale::server::data_item_server<DataItemType>::print_network_action action_type;
-// 		action_type()(this->get_id());
-// 	}
-//     void set_network(const network_type& network){
-//         HPX_ASSERT(this->get_id());
-//         typedef typename allscale::server::data_item_server<DataItemType>::set_network_action action_type;
-//         action_type()(this->get_id(),network);
-//     }
-//
-//     void set_servers(){
-//         HPX_ASSERT(this->get_id());
-//         typedef typename allscale::server::data_item_server<DataItemType>::set_servers_action action_type;
-//         action_type()(this->get_id());
-//     }
-//     typename DataItemType::facade_type get(const data_item_reference_client_type& ref){
-//         /*
-//         using parent_type = typename allscale::server::data_item_server<DataItemType>;
-//         hpx::future<std::shared_ptr<parent_type> > f = hpx::get_ptr<parent_type>(this->get_id());
-//         std::shared_ptr<parent_type> ptr = f.get();
-//         auto result = (ptr.get())->get(ref);
-//         return result;   */
-//         HPX_ASSERT(this->get_id());
-//         typedef typename allscale::server::data_item_server<DataItemType>::get_action action_type;
-//         action_type()(this->get_id(),ref);
-//
-//     }
-//
-// };
-
-}
 
 #endif

@@ -3,10 +3,9 @@
 
 #include <allscale/data_item_reference.hpp>
 #include <allscale/access_mode.hpp>
-//#include <allscale/utils/serializer.h>
-//#include <hpx/runtime/serialization/input_archive.hpp>
-//#include <hpx/runtime/serialization/output_archive.hpp>
-#include <hpx/include/serialization.hpp>
+#include <hpx/runtime/serialization/input_archive.hpp>
+#include <hpx/runtime/serialization/output_archive.hpp>
+
 namespace allscale{
 
     template<typename DataItemType>
@@ -14,7 +13,7 @@ namespace allscale{
     public:
         using ref_type = data_item_reference<DataItemType>;
         using region_type = typename DataItemType::region_type;
-
+        using data_item_type = DataItemType;
 
         ref_type ref;
         region_type region;

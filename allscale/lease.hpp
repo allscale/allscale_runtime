@@ -11,7 +11,9 @@ namespace allscale{
         lease () : data_item_requirement<DataItemType>() {}
 
         lease(const data_item_requirement<DataItemType>& requirement)
-            : data_item_requirement<DataItemType>(requirement) {}
+            : data_item_requirement<DataItemType>(requirement) 
+        {
+        }
 
     };
 }
