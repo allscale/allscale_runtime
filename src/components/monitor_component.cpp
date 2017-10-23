@@ -232,7 +232,7 @@ namespace allscale { namespace components {
          }
          else it->second.push_back(my_wid.name());
        }
-	   
+
 #ifdef REALTIME_VIZ
       if(realtime_viz) {
          std::unique_lock<std::mutex> lock2(counter_mutex_);
@@ -384,7 +384,7 @@ namespace allscale { namespace components {
 
    double monitor::get_exclusive_time_remote(hpx::id_type locality, std::string w_id)
    {
-
+        return 0.0;
    }
 
    // Returns the inclusive time for a work item with ID w_id
@@ -402,7 +402,7 @@ namespace allscale { namespace components {
 
    double monitor::get_inclusive_time_remote(hpx::id_type locality, std::string w_id)
    {
-
+        return 0.0;
    }
 
 
@@ -422,7 +422,7 @@ namespace allscale { namespace components {
 
    double monitor::get_average_exclusive_time_remote(hpx::id_type locality, std::string w_name)
    {
-
+        return 0.0;
    }
 
 
@@ -443,7 +443,7 @@ namespace allscale { namespace components {
 
    double monitor::get_minimum_exclusive_time_remote(hpx::id_type locality, std::string w_name)
    {
-
+        return 0.0;
    }
 
 
@@ -464,7 +464,7 @@ namespace allscale { namespace components {
 
    double monitor::get_maximum_exclusive_time_remote(hpx::id_type locality, std::string w_name)
    {
-
+        return 0.0;
    }
 
    // Returns the mean exclusive time for all children
@@ -482,7 +482,7 @@ namespace allscale { namespace components {
 
    double monitor::get_children_mean_time_remote(hpx::id_type locality, std::string w_id)
    {
-
+        return 0.0;
    }
 
 
@@ -501,7 +501,7 @@ namespace allscale { namespace components {
 
    double monitor::get_children_SD_time_remote(hpx::id_type locality, std::string w_id)
    {
-
+        return 0.0;
    }
 
 

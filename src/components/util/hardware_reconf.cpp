@@ -22,13 +22,13 @@ namespace allscale { namespace components { namespace util {
             available_frequencies = available_frequencies->next;
         }
 
-        if (available_frequencies != NULL)
+        if (available_frequencies != nullptr)
             cpufreq_put_available_frequencies(available_frequencies);
 
         return frequencies;
     }
 
-   
+
     std::vector<std::string> hardware_reconf::get_governors(unsigned int cpu)
     {
         std::vector<std::string> cpu_governors;
@@ -41,8 +41,8 @@ namespace allscale { namespace components { namespace util {
 
         //TODO check if we have to use the following function
         cpufreq_put_available_governors(available_governors);
-    
-        return cpu_governors; 
+
+        return cpu_governors;
     }
 
 
@@ -57,10 +57,10 @@ namespace allscale { namespace components { namespace util {
         return res;
     }
 
-    
+
     void hardware_reconf::set_next_frequency(unsigned int freq_step, bool dec)
     {
-        // Get available frequencies of core 0, 
+        // Get available frequencies of core 0,
         // we assume all cores have the same set of frequencies
         // get_frequencies returns vector of freqs in decreasing order
         std::vector<unsigned long> all_freqs = get_frequencies(0);
@@ -136,7 +136,7 @@ namespace allscale { namespace components { namespace util {
         hardware_reconf::hw_topology topo = read_hw_topology();
         unsigned int max_cpu_id = topo.num_logical_cores;
         unsigned int hw_threads = topo.num_hw_threads;
-    
+
         std::unique_lock<mutex_type> l(hardware_reconf::freq_mtx_);
         for(unsigned int cpu_id = 0; cpu_id < max_cpu_id; cpu_id += hw_threads)
         {
@@ -183,7 +183,7 @@ namespace allscale { namespace components { namespace util {
         try {
             energy = std::stoull(line);
         } catch (const std::invalid_argument& ia)
-        { 
+        {
             std::cerr << "Error reading energy sensor: " << ia.what() << ", " << line <<'\n';
         } catch (const std::out_of_range& ofr)
         {
@@ -222,7 +222,7 @@ namespace allscale { namespace components { namespace util {
         return topo;
     }
 
-    
+
     void hardware_reconf::make_cpus_offline(unsigned int min_cpu_id, unsigned int max_cpu_id)
     {
         std::vector<std::thread> threads;
@@ -257,8 +257,8 @@ namespace allscale { namespace components { namespace util {
         }
     }
 
-    
-    void hardware_reconf::write_to_file(int value, const std::string& file_name)    
+
+    void hardware_reconf::write_to_file(int value, const std::string& file_name)
     {
         std::ofstream sysfs_cpu(file_name);
         sysfs_cpu << value;

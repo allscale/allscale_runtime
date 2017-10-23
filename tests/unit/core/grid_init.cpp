@@ -74,7 +74,7 @@ struct grid_init_split {
 
         std::size_t depth = allscale::this_work_item::get_id().depth();
         auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
-        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(depth, range);
+        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
 
         return allscale::runtime::treeture_parallel(
             allscale::spawn<grid_init>(data, fragments.left.begin(), fragments.left.end()),
@@ -96,10 +96,105 @@ struct grid_init_process {
 
         region_type region(begin, end);
 
+        std::cout << hpx::get_locality_id() << " init: running from " << begin << " to " << end << '\n';
+
         region.scan(
             [&](auto const& pos)
             {
+//                 std::cout << "Setting " << pos << ' ' << pos.x + pos.y << '\n';
                 data[pos] = pos.x + pos.y;
+            }
+        );
+
+        return hpx::util::unused;
+    }
+
+    template <typename Closure>
+    static hpx::util::tuple<
+        allscale::data_item_requirement<data_item_type >
+    >
+    get_requirements(Closure const& c)
+    {
+        region_type r(hpx::util::get<1>(c), hpx::util::get<2>(c));
+        return hpx::util::make_tuple(
+            allscale::createDataItemRequirement(
+                hpx::util::get<0>(c),
+                r,
+                allscale::access_mode::ReadWrite
+            )
+        );
+    }
+    static constexpr bool valid = true;
+};
+
+
+struct grid_init_test_name {
+    static const char* name() { return "grid_init_test"; }
+};
+struct grid_init_test_split;
+struct grid_init_test_process;
+struct grid_init_test_can_split;
+
+using grid_init_test = allscale::work_item_description<
+    void,
+    grid_init_test_name,
+    allscale::do_serialization,
+    grid_init_test_split,
+    grid_init_test_process,
+    grid_init_test_can_split
+>;
+
+struct grid_init_test_can_split
+{
+    template <typename Closure>
+    static bool call(Closure const& c)
+    {
+        auto begin = hpx::util::get<1>(c);
+        auto end = hpx::util::get<2>(c);
+
+        return sumOfSquares(end - begin) > 1;
+    }
+};
+
+struct grid_init_test_split {
+    template <typename Closure>
+    static allscale::treeture<void> execute(Closure const& c)
+    {
+        auto data = hpx::util::get<0>(c);
+        auto begin = hpx::util::get<1>(c);
+        auto end = hpx::util::get<2>(c);
+
+        std::size_t depth = allscale::this_work_item::get_id().depth();
+        auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
+        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
+
+        return allscale::runtime::treeture_parallel(
+            allscale::spawn<grid_init_test>(data, fragments.left.begin(), fragments.left.end()),
+            allscale::spawn<grid_init_test>(data, fragments.right.begin(), fragments.right.end())
+        );
+    }
+
+    static constexpr bool valid = true;
+};
+
+struct grid_init_test_process {
+    template <typename Closure>
+    static hpx::util::unused_type execute(Closure const& c)
+    {
+        auto ref = hpx::util::get<0>(c);
+        auto data = allscale::data_item_manager::get(ref);
+        auto begin = hpx::util::get<1>(c);
+        auto end = hpx::util::get<2>(c);
+
+        region_type region(begin, end);
+
+        std::cout << hpx::get_locality_id() << " test: running from " << begin << " to " << end << '\n';
+
+        bool correct = true;
+        region.scan(
+            [&](auto const& pos)
+            {
+                HPX_TEST_EQ(data[pos], pos.x + pos.y);
             }
         );
 
@@ -151,26 +246,9 @@ struct main_process
         coordinate_type begin(0, 0);
         coordinate_type end(200, 200);
 
-        allscale::spawn<grid_init>(data, begin, end).wait();
+        allscale::spawn_first<grid_init>(data, begin, end).wait();
 
-        {
-            auto lease = allscale::data_item_manager::acquire<data_item_type>(
-                allscale::createDataItemRequirement(
-                    data,
-                    whole_region,
-                    allscale::access_mode::ReadOnly)
-            );
-            auto ref = allscale::data_item_manager::get(data);
-
-            whole_region.scan(
-                [&](auto const& pos)
-                {
-                    HPX_TEST_EQ(ref[pos], pos.x + pos.y);
-                }
-            );
-
-            allscale::data_item_manager::release(lease);
-        }
+        allscale::spawn_first<grid_init_test>(data, begin, end).wait();
 
         allscale::data_item_manager::destroy(data);
 

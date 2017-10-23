@@ -217,7 +217,7 @@ namespace allscale { namespace detail {
                     monitor::signal(monitor::work_item_result_propagated,
                         work_item(std::move(this_)));
                 },
-                std::move(this_), std::move(state), std::move(leases)));
+                std::move(this_), state, std::move(leases)));
         }
 
         template <typename Leases>
@@ -253,10 +253,10 @@ namespace allscale { namespace detail {
 		}
 
         template <typename T>
-        void set_children(treeture<T> const tre)
+        void set_children(treeture<T> const& tre)
         {
-            tres_.set_child(0, tre.get_left_child());
-            tres_.set_child(1, tre.get_right_child());
+            if (tre.valid())
+                tres_.set_children(tre.get_left_child(), tre.get_right_child());
         }
 
         template <typename T>

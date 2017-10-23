@@ -35,7 +35,7 @@ namespace allscale { namespace detail
 template<typename F>
 typename std::enable_if<!hpx::traits::is_future<F>::value,
 		typename std::remove_reference<F>::type &&>::type unwrap_if(F && f) {
-	return std::move(f);
+	return std::forward<F>(f);
 }
 
 template<typename Indices, typename Tuple, typename T,

@@ -49,6 +49,7 @@ namespace allscale { namespace components {
                         }), hpx::util::placeholders::_1, std::move(work), id));
                 return;
             }
+            scheduler_id = it->second;
         }
 
         HPX_ASSERT(scheduler_id);

@@ -56,29 +56,20 @@ namespace allscale {
                 typename shared_state_type::init_no_addref()))
           , fixed_children_(false)
         {
+            hpx::future<void> f = other.get_future();
+
+            typename hpx::traits::detail::shared_state_ptr_for<hpx::future<void>>::type state
+                = hpx::traits::future_access<hpx::future<void>>::get_shared_state(f);
+
 //             set_left_child(other.get_left_child());
 //             set_right_child(other.get_right_child());
             auto shared_state = shared_state_;
-            if (other.shared_state_)
-            {
-                other.shared_state_->set_on_completed(
-                    [shared_state]()
-                    {
-                        shared_state->set_value(hpx::util::unused_type{});
-                    });
-            }
-            else
-            {
-                hpx::future<void> f = other.get_future();
-
-                typename hpx::traits::detail::shared_state_ptr_for<hpx::future<void>>::type state
-                    = hpx::traits::future_access<hpx::future<void>>::get_shared_state(f);
-                state->set_on_completed(
-                    [state, shared_state]()
-                    {
-                        shared_state->set_value(hpx::util::unused);
-                    });
-            }
+            HPX_ASSERT(other.shared_state_);
+            other.shared_state_->set_on_completed(
+                [state, shared_state]()
+                {
+                    shared_state->set_value(hpx::util::unused_type{});
+                });
         }
 
         template <typename U>
@@ -87,6 +78,7 @@ namespace allscale {
                 typename shared_state_type::init_no_addref()))
           , fixed_children_(false)
         {
+            HPX_ASSERT(fut.is_valid());
             typename hpx::traits::detail::shared_state_ptr_for<hpx::future<U>>::type state
                 = hpx::traits::future_access<hpx::future<U>>::get_shared_state(fut);
 

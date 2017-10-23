@@ -166,7 +166,7 @@ namespace allscale { namespace this_work_item {
         {
             config_.rank_ = parent.rank_ + (parent.locality_depth_ / 2);
             config_.numa_domain_ = parent.numa_domain_;
-            config_.locality_depth_ = (parent.locality_depth_ / 2.0) + 0.5;
+            config_.locality_depth_ = std::lround(parent.locality_depth_ / 2.0);
             config_.numa_depth_ = parent.numa_depth_;
         }
         else
@@ -177,14 +177,14 @@ namespace allscale { namespace this_work_item {
             if(parent.numa_depth_ > 1)
             {
                 config_.numa_domain_ = parent.numa_domain_ + (parent.numa_depth_ / 2);
-                config_.numa_depth_ = (parent.numa_depth_ / 2.0) + 0.5;
+                config_.numa_depth_ = std::lround(parent.numa_depth_ / 2.0);
                 config_.thread_depth_ = parent.thread_depth_;
             }
             else
             {
                 config_.numa_domain_ = parent.numa_domain_;
                 config_.numa_depth_ = 1;
-                config_.thread_depth_ = (parent.thread_depth_ / 2.0) + 0.5;
+                config_.thread_depth_ = std::lround(parent.thread_depth_ / 2.0);
             }
         }
     }
@@ -271,7 +271,7 @@ namespace allscale { namespace this_work_item {
             if (num_cores == 1)
                 config_.thread_depth_ = 1;
             else
-                config_.thread_depth_ = std::pow(num_cores, 1.5) + 0.5;
+                config_.thread_depth_ = std::lround(std::pow(num_cores, 1.5));
         }
 
 //         wi_ = std::move(wi);
