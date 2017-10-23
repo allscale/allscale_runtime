@@ -210,7 +210,7 @@ struct grid_init_test_process {
             allscale::createDataItemRequirement(
                 hpx::util::get<0>(c),
                 r,
-                allscale::access_mode::ReadWrite
+                allscale::access_mode::ReadOnly
             )
         );
     }
@@ -247,6 +247,25 @@ struct main_process
         allscale::spawn_first<grid_init>(data, begin, end).wait();
 
         allscale::spawn_first<grid_init_test>(data, begin, end).wait();
+
+
+        auto lease = allscale::data_item_manager::acquire(
+            allscale::createDataItemRequirement(
+                data,
+                whole_region,
+                allscale::access_mode::ReadOnly
+            )).get();
+
+        auto ref = allscale::data_item_manager::get(data);
+
+        whole_region.scan(
+            [&](auto const& pos)
+            {
+                HPX_TEST_EQ(ref[pos], pos.x + pos.y);
+            }
+        );
+
+        allscale::data_item_manager::release(lease);
 
         allscale::data_item_manager::destroy(data);
 

@@ -7,6 +7,7 @@ set(_srcs
     this_work_item.cpp
     treeture.cpp
     components/monitor_component.cpp
+    components/data_item_network.cpp
     components/resilience_component.cpp
     components/scheduler_component.cpp
     components/scheduler_network.cpp

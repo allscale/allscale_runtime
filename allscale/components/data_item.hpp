@@ -2,7 +2,6 @@
 #define ALLSCALE_DATA_ITEM_SERVER
 
 #include <allscale/components/data_item_network.hpp>
-#include <allscale/locality.h>
 #include <allscale/data_item_requirement.hpp>
 #include <allscale/data_item_reference.hpp>
 #include <allscale/lease.hpp>
@@ -20,8 +19,8 @@
 #include <hpx/include/actions.hpp>
 #include <hpx/util/register_locks.hpp>
 #include <hpx/include/serialization.hpp>
-#include <allscale/util.hpp>
 
+#include <hpx/lcos/local/packaged_task.hpp>
 
 namespace allscale{
     template<typename DataItemType>
@@ -36,48 +35,48 @@ class data_item
 
 public:
     using data_item_type = DataItemType;
-    using data_item_shared_data_type = typename DataItemType::shared_data_type;
-    using data_item_fragment_type = typename DataItemType::fragment_type;
-    using data_item_region_type = typename DataItemType::region_type;
-    using data_item_reference_client_type = typename allscale::data_item_reference<DataItemType>;
-    using network_type = typename allscale::data_item_network<DataItemType>;
+    using shared_data_type = typename DataItemType::shared_data_type;
+    using fragment_type = typename DataItemType::fragment_type;
+    using region_type = typename DataItemType::region_type;
+//     using network_type = typename allscale::data_item_network<DataItemType>;
     using lease_type = typename allscale::lease<DataItemType>;
-    using location_info_type = typename allscale::location_info<DataItemType>;
-    using locality_type = hpx::id_type;
-    // using network_type = data_item_server_network<DataItemType>;
-    //using network_type = int;
+
+    using requirement_type = allscale::data_item_requirement<DataItemType>;
+    using location_info = allscale::location_info<DataItemType>;
+    using data_item_view = void;
+
     struct fragment_info {
         // the managed fragment
-        data_item_fragment_type fragment;
+        fragment_type fragment;
 
         // the regions currently locked through read leases
-        data_item_region_type readLocked;
+        region_type readLocked;
 
         // the list of all granted read leases
-        std::vector<data_item_region_type> readLeases;
+        std::vector<region_type> readLeases;
 
         // the regions currently locked through write access
-        data_item_region_type writeLocked;
+        region_type writeLocked;
 
         fragment_info(){}
 
-        fragment_info(const data_item_shared_data_type& shared) :
+        fragment_info(const shared_data_type& shared) :
                 fragment(shared), readLocked(), writeLocked() {
         }
 
         fragment_info(const fragment_info&) = default;
         fragment_info(fragment_info&&) = default;
 
-        void addReadLease(const data_item_region_type& region) {
+        void addReadLease(const region_type& region) {
 
             // add to lease set
             readLeases.push_back(region);
 
             // merge into read locked region
-            readLocked = data_item_region_type::merge(readLocked, region);
+            readLocked = region_type::merge(readLocked, region);
         }
 
-        void removeReadLease(const data_item_region_type& region) {
+        void removeReadLease(const region_type& region) {
 
 			// remove lease from lease set
 			auto pos = std::find(readLeases.begin(), readLeases.end(), region);
@@ -85,9 +84,9 @@ public:
             readLeases.erase(pos);
 
             // update readLocked status
-            data_item_region_type locked = data_item_region_type();
+            region_type locked = region_type();
             for (const auto& cur : readLeases) {
-                locked = data_item_region_type::merge(locked, cur);
+                locked = region_type::merge(locked, cur);
             }
 
             // exchange read locked region
@@ -106,18 +105,117 @@ public:
 
     typedef hpx::lcos::local::spinlock mutex_type;
 
+    std::size_t rank_;
+
     mutable mutex_type mtx_;
     hpx::lcos::local::detail::condition_variable write_cv;
-	std::map<hpx::id_type, fragment_info> store;
-    network_type network_;
-    std::map<std::size_t,hpx::id_type> servers_;
+    typedef	std::map<hpx::id_type, fragment_info> store_type;
+
+	store_type store;
+    data_item_network network;
+
+    typedef std::map<hpx::id_type, location_info> location_store_type;
+    location_store_type location_store;
+
     public:
 
-	data_item()
+	data_item(std::size_t rank)
+      : rank_(rank)
+      , network(data_item_server_name<DataItemType>::name())
     {
     }
 
-    lease_type acquire(const allscale::data_item_requirement<DataItemType>& req)
+    hpx::future<lease_type> acquire_impl(const requirement_type& req, typename store_type::iterator store_it, std::unique_lock<mutex_type> l)
+    {
+        // get local fragment info
+        auto& info = store_it->second;
+        // allocate storage for requested data on local fragment
+        info.fragment.resize(region_type::merge(info.fragment.getCoveredRegion(), req.region));
+
+        if (req.mode == access_mode::ReadWrite)
+        {
+            // Block if another task has a write lease...
+            // This should ideally not happen...
+            auto to_test = region_type::difference(info.writeLocked, req.region);
+            while (!(to_test.empty() || to_test == info.writeLocked))
+            {
+                // TODO: add monitoring event!
+                write_cv.wait(l);
+                to_test = region_type::difference(info.writeLocked, req.region);
+            }
+
+
+            // FIXME: add debug check that all other fragments don't have
+            // any kinds of locks on this fragment...
+            info.writeLocked = region_type::merge(
+                info.writeLocked, req.region);
+
+//                     write_cv.notify_all(std::move(l));
+            return hpx::make_ready_future(lease_type(req));
+        }
+
+        HPX_ASSERT(req.mode == access_mode::ReadOnly);
+        // We no longer need to hold onto the lock ... the rest is asynchronous
+        // and will lock once required...
+        l.unlock();
+
+        return locate(req).then(
+            [this, store_it, req](hpx::future<location_info> future_info)
+            {
+                auto loc_info = future_info.get();
+                // Now that we got our location information, we need to transfer the stuff
+
+                auto const& parts = loc_info.parts();
+                std::vector<hpx::future<void>> transferred;
+                transferred.reserve(parts.size());
+                // collect data on data distribution,
+                // FIXME: add different strategies?
+                for(auto const& p: parts)
+                {
+                    if (p.rank != rank_)
+                    {
+                        auto overlap = region_type::intersect(req.region, p.region);
+                        HPX_ASSERT(!overlap.empty());
+                        std::cout << "need to transfer: " << overlap << " from " << p.rank << " to " << rank_ << '\n';
+                        hpx::lcos::local::packaged_task<hpx::future<fragment_type>(hpx::id_type const& id)> task(
+                            [overlap, req](hpx::id_type id)
+                            {
+                                return hpx::async<transfer_action>(id, req.ref.id(), overlap);
+                            });
+                        transferred.push_back(task.get_future().then(
+                            [this, store_it, overlap](hpx::future<fragment_type> f)
+                            {
+                                // Check for errors...
+                                auto fragment = f.get();
+                                {
+                                    std::unique_lock<mutex_type> l(mtx_);
+                                    auto& info = store_it->second;
+                                    info.fragment.insert(fragment, overlap);
+                                }
+                            }
+                        ));
+                        network.apply(p.rank, std::move(task));
+                    }
+                }
+
+                return hpx::when_all(transferred).then(
+                    [this, store_it, req](hpx::future<void> f)
+                    {
+                        // Check for errors...
+                        f.get();
+                        {
+                            std::unique_lock<mutex_type> l(mtx_);
+                            auto& info = store_it->second;
+                            info.addReadLease(req.region);
+
+                            return lease_type(req);
+                        }
+                    });
+            }
+        );
+    }
+
+    hpx::future<lease_type> acquire(const requirement_type& req)
     {
         std::unique_lock<mutex_type> l(mtx_);
         // Find our requested Data Item.
@@ -130,55 +228,35 @@ public:
                 std::make_pair(req.ref.id(), fragment_info(req.ref.shared_data())));
             HPX_ASSERT(store_pair.second);
             store_it = store_pair.first;
-        }
-//         auto locationInfo = locate(req.ref,req.region);
-//         // collect data on data distribution
+            l.unlock();
 
-        // get local fragment info
-        auto& info = store_it->second;
-        // allocate storage for requested data on local fragment
-        info.fragment.resize(merge(info.fragment.getCoveredRegion(), req.region));
+            // The first access needs to be ReadWrite...
+            HPX_ASSERT(req.mode == access_mode::ReadWrite);
 
-//         // transfer data using a transfer plan
-//         auto success = execute(buildPlan(locationInfo,myLocality,request));
-//
-//         // make sure the transfer was ok
-//         assert_true(success);
-
-        switch (req.mode)
-        {
-            case access_mode::ReadOnly:
+            hpx::lcos::local::packaged_task<hpx::future<lease_type>(hpx::id_type const& id)> task(
+                // This stores our "first touch" acquired region to our manager
+                [this, req, store_it](hpx::id_type const& id)
                 {
-                    info.addReadLease(req.region);
-                    break;
+                    return hpx::async<first_touch_action>(id, req.ref.id(), req.region, rank_).then(
+                        [this, req, store_it](hpx::future<void> f)
+                        {
+                            f.get();
+                            std::unique_lock<mutex_type> l(mtx_);
+                            return acquire_impl(req, store_it, std::move(l));
+                        }
+                    );
                 }
-            case access_mode::ReadWrite:
-                {
-                    // Block if another task has a write lease...
-                    // This should ideally not happen...
-                    auto to_test = data_item_region_type::difference(info.writeLocked, req.region);
-                    while (!(to_test.empty() || to_test == info.writeLocked))
-                    {
-                        // TODO: add monitoring event!
-                        write_cv.wait(l);
-                        to_test = data_item_region_type::difference(info.writeLocked, req.region);
-                    }
+            );
+            auto ret = task.get_future();
+            {
+                // TODO: implement binary tree lookup
+                network.apply(0, std::move(task));
+            }
 
-
-                    // FIXME: add debug check that all other fragments don't have
-                    // any kinds of locks on this fragment...
-                    info.writeLocked = data_item_region_type::merge(
-                        info.writeLocked, req.region);
-
-//                     write_cv.notify_all(std::move(l));
-
-                    break;
-                }
-            default:
-                HPX_ASSERT(false);
+            return ret;
         }
 
-        return lease_type(req);
+        return acquire_impl(req, store_it, std::move(l));
     }
 
     void release(const lease<DataItemType>& lease) {
@@ -208,7 +286,7 @@ public:
                 HPX_ASSERT(allscale::api::core::isSubRegion(lease.region, info.writeLocked));
 
                 // lock data for write
-                info.writeLocked = data_item_region_type::difference(info.writeLocked, lease.region);
+                info.writeLocked = region_type::difference(info.writeLocked, lease.region);
 
                 write_cv.notify_all(std::move(l));
 
@@ -242,112 +320,72 @@ public:
 
     }
 
+    void first_touch(hpx::id_type const& id, region_type const& region, std::size_t rank)
+    {
+        std::unique_lock<mutex_type> l(mtx_);
 
-     /*
-	 * A utility computing a transfer plan based on a given data distribution information,
-	 * a target location, a region to be targeted, and a desired access mode.
-	 *
-	 * @param info a summary of the data distribution state covering the provided region
-	 * @param targetLocation the location where the given region should be moved to
-	 * @param region the region to be moved
-	 * @param mode the intended access mode of the targeted region after the transfer
-	 */
-	template<typename TransferPlanGenerator = simple_transfer_plan_generator>
-	transfer_plan<DataItemType> build_plan(const location_info<DataItemType>& info, locality_type targetLocation, const data_item_requirement<DataItemType>& requirement) {
-		// use the transfer plan generator policy as requested
-		return TransferPlanGenerator()(info,targetLocation,requirement);
-	}
+        location_store[id].add_part(region, rank);
+    }
+    HPX_DEFINE_COMPONENT_ACTION(data_item, first_touch);
 
-    location_info_type locate(const data_item_reference_client_type& ref, const data_item_region_type& region) {
-        location_info_type result;
-//         for(const auto& server : network_.servers){
-//             if(server.get_id() != this->get_id()){
-//                 typedef typename allscale::server::data_item_server<DataItemType>::get_info_action action_type;
-//                 auto res = action_type()(server.get_id(),ref);
-//                 auto part = data_item_region_type::intersect(region,res);
-//                 if(!part.empty())
-//                 {
-//                     result.addPart(part,server.get_id());
-//                 }
-//             }
-//         }
+    location_info get_location_info(hpx::id_type const& id, region_type const& region)
+    {
+        std::unique_lock<mutex_type> l(mtx_);
+        auto locate_it = location_store.find(id);
+        HPX_ASSERT(locate_it != location_store.end());
 
-        return result;
+        location_info res;
+
+        for(auto const& p: locate_it->second.parts())
+        {
+            auto part = region_type::intersect(p.region, region);
+            if (!part.empty())
+            {
+                res.add_part(part, p.rank);
+            }
+        }
+        return res;
+    }
+    HPX_DEFINE_COMPONENT_ACTION(data_item, get_location_info);
+
+    fragment_type transfer(hpx::id_type const& id, region_type const& region)
+    {
+        std::unique_lock<mutex_type> l(mtx_);
+
+        auto store_it = store.find(id);
+        HPX_ASSERT(store_it != store.end());
+
+        fragment_type res;
+        res.resize(region);
+        res.insert(store_it->second.fragment, region);
+
+        return res;
+    }
+    HPX_DEFINE_COMPONENT_ACTION(data_item, transfer);
+
+    hpx::future<location_info> locate(const requirement_type& req)
+    {
+        // TODO: implement caching and binary tree lookup...
+        hpx::lcos::local::packaged_task<hpx::future<location_info>(hpx::id_type const& id)> task(
+            [req](hpx::id_type id)
+            {
+                return hpx::async<get_location_info_action>(id, req.ref.id(), req.region);
+            });
+        hpx::future<location_info> f = task.get_future();
+        network.apply(0, std::move(task));
+
+        return f;
     }
 
-    data_item_fragment_type& get(const data_item_reference_client_type& ref)
+    fragment_type& get(const data_item_reference<DataItemType>& ref)
     {
         std::unique_lock<mutex_type> l(mtx_);
         auto pos = store.find(ref.id());
         HPX_ASSERT(pos != store.end());
         return pos->second.fragment;
     }
-
-
-    void print()
-    {
-        std::unique_lock<mutex_type> l(mtx_);
-        std::cout<<"print method for server: " << this->get_id() << " " << "store.size():" << store.size()<<std::endl;
-        /*
-        for(auto& el : store){
-            std::cout<<el.first.get_id()<<std::endl;
-        }*/
-    }
-
-    void set_network(const network_type& network){
-        network_ = network;
-    }
-
-    void set_servers(){
-        // servers_[hpx::naming::get_locality_id_from_id(this->get_id())] = this->get_id();
-        // std::cout << servers_[hpx::naming::get_locality_id_from_id(this->get_id())] << std::endl;
-//         auto data_item_server_name = allscale::data_item_server_name<DataItemType>::name();
-//         auto res =  hpx::find_all_from_basename(data_item_server_name, hpx::find_all_localities().size());
-//         for(auto& fut : res ){
-//             auto id = fut.get();
-//             //servers_[hpx::naming::get_locality_id_from_id(fut.get())] = fut.get();
-//         }
-    }
-    void print_network(){
-//         for(auto& server : network_.servers){
-//             std::cout<<server.get_id()<<std::endl;
-//         }
-    }
-//    HPX_DEFINE_COMPONENT_ACTION(data_item_server, create_zero);
 };
 
 }}
-
-/*
-    HPX_REGISTER_ACTION_DECLARATION(                                          \
-        allscale::server::data_item_server<type>::create_zero_action,           \
-        BOOST_PP_CAT(__data_item_server_create_zero_action_, type));            \
-*/
-
-
-#define REGISTER_DATAITEMSERVER_DECLARATION(type)                       \
-    namespace allscale{                                                           \
-        template<>                                                                \
-        struct data_item_server_name<type>                                               \
-        {                                                                         \
-            static const char* name(){return BOOST_PP_STRINGIZE(BOOST_PP_CAT(allscale/data_item_manager/data_item_server_,type));}           \
-        };                                                                        \
-    }                                                                             \
-
-
-
-
-
-/*
- *
- * HPX_REGISTER_ACTION(            \
-        allscale::server::data_item_server<type>::create_zero_action,           \
-        BOOST_PP_CAT(__data_item_create_zero_action_, type));            \
- */
-#define REGISTER_DATAITEMSERVER(type)                                   \
-    typedef ::hpx::components::component<                                     \
-        allscale::components::data_item<type>                         \
-    > BOOST_PP_CAT(__data_item_server_, type);                            \
-    HPX_REGISTER_COMPONENT(BOOST_PP_CAT(__data_item_server_, type))       \
 
 #endif

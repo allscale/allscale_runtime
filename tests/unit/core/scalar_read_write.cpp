@@ -116,7 +116,7 @@ struct main_process
                     s,
                     allscale::api::user::data::detail::ScalarRegion(true),
                     allscale::access_mode::ReadOnly)
-            );
+            ).get();
             auto data = allscale::data_item_manager::get(s);
             HPX_TEST_EQ(data.get(), 12);
             allscale::data_item_manager::release(lease);

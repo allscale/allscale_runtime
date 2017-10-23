@@ -11,12 +11,28 @@
 namespace allscale
 {
     template <typename DataItemType>
+    struct data_item_registry
+    {
+        data_item_registry();
+
+        data_item_registry& instantiate()
+        {
+            return *this;
+        }
+    };
+
+    template <typename DataItemType>
     struct data_item_manager_impl
     {
         typedef components::data_item<DataItemType> component_type;
-        typedef data_item_reference<DataItemType>      data_reference;
+        typedef data_item_reference<DataItemType>   data_reference;
 
-		static allscale::lease<DataItemType>
+        virtual ~data_item_manager_impl()
+        {
+            registry_.instantiate();
+        }
+
+		static hpx::future<allscale::lease<DataItemType>>
         acquire(const allscale::data_item_requirement<DataItemType>& requirement)
         {
             return get_ptr()->acquire(requirement);
@@ -44,20 +60,14 @@ namespace allscale
             return get_ptr()->destroy(ref);
         }
 
-        // This function is called to make sure that the local components
-        // are being instantiated...
-        static void force_to_exist()
-        {
-            auto ptr = get_ptr();
-            HPX_ASSERT(ptr);
-        }
+        static data_item_registry<DataItemType> registry_;
 
     private:
         typedef hpx::lcos::local::spinlock mutex_type;
 
         data_item_manager_impl()
           : component_(
-                hpx::local_new<component_type>().then(
+                hpx::local_new<component_type>(hpx::get_locality_id()).then(
                     [](hpx::future<hpx::id_type> fid)
                     {
                         hpx::id_type server_id = fid.get();
@@ -78,7 +88,32 @@ namespace allscale
         }
 
         hpx::shared_future<std::shared_ptr<component_type>> component_;
+
+        template <typename T>
+        friend struct data_item_registry;
     };
+
+    template <typename DataItemType>
+    data_item_registry<DataItemType>::data_item_registry()
+    {
+        hpx::register_startup_function(
+            []()
+            {
+                auto ptr = data_item_manager_impl<DataItemType>::get_ptr();
+                if (!ptr)
+                {
+                    std::cerr << "unable to create data item server...\n";
+                    std::abort();
+                    return;
+                }
+                std::cout << "Created " <<
+                    data_item_server_name<DataItemType>::name() << '/' << ptr->rank_ << '\n';
+            });
+    }
+
+    template <typename DataItemType>
+    allscale::data_item_registry<DataItemType>
+        allscale::data_item_manager_impl<DataItemType>::registry_;
 }
 
 #endif

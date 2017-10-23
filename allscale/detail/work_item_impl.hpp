@@ -319,12 +319,6 @@ namespace allscale { namespace detail {
         template <typename ProcessVariant, typename Leases, std::size_t... Is>
         void get_deps(executor_type& exec, hpx::util::detail::pack_c<std::size_t, Is...>, Leases leases, ...)
         {
-            void (work_item_impl::*f)(
-                    Leases,
-                    typename hpx::util::decay<
-                    decltype(hpx::util::get<Is>(closure_))>::type...
-            ) = &work_item_impl::do_process;
-
             auto this_ = shared_this();
             if (dep_.valid() && !dep_.is_ready())
             {
@@ -333,9 +327,14 @@ namespace allscale { namespace detail {
                 typename hpx::traits::detail::shared_state_ptr_for<deps_type>::type const& state
                     = hpx::traits::future_access<deps_type>::get_shared_state(dep_);
                 state->set_on_completed(
-                    [exec, state, f, this_, leases]() mutable
+                    [exec, state, this_, leases]() mutable
                     {
-//                         state->get_result();
+                        void (work_item_impl::*f)(
+                                Leases,
+                                typename hpx::util::decay<
+                                decltype(hpx::util::get<Is>(closure_))>::type...
+                        ) = &work_item_impl::do_process;
+
                         hpx::apply(exec, f, this_,
                             std::move(leases), std::move(hpx::util::get<Is>(this_->closure_))...);
                     }
@@ -343,7 +342,7 @@ namespace allscale { namespace detail {
             }
             else
             {
-                hpx::apply(exec, f, shared_this(),
+                do_process(
                     std::move(leases), std::move(hpx::util::get<Is>(closure_))...);
             }
         }
@@ -352,10 +351,17 @@ namespace allscale { namespace detail {
         void process(executor_type& exec, hpx::util::detail::pack_c<std::size_t, Is...> pack)
         {
             HPX_ASSERT(valid());
-            // FIXME: Do we need to futurizing the acquisition of leases?
             auto reqs = acquire<typename WorkItemDescription::process_variant>(nullptr);
 
-            get_deps<typename WorkItemDescription::process_variant>(exec, pack, reqs, nullptr);
+            typedef typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type reqs_type;
+
+            auto this_ = shared_this();
+            hpx::dataflow(exec,
+                hpx::util::unwrapping([this_, exec, pack](reqs_type reqs) mutable
+                {
+                    this_->template get_deps<typename WorkItemDescription::process_variant>(exec, pack, reqs, nullptr);
+                })
+              , std::move(reqs));
         }
 
         void process(executor_type& exec)
@@ -366,16 +372,17 @@ namespace allscale { namespace detail {
 
         template<std::size_t ... Is>
         void split_impl(executor_type& exec, hpx::util::detail::pack_c<std::size_t, Is...>) {
-            // FIXME: Do we need to futurizing the acquisition of leases?
             auto reqs = acquire<typename WorkItemDescription::split_variant>(nullptr);
 
-            void (work_item_impl::*f)(
-                    typename hpx::util::decay<decltype(reqs)>::type,
-                    typename hpx::util::decay<
-                    decltype(hpx::util::get<Is>(closure_))>::type...
-            ) = &work_item_impl::do_split;
-            HPX_ASSERT(valid());
-            hpx::apply(exec, f, shared_this(), std::move(reqs), std::move(hpx::util::get<Is>(closure_))...);
+            typedef typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type reqs_type;
+            auto this_ = shared_this();
+            hpx::dataflow(exec,
+                hpx::util::unwrapping([this_](reqs_type reqs) mutable
+                {
+                    HPX_ASSERT(this_->valid());
+                    this_->do_split(std::move(reqs), std::move(hpx::util::get<Is>(this_->closure_))...);
+                })
+              , std::move(reqs));
         }
 
         template <typename WorkItemDescription_>

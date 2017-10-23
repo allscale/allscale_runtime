@@ -161,7 +161,7 @@ struct main_process
                     data,
                     whole_region,
                     allscale::access_mode::ReadOnly)
-            );
+            ).get();
             auto ref = allscale::data_item_manager::get(data);
 
             whole_region.scan(

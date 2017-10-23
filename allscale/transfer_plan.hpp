@@ -66,7 +66,8 @@ public:
     }
 
     friend std::ostream& operator<<(std::ostream& out, const transfer_plan& plan) {
-        return out << "transfer_plan {" << allscale::utils::join(",",plan.transfers) << "}";
+//         return out << "transfer_plan {" << allscale::utils::join(",",plan.transfers) << "}";
+        return out;
     }
 };
 

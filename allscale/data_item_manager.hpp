@@ -15,7 +15,6 @@
 
 namespace allscale
 {
-
     struct data_item_manager
     {
         template <typename DataItemType, typename...Args>
@@ -36,7 +35,7 @@ namespace allscale
 		}
 
         template<typename DataItemType>
-		static allscale::lease<DataItemType>
+		static hpx::future<allscale::lease<DataItemType>>
         acquire(const allscale::data_item_requirement<DataItemType>& requirement)
         {
             return data_item_manager_impl<DataItemType>::acquire(requirement);
@@ -55,4 +54,26 @@ namespace allscale
         }
     };
 }//end namespace allscale
+
+#define REGISTER_DATAITEMSERVER_DECLARATION(type)                               \
+    namespace allscale{                                                         \
+        template<>                                                              \
+        struct data_item_server_name<type>                                      \
+        {                                                                       \
+            static const char* name()                                           \
+            {                                                                   \
+                return BOOST_PP_STRINGIZE(                                      \
+                    BOOST_PP_CAT(allscale/data_item_, type));                   \
+            }                                                                   \
+        };                                                                      \
+    }                                                                           \
+
+#define REGISTER_DATAITEMSERVER(type)                                           \
+    typedef ::hpx::components::component<                                       \
+        allscale::components::data_item<type>                                   \
+    > BOOST_PP_CAT(__data_item_server_, type);                                  \
+    HPX_REGISTER_COMPONENT(BOOST_PP_CAT(__data_item_server_, type))             \
+    template struct allscale::data_item_registry<type>;                         \
+    template struct allscale::data_item_manager_impl<type>;                     \
+/**/
 #endif

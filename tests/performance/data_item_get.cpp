@@ -63,14 +63,14 @@ struct main_process {
                 var_3,
                 StaticGridRegion<2>({0,0}, {200, 200}),
                 allscale::access_mode::ReadWrite)
-        );
+        ).get();
 
         auto lease2 = allscale::data_item_manager::acquire<StaticGrid<double, 200, 200 >>(
             allscale::createDataItemRequirement(
                 var_4,
                 StaticGridRegion<2>({0,0}, {200, 200}),
                 allscale::access_mode::ReadWrite)
-        );
+        ).get();
 
         int32_t var_6 = 0;
         while (var_6 < var_0)

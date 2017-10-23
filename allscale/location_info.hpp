@@ -10,7 +10,6 @@ namespace allscale{
 	template<typename DataItemType>
 	struct location_info {
 
-	    using locality_type = hpx::id_type;
 		using region_type = typename DataItemType::region_type;
 
 		/**
@@ -22,44 +21,42 @@ namespace allscale{
 			region_type region;
 
 			// the location covering it
-			locality_type location;
+            std::size_t rank;
+
+            template<typename Archive>
+            void serialize(Archive & ar, unsigned)
+            {
+                ar & region;
+                ar & rank;
+            }
 
 			friend std::ostream& operator<<(std::ostream& out, const part& part) {
-				return out << part.region << "@" << part.location;
+				return out << part.region << "@" << part.rank;
 			}
 		};
 
 		// the list of parts distributed throughout the system
-		std::vector<part> parts;
+		std::vector<part> parts_;
 
 	public:
-        
-        template<typename Archive>
-        void serialize(Archive & ar, location_info<DataItemType> & li, unsigned)
-        {
-            //TODO implement me;
-        }
 
         template<typename Archive>
         void serialize(Archive & ar, unsigned)
         {
-            //TODO implement me;
- 
+            ar & parts_;
         }
-        std::size_t getNumParts() const {
-			return parts.size();
+
+		void add_part(const region_type& region, std::size_t rank) {
+			parts_.push_back({ region, rank });
 		}
 
-		void addPart(const region_type& region, locality_type loc) {
-			parts.push_back({ region, loc });
-		}
-
-		const std::vector<part>& getParts() const {
-			return parts;
+		const std::vector<part>& parts() const {
+			return parts_;
 		}
 
 		friend std::ostream& operator<<(std::ostream& out, const location_info& info) {
-			return out << "LocationInfo {" << allscale::utils::join(",",info.parts) << "}";
+// 			return out << "LocationInfo {" << allscale::utils::join(",",info.parts) << "}";
+			return out;
 		}
 	};
 
