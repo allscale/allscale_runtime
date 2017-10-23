@@ -78,7 +78,7 @@ namespace allscale {
                 typename shared_state_type::init_no_addref()))
           , fixed_children_(false)
         {
-            HPX_ASSERT(fut.is_valid());
+            HPX_ASSERT(fut.valid());
             typename hpx::traits::detail::shared_state_ptr_for<hpx::future<U>>::type state
                 = hpx::traits::future_access<hpx::future<U>>::get_shared_state(fut);
 

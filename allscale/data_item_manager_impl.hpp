@@ -2,7 +2,7 @@
 #define ALLSCALE_DATA_ITEM_MANAGER_IMPL_HPP
 
 #include <allscale/data_item_reference.hpp>
-#include <allscale/data_item_server.hpp>
+#include <allscale/components/data_item.hpp>
 
 #include <hpx/include/components.hpp>
 #include <hpx/util/assert.hpp>
@@ -13,8 +13,7 @@ namespace allscale
     template <typename DataItemType>
     struct data_item_manager_impl
     {
-        typedef server::data_item_server<DataItemType> component_type;
-        typedef data_item_server_network<DataItemType> network_type;
+        typedef components::data_item<DataItemType> component_type;
         typedef data_item_reference<DataItemType>      data_reference;
 
 		static allscale::lease<DataItemType>
@@ -70,25 +69,6 @@ namespace allscale
                 )
           )
         {
-//                 typedef typename allscale::server::data_item_server<DataItemType> data_item_server_type;
-//                 //CREATE DATA ITEM SERVER INSTANCES ON LOCALITIES
-//                 allscale::data_item_server_network<DataItemType> sn;
-//                 std::vector < hpx::id_type > localities = hpx::find_all_localities();
-//                 std::vector<allscale::data_item_server<DataItemType>> result;
-//                 for (auto& loc : localities)
-//                 {
-//                     allscale::data_item_server<DataItemType> server(
-//                         hpx::components::new_ < data_item_server_type > (loc).get());
-//                     result.push_back(server);
-//                 }
-//                 sn.servers = result;
-//                 for( auto& server : result)
-//                 {
-//                     server.set_network(sn);
-//                 }
-//
-//
-//                 return sn;
         }
 
         static component_type* get_ptr()

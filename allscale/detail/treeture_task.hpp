@@ -23,21 +23,27 @@ namespace allscale
             typedef typename base_type::init_no_addref init_no_addref;
             treeture_task()
               : base_type()
-              , children_({treeture<void>(), treeture<void>()})
-            {}
+            {
+                children_[0] = treeture<void>();
+                children_[1] = treeture<void>();
+            }
 
             treeture_task(treeture<void> parent, init_no_addref no_addref)
               : base_type(no_addref)
-              , children_({treeture<void>(), treeture<void>()})
               , parent_(parent)
-            {}
+            {
+                children_[0] = treeture<void>();
+                children_[1] = treeture<void>();
+            }
 
             template <typename Target>
             treeture_task(treeture<void> parent, Target&& data, init_no_addref no_addref)
               : base_type(std::forward<Target>(data), no_addref)
-              , children_({treeture<void>(), treeture<void>()})
               , parent_(parent)
-            {}
+            {
+                children_[0] = treeture<void>();
+                children_[1] = treeture<void>();
+            }
 
             treeture<void> get_left_child() const
             {

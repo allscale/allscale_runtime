@@ -9,22 +9,16 @@
 
 
 #include <allscale/locality.h>
-#include <allscale/data_item_server.hpp>
+// #include <allscale/data_item_server.hpp>
+
 namespace allscale{
 
-
-
-
     template<typename DataItemType>
-    class data_item_server;
+    struct data_item_network {
 
-
-    template<typename DataItemType>
-    struct data_item_server_network {
-
-        using server_type = typename allscale::data_item_server<DataItemType>;
-
-	    using locality_type = simulator::locality_type;
+//         using server_type = typename allscale::data_item_server<DataItemType>;
+//
+// 	    using locality_type = simulator::locality_type;
 
 
 		public:

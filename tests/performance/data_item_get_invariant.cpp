@@ -5,7 +5,7 @@
  */
 #include <alloca.h>
 #include <allscale/api/user/data/static_grid.h>
-#include <allscale/data_item_server.hpp>
+#include <allscale/data_item_manager.hpp>
 #include <allscale/runtime.hpp>
 #include <allscale/no_split.hpp>
 #include <allscale/utils/vector.h>

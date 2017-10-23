@@ -1,7 +1,7 @@
 #ifndef ALLSCALE_DATA_ITEM_SERVER
 #define ALLSCALE_DATA_ITEM_SERVER
 
-#include <allscale/data_item_server_network.hpp>
+#include <allscale/components/data_item_network.hpp>
 #include <allscale/locality.h>
 #include <allscale/data_item_requirement.hpp>
 #include <allscale/data_item_reference.hpp>
@@ -27,11 +27,11 @@ namespace allscale{
     template<typename DataItemType>
     struct data_item_server_name;
 
-namespace server {
+namespace components {
 
 template<typename DataItemType>
-class data_item_server
-  : public hpx::components::component_base<data_item_server<DataItemType> >
+class data_item
+  : public hpx::components::component_base<data_item<DataItemType> >
 {
 
 public:
@@ -40,7 +40,7 @@ public:
     using data_item_fragment_type = typename DataItemType::fragment_type;
     using data_item_region_type = typename DataItemType::region_type;
     using data_item_reference_client_type = typename allscale::data_item_reference<DataItemType>;
-    using network_type = typename allscale::data_item_server_network<DataItemType>;
+    using network_type = typename allscale::data_item_network<DataItemType>;
     using lease_type = typename allscale::lease<DataItemType>;
     using location_info_type = typename allscale::location_info<DataItemType>;
     using locality_type = hpx::id_type;
@@ -113,7 +113,7 @@ public:
     std::map<std::size_t,hpx::id_type> servers_;
     public:
 
-	data_item_server()
+	data_item()
     {
     }
 
@@ -346,7 +346,7 @@ public:
  */
 #define REGISTER_DATAITEMSERVER(type)                                   \
     typedef ::hpx::components::component<                                     \
-        allscale::server::data_item_server<type>                         \
+        allscale::components::data_item<type>                         \
     > BOOST_PP_CAT(__data_item_server_, type);                            \
     HPX_REGISTER_COMPONENT(BOOST_PP_CAT(__data_item_server_, type))       \
 

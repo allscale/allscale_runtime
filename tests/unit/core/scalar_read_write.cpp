@@ -16,8 +16,6 @@
 
 
 #include <allscale/data_item_reference.hpp>
-#include <allscale/data_item_server.hpp>
-#include <allscale/data_item_server_network.hpp>
 #include <allscale/data_item_manager.hpp>
 #include <allscale/data_item_requirement.hpp>
 #include <algorithm>
