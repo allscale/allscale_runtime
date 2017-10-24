@@ -43,7 +43,7 @@ public:
 
     using requirement_type = allscale::data_item_requirement<DataItemType>;
     using location_info = allscale::location_info<DataItemType>;
-    using data_item_view = void;
+    using data_item_view = allscale::data_item_view<DataItemType>;
 
     struct fragment_info {
         // the managed fragment
@@ -129,8 +129,6 @@ public:
     {
         // get local fragment info
         auto& info = store_it->second;
-        // allocate storage for requested data on local fragment
-        info.fragment.resize(region_type::merge(info.fragment.getCoveredRegion(), req.region));
 
         if (req.mode == access_mode::ReadWrite)
         {
@@ -170,30 +168,20 @@ public:
                 transferred.reserve(parts.size());
                 // collect data on data distribution,
                 // FIXME: add different strategies?
+                // FIXME: Combine parts belonging to same locality?
                 for(auto const& p: parts)
                 {
                     if (p.rank != rank_)
                     {
                         auto overlap = region_type::intersect(req.region, p.region);
                         HPX_ASSERT(!overlap.empty());
-                        std::cout << "need to transfer: " << overlap << " from " << p.rank << " to " << rank_ << '\n';
-                        hpx::lcos::local::packaged_task<hpx::future<fragment_type>(hpx::id_type const& id)> task(
+//                         std::cout << "need to transfer: " << overlap << " from " << p.rank << " to " << rank_ << '\n';
+                        hpx::lcos::local::packaged_task<hpx::future<void>(hpx::id_type const& id)> task(
                             [overlap, req](hpx::id_type id)
                             {
                                 return hpx::async<transfer_action>(id, req.ref.id(), overlap);
                             });
-                        transferred.push_back(task.get_future().then(
-                            [this, store_it, overlap](hpx::future<fragment_type> f)
-                            {
-                                // Check for errors...
-                                auto fragment = f.get();
-                                {
-                                    std::unique_lock<mutex_type> l(mtx_);
-                                    auto& info = store_it->second;
-                                    info.fragment.insert(fragment, overlap);
-                                }
-                            }
-                        ));
+                        transferred.push_back(task.get_future());
                         network.apply(p.rank, std::move(task));
                     }
                 }
@@ -220,6 +208,9 @@ public:
         std::unique_lock<mutex_type> l(mtx_);
         // Find our requested Data Item.
         auto store_it = store.find(req.ref.id());
+
+        // get local fragment info
+        bool needs_first_touch = false;
         if (store_it == store.end())
         {
             // If it is not there already, we "first touch it" with the data stored
@@ -228,11 +219,27 @@ public:
                 std::make_pair(req.ref.id(), fragment_info(req.ref.shared_data())));
             HPX_ASSERT(store_pair.second);
             store_it = store_pair.first;
-            l.unlock();
 
             // The first access needs to be ReadWrite...
             HPX_ASSERT(req.mode == access_mode::ReadWrite);
 
+            needs_first_touch = true;
+
+        }
+        auto& info = store_it->second;
+
+        if(!needs_first_touch && req.mode == access_mode::ReadWrite)
+        {
+            if (region_type::intersect(info.fragment.getCoveredRegion(), req.region).empty())
+                needs_first_touch = true;
+        }
+
+        // allocate storage for requested data on local fragment
+        info.fragment.resize(region_type::merge(info.fragment.getCoveredRegion(), req.region));
+
+        if (needs_first_touch)
+        {
+            l.unlock();
             hpx::lcos::local::packaged_task<hpx::future<lease_type>(hpx::id_type const& id)> task(
                 // This stores our "first touch" acquired region to our manager
                 [this, req, store_it](hpx::id_type const& id)
@@ -348,18 +355,14 @@ public:
     }
     HPX_DEFINE_COMPONENT_ACTION(data_item, get_location_info);
 
-    fragment_type transfer(hpx::id_type const& id, region_type const& region)
+    data_item_view transfer(hpx::id_type const& id, region_type const& region)
     {
         std::unique_lock<mutex_type> l(mtx_);
 
         auto store_it = store.find(id);
         HPX_ASSERT(store_it != store.end());
 
-        fragment_type res;
-        res.resize(region);
-        res.insert(store_it->second.fragment, region);
-
-        return res;
+        return data_item_view(id, store_it->second.fragment, region);
     }
     HPX_DEFINE_COMPONENT_ACTION(data_item, transfer);
 

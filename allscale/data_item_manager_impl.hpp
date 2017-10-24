@@ -2,6 +2,7 @@
 #define ALLSCALE_DATA_ITEM_MANAGER_IMPL_HPP
 
 #include <allscale/data_item_reference.hpp>
+#include <allscale/components/fragment_view.hpp>
 #include <allscale/components/data_item.hpp>
 
 #include <hpx/include/components.hpp>
@@ -60,6 +61,12 @@ namespace allscale
             return get_ptr()->destroy(ref);
         }
 
+        static component_type* get_ptr()
+        {
+            static data_item_manager_impl impl;
+            return impl.component_.get().get();
+        }
+
         static data_item_registry<DataItemType> registry_;
 
     private:
@@ -79,12 +86,6 @@ namespace allscale
                 )
           )
         {
-        }
-
-        static component_type* get_ptr()
-        {
-            static data_item_manager_impl impl;
-            return impl.component_.get().get();
         }
 
         hpx::shared_future<std::shared_ptr<component_type>> component_;
