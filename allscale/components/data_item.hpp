@@ -393,7 +393,7 @@ public:
 
         // TODO: binary tree lookup...
         hpx::lcos::local::packaged_task<hpx::future<location_info>(hpx::id_type const& id)> task(
-            [req_id, req_region, cached](hpx::id_type id)
+            [req_id, req_region, cached](hpx::id_type id) mutable
             {
                 return hpx::async<get_location_info_action>(id, req_id, req_region).then(
                     [cached](hpx::future<location_info> f) mutable
