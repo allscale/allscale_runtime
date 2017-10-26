@@ -46,8 +46,12 @@ namespace allscale{
             ar & parts_;
         }
 
-		void add_part(const region_type& region, std::size_t rank) {
+		void add_part(region_type const& region, std::size_t rank) {
 			parts_.push_back({ region, rank });
+		}
+
+		void add_part(region_type&& region, std::size_t rank) {
+			parts_.push_back({ std::move(region), rank });
 		}
 
 		const std::vector<part>& parts() const {

@@ -239,6 +239,9 @@ public:
 
         if (needs_first_touch)
         {
+            // We store the region information locally for caching purposes
+            location_store[req.ref.id()].add_part(req.region, rank_);
+
             l.unlock();
             hpx::lcos::local::packaged_task<hpx::future<lease_type>(hpx::id_type const& id)> task(
                 // This stores our "first touch" acquired region to our manager
@@ -333,9 +336,9 @@ public:
 
         location_store[id].add_part(region, rank);
     }
-    HPX_DEFINE_COMPONENT_ACTION(data_item, first_touch);
+    HPX_DEFINE_COMPONENT_DIRECT_ACTION(data_item, first_touch);
 
-    location_info get_location_info(hpx::id_type const& id, region_type const& region)
+    location_info get_location_info_impl(hpx::id_type const& id, region_type const& region, region_type* remainder)
     {
         std::unique_lock<mutex_type> l(mtx_);
         auto locate_it = location_store.find(id);
@@ -348,12 +351,20 @@ public:
             auto part = region_type::intersect(p.region, region);
             if (!part.empty())
             {
-                res.add_part(part, p.rank);
+                if (remainder)
+                {
+                    *remainder = region_type::difference(*remainder, part);
+                }
+                res.add_part(std::move(part), p.rank);
             }
         }
         return res;
     }
-    HPX_DEFINE_COMPONENT_ACTION(data_item, get_location_info);
+    location_info get_location_info(hpx::id_type const& id, region_type const& region)
+    {
+        return get_location_info_impl(id, region, nullptr);
+    }
+    HPX_DEFINE_COMPONENT_DIRECT_ACTION(data_item, get_location_info);
 
     data_item_view transfer(hpx::id_type const& id, region_type const& region)
     {
@@ -364,15 +375,36 @@ public:
 
         return data_item_view(id, store_it->second.fragment, region);
     }
-    HPX_DEFINE_COMPONENT_ACTION(data_item, transfer);
+    HPX_DEFINE_COMPONENT_DIRECT_ACTION(data_item, transfer);
 
     hpx::future<location_info> locate(const requirement_type& req)
     {
-        // TODO: implement caching and binary tree lookup...
+        hpx::id_type req_id = req.ref.id();
+        region_type req_region = std::move(req.region);
+        region_type remainder = req_region;
+        location_info cached = get_location_info_impl(req_id, req_region, &remainder);
+
+        if(remainder.empty())
+        {
+            return hpx::make_ready_future(cached);
+        }
+
+        req_region = remainder;
+
+        // TODO: binary tree lookup...
         hpx::lcos::local::packaged_task<hpx::future<location_info>(hpx::id_type const& id)> task(
-            [req](hpx::id_type id)
+            [req_id, req_region, cached](hpx::id_type id)
             {
-                return hpx::async<get_location_info_action>(id, req.ref.id(), req.region);
+                return hpx::async<get_location_info_action>(id, req_id, req_region).then(
+                    [cached](hpx::future<location_info> f) mutable
+                    {
+                        for(auto& part: f.get().parts())
+                        {
+                            cached.add_part(std::move(part.region), part.rank);
+                        }
+                        return cached;
+                    }
+                );
             });
         hpx::future<location_info> f = task.get_future();
         network.apply(0, std::move(task));
