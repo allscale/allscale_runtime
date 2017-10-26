@@ -9,6 +9,7 @@ set(tests
   vector_add-dump-trg
   data_item_get
   data_item_get_invariant
+  stream
 )
 
 foreach(test ${tests})
