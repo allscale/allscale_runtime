@@ -23,6 +23,6 @@ foreach(test ${tests})
   else()
     add_test(NAME ${test}_test_exe COMMAND $<TARGET_FILE:${test}_test_exe> -Ihpx.stacks.use_guard_pages=0)
   endif()
-
 endforeach()
 
+add_test(NAME distributed.grid_init_test COMMAND ${HPX_PREFIX}/bin/hpxrun.py --verbose -l2 -t4 $<TARGET_FILE:grid_init_test_exe>)
