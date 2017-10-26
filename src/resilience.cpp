@@ -28,9 +28,9 @@ namespace allscale {
 
         component_ = hpx::get_ptr<components::resilience>(gid).get();
         component_->init();
-        hpx::lcos::barrier::synchronize();
-        signal(SIGINT, &handle_my_crash);
-        //component_->failure_detection_loop_async();
+        //hpx::lcos::barrier::synchronize();
+        //signal(SIGINT, &handle_my_crash);
+        component_->failure_detection_loop_async();
     }
 
     void resilience::stop() {

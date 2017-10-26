@@ -3,7 +3,6 @@
 #define ALLSCALE_COMPONENTS_MONITOR_HPP
 
 #include <allscale/work_item.hpp>
-#include <allscale/third-party/blocking_udp_client.hpp>
 
 #include <hpx/hpx.hpp>
 #include <hpx/traits/action_schedule_thread.hpp>
@@ -35,12 +34,12 @@ namespace allscale { namespace components {
            const int UDP_RECV_PORT = 44444;
            const int UDP_SEND_PORT = 44445;
            // START failure detection here (Kiril)
-           client * c;
            udp::endpoint * my_receiver_endpoint, *guard_receiver_endpoint;
            enum state {TRUST, SUSPECT, RECOVERING};
            std::condition_variable cv;
            std::mutex cv_m;
            udp::socket *send_sock;
+           udp::socket *recv_sock;
            bool recovery_done; // protected via cv and cv_m
            state my_state;
            std::chrono::high_resolution_clock::time_point start_time,trust_lease;
@@ -51,7 +50,7 @@ namespace allscale { namespace components {
            std::size_t get_running_ranks();
            bool rank_running(uint64_t rank);
            void send_handler(boost::shared_ptr<std::string>, const boost::system::error_code&, std::size_t);
-           void handle_send(boost::shared_ptr<std::string> /*message*/, const boost::system::error_code& /*error*/, std::size_t /*bytes_transferred*/);
+           void recv_handler(const boost::system::error_code& error, std::size_t bytes_transferred);
            void failure_detection_loop_async ();
            void send_heartbeat_loop ();
            void receive_heartbeat_loop ();

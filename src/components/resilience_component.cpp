@@ -43,10 +43,10 @@ namespace allscale { namespace components {
         // Previously:
         // hpx::apply(&resilience::failure_detection_loop, this));
         //hpx::apply(&resilience::send_heartbeat_loop, this);
-        hpx::apply(&resilience::receive_heartbeat_loop, this);
+        //hpx::apply(&resilience::receive_heartbeat_loop, this);
 
+        scheduler->add(hpx::util::bind(&resilience::receive_heartbeat_loop, this));
         scheduler->add(hpx::util::bind(&resilience::send_heartbeat_loop, this));
-        //scheduler->add(hpx::util::bind(&resilience::receive_heartbeat_loop, this));
     }
 
     bool resilience::rank_running(uint64_t rank) {
@@ -82,20 +82,31 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
         if (error)
             std::cout << "Something went wrong sending ...\n";
+        else
+            std::cout << "Sent data successfully...\n";
+#endif
+    }
+
+    // ignore errors while sending -- we don't care about our guard
+    void resilience::recv_handler(const boost::system::error_code& error, std::size_t bytes_transferred) {
+#ifdef DEBUG_
+        if (error)
+            std::cout << "Something went wrong receving ...\n";
+        else {
+            std::size_t actual_epoch = 0;
+            auto t_now =  std::chrono::high_resolution_clock::now();
+            actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
+            std::cout << "Received data successfully at epoch " << actual_epoch << "\n";
+            scheduler->add(hpx::util::bind(&resilience::receive_heartbeat_loop, this));
+        }
 #endif
     }
 
     //
     void resilience::send_heartbeat_loop () {
-//#ifdef DEBUG_
-//        std::cout << "Start sending in detection loop ...\n";
-//#endif
         if (resilience_component_running && (get_running_ranks() > 1)) {
             auto t_now =  std::chrono::high_resolution_clock::now();
-            //actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
-#ifdef DEBUG_
-            //std::cout << "Actual epoch: " << actual_epoch << "\n";
-#endif
+            std::size_t actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
             std::string state_msg;
             if (my_state == TRUST)
                 state_msg = "T\0";
@@ -104,10 +115,11 @@ namespace allscale { namespace components {
             boost::shared_ptr<std::string> data(new std::string(state_msg)); // before -> std::to_string(actual_epoch)
             std::this_thread::sleep_for(milliseconds(miu));
 #ifdef DEBUG_
-            std::cout << "Send: " << rank_ << " -> " << guard_rank_ << "( port = " << (UDP_RECV_PORT+guard_rank_) << ")\n";
+            std::time_t now_c = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+            std::cout << "Rank " << rank_ << " will call async_send at " << actual_epoch  << " which is TIME " << std::put_time(std::localtime(&now_c), "%F %T") << "\n";
 #endif
             // ToDo: protect access to guard_receiver_endpoint (which I may modify) !!!
-            send_sock->async_send_to(boost::asio::buffer(*data), *guard_receiver_endpoint, boost::bind(&resilience::send_handler, this, data,
+            send_sock->async_send_to(boost::asio::buffer(*data), *guard_receiver_endpoint, hpx::util::bind(&resilience::send_handler, this, data,
                                 boost::asio::placeholders::error,
                                             boost::asio::placeholders::bytes_transferred));
             scheduler->add(hpx::util::bind(&resilience::send_heartbeat_loop, this));
@@ -117,65 +129,27 @@ namespace allscale { namespace components {
     // Run detection forever ...
     void resilience::receive_heartbeat_loop () {
         //udp::endpoint sender_endpoint(boost::asio::ip::address::from_string(protectee_ip_addr), UDP_SEND_PORT);
-        hpx::lcos::barrier::synchronize();
+        //hpx::lcos::barrier::synchronize();
         auto t_now =  std::chrono::high_resolution_clock::now();
-        std::time_t now_c = std::chrono::system_clock::to_time_t(
-            std::chrono::system_clock::now());
-#ifdef DEBUG_
-        std::cout << "Start receive loop at " << std::put_time(std::localtime(&now_c), "%F %T") << "\n";
-#endif
-        while (resilience_component_running && (get_running_ranks() > 1)) {
+        if (resilience_component_running && (get_running_ranks() > 1)) {
             std::size_t actual_epoch = 0;
-#ifdef DEBUG_
-            std::cout << "Start receiving in detection loop ...\n";
-#endif
             char rcv_buf[16];
             std::size_t n;
             boost::system::error_code ec;
             t_now =  std::chrono::high_resolution_clock::now();
+            std::time_t now_c = std::chrono::system_clock::to_time_t( std::chrono::system_clock::now());
             actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
 
             if (my_state == TRUST) {
 #ifdef DEBUG_
-                std::cout << "Rank " << rank_ << " will wait nonblockingly in receive\n";
+                std::cout << "Rank " << rank_ << " will call async_receive at " << actual_epoch << " which is TIME " << std::put_time(std::localtime(&now_c), "%F %T") << "\n";
+
 #endif
-                n = c->receive(boost::asio::buffer(rcv_buf,16), boost::posix_time::milliseconds(delta), ec);
-                // Generalization: assume that the error is the lost connection
-                if (ec)
-                {
-#ifdef DEBUG_
-                    std::cout << "Receive error: " << ec.message() << " in epoch " << actual_epoch << "\n";
-#endif
-                    my_state = SUSPECT;
-                    init_recovery();
-                }
-                else {
-                    //std::size_t rcv_epoch = std::stoi(rcv_buf);
-#ifdef DEBUG_
-                    std::cout << "Received message: " << rcv_buf << "\n";
-#endif
-                    //if (rcv_epoch < actual_epoch) {
-//#ifdef DEBUG_
-                        //std::cout << "Received message is old, start recovery ...\n";
-//#endif
-                        //my_state = SUSPECT;
-                        //init_recovery();
-                    //}
-                    //else
-                        //my_state = TRUST;
-                }
-            }
-            else {
-#ifdef DEBUG_
-                std::cout << "state = SUSPECT, and not receiving ...\n" << std::flush;
-#endif
-            //scheduler->add(hpx::util::bind(&resilience::send_heartbeat_loop, this));
+                recv_sock->async_receive(boost::asio::buffer(rcv_buf), 0, hpx::util::bind(&resilience::recv_handler, this,
+                                boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
             }
         }
-#ifdef DEBUG_
-        std::cout << "Rank " << rank_ << " exits receiver loop ...\n";
-#endif
-  }
+    }
 
     std::pair<hpx::id_type,uint64_t> resilience::get_protectee() {
         return std::make_pair(protectee_, protectee_rank_);
@@ -193,8 +167,6 @@ namespace allscale { namespace components {
     }
 
     void resilience::init() {
-
-
 
         num_localities = hpx::get_num_localities().get();
         rank_running_.resize(num_localities, true);
@@ -248,13 +220,13 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
         std::cout << "My receiver endpoint = " << my_ip_addr << ":" << (UDP_RECV_PORT+rank_) << "\n";
 #endif
-        c = new client(*my_receiver_endpoint);
         std::string guard_ip_addr = hpx::async<get_ip_address_action>(guard_).get();
         guard_receiver_endpoint = new udp::endpoint(boost::asio::ip::address::from_string(guard_ip_addr), UDP_RECV_PORT+guard_rank_);
 
         //std::size_t actual_epoch = 0;
         auto & service = hpx::get_thread_pool("io_pool")->get_io_service();
         send_sock = new udp::socket(service, udp::endpoint(udp::v4(), 0));
+        recv_sock = new udp::socket(service, *my_receiver_endpoint);
     }
 
     std::string resilience::get_ip_address() {
