@@ -257,7 +257,7 @@ public:
                     );
                 }
             );
-            auto ret = task.get_future();
+            hpx::future<lease_type> ret = task.get_future();
             {
                 // TODO: implement binary tree lookup
                 network.apply(0, std::move(task));
