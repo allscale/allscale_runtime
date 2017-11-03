@@ -175,7 +175,6 @@ public:
                     {
                         auto overlap = region_type::intersect(req.region, p.region);
                         HPX_ASSERT(!overlap.empty());
-//                         std::cout << "need to transfer: " << overlap << " from " << p.rank << " to " << rank_ << '\n';
                         hpx::lcos::local::packaged_task<hpx::future<void>(hpx::id_type const& id)> task(
                             [overlap, req](hpx::id_type id)
                             {

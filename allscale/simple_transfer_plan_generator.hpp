@@ -7,7 +7,7 @@
 #include <allscale/access_mode.hpp>
 
 namespace allscale{
- 
+
 
 
 struct simple_transfer_plan_generator {
@@ -28,7 +28,7 @@ struct simple_transfer_plan_generator {
     }
 
     using locality_type = hpx::id_type;
-    
+
     template<typename DataItemType>
     transfer_plan<DataItemType> operator()(const location_info<DataItemType>& info, locality_type target_location, const data_item_requirement<DataItemType>& requirement) {
 
@@ -40,7 +40,6 @@ struct simple_transfer_plan_generator {
         for(const auto& cur : info.getParts()) {
             if (cur.location == target_location) {
 
-                std::cout<<"cur.location " << cur.location << " target_location " << target_location << std::endl;
                 // we do not need to transfer this data
                 rest = difference(rest,cur.region);
             }

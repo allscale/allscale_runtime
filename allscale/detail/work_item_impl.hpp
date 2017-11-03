@@ -409,7 +409,6 @@ namespace allscale { namespace detail {
 
         bool enqueue_remote() const
         {
-        	//std::cout<<"eqn remote called  " <<  WorkItemDescription::ser_variant::activated << "   " <<  is_closure_serializable<Closure>::value << std::endl;;
             return is_serializable;
         }
 
