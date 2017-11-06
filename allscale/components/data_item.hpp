@@ -169,6 +169,7 @@ public:
                 // collect data on data distribution,
                 // FIXME: add different strategies?
                 // FIXME: Combine parts belonging to same locality?
+                std::cout<< " parts " << parts.size()<<std::endl;
                 for(auto const& p: parts)
                 {
                     if (p.rank != rank_)
@@ -221,9 +222,9 @@ public:
             store_it = store_pair.first;
 
             // The first access needs to be ReadWrite...
-            HPX_ASSERT(req.mode == access_mode::ReadWrite);
+            //HPX_ASSERT(req.mode == access_mode::ReadWrite);
 
-            needs_first_touch = true;
+            needs_first_touch = (access_mode::ReadWrite == req.mode);
 
         }
         auto& info = store_it->second;
@@ -239,6 +240,7 @@ public:
 
         if (needs_first_touch)
         {
+            std::cout<<"needs first touch"<< std::endl;
             // We store the region information locally for caching purposes
             location_store[req.ref.id()].add_part(req.region, rank_);
 
@@ -342,9 +344,15 @@ public:
     {
         std::unique_lock<mutex_type> l(mtx_);
         auto locate_it = location_store.find(id);
-        HPX_ASSERT(locate_it != location_store.end());
-
         location_info res;
+        
+        if(remainder != nullptr){
+            if(locate_it == location_store.end())
+            {
+                return res;
+            }
+        }
+        HPX_ASSERT(locate_it != location_store.end());
 
         for(auto const& p: locate_it->second.parts())
         {
@@ -398,7 +406,8 @@ public:
                 return hpx::async<get_location_info_action>(id, req_id, req_region).then(
                     [cached](hpx::future<location_info> f) mutable
                     {
-                        for(auto& part: f.get().parts())
+                        auto tmp = f.get();
+                        for(auto& part: tmp.parts())
                         {
                             cached.add_part(std::move(part.region), part.rank);
                         }
