@@ -107,7 +107,7 @@ namespace allscale
                     std::abort();
                     return;
                 }
-                std::cout << "Created " <<
+                std::cerr << "Created " <<
                     data_item_server_name<DataItemType>::name() << '/' << ptr->rank_ << '\n';
             });
     }

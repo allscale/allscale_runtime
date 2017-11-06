@@ -126,20 +126,6 @@ namespace allscale {
             impl_->split(exec);
     //         impl_.reset();
         }
-    /*
-     *
-     *        void requires() {
-     *            HPX_ASSERT(valid());
-     *            HPX_ASSERT(impl_->valid());
-     *            std::cout << "call to requiries" << std::endl;
-     *            impl_->requires();
-     *            return std::vector<int>();
-     *            return std::vector<typename WorkItemDescription::data_item_variant>();
-     *            impl_->requires();
-     *             impl_.reset();
-     *        }
-     *
-     */
 
         void on_ready(hpx::util::unique_function_nonser<void()> f)
         {
