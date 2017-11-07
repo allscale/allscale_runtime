@@ -169,7 +169,6 @@ public:
                 // collect data on data distribution,
                 // FIXME: add different strategies?
                 // FIXME: Combine parts belonging to same locality?
-                std::cout<< " parts " << parts.size()<<std::endl;
                 for(auto const& p: parts)
                 {
                     if (p.rank != rank_)
@@ -239,7 +238,6 @@ public:
 
         if (needs_first_touch)
         {
-            std::cout<<"needs first touch"<< std::endl;
             // We store the region information locally for caching purposes
             location_store[req.ref.id()].add_part(req.region, rank_);
 
