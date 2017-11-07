@@ -6,7 +6,6 @@ set(tests
   grid_init_overlap
   overlapping_async.insieme.seq
   #overlapping_pfor.insieme.seq
-  transpose
   serialization
   treeture
   work_item)

@@ -10,6 +10,7 @@ set(tests
   data_item_get
   data_item_get_invariant
   stream
+  transpose
 )
 
 foreach(test ${tests})
