@@ -37,10 +37,7 @@ namespace allscale { namespace components {
     }
 
     void resilience::failure_detection_loop_async() {
-        if (resilience_disabled)
-            return;
-
-        if (resilience_component_running)
+        if (!resilience_component_running)
             return;
 
         // Previously:
