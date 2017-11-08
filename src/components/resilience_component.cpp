@@ -40,6 +40,9 @@ namespace allscale { namespace components {
         if (resilience_disabled)
             return;
 
+        if (resilience_component_running)
+            return;
+
         // Previously:
         // hpx::apply(&resilience::failure_detection_loop, this));
         //hpx::apply(&resilience::send_heartbeat_loop, this);
@@ -227,6 +230,8 @@ namespace allscale { namespace components {
         auto & service = hpx::get_thread_pool("io_pool")->get_io_service();
         send_sock = new udp::socket(service, udp::endpoint(udp::v4(), 0));
         recv_sock = new udp::socket(service, *my_receiver_endpoint);
+
+        failure_detection_loop_async();
     }
 
     std::string resilience::get_ip_address() {
