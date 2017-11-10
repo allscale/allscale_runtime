@@ -30,7 +30,6 @@ namespace allscale {
         component_->init();
         //hpx::lcos::barrier::synchronize();
         //signal(SIGINT, &handle_my_crash);
-        component_->failure_detection_loop_async();
     }
 
     void resilience::stop() {
