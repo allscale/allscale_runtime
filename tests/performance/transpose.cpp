@@ -113,7 +113,7 @@ struct grid_init_process {
             [&](auto const& pos)
             {
 //                 std::cout << "Setting " << pos << ' ' << pos.x + pos.y << '\n';
-                data[pos] = pos.x + pos.y;
+                data[pos] =  hpx::get_locality_id();
             }
         );
 
@@ -343,14 +343,6 @@ struct main_process
   */
        //=====================             END OF FILLING          ====================
        
-       for(int j = 0; j < N; ++j){    
-            for(int i = 0; i < N; ++i){
-                coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
-                std::cout<< ref[tmp] << " ";                                                 
-            }
-            std::cout<<std::endl;                                                                       
-       }
-
        allscale::data_item_manager::release(lease_init);
 
                 // DO ACTUAL WORK: SPAWN FIRST WORK ITEM
@@ -358,7 +350,6 @@ struct main_process
             allscale::spawn_first<transpose>(mat_a, mat_b, begin, end).get_future()
         ).get();
         
-
       // ============ LOOK AT RESULT==========================
         auto lease_result = allscale::data_item_manager::acquire(
             allscale::createDataItemRequirement(
