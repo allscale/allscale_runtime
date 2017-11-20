@@ -97,7 +97,13 @@ namespace allscale { namespace components {
             auto t_now =  std::chrono::high_resolution_clock::now();
             actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
             std::cout << "Received data successfully at epoch " << actual_epoch << "\n";
-            scheduler->add(hpx::util::bind(&resilience::receive_heartbeat_loop, this));
+
+            {
+            std::unique_lock<mutex_type> lk(access_scheduler_mtx_);
+            if (scheduler)
+                scheduler->add(hpx::util::bind(&resilience::receive_heartbeat_loop, this));
+            }
+            
         }
 #endif
     }
@@ -122,7 +128,11 @@ namespace allscale { namespace components {
             send_sock->async_send_to(boost::asio::buffer(*data), *guard_receiver_endpoint, hpx::util::bind(&resilience::send_handler, this, data,
                                 boost::asio::placeholders::error,
                                             boost::asio::placeholders::bytes_transferred));
-            scheduler->add(hpx::util::bind(&resilience::send_heartbeat_loop, this));
+            {
+            std::unique_lock<mutex_type> lk(access_scheduler_mtx_);
+            if (scheduler) // not thread-safe
+                scheduler->add(hpx::util::bind(&resilience::send_heartbeat_loop, this));
+            }
         }
     }
 
@@ -342,7 +352,10 @@ namespace allscale { namespace components {
     void resilience::shutdown() {
         if (resilience_component_running) {
             resilience_component_running = false;
+            {
+            std::unique_lock<mutex_type> lk(access_scheduler_mtx_);
             scheduler.reset();
+            }
             // We need to invoke synchronously here
             hpx::apply<shutdown_action>(guard_);
         }

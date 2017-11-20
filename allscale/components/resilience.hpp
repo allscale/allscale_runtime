@@ -102,8 +102,7 @@ namespace allscale { namespace components {
            void w_exec_start_wrapper(work_item const& w);
            static void global_w_exec_finish_wrapper(work_item const& w);
            void w_exec_finish_wrapper(work_item const& w);
-           //void do_send(udp::endpoint receiver);
-           //void do_receive(udp::endpoint sender);
+           mutable mutex_type access_scheduler_mtx_;
        };
 }}
 
