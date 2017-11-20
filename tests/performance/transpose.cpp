@@ -1,6 +1,7 @@
 
 #include <allscale/runtime.hpp>
-#include <allscale/api/user/data/static_grid.h>
+//#include <allscale/api/user/data/static_grid.h>
+#include <allscale/api/user/data/grid.h>
 #include <hpx/util/assert.hpp>
 
 #include <iostream>
@@ -24,16 +25,123 @@ ALLSCALE_REGISTER_TREETURE_TYPE(int)
 HPX_REGISTER_COMPONENT_MODULE();
 
 
-const int N = 10000;
-using data_item_type = allscale::api::user::data::StaticGrid<int, N, N>;
+const int N = 10;
+
+
+//using data_item_type_grid = allscale::api::user::data::Grid<int,1>;
+
+//using data_item_type = allscale::api::user::data::StaticGrid<int, N, N>;
+using data_item_type = allscale::api::user::data::Grid<int, 2>;
 using region_type = data_item_type::region_type;
 using coordinate_type = data_item_type::coordinate_type;
+using data_item_shared_data_type = typename data_item_type::shared_data_type;
 
 REGISTER_DATAITEMSERVER_DECLARATION(data_item_type);
 REGISTER_DATAITEMSERVER(data_item_type);
 
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // grid init
+
+struct grid_init_name {
+    static const char* name() { return "grid_init"; }
+};
+
+struct grid_init_split;
+struct grid_init_process;
+struct grid_init_can_split;
+
+using grid_init = allscale::work_item_description<
+    void,
+    grid_init_name,
+    allscale::do_serialization,
+    grid_init_split,
+    grid_init_process,
+    grid_init_can_split
+>;
+
+struct grid_init_can_split
+{
+    template <typename Closure>
+    static bool call(Closure const& c)
+    {
+        auto begin = hpx::util::get<1>(c);
+        auto end = hpx::util::get<2>(c);
+
+        return sumOfSquares(end - begin) > 1;
+    }
+};
+
+struct grid_init_split {
+    template <typename Closure>
+    static allscale::treeture<void> execute(Closure const& c)
+    {
+        auto data = hpx::util::get<0>(c);
+        auto begin = hpx::util::get<1>(c);
+        auto end = hpx::util::get<2>(c);
+
+        std::size_t depth = allscale::this_work_item::get_id().depth();
+        auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
+        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
+
+        return allscale::runtime::treeture_parallel(
+            allscale::spawn<grid_init>(data, fragments.left.begin(), fragments.left.end()),
+            allscale::spawn<grid_init>(data, fragments.right.begin(), fragments.right.end())
+        );
+    }
+
+    static constexpr bool valid = true;
+};
+
+struct grid_init_process {
+    template <typename Closure>
+    static hpx::util::unused_type execute(Closure const& c)
+    {
+        auto ref = hpx::util::get<0>(c);
+        auto data = allscale::data_item_manager::get(ref);
+        auto begin = hpx::util::get<1>(c);
+        auto end = hpx::util::get<2>(c);
+
+        region_type region(begin, end);
+
+        std::cout << hpx::get_locality_id() << " init: running from " << begin << " to " << end << '\n';
+
+        region.scan(
+            [&](auto const& pos)
+            {
+//                 std::cout << "Setting " << pos << ' ' << pos.x + pos.y << '\n';
+                data[pos] = pos.x + pos.y;
+            }
+        );
+
+        return hpx::util::unused;
+    }
+
+    template <typename Closure>
+    static hpx::util::tuple<
+        allscale::data_item_requirement<data_item_type >
+    >
+    get_requirements(Closure const& c)
+    {
+        region_type r(hpx::util::get<1>(c), hpx::util::get<2>(c));
+        return hpx::util::make_tuple(
+            allscale::createDataItemRequirement(
+                hpx::util::get<0>(c),
+                r,
+                allscale::access_mode::ReadWrite
+            )
+        );
+    }
+    static constexpr bool valid = true;
+};
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// transpose
 
 struct transpose_name {
     static const char* name() { return "transpose"; }
@@ -192,47 +300,66 @@ struct main_process
 {
     static allscale::treeture<int> execute(hpx::util::tuple<> const& c)
     {
+
+        
+
+        allscale::api::user::data::GridPoint<2> size(N,N);
+        data_item_shared_data_type sharedData(size);
+        
         allscale::data_item_reference<data_item_type> mat_a
-            = allscale::data_item_manager::create<data_item_type>();
+            = allscale::data_item_manager::create<data_item_type>(sharedData);
 
         allscale::data_item_reference<data_item_type> mat_b
-            = allscale::data_item_manager::create<data_item_type>();
+            = allscale::data_item_manager::create<data_item_type>(sharedData);
 
-        region_type whole_region({0,0}, {N, N});
-        
-        //===================== FILL mat_a initially and release it again===============
-        auto lease_init = allscale::data_item_manager::acquire(
-            allscale::createDataItemRequirement(
-                mat_a,
-                whole_region,
-                allscale::access_mode::ReadWrite
-            )).get();
-        auto ref = allscale::data_item_manager::get(mat_a);
-        
-        int val = 0;
-        for(int j = 0; j < N; ++j){    
-            for(int i = 0; i < N; ++i){
-                coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
-                ref[tmp]  = val;                                                 
-                val++;                                                              
-            }                                                                       
-        }
-        allscale::data_item_manager::release(lease_init);
-        //=====================             END OF FILLING          ====================
-
-
-        
 
         coordinate_type begin(0, 0);
         coordinate_type end(N, N);
 
-        // DO ACTUAL WORK: SPAWN FIRST WORK ITEM
+
+
+        allscale::spawn_first<grid_init>(mat_a, begin, end).wait();
+
+
+       region_type whole_region({0,0}, {N, N});
+       
+       //===================== FILL mat_a initially and release it again===============
+       auto lease_init = allscale::data_item_manager::acquire(
+           allscale::createDataItemRequirement(
+               mat_a,
+               whole_region,
+               allscale::access_mode::ReadWrite
+           )).get();
+       auto ref = allscale::data_item_manager::get(mat_a);
+/*       
+       int val = 0;
+       for(int j = 0; j < N; ++j){    
+           for(int i = 0; i < N; ++i){
+               coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
+               ref[tmp]  = val;                                                 
+               val++;                                                              
+           }                                                                       
+       }
+  */
+       //=====================             END OF FILLING          ====================
+       
+       for(int j = 0; j < N; ++j){    
+            for(int i = 0; i < N; ++i){
+                coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
+                std::cout<< ref[tmp] << " ";                                                 
+            }
+            std::cout<<std::endl;                                                                       
+       }
+
+       allscale::data_item_manager::release(lease_init);
+
+                // DO ACTUAL WORK: SPAWN FIRST WORK ITEM
         hpx::when_all(
             allscale::spawn_first<transpose>(mat_a, mat_b, begin, end).get_future()
         ).get();
         
 
-        // ============ LOOK AT RESULT==========================
+      // ============ LOOK AT RESULT==========================
         auto lease_result = allscale::data_item_manager::acquire(
             allscale::createDataItemRequirement(
                 mat_b,
@@ -248,7 +375,6 @@ struct main_process
             std::cout<< ref_result[pos] << " ";
             }
         );*/
-        /* 
         for(int j = 0; j < N; ++j){    
             for(int i = 0; i < N; ++i){
                 coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
@@ -257,7 +383,6 @@ struct main_process
             std::cout<<std::endl;                                                                       
         }
         std::cout<<std::endl;
-        */
         allscale::data_item_manager::release(lease_result);
 
 
