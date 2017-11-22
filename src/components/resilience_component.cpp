@@ -50,7 +50,14 @@ namespace allscale { namespace components {
     }
 
     bool resilience::rank_running(uint64_t rank) {
-        return rank_running_[rank];
+        {
+            bool rank_running;
+            {
+            std::unique_lock<mutex_type> lock(running_ranks_mutex_);
+            rank_running = rank_running_[rank];
+            }
+            return rank_running;
+        }
     }
 
     void resilience::init_recovery() {
@@ -113,12 +120,8 @@ namespace allscale { namespace components {
         if (resilience_component_running && (get_running_ranks() > 1)) {
             auto t_now =  std::chrono::high_resolution_clock::now();
             std::size_t actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
-            std::string state_msg;
-            if (my_state == TRUST)
-                state_msg = "T\0";
-            else
-                state_msg = "S\0";
-            boost::shared_ptr<std::string> data(new std::string(state_msg)); // before -> std::to_string(actual_epoch)
+            std::string s = std::to_string(actual_epoch);
+            boost::shared_ptr<std::string> data(new std::string(s));
             std::this_thread::sleep_for(milliseconds(miu));
 #ifdef DEBUG_
             std::time_t now_c = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -130,7 +133,7 @@ namespace allscale { namespace components {
                                             boost::asio::placeholders::bytes_transferred));
             {
             std::unique_lock<mutex_type> lk(access_scheduler_mtx_);
-            if (scheduler) // not thread-safe
+            if (scheduler) 
                 scheduler->add(hpx::util::bind(&resilience::send_heartbeat_loop, this));
             }
         }
@@ -143,20 +146,23 @@ namespace allscale { namespace components {
         auto t_now =  std::chrono::high_resolution_clock::now();
         if (resilience_component_running && (get_running_ranks() > 1)) {
             std::size_t actual_epoch = 0;
-            char rcv_buf[16];
             std::size_t n;
             boost::system::error_code ec;
-            t_now =  std::chrono::high_resolution_clock::now();
-            std::time_t now_c = std::chrono::system_clock::to_time_t( std::chrono::system_clock::now());
-            actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
 
             if (my_state == TRUST) {
+                char heartbeat[4];
+                recv_sock->async_receive(boost::asio::buffer(heartbeat), 0, hpx::util::bind(&resilience::recv_handler, this,
+                                boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
+                // git receive some time and read buffer
+                std::this_thread::sleep_for(milliseconds(delta));
 #ifdef DEBUG_
-                std::cout << "Rank " << rank_ << " will call async_receive at " << actual_epoch << " which is TIME " << std::put_time(std::localtime(&now_c), "%F %T") << "\n";
+                t_now =  std::chrono::high_resolution_clock::now();
+                std::time_t now_c = std::chrono::system_clock::to_time_t( std::chrono::system_clock::now());
+                actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
+                std::cout << "Rank " << rank_ << " ACTUAL_EPOCH -> " << actual_epoch << " HEARTBEAT -> " << heartbeat << "\n";
+                    //std::put_time(std::localtime(&now_c), "%F %T") << "\n";
 
 #endif
-                recv_sock->async_receive(boost::asio::buffer(rcv_buf), 0, hpx::util::bind(&resilience::recv_handler, this,
-                                boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
             }
         }
     }
@@ -179,7 +185,10 @@ namespace allscale { namespace components {
     void resilience::init() {
 
         num_localities = hpx::get_num_localities().get();
+        {
+        std::unique_lock<mutex_type> lock(running_ranks_mutex_);
         rank_running_.resize(num_localities, true);
+        }
 
         char *env = std::getenv("ALLSCALE_RESILIENCE");
         if (get_running_ranks() < 2 || (env && env[0] == '0')) {
@@ -258,9 +267,12 @@ namespace allscale { namespace components {
         if (w.id().depth() != get_cp_granularity()) return;
 
         //@ToDo: do I really need to block (via get) here?
-        if (get_running_ranks() > 1)
+        if (get_running_ranks() > 1) {
             hpx::async<remote_backup_action>(guard_, w).get();
-        local_backups_[w.id()] = w;
+            std::unique_lock<mutex_type> lock(backup_mutex_);
+            local_backups_[w.id()] = w;
+        }
+
 
 #ifdef DEBUG_
         std::cout << "Done backing up : " << w.id().name() << std::endl;
@@ -277,14 +289,22 @@ namespace allscale { namespace components {
         if (w.id().depth() != get_cp_granularity()) return;
 
         //@ToDo: do I really need to block (via get) here?
-        if (get_running_ranks() > 1)
+        if (get_running_ranks() > 1)  {
             hpx::async<remote_unbackup_action>(guard_, w).get();
-        local_backups_.erase(w.id());
+
+            std::unique_lock<mutex_type> lock(backup_mutex_);
+            local_backups_.erase(w.id());
+        }
 
     }
 
     std::size_t resilience::get_running_ranks() {
-        return rank_running_.count();
+        int ranks;
+        {
+        std::unique_lock<mutex_type> lock(running_ranks_mutex_);
+        ranks = rank_running_.count();
+        }
+        return ranks;
     }
 
     void resilience::protectee_crashed() {
@@ -293,7 +313,10 @@ namespace allscale { namespace components {
         std::cout << "Begin recovery ...\n";
         std::cout << "set bitrank of " << protectee_rank_ << " to false\n";
 #endif // DEBUG_
+        {
+        std::unique_lock<mutex_type> lock(running_ranks_mutex_);
         rank_running_[protectee_rank_] = false;
+        }
 
         for (auto c : remote_backups_) {
             work_item restored = c.second;
@@ -333,7 +356,7 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
         std::cout << "Will backup task " << w.id().name() << "\n";
 #endif
-        std::unique_lock<std::mutex> lock(backup_mutex_);
+        std::unique_lock<mutex_type> lock(backup_mutex_);
         remote_backups_[w.id()] = w;
     }
 
@@ -342,7 +365,7 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
         std::cout << "Will unbackup task " << w.id().name() << "\n";
 #endif
-        std::unique_lock<std::mutex> lock(backup_mutex_);
+        std::unique_lock<mutex_type> lock(backup_mutex_);
         auto b = remote_backups_.find(w.id());
         if (b == remote_backups_.end())
             std::cerr << "ERROR: Backup not found that should be there!\n";

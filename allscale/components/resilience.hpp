@@ -45,9 +45,9 @@ namespace allscale { namespace components {
            bool recovery_done; // protected via cv and cv_m
            state my_state;
            std::chrono::high_resolution_clock::time_point start_time,trust_lease;
-           std::size_t heartbeat_counter;
+           //std::size_t heartbeat_counter;
            const std::size_t miu = 1000;
-           const std::size_t delta = 4000;
+           const std::size_t delta = 1000;
            boost::dynamic_bitset<> rank_running_;
            std::size_t get_running_ranks();
            bool rank_running(uint64_t rank);
@@ -71,9 +71,10 @@ namespace allscale { namespace components {
            uint64_t protectee_rank_;
            hpx::id_type protectees_protectee_;
            uint64_t protectees_protectee_rank_;
-           std::mutex backup_mutex_;
+           mutable mutex_type backup_mutex_;
+           mutable mutex_type running_ranks_mutex_;
            std::map<this_work_item::id,work_item> local_backups_;
-           std::mutex result_mutex_;
+           mutable mutex_type result_mutex_;
            std::map<this_work_item::id,work_item> remote_backups_;
            void init();
            resilience(std::uint64_t rank);
