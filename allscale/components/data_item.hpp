@@ -220,14 +220,12 @@ public:
             store_it = store_pair.first;
 
             // The first access needs to be ReadWrite...
-            //HPX_ASSERT(req.mode == access_mode::ReadWrite);
-
-            needs_first_touch = (access_mode::ReadWrite == req.mode);
+            needs_first_touch = true;
 
         }
         auto& info = store_it->second;
 
-        if(!needs_first_touch && req.mode == access_mode::ReadWrite)
+        if(!needs_first_touch)
         {
             if (region_type::intersect(info.fragment.getCoveredRegion(), req.region).empty())
                 needs_first_touch = true;
@@ -342,7 +340,7 @@ public:
         std::unique_lock<mutex_type> l(mtx_);
         auto locate_it = location_store.find(id);
         location_info res;
-        
+
         if(remainder != nullptr){
             if(locate_it == location_store.end())
             {
