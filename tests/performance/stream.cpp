@@ -766,10 +766,6 @@ struct main_process
         // Check Results ...
         allscale::spawn_first<check_results_work>(0, 100, a, b, c, iterations).wait();
 
-        allscale::data_item_manager::destroy(a);
-        allscale::data_item_manager::destroy(b);
-        allscale::data_item_manager::destroy(c);
-
         time_total = mysecond() - time_total;
 
         /* --- SUMMARY --- */

@@ -174,8 +174,6 @@ struct main_process
             allscale::data_item_manager::release(lease);
         }
 
-        allscale::data_item_manager::destroy(data);
-
         return allscale::make_ready_treeture(0);
     }
     static constexpr bool valid = true;

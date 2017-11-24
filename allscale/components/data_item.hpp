@@ -109,12 +109,12 @@ public:
 
     mutable mutex_type mtx_;
     hpx::lcos::local::detail::condition_variable write_cv;
-    typedef	std::map<hpx::id_type, fragment_info> store_type;
+    typedef	std::map<hpx::naming::gid_type, fragment_info> store_type;
 
 	store_type store;
     data_item_network network;
 
-    typedef std::map<hpx::id_type, location_info> location_store_type;
+    typedef std::map<hpx::naming::gid_type, location_info> location_store_type;
     location_store_type location_store;
 
     public:
@@ -304,30 +304,22 @@ public:
         }
     }
 
-    void destroy(const data_item_reference<DataItemType>& ref) {
+    void destroy(hpx::naming::gid_type const& id) {
         std::unique_lock<mutex_type> l(mtx_);
         // check that the reference is valid
-        auto store_it = store.find(ref.id());
+        auto store_it = store.find(id);
         HPX_ASSERT(store_it != store.end());
 
         // FIXME: replace with broadcast...
-        store.erase(ref.id());
+        store.erase(id);
         // remove data from all nodes
-//         network.broadcast([&ref](data_item_server& server){
-//             if (!server.alive) return;
-//
-//             // make sure now access on fragment is still granted
-//             assert_true(server.getInfo(ref).readLocked.empty())
-//                 << "Still read access on location " << server.myLocality << " for region " << server.getInfo(ref).readLocked;
-//             assert_true(server.getInfo(ref).writeLocked.empty())
-//                 << "Still write access on location " << server.myLocality << " for region " << server.getInfo(ref).writeLocked;
-//
-//             server.store.erase(ref.id);
-//         });
-
     }
 
-    void first_touch(hpx::id_type const& id, region_type const& region, std::size_t rank)
+    void destroy(const data_item_reference<DataItemType>& ref) {
+        destroy(ref.id());
+    }
+
+    void first_touch(hpx::naming::gid_type const& id, region_type const& region, std::size_t rank)
     {
         std::unique_lock<mutex_type> l(mtx_);
 
@@ -335,7 +327,7 @@ public:
     }
     HPX_DEFINE_COMPONENT_DIRECT_ACTION(data_item, first_touch);
 
-    location_info get_location_info_impl(hpx::id_type const& id, region_type const& region, region_type* remainder)
+    location_info get_location_info_impl(hpx::naming::gid_type const& id, region_type const& region, region_type* remainder)
     {
         std::unique_lock<mutex_type> l(mtx_);
         auto locate_it = location_store.find(id);
@@ -363,13 +355,13 @@ public:
         }
         return res;
     }
-    location_info get_location_info(hpx::id_type const& id, region_type const& region)
+    location_info get_location_info(hpx::naming::gid_type const& id, region_type const& region)
     {
         return get_location_info_impl(id, region, nullptr);
     }
     HPX_DEFINE_COMPONENT_DIRECT_ACTION(data_item, get_location_info);
 
-    data_item_view transfer(hpx::id_type const& id, region_type const& region)
+    data_item_view transfer(hpx::naming::gid_type const& id, region_type const& region)
     {
         std::unique_lock<mutex_type> l(mtx_);
 
@@ -382,7 +374,7 @@ public:
 
     hpx::future<location_info> locate(const requirement_type& req)
     {
-        hpx::id_type req_id = req.ref.id();
+        hpx::naming::gid_type req_id = req.ref.id();
         region_type req_region = std::move(req.region);
         region_type remainder = req_region;
         location_info cached = get_location_info_impl(req_id, req_region, &remainder);

@@ -110,7 +110,7 @@ namespace allscale { namespace components {
             if (scheduler)
                 scheduler->add(hpx::util::bind(&resilience::receive_heartbeat_loop, this));
             }
-            
+
         }
 #endif
     }
@@ -133,7 +133,7 @@ namespace allscale { namespace components {
                                             boost::asio::placeholders::bytes_transferred));
             {
             std::unique_lock<mutex_type> lk(access_scheduler_mtx_);
-            if (scheduler) 
+            if (scheduler)
                 scheduler->add(hpx::util::bind(&resilience::send_heartbeat_loop, this));
             }
         }

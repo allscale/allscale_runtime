@@ -178,17 +178,17 @@ struct transpose_split {
     {
         auto mat_a = hpx::util::get<0>(c);
         auto mat_b = hpx::util::get<1>(c);
-        
-        
+
+
         auto begin = hpx::util::get<2>(c);
         auto end = hpx::util::get<3>(c);
 
         std::size_t depth = allscale::this_work_item::get_id().depth();
         auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
         //std::cout<<"about to split range : " << range.begin() << " to " << range.end() << std::endl;
-        
+
         auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
-        
+
         //std::cout<<"splitted, got left: " << fragments.left.begin() << " " << fragments.left.end() << " right: " << fragments.right.begin() << " " <<fragments.right.end() << std::endl;
         return allscale::runtime::treeture_parallel(
             allscale::spawn<transpose>(mat_a, mat_b, fragments.left.begin(), fragments.left.end()),
@@ -205,10 +205,10 @@ struct transpose_process {
     {
         auto ref_mat_a = hpx::util::get<0>(c);
         auto data_a = allscale::data_item_manager::get(ref_mat_a);
-     
+
         auto ref_mat_b = hpx::util::get<1>(c);
         auto data_b = allscale::data_item_manager::get(ref_mat_b);
-        
+
         auto begin = hpx::util::get<2>(c);
         auto end = hpx::util::get<3>(c);
 
@@ -218,22 +218,22 @@ struct transpose_process {
         coordinate_type e_src(hpx::util::get<3>(c));
         coordinate_type s_dst(allscale::utils::Vector<long,2>( s_src[1], s_src[0] ) );
         coordinate_type e_dst(allscale::utils::Vector<long,2>( e_src[1], e_src[0] ) );
-        
+
         /*std::cout << hpx::get_locality_id() << " transpose process: s_src" << s_src << " e_src: " << e_src << " s_dst: " << s_dst
             << " e_dst " << e_dst <<  '\n';
         */
-        for(int i = s_src[0]; i < e_src[0]; ++i){                                             
+        for(int i = s_src[0]; i < e_src[0]; ++i){
             for(int j = s_src[1]; j < e_src[1]; ++j){
                     coordinate_type pos_src( allscale::utils::Vector<long,2>( i, j ) );
                     coordinate_type pos_dst( allscale::utils::Vector<long,2>( j, i ) );
-                    data_b[pos_dst]  = data_a[pos_src];                                        
+                    data_b[pos_dst]  = data_a[pos_src];
 
-            } 
-        } 
+            }
+        }
 
 
-       /*   
-        
+       /*
+
         region.scan(
             [&](auto const& pos)
             {
@@ -253,7 +253,7 @@ struct transpose_process {
     {
         // READ ACCESS REQUIRED TO SRC MATRIX
         region_type r_src(hpx::util::get<2>(c), hpx::util::get<3>(c));
-        
+
         // READ/WRITE ACCESS REQUIRED TO DST MATRIX
         coordinate_type s_src(hpx::util::get<2>(c));
         coordinate_type e_src(hpx::util::get<3>(c));
@@ -301,11 +301,11 @@ struct main_process
     static allscale::treeture<int> execute(hpx::util::tuple<> const& c)
     {
 
-        
+
 
         allscale::api::user::data::GridPoint<2> size(N,N);
         data_item_shared_data_type sharedData(size);
-        
+
         allscale::data_item_reference<data_item_type> mat_a
             = allscale::data_item_manager::create<data_item_type>(sharedData);
 
@@ -322,7 +322,7 @@ struct main_process
 
 
        region_type whole_region({0,0}, {N, N});
-       
+
        //===================== FILL mat_a initially and release it again===============
        auto lease_init = allscale::data_item_manager::acquire(
            allscale::createDataItemRequirement(
@@ -331,24 +331,24 @@ struct main_process
                allscale::access_mode::ReadWrite
            )).get();
        auto ref = allscale::data_item_manager::get(mat_a);
-/*       
+/*
        int val = 0;
-       for(int j = 0; j < N; ++j){    
+       for(int j = 0; j < N; ++j){
            for(int i = 0; i < N; ++i){
                coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
-               ref[tmp]  = val;                                                 
-               val++;                                                              
-           }                                                                       
+               ref[tmp]  = val;
+               val++;
+           }
        }
   */
        //=====================             END OF FILLING          ====================
-       
-       for(int j = 0; j < N; ++j){    
+
+       for(int j = 0; j < N; ++j){
             for(int i = 0; i < N; ++i){
                 coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
-                std::cout<< ref[tmp] << " ";                                                 
+                std::cout<< ref[tmp] << " ";
             }
-            std::cout<<std::endl;                                                                       
+            std::cout<<std::endl;
        }
 
        allscale::data_item_manager::release(lease_init);
@@ -357,7 +357,7 @@ struct main_process
         hpx::when_all(
             allscale::spawn_first<transpose>(mat_a, mat_b, begin, end).get_future()
         ).get();
-        
+
 
       // ============ LOOK AT RESULT==========================
         auto lease_result = allscale::data_item_manager::acquire(
@@ -367,27 +367,23 @@ struct main_process
                 allscale::access_mode::ReadOnly
             )).get();
         auto ref_result = allscale::data_item_manager::get(mat_b);
-        
-        /*         
+
+        /*
         whole_region.scan(
             [&](auto const& pos)
             {
             std::cout<< ref_result[pos] << " ";
             }
         );*/
-        for(int j = 0; j < N; ++j){    
+        for(int j = 0; j < N; ++j){
             for(int i = 0; i < N; ++i){
                 coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
-                std::cout<< ref_result[tmp] << " ";                                                 
+                std::cout<< ref_result[tmp] << " ";
             }
-            std::cout<<std::endl;                                                                       
+            std::cout<<std::endl;
         }
         std::cout<<std::endl;
         allscale::data_item_manager::release(lease_result);
-
-
-        allscale::data_item_manager::destroy(mat_a);
-        allscale::data_item_manager::destroy(mat_b);
 
         return allscale::make_ready_treeture(0);
     }

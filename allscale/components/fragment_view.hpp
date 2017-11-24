@@ -15,7 +15,7 @@ namespace allscale {
         using fragment_type = typename DataItem::fragment_type;
         using region_type = typename DataItem::region_type;
 
-        hpx::id_type id_;
+        hpx::naming::gid_type id_;
         fragment_type* fragment_;
         region_type region_;
 
@@ -23,12 +23,11 @@ namespace allscale {
           : fragment_(nullptr)
         {}
 
-        data_item_view(hpx::id_type id, fragment_type& fragment, region_type region)
+        data_item_view(hpx::naming::gid_type id, fragment_type& fragment, region_type region)
           : id_(std::move(id))
           , fragment_(&fragment)
           , region_(std::move(region))
         {
-            id_.make_unmanaged();
         }
 
         template <typename Archive>
