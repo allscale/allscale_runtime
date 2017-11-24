@@ -169,6 +169,12 @@ namespace allscale {
             ar & is_first_;
         }
 
+        void reset()
+        {
+            impl_.reset();
+            is_first_ = false;
+        }
+
         HPX_SERIALIZATION_SPLIT_MEMBER()
 
         std::shared_ptr<detail::work_item_impl_base> impl_;

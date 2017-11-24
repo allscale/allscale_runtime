@@ -333,12 +333,11 @@ namespace allscale {
         template <typename Archive>
         void save(Archive & ar, unsigned) const
         {
-            bool valid = false;
+            hpx::shared_future<hpx::id_type> id;
             {
                 std::unique_lock<mutex_type> l(mtx_);
                 if (shared_state_)
                 {
-                    hpx::shared_future<hpx::id_type> id;
                     if (!id_.valid())
                     {
                         {

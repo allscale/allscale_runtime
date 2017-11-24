@@ -232,7 +232,7 @@ namespace allscale { namespace detail {
 
         template <typename Leases>
         void finalize(
-            std::shared_ptr<work_item_impl>&& this_, hpx::util::unused_type, Leases leases)
+            std::shared_ptr<work_item_impl> this_, hpx::util::unused_type, Leases leases)
         {
             monitor::signal(monitor::work_item_execution_finished,
                 work_item(this_));
@@ -317,7 +317,7 @@ namespace allscale { namespace detail {
                             Leases
                     ) = &work_item_impl::do_process;
 
-                    hpx::apply(exec, f, this_, std::move(leases));
+                    hpx::apply(exec, f, std::move(this_), std::move(leases));
                 });
         }
 
@@ -336,7 +336,7 @@ namespace allscale { namespace detail {
                     {
                         void (work_item_impl::*f)(Leases) = &work_item_impl::do_process;
 
-                        hpx::apply(exec, f, this_, std::move(leases));
+                        hpx::apply(exec, f, std::move(this_), std::move(leases));
                     }
                 );
             }

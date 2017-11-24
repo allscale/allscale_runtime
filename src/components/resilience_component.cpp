@@ -178,7 +178,7 @@ namespace allscale { namespace components {
         hpx::async<kill_me_action>(hpx::find_here()).get();
     }
 
-    std::map<this_work_item::id,work_item> resilience::get_local_backups() {
+    std::map<std::string,work_item> resilience::get_local_backups() {
         return local_backups_;
     }
 
@@ -269,8 +269,10 @@ namespace allscale { namespace components {
         //@ToDo: do I really need to block (via get) here?
         if (get_running_ranks() > 1) {
             hpx::async<remote_backup_action>(guard_, w).get();
-            std::unique_lock<mutex_type> lock(backup_mutex_);
-            local_backups_[w.id()] = w;
+            {
+                std::unique_lock<mutex_type> lock(backup_mutex_);
+                local_backups_[w.id().name()] = w;
+            }
         }
 
 
@@ -290,10 +292,11 @@ namespace allscale { namespace components {
 
         //@ToDo: do I really need to block (via get) here?
         if (get_running_ranks() > 1)  {
-            hpx::async<remote_unbackup_action>(guard_, w).get();
-
-            std::unique_lock<mutex_type> lock(backup_mutex_);
-            local_backups_.erase(w.id());
+            hpx::async<remote_unbackup_action>(guard_, w.id().name()).get();
+            {
+                std::unique_lock<mutex_type> lock(backup_mutex_);
+                local_backups_.erase(w.id().name());
+            }
         }
 
     }
@@ -314,8 +317,8 @@ namespace allscale { namespace components {
         std::cout << "set bitrank of " << protectee_rank_ << " to false\n";
 #endif // DEBUG_
         {
-        std::unique_lock<mutex_type> lock(running_ranks_mutex_);
-        rank_running_[protectee_rank_] = false;
+            std::unique_lock<mutex_type> lock(running_ranks_mutex_);
+            rank_running_[protectee_rank_] = false;
         }
 
         for (auto c : remote_backups_) {
@@ -353,23 +356,32 @@ namespace allscale { namespace components {
 	}
 
     void resilience::remote_backup(work_item w) {
+        std::unique_lock<mutex_type> lock(backup_mutex_);
 #ifdef DEBUG_
         std::cout << "Will backup task " << w.id().name() << "\n";
 #endif
-        std::unique_lock<mutex_type> lock(backup_mutex_);
-        remote_backups_[w.id()] = w;
+        remote_backups_[w.id().name()] = w;
     }
 
-    void resilience::remote_unbackup(work_item w) {
-
+    void resilience::remote_unbackup(std::string name) {
+        work_item bw;
+        {
+            std::unique_lock<mutex_type> lock(backup_mutex_);
 #ifdef DEBUG_
-        std::cout << "Will unbackup task " << w.id().name() << "\n";
+            std::cout << "Will unbackup task " << w.id().name() << "\n";
 #endif
-        std::unique_lock<mutex_type> lock(backup_mutex_);
-        auto b = remote_backups_.find(w.id());
-        if (b == remote_backups_.end())
-            std::cerr << "ERROR: Backup not found that should be there!\n";
-        remote_backups_.erase(b);
+            auto b = remote_backups_.find(name);
+            if (b == remote_backups_.end())
+            {
+                std::cerr << "ERROR: Backup not found that should be there!\n";
+                return;
+            }
+            // We safe the backed up work item so that dtor of the underlying
+            // treeture isn't triggered when we erase from the map while the lock
+            // is being held.
+            bw = b->second;
+            remote_backups_.erase(b);
+        }
     }
 
     void resilience::shutdown() {
