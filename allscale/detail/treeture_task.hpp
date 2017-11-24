@@ -319,7 +319,7 @@ namespace hpx { namespace traits {
         static void call(boost::intrusive_ptr<allscale::detail::treeture_task<void>> ptr)
         {
             HPX_ASSERT(ptr->has_value());
-            *ptr->get_result();
+            hpx::util::unused = *ptr->get_result();
         }
     };
 
