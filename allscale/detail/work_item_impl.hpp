@@ -5,6 +5,7 @@
 #include <allscale/treeture.hpp>
 #include <allscale/monitor.hpp>
 #include <allscale/data_item_manager.hpp>
+#include <allscale/data_item_requirement.hpp>
 #include <allscale/detail/work_item_impl_base.hpp>
 
 #include <hpx/include/serialization.hpp>
@@ -70,6 +71,17 @@ namespace allscale { namespace detail {
 
     inline void release(hpx::util::detail::pack_c<std::size_t>, hpx::util::tuple<> const&)
     {
+    }
+
+    template <typename Requirements>
+    inline auto merge_requirements(Requirements && reqs)
+    {
+        return detail::merge_data_item_reqs(std::forward<Requirements>(reqs));
+    }
+
+    inline hpx::util::tuple<> merge_requirements(hpx::util::tuple<> reqs)
+    {
+        return reqs;
     }
 
     template <typename Requirements, std::size_t... Is>
@@ -170,7 +182,7 @@ namespace allscale { namespace detail {
         struct acquire_result
         {
             typedef
-                decltype(Variant::get_requirements(std::declval<Closure const&>()))
+                decltype(merge_requirements(Variant::get_requirements(std::declval<Closure const&>())))
                 reqs;
             typedef typename hpx::util::detail::make_index_pack<
                 hpx::util::tuple_size<reqs>::type::value>::type pack;
@@ -183,7 +195,7 @@ namespace allscale { namespace detail {
          -> typename acquire_result<Variant>::type
         {
             typename acquire_result<Variant>::pack pack;
-            return get_leases(pack, Variant::get_requirements(closure_));
+            return get_leases(pack, merge_requirements(Variant::get_requirements(closure_)));
         }
 
         // Overload for non templates...
@@ -192,7 +204,7 @@ namespace allscale { namespace detail {
          -> typename acquire_result<Variant>::type
         {
             typename acquire_result<Variant>::pack pack;
-            return get_leases(pack, Variant::get_requirements(closure_));
+            return get_leases(pack, merge_requirements(Variant::get_requirements(closure_)));
         }
 
         template <typename Variant>

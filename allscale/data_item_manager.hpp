@@ -54,6 +54,19 @@ namespace allscale
         }
 
         template<typename DataItemType>
+		static std::vector<hpx::future<allscale::lease<DataItemType>>>
+        acquire(std::vector<allscale::data_item_requirement<DataItemType>> const & requirement)
+        {
+            return data_item_manager_impl<DataItemType>::acquire(requirement);
+		}
+
+        template<typename DataItemType>
+		static void release(const std::vector<allscale::lease<DataItemType>>& lease)
+        {
+            return data_item_manager_impl<DataItemType>::release(lease);
+        }
+
+        template<typename DataItemType>
 		static void destroy(const data_item_reference<DataItemType>& ref)
         {
             data_item_manager_impl<DataItemType>::destroy(ref);

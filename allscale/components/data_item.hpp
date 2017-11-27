@@ -142,7 +142,6 @@ public:
                 to_test = region_type::difference(info.writeLocked, req.region);
             }
 
-
             // FIXME: add debug check that all other fragments don't have
             // any kinds of locks on this fragment...
             info.writeLocked = region_type::merge(
@@ -266,6 +265,17 @@ public:
         return acquire_impl(req, store_it, std::move(l));
     }
 
+    std::vector<hpx::future<lease_type>> acquire(const std::vector<requirement_type>& reqs)
+    {
+        std::vector<hpx::future<lease_type>> leases;
+        leases.reserve(reqs.size());
+
+        for (auto const& req: reqs)
+            leases.push_back(acquire(req));
+
+        return leases;
+    }
+
     void release(const lease<DataItemType>& lease) {
         // get information about fragment
         std::unique_lock<mutex_type> l(mtx_);
@@ -301,6 +311,14 @@ public:
             }
             default:
                 HPX_ASSERT(false);
+        }
+    }
+
+    void release(const std::vector<lease<DataItemType>>& leases)
+    {
+        for (auto const& lease: leases)
+        {
+            release(lease);
         }
     }
 
