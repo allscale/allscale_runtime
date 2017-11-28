@@ -37,8 +37,9 @@ namespace allscale { namespace components {
     }
 
     void resilience::failure_detection_loop_async() {
-        if (!resilience_component_running)
+        if (resilience_disabled) {
             return;
+        }
 
         // Previously:
         // hpx::apply(&resilience::failure_detection_loop, this));
@@ -117,7 +118,7 @@ namespace allscale { namespace components {
 
     //
     void resilience::send_heartbeat_loop () {
-        if (resilience_component_running && (get_running_ranks() > 1)) {
+        if (!resilience_disabled) {
             auto t_now =  std::chrono::high_resolution_clock::now();
             std::size_t actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
             std::string s = std::to_string(actual_epoch);
@@ -144,25 +145,27 @@ namespace allscale { namespace components {
         //udp::endpoint sender_endpoint(boost::asio::ip::address::from_string(protectee_ip_addr), UDP_SEND_PORT);
         //hpx::lcos::barrier::synchronize();
         auto t_now =  std::chrono::high_resolution_clock::now();
-        if (resilience_component_running && (get_running_ranks() > 1)) {
+        if (!resilience_disabled) {
             std::size_t actual_epoch = 0;
             std::size_t n;
             boost::system::error_code ec;
 
             if (my_state == TRUST) {
+#ifdef DEBUG_
+                t_now =  std::chrono::high_resolution_clock::now();
+                std::time_t now_c = std::chrono::system_clock::to_time_t( std::chrono::system_clock::now());
+                actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
+                std::cout << "Rank " << rank_ << " will call async_receive at " << actual_epoch  << " which is TIME " << std::put_time(std::localtime(&now_c), "%F %T") << "\n";
+
+#endif
                 char heartbeat[4];
                 recv_sock->async_receive(boost::asio::buffer(heartbeat), 0, hpx::util::bind(&resilience::recv_handler, this,
                                 boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
                 // git receive some time and read buffer
                 std::this_thread::sleep_for(milliseconds(delta));
-#ifdef DEBUG_
-                t_now =  std::chrono::high_resolution_clock::now();
-                std::time_t now_c = std::chrono::system_clock::to_time_t( std::chrono::system_clock::now());
-                actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
-                std::cout << "Rank " << rank_ << " ACTUAL_EPOCH -> " << actual_epoch << " HEARTBEAT -> " << heartbeat << "\n";
-                    //std::put_time(std::localtime(&now_c), "%F %T") << "\n";
-
-#endif
+            }
+            // my_state != TRUST
+            else {
             }
         }
     }
@@ -192,7 +195,6 @@ namespace allscale { namespace components {
 
         char *env = std::getenv("ALLSCALE_RESILIENCE");
         if (get_running_ranks() < 2 || (env && env[0] == '0')) {
-            resilience_component_running = false;
             resilience_disabled = true;
 #ifdef DEBUG_
             std::cout << "Resilience disabled for single locality!\n";
@@ -201,9 +203,9 @@ namespace allscale { namespace components {
         }
         else {
             resilience_disabled = false;
-            resilience_component_running = true;
         }
 
+        my_state = TRUST;
         recovery_done = false;
         start_time = std::chrono::high_resolution_clock::now();
 //#ifdef DEBUG_
@@ -368,7 +370,7 @@ namespace allscale { namespace components {
         {
             std::unique_lock<mutex_type> lock(backup_mutex_);
 #ifdef DEBUG_
-            std::cout << "Will unbackup task " << w.id().name() << "\n";
+            std::cout << "Will unbackup task " << name << "\n";
 #endif
             auto b = remote_backups_.find(name);
             if (b == remote_backups_.end())
@@ -385,8 +387,7 @@ namespace allscale { namespace components {
     }
 
     void resilience::shutdown() {
-        if (resilience_component_running) {
-            resilience_component_running = false;
+        if (!resilience_disabled) {
             {
             std::unique_lock<mutex_type> lk(access_scheduler_mtx_);
             scheduler.reset();

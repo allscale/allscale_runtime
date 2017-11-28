@@ -30,7 +30,6 @@ namespace allscale { namespace components {
 
            std::unique_ptr<hpx::threads::executors::io_pool_executor> scheduler;
 
-           std::atomic_bool resilience_component_running;
 
            //UDP port
            const int UDP_RECV_PORT = 44444;
@@ -43,7 +42,7 @@ namespace allscale { namespace components {
            udp::socket *send_sock;
            udp::socket *recv_sock;
            bool recovery_done; // protected via cv and cv_m
-           state my_state;
+           std::atomic<state> my_state;
            std::chrono::high_resolution_clock::time_point start_time,trust_lease;
            //std::size_t heartbeat_counter;
            const std::size_t miu = 1000;
@@ -63,7 +62,7 @@ namespace allscale { namespace components {
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,get_ip_address);
            // END failure detection here
 
-           bool resilience_disabled;
+           std::atomic_bool resilience_disabled;
            uint64_t rank_, num_localities;
            hpx::id_type guard_;
            uint64_t guard_rank_;
