@@ -326,11 +326,12 @@ public:
         std::unique_lock<mutex_type> l(mtx_);
         // check that the reference is valid
         auto store_it = store.find(id);
-        HPX_ASSERT(store_it != store.end());
-
-        // FIXME: replace with broadcast...
-        store.erase(id);
-        // remove data from all nodes
+        if (store_it != store.end())
+        {
+            // FIXME: replace with broadcast...
+            store.erase(store_it);
+            // remove data from all nodes
+        }
     }
 
     void destroy(const data_item_reference<DataItemType>& ref) {
