@@ -7,6 +7,8 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <algorithm>
+
 
 #include <allscale/data_item_reference.hpp>
 #include <allscale/data_item_manager.hpp>
@@ -15,7 +17,7 @@
 
 #include <hpx/config.hpp>
 #include <hpx/include/components.hpp>
-
+#include <boost/program_options.hpp>
 
 ALLSCALE_REGISTER_TREETURE_TYPE(int)
 
@@ -25,8 +27,11 @@ ALLSCALE_REGISTER_TREETURE_TYPE(int)
 HPX_REGISTER_COMPONENT_MODULE();
 
 
-const int N = 10;
+long N = 10000;
 
+long tile_size = 10;
+
+long const NN = 10000;
 
 //using data_item_type_grid = allscale::api::user::data::Grid<int,1>;
 
@@ -36,11 +41,16 @@ using region_type = data_item_type::region_type;
 using coordinate_type = data_item_type::coordinate_type;
 using data_item_shared_data_type = typename data_item_type::shared_data_type;
 
+namespace po = boost::program_options;
+
+
+
 REGISTER_DATAITEMSERVER_DECLARATION(data_item_type);
 REGISTER_DATAITEMSERVER(data_item_type);
 
 
 
+using namespace std;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,7 +117,7 @@ struct grid_init_process {
 
         region_type region(begin, end);
 
-        std::cout << hpx::get_locality_id() << " init: running from " << begin << " to " << end << '\n';
+       // std::cout << hpx::get_locality_id() << " init: running from " << begin << " to " << end << '\n';
 
         region.scan(
             [&](auto const& pos)
@@ -222,25 +232,44 @@ struct transpose_process {
         /*std::cout << hpx::get_locality_id() << " transpose process: s_src" << s_src << " e_src: " << e_src << " s_dst: " << s_dst
             << " e_dst " << e_dst <<  '\n';
         */
-        for(int i = s_src[0]; i < e_src[0]; ++i){                                             
+        
+        int tmp,jt,it;
+        for(int i = s_src[0]; i < e_src[0]; i+=tile_size){                                             
+            for(int j = s_src[1]; j < e_src[1]; j+=tile_size){
+                //iterate thru tiles
+                for (it=i; it< std::min(e_src[0],i+tile_size); it++){
+                    for (jt=j; jt< std::min(e_src[1],j+tile_size);jt++){ 
+                        coordinate_type pos_src( allscale::utils::Vector<long,2>( it, jt ) );
+                        coordinate_type pos_dst( allscale::utils::Vector<long,2>( jt, it ) );
+                        data_b[pos_dst]  = data_a[pos_src];                       
+                    }    
+                }
+                    //tmp  = data_a[pos_src];                                        
+            } 
+        }
+        /*
+        for(int i = s_src[0]; i < e_src[0]; i++){                                             
+            for(int j = s_src[1]; j < e_src[1]; j++){
+                //iterate thru tiles
+                        coordinate_type pos_src( allscale::utils::Vector<long,2>( i, j ) );
+                        coordinate_type pos_dst( allscale::utils::Vector<long,2>( j, i ) );
+                        std::cout <<"dst: " << pos_dst << " src: " << pos_src << std::endl;
+                        data_b[pos_dst]  = data_a[pos_src];                      
+            }    
+         }
+                    //tmp  = data_a[pos_src];                                        
+        
+        
+       */ 
+        /*
             for(int j = s_src[1]; j < e_src[1]; ++j){
-                    coordinate_type pos_src( allscale::utils::Vector<long,2>( i, j ) );
+                for(int i = s_src[0]; i < e_src[0]; ++i){                                             
+                coordinate_type pos_src( allscale::utils::Vector<long,2>( i, j ) );
                     coordinate_type pos_dst( allscale::utils::Vector<long,2>( j, i ) );
                     data_b[pos_dst]  = data_a[pos_src];                                        
 
-            } 
-        } 
-
-
-       /*   
-        
-        region.scan(
-            [&](auto const& pos)
-            {
-                data_a[pos] = pos.x + pos.y;
-            }
-        );*/
-
+                } 
+            }*/ 
         return hpx::util::unused;
     }
 
@@ -260,15 +289,13 @@ struct transpose_process {
         coordinate_type s_dst(allscale::utils::Vector<long,2>( s_src[1], s_src[0] ) );
         coordinate_type e_dst(allscale::utils::Vector<long,2>( e_src[1], e_src[0] ) );
         region_type r_dst(s_dst,e_dst);
-
-        //std::cout<< "r: " << r_src << " r_dst: " << r_dst  << std::endl;
-
+        
         //acquire regions now
         return hpx::util::make_tuple(
             allscale::createDataItemRequirement(
                 hpx::util::get<0>(c),
                 r_src,
-                allscale::access_mode::ReadOnly
+                allscale::access_mode::ReadWrite
             ),
             allscale::createDataItemRequirement(
                 hpx::util::get<1>(c),
@@ -320,6 +347,7 @@ struct main_process
 
         allscale::spawn_first<grid_init>(mat_a, begin, end).wait();
 
+//        allscale::spawn_first<grid_init>(mat_b, begin, end).wait();
 
        region_type whole_region({0,0}, {N, N});
        
@@ -331,50 +359,62 @@ struct main_process
                allscale::access_mode::ReadWrite
            )).get();
        auto ref = allscale::data_item_manager::get(mat_a);
-/*       
-       int val = 0;
+       allscale::data_item_manager::release(lease_init);
+
+        // DO ACTUAL WORK: SPAWN FIRST WORK ITEM
+       hpx::util::high_resolution_timer timer;
+       hpx::when_all(
+            allscale::spawn_first<transpose>(mat_a, mat_b, begin, end).get_future()
+        ).get();
+       double elapsed = timer.elapsed();
+       std::cout << "Elapsed time: " << elapsed << '\n';
+       // ===================================================
+
+
+     // ============ LOOK AT RESULT==========================
+       auto lease_result_a = allscale::data_item_manager::acquire(
+           allscale::createDataItemRequirement(
+               mat_a,
+               whole_region,
+               allscale::access_mode::ReadOnly
+           )).get();
+       auto ref_result_a = allscale::data_item_manager::get(mat_a);
        for(int j = 0; j < N; ++j){    
            for(int i = 0; i < N; ++i){
                coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
-               ref[tmp]  = val;                                                 
-               val++;                                                              
-           }                                                                       
-       }
-  */
-       //=====================             END OF FILLING          ====================
-       
-       allscale::data_item_manager::release(lease_init);
+               std::cout<< ref_result_a[tmp] << " ";                                                 
 
-                // DO ACTUAL WORK: SPAWN FIRST WORK ITEM
-        hpx::when_all(
-            allscale::spawn_first<transpose>(mat_a, mat_b, begin, end).get_future()
-        ).get();
-        
-      // ============ LOOK AT RESULT==========================
-        auto lease_result = allscale::data_item_manager::acquire(
-            allscale::createDataItemRequirement(
-                mat_b,
-                whole_region,
-                allscale::access_mode::ReadOnly
-            )).get();
-        auto ref_result = allscale::data_item_manager::get(mat_b);
-        
-        /*         
-        whole_region.scan(
-            [&](auto const& pos)
-            {
-            std::cout<< ref_result[pos] << " ";
-            }
-        );*/
-        for(int j = 0; j < N; ++j){    
-            for(int i = 0; i < N; ++i){
-                coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
-                std::cout<< ref_result[tmp] << " ";                                                 
-            }
-            std::cout<<std::endl;                                                                       
-        }
-        std::cout<<std::endl;
-        allscale::data_item_manager::release(lease_result);
+           }
+           std::cout<<std::endl;                                                                       
+       }
+       std::cout<<std::endl;
+     // ===================================================
+       
+
+       std::cout<<std::endl;
+       std::cout<<std::endl;
+
+       std::cout<< N << std::endl;
+
+     // ============ LOOK AT RESULT==========================
+       auto lease_result = allscale::data_item_manager::acquire(
+           allscale::createDataItemRequirement(
+               mat_b,
+               whole_region,
+               allscale::access_mode::ReadOnly
+           )).get();
+       auto ref_result = allscale::data_item_manager::get(mat_b);
+       for(int j = 0; j < N; ++j){    
+           for(int i = 0; i < N; ++i){
+               coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
+               std::cout<< ref_result[tmp] << " ";                                                 
+           }
+           std::cout<<std::endl;                                                                       
+       }
+       std::cout<<std::endl;
+     // ===================================================
+     
+     allscale::data_item_manager::release(lease_result);
 
 
         allscale::data_item_manager::destroy(mat_a);
@@ -386,5 +426,22 @@ struct main_process
 };
 
 int main(int argc, char **argv) {
+   
+
+    N=atoi(argv[3]);
+        /*
+    po::options_description desc("Allowed options");
+    desc.add_options()
+        ("N", po::value<uint32_t>(), "set number of elements in grid, default = 10000");
+    po::variables_map vm;        
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);    
+    if (vm.count("N")) {
+        cout << "Number of elements was set to " 
+             << vm["N"].as<uint32_t>() << ".\n";
+        N = vm["N"].as<uint32_t>(); 
+    } else {
+        cout << "Number of elements was not set, using default = 10000.\n";
+    }*/
     return allscale::runtime::main_wrapper<main_work>(argc, argv);
 }
