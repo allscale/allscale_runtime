@@ -5,7 +5,7 @@
 #include <allscale/treeture.hpp>
 #include <allscale/monitor.hpp>
 #include <allscale/data_item_manager.hpp>
-#include <allscale/detail/unwrap_if.hpp>
+#include <allscale/data_item_requirement.hpp>
 #include <allscale/detail/work_item_impl_base.hpp>
 
 #include <hpx/include/serialization.hpp>
@@ -73,6 +73,17 @@ namespace allscale { namespace detail {
     {
     }
 
+    template <typename Requirements>
+    inline auto merge_requirements(Requirements && reqs)
+    {
+        return detail::merge_data_item_reqs(std::forward<Requirements>(reqs));
+    }
+
+    inline hpx::util::tuple<> merge_requirements(hpx::util::tuple<> reqs)
+    {
+        return reqs;
+    }
+
     template <typename Requirements, std::size_t... Is>
     inline auto get_leases(hpx::util::detail::pack_c<std::size_t, Is...>, Requirements const& reqs)
      -> hpx::util::tuple<
@@ -83,6 +94,17 @@ namespace allscale { namespace detail {
         return hpx::util::make_tuple(
             allscale::data_item_manager::acquire(hpx::util::get<Is>(reqs))...
         );
+    }
+
+    template<typename T, typename SharedState>
+    inline void set_treeture(treeture<T>& t, SharedState& s) {
+        t.set_value(std::move(*s->get_result()));
+    }
+
+    template<typename SharedState>
+    inline void set_treeture(treeture<void>& t, SharedState& s) {
+    // 	f.get(); // exception propagation
+        t.set_value(hpx::util::unused_type{});
     }
 
     template<typename WorkItemDescription, typename Closure>
@@ -160,7 +182,7 @@ namespace allscale { namespace detail {
         struct acquire_result
         {
             typedef
-                decltype(Variant::get_requirements(std::declval<Closure const&>()))
+                decltype(merge_requirements(Variant::get_requirements(std::declval<Closure const&>())))
                 reqs;
             typedef typename hpx::util::detail::make_index_pack<
                 hpx::util::tuple_size<reqs>::type::value>::type pack;
@@ -173,7 +195,7 @@ namespace allscale { namespace detail {
          -> typename acquire_result<Variant>::type
         {
             typename acquire_result<Variant>::pack pack;
-            return get_leases(pack, Variant::get_requirements(closure_));
+            return get_leases(pack, merge_requirements(Variant::get_requirements(closure_)));
         }
 
         // Overload for non templates...
@@ -182,7 +204,7 @@ namespace allscale { namespace detail {
          -> typename acquire_result<Variant>::type
         {
             typename acquire_result<Variant>::pack pack;
-            return get_leases(pack, Variant::get_requirements(closure_));
+            return get_leases(pack, merge_requirements(Variant::get_requirements(closure_)));
         }
 
         template <typename Variant>
@@ -222,7 +244,7 @@ namespace allscale { namespace detail {
 
         template <typename Leases>
         void finalize(
-            std::shared_ptr<work_item_impl>&& this_, hpx::util::unused_type, Leases leases)
+            std::shared_ptr<work_item_impl> this_, hpx::util::unused_type, Leases leases)
         {
             monitor::signal(monitor::work_item_execution_finished,
                 work_item(this_));
@@ -246,8 +268,7 @@ namespace allscale { namespace detail {
             set_id si(this->id_);
 
             auto work_res =
-                WorkItemDescription::process_variant::execute(
-                    detail::unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...));
+                WorkItemDescription::process_variant::execute(closure_);
 
             finalize(std::move(this_), std::move(work_res), std::move(leases));
 		}
@@ -265,8 +286,8 @@ namespace allscale { namespace detail {
             // null-op as fallback...
         }
 
-        template<typename ...Ts, typename Leases>
-		void do_split(Leases leases, Ts ...vs)
+        template<typename Leases>
+		void do_split(Leases leases)
         {
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_execution_started, work_item(this_));
@@ -274,15 +295,14 @@ namespace allscale { namespace detail {
             set_id si(this->id_);
 
             auto work_res =
-                WorkItemDescription::split_variant::execute(
-                    unwrap_tuple(hpx::util::tuple<>(), std::move(vs)...));
+                WorkItemDescription::split_variant::execute(closure_);
             set_children(work_res);
 
             finalize(std::move(this_), std::move(work_res), std::move(leases));
         }
 
-        template <typename ProcessVariant, typename Leases, std::size_t... Is>
-        void get_deps(executor_type& exec, hpx::util::detail::pack_c<std::size_t, Is...>, Leases leases,
+        template <typename ProcessVariant, typename Leases>
+        void get_deps(executor_type& exec, Leases leases,
             decltype(&ProcessVariant::template deps<Closure>))
         {
             typedef hpx::shared_future<void> deps_type;
@@ -306,18 +326,15 @@ namespace allscale { namespace detail {
                 {
 //                     state->get_result();
                     void (work_item_impl::*f)(
-                            Leases,
-                            typename hpx::util::decay<
-                            decltype(hpx::util::get<Is>(closure_))>::type...
+                            Leases
                     ) = &work_item_impl::do_process;
 
-                    hpx::apply(exec, f, this_,
-                        std::move(leases), std::move(hpx::util::get<Is>(this_->closure_))...);
+                    hpx::apply(exec, f, std::move(this_), std::move(leases));
                 });
         }
 
-        template <typename ProcessVariant, typename Leases, std::size_t... Is>
-        void get_deps(executor_type& exec, hpx::util::detail::pack_c<std::size_t, Is...>, Leases leases, ...)
+        template <typename ProcessVariant, typename Leases>
+        void get_deps(executor_type& exec, Leases leases, ...)
         {
             auto this_ = shared_this();
             if (dep_.valid() && !dep_.is_ready())
@@ -329,58 +346,32 @@ namespace allscale { namespace detail {
                 state->set_on_completed(
                     [exec, state, this_, leases]() mutable
                     {
-                        void (work_item_impl::*f)(
-                                Leases,
-                                typename hpx::util::decay<
-                                decltype(hpx::util::get<Is>(closure_))>::type...
-                        ) = &work_item_impl::do_process;
+                        void (work_item_impl::*f)(Leases) = &work_item_impl::do_process;
 
-                        hpx::apply(exec, f, this_,
-                            std::move(leases), std::move(hpx::util::get<Is>(this_->closure_))...);
+                        hpx::apply(exec, f, std::move(this_), std::move(leases));
                     }
                 );
             }
             else
             {
-                do_process(
-                    std::move(leases), std::move(hpx::util::get<Is>(closure_))...);
+                do_process(std::move(leases));
             }
-        }
-
-        template<std::size_t ... Is>
-        void process(executor_type& exec, hpx::util::detail::pack_c<std::size_t, Is...> pack)
-        {
-            HPX_ASSERT(valid());
-            auto reqs = acquire<typename WorkItemDescription::process_variant>(nullptr);
-
-            typedef typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type reqs_type;
-
-            auto this_ = shared_this();
-            hpx::dataflow(exec,
-                hpx::util::unwrapping([this_, exec, pack](reqs_type reqs) mutable
-                {
-                    this_->template get_deps<typename WorkItemDescription::process_variant>(exec, pack, reqs, nullptr);
-                })
-              , std::move(reqs));
         }
 
         void process(executor_type& exec)
         {
-            process(exec, typename hpx::util::detail::make_index_pack<
-                hpx::util::tuple_size<closure_type>::type::value>::type());
-        }
+            HPX_ASSERT(valid());
+            auto reqs = acquire<typename WorkItemDescription::process_variant>(nullptr);
 
-        template<std::size_t ... Is>
-        void split_impl(executor_type& exec, hpx::util::detail::pack_c<std::size_t, Is...>) {
-            auto reqs = acquire<typename WorkItemDescription::split_variant>(nullptr);
+            typedef
+                typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type
+                reqs_type;
 
-            typedef typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type reqs_type;
             auto this_ = shared_this();
             hpx::dataflow(exec,
-                hpx::util::unwrapping([this_](reqs_type reqs) mutable
+                hpx::util::unwrapping([this_, exec](reqs_type reqs) mutable
                 {
-                    HPX_ASSERT(this_->valid());
-                    this_->do_split(std::move(reqs), std::move(hpx::util::get<Is>(this_->closure_))...);
+                    this_->template get_deps<typename WorkItemDescription::process_variant>(exec, reqs, nullptr);
                 })
               , std::move(reqs));
         }
@@ -390,8 +381,17 @@ namespace allscale { namespace detail {
             WorkItemDescription_::split_variant::valid
         >::type split_impl(executor_type& exec)
         {
-            split_impl(exec, typename hpx::util::detail::make_index_pack<
-                hpx::util::tuple_size<closure_type>::type::value>::type());
+            auto reqs = acquire<typename WorkItemDescription::split_variant>(nullptr);
+
+            typedef typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type reqs_type;
+            auto this_ = shared_this();
+            hpx::dataflow(exec,
+                hpx::util::unwrapping([this_](reqs_type reqs) mutable
+                {
+                    HPX_ASSERT(this_->valid());
+                    this_->do_split(std::move(reqs));
+                })
+              , std::move(reqs));
         }
 
         template <typename WorkItemDescription_>

@@ -21,6 +21,8 @@
 #include <stdint.h>
 #include <utility>
 
+typedef std::string string_type;
+
 #ifdef __cplusplus
 #define INS_INIT(...) __VA_ARGS__
 #else

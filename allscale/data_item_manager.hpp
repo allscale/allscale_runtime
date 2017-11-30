@@ -21,9 +21,15 @@ namespace allscale
         static allscale::data_item_reference<DataItemType>
         create(Args&&...args)
         {
+            auto dm = data_item_manager_impl<DataItemType>::get_ptr();
             return
                 data_item_reference<DataItemType>(
-                    hpx::local_new<detail::id_holder>(), std::forward<Args>(args)...
+                    hpx::local_new<detail::id_holder>(
+                        [](hpx::naming::gid_type const& id)
+                        {
+                            data_item_manager_impl<DataItemType>::get_ptr()->destroy(id);
+                        }
+                    ), std::forward<Args>(args)...
                 );
         }
 
@@ -43,6 +49,19 @@ namespace allscale
 
         template<typename DataItemType>
 		static void release(const allscale::lease<DataItemType>& lease)
+        {
+            return data_item_manager_impl<DataItemType>::release(lease);
+        }
+
+        template<typename DataItemType>
+		static std::vector<hpx::future<allscale::lease<DataItemType>>>
+        acquire(std::vector<allscale::data_item_requirement<DataItemType>> const & requirement)
+        {
+            return data_item_manager_impl<DataItemType>::acquire(requirement);
+		}
+
+        template<typename DataItemType>
+		static void release(const std::vector<allscale::lease<DataItemType>>& lease)
         {
             return data_item_manager_impl<DataItemType>::release(lease);
         }

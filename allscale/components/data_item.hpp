@@ -109,12 +109,12 @@ public:
 
     mutable mutex_type mtx_;
     hpx::lcos::local::detail::condition_variable write_cv;
-    typedef	std::map<hpx::id_type, fragment_info> store_type;
+    typedef	std::map<hpx::naming::gid_type, fragment_info> store_type;
 
 	store_type store;
     data_item_network network;
 
-    typedef std::map<hpx::id_type, location_info> location_store_type;
+    typedef std::map<hpx::naming::gid_type, location_info> location_store_type;
     location_store_type location_store;
 
     public:
@@ -141,7 +141,6 @@ public:
                 write_cv.wait(l);
                 to_test = region_type::difference(info.writeLocked, req.region);
             }
-
 
             // FIXME: add debug check that all other fragments don't have
             // any kinds of locks on this fragment...
@@ -220,14 +219,12 @@ public:
             store_it = store_pair.first;
 
             // The first access needs to be ReadWrite...
-            //HPX_ASSERT(req.mode == access_mode::ReadWrite);
-
-            needs_first_touch = (access_mode::ReadWrite == req.mode);
+            needs_first_touch = true;
 
         }
         auto& info = store_it->second;
 
-        if(!needs_first_touch && req.mode == access_mode::ReadWrite)
+        if(!needs_first_touch)
         {
             if (region_type::intersect(info.fragment.getCoveredRegion(), req.region).empty())
                 needs_first_touch = true;
@@ -268,6 +265,17 @@ public:
         return acquire_impl(req, store_it, std::move(l));
     }
 
+    std::vector<hpx::future<lease_type>> acquire(const std::vector<requirement_type>& reqs)
+    {
+        std::vector<hpx::future<lease_type>> leases;
+        leases.reserve(reqs.size());
+
+        for (auto const& req: reqs)
+            leases.push_back(acquire(req));
+
+        return leases;
+    }
+
     void release(const lease<DataItemType>& lease) {
         // get information about fragment
         std::unique_lock<mutex_type> l(mtx_);
@@ -306,30 +314,31 @@ public:
         }
     }
 
-    void destroy(const data_item_reference<DataItemType>& ref) {
-        std::unique_lock<mutex_type> l(mtx_);
-        // check that the reference is valid
-        auto store_it = store.find(ref.id());
-        HPX_ASSERT(store_it != store.end());
-
-        // FIXME: replace with broadcast...
-        store.erase(ref.id());
-        // remove data from all nodes
-//         network.broadcast([&ref](data_item_server& server){
-//             if (!server.alive) return;
-//
-//             // make sure now access on fragment is still granted
-//             assert_true(server.getInfo(ref).readLocked.empty())
-//                 << "Still read access on location " << server.myLocality << " for region " << server.getInfo(ref).readLocked;
-//             assert_true(server.getInfo(ref).writeLocked.empty())
-//                 << "Still write access on location " << server.myLocality << " for region " << server.getInfo(ref).writeLocked;
-//
-//             server.store.erase(ref.id);
-//         });
-
+    void release(const std::vector<lease<DataItemType>>& leases)
+    {
+        for (auto const& lease: leases)
+        {
+            release(lease);
+        }
     }
 
-    void first_touch(hpx::id_type const& id, region_type const& region, std::size_t rank)
+    void destroy(hpx::naming::gid_type const& id) {
+        std::unique_lock<mutex_type> l(mtx_);
+        // check that the reference is valid
+        auto store_it = store.find(id);
+        if (store_it != store.end())
+        {
+            // FIXME: replace with broadcast...
+            store.erase(store_it);
+            // remove data from all nodes
+        }
+    }
+
+    void destroy(const data_item_reference<DataItemType>& ref) {
+        destroy(ref.id());
+    }
+
+    void first_touch(hpx::naming::gid_type const& id, region_type const& region, std::size_t rank)
     {
         std::unique_lock<mutex_type> l(mtx_);
 
@@ -337,12 +346,12 @@ public:
     }
     HPX_DEFINE_COMPONENT_DIRECT_ACTION(data_item, first_touch);
 
-    location_info get_location_info_impl(hpx::id_type const& id, region_type const& region, region_type* remainder)
+    location_info get_location_info_impl(hpx::naming::gid_type const& id, region_type const& region, region_type* remainder)
     {
         std::unique_lock<mutex_type> l(mtx_);
         auto locate_it = location_store.find(id);
         location_info res;
-        
+
         if(remainder != nullptr){
             if(locate_it == location_store.end())
             {
@@ -365,13 +374,13 @@ public:
         }
         return res;
     }
-    location_info get_location_info(hpx::id_type const& id, region_type const& region)
+    location_info get_location_info(hpx::naming::gid_type const& id, region_type const& region)
     {
         return get_location_info_impl(id, region, nullptr);
     }
     HPX_DEFINE_COMPONENT_DIRECT_ACTION(data_item, get_location_info);
 
-    data_item_view transfer(hpx::id_type const& id, region_type const& region)
+    data_item_view transfer(hpx::naming::gid_type const& id, region_type const& region)
     {
         std::unique_lock<mutex_type> l(mtx_);
 
@@ -384,7 +393,7 @@ public:
 
     hpx::future<location_info> locate(const requirement_type& req)
     {
-        hpx::id_type req_id = req.ref.id();
+        hpx::naming::gid_type req_id = req.ref.id();
         region_type req_region = std::move(req.region);
         region_type remainder = req_region;
         location_info cached = get_location_info_impl(req_id, req_region, &remainder);

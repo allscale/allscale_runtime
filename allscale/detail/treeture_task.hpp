@@ -313,6 +313,16 @@ namespace hpx { namespace traits {
         }
     };
 
+    template <>
+    struct get_remote_result<void, boost::intrusive_ptr<allscale::detail::treeture_task<void>>>
+    {
+        static void call(boost::intrusive_ptr<allscale::detail::treeture_task<void>> ptr)
+        {
+            HPX_ASSERT(ptr->has_value());
+            hpx::util::unused = *ptr->get_result();
+        }
+    };
+
     template <typename T>
     struct promise_local_result<boost::intrusive_ptr<allscale::detail::treeture_task<T>>>
     {

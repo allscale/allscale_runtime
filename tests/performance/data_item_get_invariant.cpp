@@ -130,8 +130,6 @@ struct main_process {
                 DataItemManager::get(var_5)[Vector<long, 2 >(var_0 / 2, var_0 / 2)] < 100. ? 0 : 1);
         allscale::data_item_manager::release(lease1);
         allscale::data_item_manager::release(lease2);
-        allscale::data_item_manager::destroy(var_3);
-        allscale::data_item_manager::destroy(var_4);
 
         return res;
     }

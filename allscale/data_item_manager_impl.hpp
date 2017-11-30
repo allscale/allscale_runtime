@@ -33,12 +33,6 @@ namespace allscale
             registry_.instantiate();
         }
 
-		static hpx::future<allscale::lease<DataItemType>>
-        acquire(const allscale::data_item_requirement<DataItemType>& requirement)
-        {
-            return get_ptr()->acquire(requirement);
-        }
-
         static typename DataItemType::facade_type
         get(const data_reference& ref)
         {
@@ -52,7 +46,24 @@ namespace allscale
             return ref.fragment->mask();
         }
 
+		static hpx::future<allscale::lease<DataItemType>>
+        acquire(const allscale::data_item_requirement<DataItemType>& requirement)
+        {
+            return get_ptr()->acquire(requirement);
+        }
+
         static void release(const allscale::lease<DataItemType>& lease)
+        {
+            return get_ptr()->release(lease);
+        }
+
+        static std::vector<hpx::future<allscale::lease<DataItemType>>>
+        acquire(std::vector<allscale::data_item_requirement<DataItemType>> const& requirement)
+        {
+            return get_ptr()->acquire(requirement);
+        }
+
+        static void release(const std::vector<allscale::lease<DataItemType>>& lease)
         {
             return get_ptr()->release(lease);
         }

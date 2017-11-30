@@ -10,7 +10,7 @@ set(tests
   cmd_options_optimized_optimized.insieme.seq
   cmd_options_unoptimized_unoptimized.insieme.seq
   fib_eager_fib_eager.insieme.seq
-  #grid_init.insieme.seq
+  grid_stencil_2d_particles.insieme.seq
   insieme-src-195b1d7e
   insieme-src-1a9e077a
   insieme-src-228d4e56
@@ -67,6 +67,6 @@ foreach(test ${tests})
         SOURCES ${sources}
         COMPONENT_DEPENDENCIES allscale
     )
-  add_test(NAME ${test}_test_exe COMMAND $<TARGET_FILE:${test}_test_exe>)
+  add_test(NAME ${test}_test_exe COMMAND $<TARGET_FILE:${test}_test_exe> --hpx:threads=4)
 endforeach()
 

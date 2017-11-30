@@ -30,7 +30,6 @@ namespace allscale { namespace components {
 
            std::unique_ptr<hpx::threads::executors::io_pool_executor> scheduler;
 
-           std::atomic_bool resilience_component_running;
 
            //UDP port
            const int UDP_RECV_PORT = 44444;
@@ -43,11 +42,11 @@ namespace allscale { namespace components {
            udp::socket *send_sock;
            udp::socket *recv_sock;
            bool recovery_done; // protected via cv and cv_m
-           state my_state;
+           std::atomic<state> my_state;
            std::chrono::high_resolution_clock::time_point start_time,trust_lease;
-           std::size_t heartbeat_counter;
+           //std::size_t heartbeat_counter;
            const std::size_t miu = 1000;
-           const std::size_t delta = 4000;
+           const std::size_t delta = 1000;
            boost::dynamic_bitset<> rank_running_;
            std::size_t get_running_ranks();
            bool rank_running(uint64_t rank);
@@ -63,7 +62,7 @@ namespace allscale { namespace components {
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,get_ip_address);
            // END failure detection here
 
-           bool resilience_disabled;
+           std::atomic_bool resilience_disabled;
            uint64_t rank_, num_localities;
            hpx::id_type guard_;
            uint64_t guard_rank_;
@@ -71,10 +70,11 @@ namespace allscale { namespace components {
            uint64_t protectee_rank_;
            hpx::id_type protectees_protectee_;
            uint64_t protectees_protectee_rank_;
-           std::mutex backup_mutex_;
-           std::map<this_work_item::id,work_item> local_backups_;
-           std::mutex result_mutex_;
-           std::map<this_work_item::id,work_item> remote_backups_;
+           mutable mutex_type backup_mutex_;
+           mutable mutex_type running_ranks_mutex_;
+           std::map<std::string, work_item> local_backups_;
+           mutable mutex_type result_mutex_;
+           std::map<std::string, work_item> remote_backups_;
            void init();
            resilience(std::uint64_t rank);
            void protectee_crashed();
@@ -86,13 +86,13 @@ namespace allscale { namespace components {
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,set_guard);
            std::pair<hpx::id_type,uint64_t> get_protectee();
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,get_protectee);
-           std::map<this_work_item::id,work_item> get_local_backups();
+           std::map<std::string,work_item> get_local_backups();
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,get_local_backups);
            void remote_backup(work_item wi);
            HPX_DEFINE_COMPONENT_ACTION(resilience,remote_backup);
            void kill_me();
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,kill_me);
-           void remote_unbackup(work_item wi);
+           void remote_unbackup(std::string name);
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,remote_unbackup);
            void shutdown();
            HPX_DEFINE_COMPONENT_ACTION(resilience,shutdown);
@@ -102,8 +102,7 @@ namespace allscale { namespace components {
            void w_exec_start_wrapper(work_item const& w);
            static void global_w_exec_finish_wrapper(work_item const& w);
            void w_exec_finish_wrapper(work_item const& w);
-           //void do_send(udp::endpoint receiver);
-           //void do_receive(udp::endpoint sender);
+           mutable mutex_type access_scheduler_mtx_;
        };
 }}
 
