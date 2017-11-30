@@ -14,8 +14,6 @@
 
 using std::chrono::milliseconds;
 
-#define DEBUG_
-
 namespace allscale { namespace components {
 
     resilience::resilience(std::uint64_t rank)
