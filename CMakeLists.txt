@@ -4,6 +4,8 @@ cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
+option(ALLSCALE_WITH_EXAMPLES "Build AllScale Runtime Examples" ON)
+
 find_package(HPX REQUIRED)
 find_package(CPUFREQ)
 
@@ -32,7 +34,10 @@ add_definitions(-DALLSCALE_WITH_HPX)
 include_directories(${CMAKE_SOURCE_DIR} ${ALLSCALE_API_DIR}/code/utils/include ${ALLSCALE_API_DIR}/code/api/include)
 
 add_subdirectory(src)
-add_subdirectory(examples)
+
+if(ALLSCALE_WITH_EXAMPLES)
+  add_subdirectory(examples)
+endif()
 
 if(ALLSCALE_WITH_TESTS)
   enable_testing()
