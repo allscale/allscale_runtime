@@ -14,6 +14,8 @@
 
 using std::chrono::milliseconds;
 
+#define DEBUG_
+
 namespace allscale { namespace components {
 
     resilience::resilience(std::uint64_t rank)
@@ -388,10 +390,12 @@ namespace allscale { namespace components {
 
     void resilience::shutdown() {
         if (!resilience_disabled) {
+            std::unique_ptr<hpx::threads::executors::io_pool_executor> scheduler_;
             {
-            std::unique_lock<mutex_type> lk(access_scheduler_mtx_);
-            scheduler.reset();
+                std::unique_lock<mutex_type> lk(access_scheduler_mtx_);
+                std::swap(scheduler_, scheduler);
             }
+            scheduler_.reset();
             // We need to invoke synchronously here
             hpx::apply<shutdown_action>(guard_);
         }
