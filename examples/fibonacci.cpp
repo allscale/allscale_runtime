@@ -104,12 +104,9 @@ struct process_variant
 
     // Execute fibonacci serially
     template <typename Closure>
-    static allscale::treeture<std::int64_t> execute(Closure const& closure)
+    static std::int64_t execute(Closure const& closure)
     {
-        return
-            allscale::treeture<std::int64_t>{
-                fib_ser(hpx::util::get<0>(closure))
-            };
+        return fib_ser(hpx::util::get<0>(closure));
     }
 };
 

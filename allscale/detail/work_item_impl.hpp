@@ -214,9 +214,12 @@ namespace allscale { namespace detail {
         }
 
         template <typename Future, typename Leases>
-        typename std::enable_if<!std::is_same<Future, hpx::util::unused_type>::value>::type
+        typename std::enable_if<
+            hpx::traits::is_future<Future>::value ||
+            traits::is_treeture<Future>::value
+        >::type
         finalize(
-            std::shared_ptr<work_item_impl> this_, Future work_res, Leases leases)
+            std::shared_ptr<work_item_impl> this_, Future && work_res, Leases leases)
         {
             monitor::signal(monitor::work_item_execution_finished,
                 work_item(this_));
@@ -242,9 +245,13 @@ namespace allscale { namespace detail {
                 std::move(this_), state, std::move(leases)));
         }
 
-        template <typename Leases>
-        void finalize(
-            std::shared_ptr<work_item_impl> this_, hpx::util::unused_type, Leases leases)
+        template <typename Future, typename Leases>
+        typename std::enable_if<
+            !hpx::traits::is_future<Future>::value &&
+            !traits::is_treeture<Future>::value
+        >::type
+        finalize(
+            std::shared_ptr<work_item_impl> this_, Future && work_res, Leases leases)
         {
             monitor::signal(monitor::work_item_execution_finished,
                 work_item(this_));
@@ -254,13 +261,19 @@ namespace allscale { namespace detail {
             release(pack, leases);
 
             set_id si(this_->id_);
-            tres_.set_value(hpx::util::unused_type{});
+            tres_.set_value(std::forward<Future>(work_res));
             monitor::signal(monitor::work_item_result_propagated,
                 work_item(std::move(this_)));
         }
 
-        template<typename Leases, typename ...Ts>
-		void do_process(Leases leases, Ts ...vs)
+        template <typename Closure_, typename Leases, typename ...Ts>
+        typename std::enable_if<
+            !std::is_same<
+                decltype(WorkItemDescription::process_variant::execute(std::declval<Closure_ const&>())),
+                void
+            >::value
+        >::type
+		do_process(Leases leases, Ts ...vs)
         {
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_execution_started,
@@ -271,6 +284,25 @@ namespace allscale { namespace detail {
                 WorkItemDescription::process_variant::execute(closure_);
 
             finalize(std::move(this_), std::move(work_res), std::move(leases));
+		}
+
+        template <typename Closure_, typename Leases, typename ...Ts>
+        typename std::enable_if<
+            std::is_same<
+                decltype(WorkItemDescription::process_variant::execute(std::declval<Closure_ const&>())),
+                void
+            >::value
+        >::type
+		do_process(Leases leases, Ts ...vs)
+        {
+            std::shared_ptr < work_item_impl > this_(shared_this());
+            monitor::signal(monitor::work_item_execution_started,
+                work_item(this_));
+            set_id si(this->id_);
+
+            WorkItemDescription::process_variant::execute(closure_);
+
+            finalize(std::move(this_), hpx::util::unused_type(), std::move(leases));
 		}
 
         template <typename T>
@@ -327,7 +359,7 @@ namespace allscale { namespace detail {
 //                     state->get_result();
                     void (work_item_impl::*f)(
                             Leases
-                    ) = &work_item_impl::do_process;
+                    ) = &work_item_impl::do_process<Closure>;
 
                     hpx::apply(exec, f, std::move(this_), std::move(leases));
                 });
@@ -346,7 +378,7 @@ namespace allscale { namespace detail {
                 state->set_on_completed(
                     [exec, state, this_, leases]() mutable
                     {
-                        void (work_item_impl::*f)(Leases) = &work_item_impl::do_process;
+                        void (work_item_impl::*f)(Leases) = &work_item_impl::do_process<Closure>;
 
                         hpx::apply(exec, f, std::move(this_), std::move(leases));
                     }
@@ -354,7 +386,7 @@ namespace allscale { namespace detail {
             }
             else
             {
-                do_process(std::move(leases));
+                do_process<Closure>(std::move(leases));
             }
         }
 
