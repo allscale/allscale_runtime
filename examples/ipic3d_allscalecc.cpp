@@ -72,40 +72,6 @@ int32_t main(int32_t var_0, char** var_1) {
 }
 
 ALLSCALE_REGISTER_TREETURE_TYPE(int32_t)
-struct allscale_type_7;
-typedef struct allscale_type_7 allscale_type_7;
-
-struct allscale_type_7 {
-    char data[3];;
-};
-
-struct allscale_type_14;
-typedef struct allscale_type_14 allscale_type_14;
-
-struct allscale_type_14 {
-    char data[30];;
-};
-
-struct allscale_type_6;
-typedef struct allscale_type_6 allscale_type_6;
-
-struct allscale_type_6 {
-    char data[7];;
-};
-
-struct allscale_type_22;
-typedef struct allscale_type_22 allscale_type_22;
-
-struct allscale_type_22 {
-    char data[29];;
-};
-
-struct allscale_type_23;
-typedef struct allscale_type_23 allscale_type_23;
-
-struct allscale_type_23 {
-    char data[6];;
-};
 
 struct IMP_ipic3d_colon__colon_Parameters;
 typedef struct IMP_ipic3d_colon__colon_Parameters IMP_ipic3d_colon__colon_Parameters;
@@ -629,34 +595,6 @@ struct IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale
     void operator()(allscale::utils::Vector<long, 3 > const& p2) const;
 };
 
-struct allscale_type_1139;
-typedef struct allscale_type_1139 allscale_type_1139;
-
-struct allscale_type_1139 {
-    char data[102];;
-};
-
-struct allscale_type_1140;
-typedef struct allscale_type_1140 allscale_type_1140;
-
-struct allscale_type_1140 {
-    char data[112];;
-};
-
-struct allscale_type_1141;
-typedef struct allscale_type_1141 allscale_type_1141;
-
-struct allscale_type_1141 {
-    char data[45];;
-};
-
-struct allscale_type_1802;
-typedef struct allscale_type_1802 allscale_type_1802;
-
-struct allscale_type_1802 {
-    char data[54];;
-};
-
 struct IMP_RecArgs_instance1_IMLOC__slash_home_slash_heller_slash_projects_slash_allscale_compiler_slash_api_slash_code_slash_api_slash_include_slash_allscale_slash_api_slash_user_slash_algorithm_slash_pfor_dot_h_1130_3;
 typedef struct IMP_RecArgs_instance1_IMLOC__slash_home_slash_heller_slash_projects_slash_allscale_compiler_slash_api_slash_code_slash_api_slash_include_slash_allscale_slash_api_slash_user_slash_algorithm_slash_pfor_dot_h_1130_3 IMP_RecArgs_instance1_IMLOC__slash_home_slash_heller_slash_projects_slash_allscale_compiler_slash_api_slash_code_slash_api_slash_include_slash_allscale_slash_api_slash_user_slash_algorithm_slash_pfor_dot_h_1130_3;
 
@@ -692,12 +630,6 @@ IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__co
 IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_loop_reference_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_ IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_pfor_long_3_lambda_slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_field_dot_h_71_35_returns_detail_colon__colon_loop_reference_lt_utils_colon__colon_Vector_lt_long_comma__space_3UL_gt__space__gt_(allscale::utils::Vector<long, 3 > const& var_0, allscale::utils::Vector<long, 3 > const& index, IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_field_dot_h_71_35_allscale_colon__colon_api_colon__colon_user_colon__colon_data_colon__colon_Grid_lt_struct_space_ipic3d_colon__colon_FieldNode_comma__space_3_gt__space__ampersand__allscale_colon__colon_utils_colon__colon_Vector_lt_double_comma__space_3_gt__space__ampersand__const_space_struct_space_ipic3d_colon__colon_InitProperties_space__ampersand__allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__space__ampersand__const_space_struct_space_ipic3d_colon__colon_UniverseProperties_space__ampersand__allscale_colon__colon_utils_colon__colon_Vector_lt_double_comma__space_3_gt__space__ampersand__double_space__ampersand__void_const_space_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__space__ampersand__IMLOC__slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_field_dot_h_71_35 const& var_2) {
     return (IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_loop_reference_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_&&)IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_pfor_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__lambda_slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_field_dot_h_71_35_returns_detail_colon__colon_loop_reference_lt_Vector_lt_long_comma__space_3_gt__space__gt_(IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_{var_0, index}, var_2, IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_no_dependencies{});
 }
-struct allscale_type_1801;
-typedef struct allscale_type_1801 allscale_type_1801;
-
-struct allscale_type_1801 {
-    char data[120];;
-};
 
 /* ------- Function Definitions --------- */
 allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_FieldNode, 3 > IMP_ipic3d_colon__colon_initFields(IMP_ipic3d_colon__colon_InitProperties const& var_0, IMP_ipic3d_colon__colon_UniverseProperties const& var_1) {
@@ -785,12 +717,6 @@ IMP_ipic3d_colon__colon_Universe IMP_ipic3d_colon__colon_createUniverseFromParam
     IMP_ipic3d_colon__colon_Universe var_8{(var_3), (std::move(var_4)), (std::move(var_5)), (std::move(var_6)), (std::move(var_7))};
     return (IMP_ipic3d_colon__colon_Universe&&)var_8;
 }
-struct allscale_type_121;
-typedef struct allscale_type_121 allscale_type_121;
-
-struct allscale_type_121 {
-    char data[34];;
-};
 
 struct IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_common_dot_h_12_14_struct_space_ipic3d_colon__colon_Universe_space__ampersand__void_const_space_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__space__ampersand__int_space__ampersand__IMLOC__slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_common_dot_h_12_14;
 typedef struct IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_common_dot_h_12_14_struct_space_ipic3d_colon__colon_Universe_space__ampersand__void_const_space_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__space__ampersand__int_space__ampersand__IMLOC__slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_common_dot_h_12_14 IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_common_dot_h_12_14_struct_space_ipic3d_colon__colon_Universe_space__ampersand__void_const_space_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__space__ampersand__int_space__ampersand__IMLOC__slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_common_dot_h_12_14;
@@ -899,12 +825,6 @@ int32_t IMP_ipic3d_colon__colon_countParticlesInDomain(IMP_ipic3d_colon__colon_U
     allscale::utils::Vector<long, 3 > var_5 = (allscale::utils::Vector<long, 3 >&&)var_0.cells.size();
     return IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_preduce_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__lambda_slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_common_dot_h_12_14_lambda_slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_common_dot_h_16_17_lambda_slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_common_dot_h_17_15_returns_core_colon__colon_treeture_lt_typename_space_utils_colon__colon_lambda_traits_lt__lparen_lambda_space_at_space__slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_common_dot_h_colon_16_colon_17_rparen__gt__colon__colon_result_type_gt_(var_4, var_5, var_1, var_2, var_3).get_result();
 }
-struct allscale_type_1969;
-typedef struct allscale_type_1969 allscale_type_1969;
-
-struct allscale_type_1969 {
-    char data[22];;
-};
 
 /* ------- Function Definitions --------- */
 allscale::utils::Vector<long, 3 >& allscale_fun_1042(allscale::utils::Vector<long, 3 >& var_0, allscale::utils::Vector<long, 3 > const& index) {
@@ -994,12 +914,6 @@ allscale::utils::Vector<long, 3 > allscale_fun_1376(allscale::utils::Vector<long
     allscale::utils::Vector<long, 3 > var_2 = var_0;
     return (allscale::utils::Vector<long, 3 > const&)allscale_fun_1378(var_2, var_1);
 }
-struct allscale_type_1986;
-typedef struct allscale_type_1986 allscale_type_1986;
-
-struct allscale_type_1986 {
-    char data[56];;
-};
 
 /* ------- Function Definitions --------- */
 void IMP_ipic3d_colon__colon_writeOutputHeader_allscale_colon__colon_api_colon__colon_core_colon__colon_OutputStream_returns_void(allscale::api::core::OutputStream& var_0) {
@@ -1951,26 +1865,6 @@ void IMP_ipic3d_colon__colon_simulateSteps_struct_space_ipic3d_colon__colon_deta
     };
     ((allscale::api::core::IOManager<allscale::api::core::impl::reference::FileStorageFactory >&)var_11).close(var_14);
 }
-struct allscale_type_2998;
-typedef struct allscale_type_2998 allscale_type_2998;
-
-struct allscale_type_2998 {
-    char data[59];;
-};
-
-struct allscale_type_2996;
-typedef struct allscale_type_2996 allscale_type_2996;
-
-struct allscale_type_2996 {
-    char data[140];;
-};
-
-struct allscale_type_2997;
-typedef struct allscale_type_2997 allscale_type_2997;
-
-struct allscale_type_2997 {
-    char data[71];;
-};
 
 struct IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_491_54_const_space_allscale_colon__colon_api_colon__colon_user_colon__colon_data_colon__colon_Grid_lt_struct_space_ipic3d_colon__colon_Cell_comma__space_3_gt__space__ampersand__allscale_colon__colon_api_colon__colon_core_colon__colon_OutputStream_space__ampersand__auto_const_space_type_minus_parameter_minus_0_minus_0_space__ampersand_ {
     allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3 > const& capture_0;
@@ -1978,20 +1872,6 @@ struct IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale
     ;
     ;
     void operator()(allscale::utils::Vector<long, 3 > const& p2) const;
-};
-
-struct allscale_type_3001;
-typedef struct allscale_type_3001 allscale_type_3001;
-
-struct allscale_type_3001 {
-    char data[162];;
-};
-
-struct allscale_type_3003;
-typedef struct allscale_type_3003 allscale_type_3003;
-
-struct allscale_type_3003 {
-    char data[60];;
 };
 
 struct IMP_RecArgs_instance9;
@@ -2033,12 +1913,6 @@ IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__co
 IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_loop_reference_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_ IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_pfor_long_3_lambda_slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_491_54_returns_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_loop_reference_lt_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__space__gt_(allscale::utils::Vector<long, 3 > const& var_0, IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_491_54_const_space_allscale_colon__colon_api_colon__colon_user_colon__colon_data_colon__colon_Grid_lt_struct_space_ipic3d_colon__colon_Cell_comma__space_3_gt__space__ampersand__allscale_colon__colon_api_colon__colon_core_colon__colon_OutputStream_space__ampersand__auto_const_space_type_minus_parameter_minus_0_minus_0_space__ampersand_ const& var_1) {
     return (IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_loop_reference_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_&&)IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_pfor_long_3_lambda_slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_491_54_returns_detail_colon__colon_loop_reference_lt_utils_colon__colon_Vector_lt_long_comma__space_3UL_gt__space__gt_(allscale::utils::Vector<long, 3 >{(int64_t)0}, var_0, var_1);
 }
-struct allscale_type_3002;
-typedef struct allscale_type_3002 allscale_type_3002;
-
-struct allscale_type_3002 {
-    char data[35];;
-};
 
 /* ------- Function Definitions --------- */
 void IMP_ipic3d_colon__colon_outputNumberOfParticlesPerCell_allscale_colon__colon_api_colon__colon_core_colon__colon_OutputStream_returns_void(allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3 > const& var_0, allscale::api::core::OutputStream& var_1) {
@@ -2101,12 +1975,6 @@ IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__co
 IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_loop_reference_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_ IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_pfor_long_3_lambda_slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_field_dot_h_474_54_returns_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_loop_reference_lt_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__space__gt_(allscale::utils::Vector<long, 3 > const& var_0, IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_field_dot_h_474_54_const_space_allscale_colon__colon_api_colon__colon_user_colon__colon_data_colon__colon_Grid_lt_struct_space_ipic3d_colon__colon_FieldNode_comma__space_3_gt__space__ampersand__allscale_colon__colon_api_colon__colon_core_colon__colon_OutputStream_space__ampersand__auto_const_space_type_minus_parameter_minus_0_minus_0_space__ampersand_ const& var_1) {
     return (IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_loop_reference_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_&&)IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_pfor_long_3_lambda_slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_field_dot_h_474_54_returns_detail_colon__colon_loop_reference_lt_utils_colon__colon_Vector_lt_long_comma__space_3UL_gt__space__gt_(allscale::utils::Vector<long, 3 >{(int64_t)0}, var_0, var_1);
 }
-struct allscale_type_3027;
-typedef struct allscale_type_3027 allscale_type_3027;
-
-struct allscale_type_3027 {
-    char data[163];;
-};
 
 struct IMP_RecArgs_instance7;
 typedef struct IMP_RecArgs_instance7 IMP_RecArgs_instance7;
@@ -2572,89 +2440,6 @@ IMP_ipic3d_colon__colon_UniverseProperties::IMP_ipic3d_colon__colon_UniverseProp
     (*this).origin.z = var_1.objectCenter.z - (double)var_1.ncells.z * var_1.dspace.z / 2.0E+0;
 }
 /* ------- Function Definitions --------- */
-struct allscale_type_149;
-typedef struct allscale_type_149 allscale_type_149;
-
-struct allscale_type_149 {
-    char data[168];;
-};
-
-struct allscale_type_150;
-typedef struct allscale_type_150 allscale_type_150;
-
-struct allscale_type_150 {
-    char data[49];;
-};
-
-struct allscale_type_153;
-typedef struct allscale_type_153 allscale_type_153;
-
-struct allscale_type_153 {
-    char data[126];;
-};
-
-struct allscale_type_154;
-typedef struct allscale_type_154 allscale_type_154;
-
-struct allscale_type_154 {
-    char data[47];;
-};
-
-struct allscale_type_155;
-typedef struct allscale_type_155 allscale_type_155;
-
-struct allscale_type_155 {
-    char data[136];;
-};
-
-struct allscale_type_156;
-typedef struct allscale_type_156 allscale_type_156;
-
-struct allscale_type_156 {
-    char data[52];;
-};
-
-struct allscale_type_157;
-typedef struct allscale_type_157 allscale_type_157;
-
-struct allscale_type_157 {
-    char data[137];;
-};
-
-struct allscale_type_158;
-typedef struct allscale_type_158 allscale_type_158;
-
-struct allscale_type_158 {
-    char data[50];;
-};
-
-struct allscale_type_144;
-typedef struct allscale_type_144 allscale_type_144;
-
-struct allscale_type_144 {
-    char data[67];;
-};
-
-struct allscale_type_143;
-typedef struct allscale_type_143 allscale_type_143;
-
-struct allscale_type_143 {
-    char data[151];;
-};
-
-struct allscale_type_141;
-typedef struct allscale_type_141 allscale_type_141;
-
-struct allscale_type_141 {
-    char data[153];;
-};
-
-struct allscale_type_142;
-typedef struct allscale_type_142 allscale_type_142;
-
-struct allscale_type_142 {
-    char data[51];;
-};
 
 /* ------- Function Definitions --------- */
 IMP_ipic3d_colon__colon_UniverseProperties::IMP_ipic3d_colon__colon_UniverseProperties(ipic3dUseCase const& var_1, allscale::utils::Vector<long, 3 > const& var_2, allscale::utils::Vector<double, 3 > const& var_3, double var_4, double var_5, double var_6, allscale::utils::Vector<double, 3 > const& var_7, allscale::utils::Vector<double, 3 > const& var_8, allscale::utils::Vector<double, 3 > const& var_9, int32_t var_10) : useCase(var_1), size(var_2), cellWidth(var_3), dt(var_4), speedOfLight(var_5), planetRadius(var_6), objectCenter(var_7), origin(var_8), magneticField(var_9), FieldOutputCycle(var_10), outputFileBaseName() {
@@ -2678,19 +2463,6 @@ struct IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale
 
 /* ------- Function Definitions --------- */
 IMP_ipic3d_colon__colon_Universe::IMP_ipic3d_colon__colon_Universe() : IMP_ipic3d_colon__colon_Universe(IMP_ipic3d_colon__colon_UniverseProperties{ipic3dUseCaseDipole, allscale::utils::Vector<long, 3 >{(int64_t)1, (int64_t)1, (int64_t)1}, allscale::utils::Vector<double, 3 >{1.0E+0, 1.0E+0, 1.0E+0}, 1.0E+0, 1.0E+0, 0.0E+0, allscale::utils::Vector<double, 3 >{0.0E+0, 0.0E+0, 0.0E+0}, allscale::utils::Vector<double, 3 >{0.0E+0, 0.0E+0, 0.0E+0}, allscale::utils::Vector<double, 3 >{0.0E+0, 0.0E+0, 0.0E+0}, 1}) { }
-struct allscale_type_272;
-typedef struct allscale_type_272 allscale_type_272;
-
-struct allscale_type_272 {
-    char data[48];;
-};
-
-struct allscale_type_271;
-typedef struct allscale_type_271 allscale_type_271;
-
-struct allscale_type_271 {
-    char data[142];;
-};
 
 /* ------- Function Definitions --------- */
 IMP_ipic3d_colon__colon_Universe::IMP_ipic3d_colon__colon_Universe(IMP_ipic3d_colon__colon_UniverseProperties const& var_1) : properties(var_1), cells(allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3 >{var_1.size}), field(allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_FieldNode, 3 >{allscale_fun_250(var_1.size, allscale::utils::Vector<long, 3 >{(int64_t)3})}), bcfield(allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_BcFieldCell, 3 >{allscale_fun_250(var_1.size, allscale::utils::Vector<long, 3 >{(int64_t)2})}), currentDensity(allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3 >{allscale_fun_250(var_1.size, allscale::utils::Vector<long, 3 >{(int64_t)1})}) {
@@ -2698,54 +2470,6 @@ IMP_ipic3d_colon__colon_Universe::IMP_ipic3d_colon__colon_Universe(IMP_ipic3d_co
 }
 /* ------- Function Definitions --------- */
 /* ------- Function Definitions --------- */
-struct allscale_type_293;
-typedef struct allscale_type_293 allscale_type_293;
-
-struct allscale_type_293 {
-    char data[147];;
-};
-
-struct allscale_type_294;
-typedef struct allscale_type_294 allscale_type_294;
-
-struct allscale_type_294 {
-    char data[74];;
-};
-
-struct allscale_type_289;
-typedef struct allscale_type_289 allscale_type_289;
-
-struct allscale_type_289 {
-    char data[127];;
-};
-
-struct allscale_type_298;
-typedef struct allscale_type_298 allscale_type_298;
-
-struct allscale_type_298 {
-    char data[149];;
-};
-
-struct allscale_type_299;
-typedef struct allscale_type_299 allscale_type_299;
-
-struct allscale_type_299 {
-    char data[83];;
-};
-
-struct allscale_type_304;
-typedef struct allscale_type_304 allscale_type_304;
-
-struct allscale_type_304 {
-    char data[84];;
-};
-
-struct allscale_type_303;
-typedef struct allscale_type_303 allscale_type_303;
-
-struct allscale_type_303 {
-    char data[156];;
-};
 
 /* ------- Function Definitions --------- */
 IMP_ipic3d_colon__colon_Universe::IMP_ipic3d_colon__colon_Universe(IMP_ipic3d_colon__colon_UniverseProperties const& var_1, allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3 >&& var_2, allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_FieldNode, 3 >&& var_3, allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_BcFieldCell, 3 >&& var_4, allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3 >&& var_5) : properties(var_1), cells(std::move(var_2)), field(std::move(var_3)), bcfield(std::move(var_4)), currentDensity(std::move(var_5)) {
@@ -2810,19 +2534,6 @@ allscale::utils::Vector<double, 3 > IMP_allscale_colon__colon_utils_colon__colon
     allscale::utils::Vector<double, 3 > var_2 = var_0;
     return (allscale::utils::Vector<double, 3 > const&)IMP_allscale_colon__colon_utils_colon__colon__operator_minus_assign_(var_2, var_1);
 }
-struct allscale_type_406;
-typedef struct allscale_type_406 allscale_type_406;
-
-struct allscale_type_406 {
-    char data[10];;
-};
-
-struct allscale_type_407;
-typedef struct allscale_type_407 allscale_type_407;
-
-struct allscale_type_407 {
-    char data[148];;
-};
 
 struct IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_compiler_slash_api_slash_code_slash_utils_slash_include_slash_allscale_slash_utils_slash_vector_dot_h_210_26_double_const_space_double_space__ampersand__const_space_double_space__ampersand_;
 typedef struct IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_compiler_slash_api_slash_code_slash_utils_slash_include_slash_allscale_slash_utils_slash_vector_dot_h_210_26_double_const_space_double_space__ampersand__const_space_double_space__ampersand_ IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_compiler_slash_api_slash_code_slash_utils_slash_include_slash_allscale_slash_utils_slash_vector_dot_h_210_26_double_const_space_double_space__ampersand__const_space_double_space__ampersand_;
@@ -2875,12 +2586,6 @@ allscale::utils::Vector<double, 3 > allscale_fun_431(allscale::utils::Vector<dou
     allscale::utils::Vector<double, 3 > var_2 = var_0;
     return (allscale::utils::Vector<double, 3 > const&)allscale_fun_433(var_2, var_1);
 }
-struct allscale_type_438;
-typedef struct allscale_type_438 allscale_type_438;
-
-struct allscale_type_438 {
-    char data[13];;
-};
 
 /* ------- Function Definitions --------- */
 void IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_56_63_allscale_colon__colon_api_colon__colon_user_colon__colon_data_colon__colon_Grid_lt_struct_space_ipic3d_colon__colon_Cell_comma__space_3_gt__space__ampersand__unsigned_space_int_space__ampersand__const_space_struct_space_ipic3d_colon__colon_UniverseProperties_space__ampersand__const_space_struct_space_ipic3d_colon__colon_Parameters_space__ampersand__double_space__ampersand__void_const_space_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__space__ampersand__IMLOC__slash_home_slash_heller_slash_projects_slash_allscale_ipic3d_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_56_63::operator()(allscale::utils::Vector<long, 3 > const& index) const {
@@ -3129,12 +2834,6 @@ void IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_i
 /* ------- Function Definitions --------- */
 /* ------- Function Definitions --------- */
 /* ------- Function Definitions --------- */
-struct allscale_type_1040;
-typedef struct allscale_type_1040 allscale_type_1040;
-
-struct allscale_type_1040 {
-    char data[169];;
-};
 
 /* ------- Function Definitions --------- */
 allscale::utils::Vector<double, 3 > IMP_ipic3d_colon__colon_getLocationForFields(allscale::utils::Vector<long, 3 > const& var_0, IMP_ipic3d_colon__colon_UniverseProperties const& var_1) {
@@ -3160,26 +2859,6 @@ void IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_i
 }
 /* ------- Function Definitions --------- */
 /* ------- Function Definitions --------- */
-struct allscale_type_1067;
-typedef struct allscale_type_1067 allscale_type_1067;
-
-struct allscale_type_1065;
-typedef struct allscale_type_1065 allscale_type_1065;
-
-struct allscale_type_1065 {
-    allscale::utils::Vector<double, 3 > data[2];;
-};
-
-struct allscale_type_1066;
-typedef struct allscale_type_1066 allscale_type_1066;
-
-struct allscale_type_1066 {
-    allscale_type_1065 data[2];;
-};
-
-struct allscale_type_1067 {
-    allscale_type_1066 data[2];;
-};
 
 struct IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_compiler_slash_api_slash_code_slash_utils_slash_include_slash_allscale_slash_utils_slash_vector_dot_h_215_26_double_const_space_double_space__ampersand__const_space_double_space__ampersand_;
 typedef struct IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_compiler_slash_api_slash_code_slash_utils_slash_include_slash_allscale_slash_utils_slash_vector_dot_h_215_26_double_const_space_double_space__ampersand__const_space_double_space__ampersand_ IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_compiler_slash_api_slash_code_slash_utils_slash_include_slash_allscale_slash_utils_slash_vector_dot_h_215_26_double_const_space_double_space__ampersand__const_space_double_space__ampersand_;
@@ -3287,19 +2966,6 @@ void IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_i
 /* ------- Function Definitions --------- */
 /* ------- Function Definitions --------- */
 /* ------- Function Definitions --------- */
-struct allscale_type_1137;
-typedef struct allscale_type_1137 allscale_type_1137;
-
-struct allscale_type_1137 {
-    char data[131];;
-};
-
-struct allscale_type_1138;
-typedef struct allscale_type_1138 allscale_type_1138;
-
-struct allscale_type_1138 {
-    char data[27];;
-};
 
 /* ------- Function Definitions --------- */
 void IMP_ipic3d_colon__colon_solveFieldStatically(IMP_ipic3d_colon__colon_UniverseProperties const& var_0, allscale::utils::Vector<long, 3 > const& index, allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_FieldNode, 3 >& var_2) {
@@ -3340,13 +3006,6 @@ struct IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale
     ;
     ;
     void operator()(IMP_ipic3d_colon__colon_Particle& p2) const;
-};
-
-struct allscale_type_1179;
-typedef struct allscale_type_1179 allscale_type_1179;
-
-struct allscale_type_1179 {
-    char data[141];;
 };
 
 struct IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_loop_reference___gnu_cxx_colon__colon___normal_iterator_lt_struct_space_ipic3d_colon__colon_Particle_space__star__comma__space_std_colon__colon_vector_lt_struct_space_ipic3d_colon__colon_Particle_comma__space_std_colon__colon_allocator_lt_struct_space_ipic3d_colon__colon_Particle_gt__space__gt__space__gt_;
@@ -3875,19 +3534,6 @@ void IMP___anon_tagtype__slash_home_slash_heller_slash_projects_slash_allscale_i
 /* ------- Function Definitions --------- */
 /* ------- Function Definitions --------- */
 /* ------- Function Definitions --------- */
-struct allscale_type_1472;
-typedef struct allscale_type_1472 allscale_type_1472;
-
-struct allscale_type_1472 {
-    char data[11];;
-};
-
-struct allscale_type_1473;
-typedef struct allscale_type_1473 allscale_type_1473;
-
-struct allscale_type_1473 {
-    char data[57];;
-};
 
 /* ------- Function Definitions --------- */
 bool IMP_ipic3d_colon__colon_verifyCorrectParticlesPositionInCell(IMP_ipic3d_colon__colon_UniverseProperties const& var_0, IMP_ipic3d_colon__colon_Cell& var_1, allscale::utils::Vector<long, 3 > const& var_2) {
@@ -5026,13 +4672,6 @@ struct IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_co
     IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_range_long right;;
 };
 
-struct allscale_type_1726;
-typedef struct allscale_type_1726 allscale_type_1726;
-
-struct allscale_type_1726 {
-    char data[43];;
-};
-
 /* ------- Function Definitions --------- */
 IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_fragments_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_ IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_make_fragments_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__returns_fragments_lt_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__space__gt_(IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_ const& var_0, IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_ const& var_1) {
     return INS_INIT(IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_fragments_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_){var_0, var_1};
@@ -5048,12 +4687,6 @@ IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__co
     int64_t var_4 = var_2 + (var_3 - var_2) / (int64_t)2;
     return (IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_fragments_long&&)allscale_fun_1719(IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_range_long{var_2, var_4}, IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_range_long{var_4, var_3});
 }
-struct allscale_type_1725;
-typedef struct allscale_type_1725 allscale_type_1725;
-
-struct allscale_type_1725 {
-    char data[258];;
-};
 
 /* ------- Function Definitions --------- */
 IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_fragments_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_ IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_range_spliter_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt___static__IMP_split_returns_fragments_lt_Vector_lt_long_comma__space_3UL_gt__space__gt_(uint64_t var_0, IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_ const& var_1) {
