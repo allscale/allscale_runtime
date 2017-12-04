@@ -2195,10 +2195,11 @@ struct __wi_main_variant_0 {
 IMP_ipic3d_colon__colon_Parameters::IMP_ipic3d_colon__colon_Parameters(std::string var_1) : c(1.0E+0), L(), objectCenter(), ncells(), dspace(), npcelx(), npcely(), npcelz(), qom(), rhoInit(), uth(), vth(), wth(), u0(), v0(), w0(), wmethod(), SimName(), PoissonCorrection(), SaveDirName(), B0(), B1(), FieldOutputTag(), MomentsOutputTag(), ParticlesOutputTag(), bcEx(), bcEy(), bcEz(), bcBx(), bcBy(), bcBz(), bcPfaceRight(), bcPfaceLeft(), bcPHIfaceRight(), bcPHIfaceLeft(), bcEMfaceRight(), bcEMfaceLeft() {
     std::ifstream var_2{(var_1), (std::ios_base::in)};
     if (!var_2) {
+        std::cerr << "File not found\n";
         exit(1);
     };
     std::string var_4;
-    while(!std::getline(var_2, var_4)) {
+    while(!std::getline(var_2, var_4).eof()) {
         var_4 = var_4.substr((uint64_t)0, var_4.find("#", (uint64_t)0));
         if (var_4.find("=", (uint64_t)0) == std::string::npos) {
             continue;
