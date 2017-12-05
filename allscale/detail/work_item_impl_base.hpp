@@ -32,7 +32,7 @@ namespace allscale { namespace detail {
         work_item_impl_base(work_item_impl_base const&) = delete;
 		work_item_impl_base& operator=(work_item_impl_base const&) = delete;
 
-		void set_this_id(bool is_first);
+		void set_this_id(machine_config const& config);
 		this_work_item::id const& id() const;
 		virtual const char* name() const=0;
 

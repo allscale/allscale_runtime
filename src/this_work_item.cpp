@@ -39,83 +39,6 @@ namespace allscale { namespace this_work_item {
         config_.needs_checkpoint_ = false;
     }
 
-    std::size_t get_num_numa_nodes()
-    {
-        auto const& topo = hpx::threads::get_topology();
-
-        std::size_t numa_nodes = topo.get_number_of_numa_nodes();
-        if (numa_nodes == 0)
-            numa_nodes = topo.get_number_of_sockets();
-        std::vector<hpx::threads::mask_type> node_masks(numa_nodes);
-
-        auto& rp = hpx::resource::get_partitioner();
-
-        std::size_t num_os_threads = hpx::get_os_thread_count();
-        for (std::size_t num_thread = 0; num_thread != num_os_threads;
-             ++num_thread)
-        {
-            std::size_t pu_num = rp.get_pu_num(num_thread);
-            std::size_t numa_node = topo.get_numa_node_number(pu_num);
-
-            auto const& mask = topo.get_thread_affinity_mask(pu_num);
-
-            std::size_t mask_size = hpx::threads::mask_size(mask);
-            for (std::size_t idx = 0; idx != mask_size; ++idx)
-            {
-                if (hpx::threads::test(mask, idx))
-                {
-                    hpx::threads::set(node_masks[numa_node], idx);
-                }
-            }
-        }
-
-        // Sort out the masks which don't have any bits set
-        std::size_t res = 0;
-
-        for (auto& mask : node_masks)
-        {
-            if (hpx::threads::any(mask))
-            {
-                ++res;
-            }
-        }
-
-        return res;
-    }
-
-    std::size_t get_num_numa_cores(std::size_t domain)
-    {
-        auto const& topo = hpx::threads::get_topology();
-
-        std::size_t numa_nodes = topo.get_number_of_numa_nodes();
-        if (numa_nodes == 0)
-            numa_nodes = topo.get_number_of_sockets();
-        std::vector<hpx::threads::mask_type> node_masks(numa_nodes);
-
-        auto& rp = hpx::resource::get_partitioner();
-
-        std::size_t res = 0;
-        std::size_t num_os_threads = hpx::get_os_thread_count();
-        for (std::size_t num_thread = 0; num_thread != num_os_threads;
-             ++num_thread)
-        {
-            std::size_t pu_num = rp.get_pu_num(num_thread);
-            std::size_t numa_node = topo.get_numa_node_number(pu_num);
-            if(numa_node != domain) continue;
-
-            auto const& mask = topo.get_thread_affinity_mask(pu_num);
-
-            std::size_t mask_size = hpx::threads::mask_size(mask);
-            for (std::size_t idx = 0; idx != mask_size; ++idx)
-            {
-                if (hpx::threads::test(mask, idx))
-                {
-                    ++res;
-                }
-            }
-        }
-        return res;
-    }
 
     id::id(std::size_t i)
       : id_(1, i),
@@ -125,13 +48,41 @@ namespace allscale { namespace this_work_item {
         config_.rank_ = 0;
         config_.numa_domain_ = 0;
         config_.locality_depth_ = hpx::get_num_localities(hpx::launch::sync);
-        config_.numa_depth_ = get_num_numa_nodes();
+        config_.numa_depth_ = -1;//get_num_numa_nodes();
         config_.thread_depth_ = -1;
         config_.gpu_depth_ = -1;
         config_.needs_checkpoint_ = false;
     }
 
-    void id::setup_left()
+    bool id::split_numa_depth(machine_config const& mconfig)
+    {
+        auto& parent = parent_->config_;
+        if (parent.numa_depth_ == std::uint8_t(-1))
+        {
+            config_.numa_domain_ = 0;
+            config_.numa_depth_ = mconfig.thread_depths.size();
+            config_.thread_depth_ = -1;
+            return false;
+        }
+        return true;
+    }
+
+    // Once we reached out to the locality leaf, we need to set the
+    // number of threads on the given NUMA node to create enough
+    // parallelism. There is currently a oversubscription factor of
+    // 1.5 in the number of threads per NUMA domain.
+    bool id::split_thread_depth(machine_config const& mconfig)
+    {
+        auto& parent = parent_->config_;
+        if (parent.thread_depth_ == std::uint32_t(-1))
+        {
+            config_.thread_depth_ = mconfig.thread_depths[config_.numa_domain_];
+            return false;
+        }
+        return true;
+    }
+
+    void id::setup_left(machine_config const& mconfig)
     {
         auto& parent = parent_->config_;
         config_.rank_ = parent.rank_;
@@ -146,20 +97,27 @@ namespace allscale { namespace this_work_item {
         {
             config_.locality_depth_ = 1;
             config_.needs_checkpoint_ = parent.locality_depth_ > 1;
-            if(parent.numa_depth_ > 1)
+
+            if(split_numa_depth(mconfig))
             {
-                config_.numa_depth_ = parent.numa_depth_ / 2;
-                config_.thread_depth_ = parent.thread_depth_;
-            }
-            else
-            {
-                config_.numa_depth_ = 1;
-                config_.thread_depth_ = parent.thread_depth_ / 2;
+                if(parent.numa_depth_ > 1)
+                {
+                    config_.numa_depth_ = parent.numa_depth_ / 2;
+                    config_.thread_depth_ = parent.thread_depth_;
+                }
+                else
+                {
+                    config_.numa_depth_ = 1;
+                    if (split_thread_depth(mconfig))
+                    {
+                        config_.thread_depth_ = parent.thread_depth_ / 2;
+                    }
+                }
             }
         }
     }
 
-    void id::setup_right()
+    void id::setup_right(machine_config const& mconfig)
     {
         auto& parent = parent_->config_;
         if (parent.locality_depth_ > 1)
@@ -174,17 +132,23 @@ namespace allscale { namespace this_work_item {
             config_.rank_ = parent.rank_;
             config_.needs_checkpoint_ = parent.locality_depth_ > 1;
             config_.locality_depth_ = 1;
-            if(parent.numa_depth_ > 1)
+            if(split_numa_depth(mconfig))
             {
-                config_.numa_domain_ = parent.numa_domain_ + (parent.numa_depth_ / 2);
-                config_.numa_depth_ = std::lround(parent.numa_depth_ / 2.0);
-                config_.thread_depth_ = parent.thread_depth_;
-            }
-            else
-            {
-                config_.numa_domain_ = parent.numa_domain_;
-                config_.numa_depth_ = 1;
-                config_.thread_depth_ = std::lround(parent.thread_depth_ / 2.0);
+                if(parent.numa_depth_ > 1)
+                {
+                    config_.numa_domain_ = parent.numa_domain_ + (parent.numa_depth_ / 2);
+                    config_.numa_depth_ = std::lround(parent.numa_depth_ / 2.0);
+                    config_.thread_depth_ = parent.thread_depth_;
+                }
+                else
+                {
+                    config_.numa_domain_ = parent.numa_domain_;
+                    config_.numa_depth_ = 1;
+                    if (split_thread_depth(mconfig))
+                    {
+                        config_.thread_depth_ = std::lround(parent.thread_depth_ / 2.0);
+                    }
+                }
             }
         }
     }
@@ -198,7 +162,6 @@ namespace allscale { namespace this_work_item {
     {
         if (config_.locality_depth_ == 1 && config_.numa_depth_ == 1)
         {
-            HPX_ASSERT(config_.thread_depth_ != std::uint32_t(-1));
             return config_.thread_depth_ != 1;
         }
         return config_.locality_depth_ != 1 || config_.numa_depth_ != 1;
@@ -217,7 +180,7 @@ namespace allscale { namespace this_work_item {
 
 
 //     void id::set(std::shared_ptr<detail::work_item_impl_base> wi)
-    void id::set(detail::work_item_impl_base* wi, bool is_first)
+    void id::set(detail::work_item_impl_base* wi, machine_config const& mconfig)
     {
         id& parent = get_id();
         // set the parent with a null deleter, we only need to delete the pointer
@@ -227,51 +190,25 @@ namespace allscale { namespace this_work_item {
         id_ = parent.id_;
         id_.push_back(parent.next_id_++);
 
-
         HPX_ASSERT(parent.config_.rank_ != std::uint64_t(-1));
         HPX_ASSERT(parent.config_.locality_depth_ != std::uint64_t(-1));
-        HPX_ASSERT(parent.config_.numa_depth_ != std::uint8_t(-1));
+//         HPX_ASSERT(parent.config_.numa_depth_ != std::uint8_t(-1));
 //         HPX_ASSERT(parent.thread_depth_ != std::size_t(-1));
 
-        if (is_first)
+        if (parent.config_.thread_depth_ == 1)
         {
-            config_.rank_ = parent.config_.rank_;
-            config_.numa_domain_ = parent.config_.numa_domain_;
-            config_.locality_depth_ = parent.config_.locality_depth_;
-            config_.numa_depth_ = parent.config_.numa_depth_;
-            config_.gpu_depth_ = parent.config_.gpu_depth_;
+            config_ = parent.config_;
         }
         else
         {
-            if (parent.config_.thread_depth_ == 1)
+            if (id_.back() == 0)
             {
-                config_ = parent.config_;
+                setup_left(mconfig);
             }
             else
             {
-                if (id_.back() == 0)
-                {
-                    setup_left();
-                }
-                else
-                {
-                    setup_right();
-                }
+                setup_right(mconfig);
             }
-        }
-
-        // Once we reached out to the locality leaf, we need to set the
-        // number of threads on the given NUMA node to create enough
-        // parallelism. There is currently a oversubscription factor of
-        // 1.5 in the number of threads per NUMA domain.
-        if (config_.locality_depth_ == 1 && config_.numa_depth_ == 1 && config_.thread_depth_ == std::uint32_t(-1))
-        {
-            // We round up here...
-            std::size_t num_cores = get_num_numa_cores(config_.numa_domain_);
-            if (num_cores == 1)
-                config_.thread_depth_ = 1;
-            else
-                config_.thread_depth_ = std::lround(std::pow(num_cores, 1.5));
         }
 
 //         wi_ = std::move(wi);

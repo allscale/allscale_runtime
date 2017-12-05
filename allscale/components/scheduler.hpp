@@ -3,6 +3,7 @@
 #define ALLSCALE_COMPONENTS_SCHEDULER_HPP
 
 #include <allscale/work_item.hpp>
+#include <allscale/this_work_item.hpp>
 #include <allscale/components/treeture_buffer.hpp>
 #include <allscale/components/scheduler_network.hpp>
 #if defined(ALLSCALE_HAVE_CPUFREQ)
@@ -51,8 +52,11 @@ namespace allscale { namespace components {
         HPX_DEFINE_COMPONENT_ACTION(scheduler, stop);
 
     private:
+        std::size_t get_num_numa_nodes();
+        std::size_t get_num_numa_cores(std::size_t domain);
         hpx::resource::detail::partitioner *rp_;
         const hpx::threads::topology *topo_;
+        machine_config mconfig_;
         std::uint64_t num_localities_;
         std::uint64_t num_threads_;
         std::uint64_t rank_;
