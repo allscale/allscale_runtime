@@ -394,19 +394,23 @@ namespace allscale { namespace detail {
         {
             HPX_ASSERT(valid());
             auto reqs = acquire<typename WorkItemDescription::process_variant>(nullptr);
+            typedef
+                typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type
+                reqs_type;
 
+            auto this_ = shared_this();
             if (sync)
             {
-                get_deps<typename WorkItemDescription::process_variant>(
-                    exec, std::move(reqs), nullptr);
+                hpx::dataflow(hpx::launch::sync,
+                    hpx::util::unwrapping([this_, exec](reqs_type reqs) mutable
+                    {
+                        this_->template get_deps<typename WorkItemDescription::process_variant>(
+                            exec, std::move(reqs), nullptr);
+                    })
+                  , std::move(reqs));
             }
             else
             {
-                typedef
-                    typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type
-                    reqs_type;
-
-                auto this_ = shared_this();
                 hpx::dataflow(exec,
                     hpx::util::unwrapping([this_, exec](reqs_type reqs) mutable
                     {
@@ -424,14 +428,20 @@ namespace allscale { namespace detail {
         {
             auto reqs = acquire<typename WorkItemDescription::split_variant>(nullptr);
 
+            typedef typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type reqs_type;
+            auto this_ = shared_this();
             if (sync)
             {
-                do_split(std::move(reqs));
+                hpx::dataflow(hpx::launch::sync,
+                    hpx::util::unwrapping([this_](reqs_type reqs) mutable
+                    {
+                        HPX_ASSERT(this_->valid());
+                        this_->do_split(std::move(reqs));
+                    })
+                  , std::move(reqs));
             }
             else
             {
-                typedef typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type reqs_type;
-                auto this_ = shared_this();
                 hpx::dataflow(exec,
                     hpx::util::unwrapping([this_](reqs_type reqs) mutable
                     {
