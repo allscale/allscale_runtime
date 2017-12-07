@@ -8,10 +8,6 @@ if len(sys.argv) == 1:
     print('Please provide the file to fix up')
     sys.exit(1)
 
-#input = ''
-#input = open(sys.argv[1]).read()
-#repl = open('%s.fixup' % sys.argv[1])
-
 def fixup(pattern, replace):
     for line in fileinput.input(inplace=1):
         line = re.sub(pattern, replace, line.rstrip())
