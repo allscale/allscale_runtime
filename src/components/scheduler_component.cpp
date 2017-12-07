@@ -158,7 +158,7 @@ namespace allscale { namespace components {
             if (num_cores == 1)
                 mconfig_.thread_depths[i] = 1;
             else
-                mconfig_.thread_depths[i] = std::lround(std::pow(num_cores, 1.5)) + 2;
+                mconfig_.thread_depths[i] = std::lround(std::pow(num_cores, 1.5));
         }
 
         std::string input_objective_str = hpx::get_config_entry("allscale.objective", "");
@@ -312,6 +312,11 @@ namespace allscale { namespace components {
             work.set_this_id(mconfig_);
         }
 
+        this_work_item::id parent_id = this_work_item::get_id();
+
+        bool sync = parent_id.thread_depth() == 1;// ||
+//             work.id().numa_domain() == parent_id.numa_domain();
+
         std::uint64_t schedule_rank = work.id().rank();
         if(!allscale::resilience::rank_running(schedule_rank))
         {
@@ -361,11 +366,12 @@ namespace allscale { namespace components {
             HPX_ASSERT(numa_domain < executors_.size());
             if (do_split(work))
             {
-                work.split(executors_[numa_domain]);
+                work.split(executors_[numa_domain], sync
+                    || work.id().numa_domain() == parent_id.numa_domain());
             }
             else
             {
-                work.process(executors_[numa_domain]);
+                work.process(executors_[numa_domain], sync);
             }
 
             return;

@@ -56,6 +56,7 @@ namespace allscale {
         bool splittable() const;
         std::size_t rank() const;
         std::size_t numa_domain() const;
+        std::size_t thread_depth() const;
 
         treeture<void> get_treeture() const;
 

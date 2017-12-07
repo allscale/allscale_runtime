@@ -42,8 +42,8 @@ namespace allscale { namespace detail {
         virtual void on_ready(hpx::util::unique_function_nonser<void()> f)=0;
 
 		virtual bool can_split() const=0;
-		virtual void process(executor_type& exec)=0;
-		virtual void split(executor_type& exec)=0;
+		virtual void process(executor_type& exec, bool sync)=0;
+		virtual void split(executor_type& exec, bool sync)=0;
 
 //		virtual void requires()=0;
 

@@ -178,6 +178,10 @@ namespace allscale { namespace this_work_item {
         return config_.numa_domain_;
     }
 
+    std::size_t id::thread_depth() const
+    {
+        return config_.thread_depth_;
+    }
 
 //     void id::set(std::shared_ptr<detail::work_item_impl_base> wi)
     void id::set(detail::work_item_impl_base* wi, machine_config const& mconfig)

@@ -390,53 +390,69 @@ namespace allscale { namespace detail {
             }
         }
 
-        void process(executor_type& exec)
+        void process(executor_type& exec, bool sync)
         {
             HPX_ASSERT(valid());
             auto reqs = acquire<typename WorkItemDescription::process_variant>(nullptr);
 
-            typedef
-                typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type
-                reqs_type;
+            if (sync)
+            {
+                get_deps<typename WorkItemDescription::process_variant>(
+                    exec, std::move(reqs), nullptr);
+            }
+            else
+            {
+                typedef
+                    typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type
+                    reqs_type;
 
-            auto this_ = shared_this();
-            hpx::dataflow(exec,
-                hpx::util::unwrapping([this_, exec](reqs_type reqs) mutable
-                {
-                    this_->template get_deps<typename WorkItemDescription::process_variant>(exec, reqs, nullptr);
-                })
-              , std::move(reqs));
+                auto this_ = shared_this();
+                hpx::dataflow(exec,
+                    hpx::util::unwrapping([this_, exec](reqs_type reqs) mutable
+                    {
+                        this_->template get_deps<typename WorkItemDescription::process_variant>(
+                            exec, std::move(reqs), nullptr);
+                    })
+                  , std::move(reqs));
+            }
         }
 
         template <typename WorkItemDescription_>
         typename std::enable_if<
             WorkItemDescription_::split_variant::valid
-        >::type split_impl(executor_type& exec)
+        >::type split_impl(executor_type& exec, bool sync)
         {
             auto reqs = acquire<typename WorkItemDescription::split_variant>(nullptr);
 
-            typedef typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type reqs_type;
-            auto this_ = shared_this();
-            hpx::dataflow(exec,
-                hpx::util::unwrapping([this_](reqs_type reqs) mutable
-                {
-                    HPX_ASSERT(this_->valid());
-                    this_->do_split(std::move(reqs));
-                })
-              , std::move(reqs));
+            if (sync)
+            {
+                do_split(std::move(reqs));
+            }
+            else
+            {
+                typedef typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type reqs_type;
+                auto this_ = shared_this();
+                hpx::dataflow(exec,
+                    hpx::util::unwrapping([this_](reqs_type reqs) mutable
+                    {
+                        HPX_ASSERT(this_->valid());
+                        this_->do_split(std::move(reqs));
+                    })
+                  , std::move(reqs));
+            }
         }
 
         template <typename WorkItemDescription_>
         typename std::enable_if<
             !WorkItemDescription_::split_variant::valid
-        >::type split_impl(executor_type& exec)
+        >::type split_impl(executor_type& exec, bool sync)
         {
-            process(exec);
+            process(exec, sync);
         }
 
-        void split(executor_type& exec)
+        void split(executor_type& exec, bool sync)
         {
-            split_impl<WorkItemDescription>(exec);
+            split_impl<WorkItemDescription>(exec, sync);
         }
 
         bool enqueue_remote() const
