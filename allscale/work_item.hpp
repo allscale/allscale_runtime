@@ -35,7 +35,6 @@ namespace allscale {
             ),
             is_first_(is_first)
         {
-            impl_->set_this_id(is_first);
         }
 
         template<typename WorkItemDescription, typename Treeture, typename ...Ts>
@@ -53,7 +52,11 @@ namespace allscale {
             ),
             is_first_(is_first)
         {
-            impl_->set_this_id(is_first);
+        }
+
+        void set_this_id(machine_config const& mconfig)
+        {
+            impl_->set_this_id(mconfig);
         }
 
         bool is_first()
@@ -119,11 +122,11 @@ namespace allscale {
             return impl_->get_treeture();
         }
 
-        void split(executor_type& exec)
+        void split(executor_type& exec, bool sync)
         {
             HPX_ASSERT(valid());
             HPX_ASSERT(impl_->valid());
-            impl_->split(exec);
+            impl_->split(exec, sync);
     //         impl_.reset();
         }
 
@@ -132,10 +135,10 @@ namespace allscale {
             impl_->on_ready(std::move(f));
         }
 
-        void process(executor_type& exec) {
+        void process(executor_type& exec, bool sync) {
             HPX_ASSERT(valid());
             HPX_ASSERT(impl_->valid());
-            impl_->process(exec);
+            impl_->process(exec, sync);
     //         impl_.reset();
         }
 

@@ -27,6 +27,7 @@
 #include <hpx/runtime/config_entry.hpp>
 #include <hpx/util/find_prefix.hpp>
 #include <hpx/util/invoke_fused.hpp>
+#include <hpx/util/unused.hpp>
 #include <hpx/util/unwrapped.hpp>
 #include <hpx/lcos/local/dataflow.hpp>
 
@@ -56,32 +57,30 @@ data_item_requirement<DataItemType> createDataItemRequirement
 
 using DataItemManager = allscale::data_item_manager;
 
+using unused_type = hpx::util::unused_type;
+
 template<typename MainWorkItem>
 inline int spawn_main(int(*main_work)(hpx::util::tuple<int, char**> const&), int argc, char** argv)
 {
-    auto clos = hpx::util::make_tuple(argc, argv);
-    return spawn_first<MainWorkItem>(argc, argv).get_result();
+    return MainWorkItem::process_variant::execute(hpx::util::make_tuple(argc, argv));
 }
 
 template<typename MainWorkItem>
 inline int spawn_main(int(*main_work)(hpx::util::tuple<> const&), int argc, char** argv)
 {
-    auto clos = hpx::util::make_tuple();
-    return spawn_first<MainWorkItem>().get_result();
+    return MainWorkItem::process_variant::execute(hpx::util::make_tuple(argc, argv));
 }
 
 template<typename MainWorkItem>
 inline int spawn_main(treeture<int>(*main_work)(hpx::util::tuple<int, char**> const&), int argc, char** argv)
 {
-    auto clos = hpx::util::make_tuple(argc, argv);
-    return spawn_first<MainWorkItem>(argc, argv).get_result();
+    return MainWorkItem::process_variant::execute(hpx::util::make_tuple(argc, argv)).get_result();
 }
 
 template<typename MainWorkItem>
 inline int spawn_main(treeture<int>(*main_work)(hpx::util::tuple<> const&), int argc, char** argv)
 {
-    auto clos = hpx::util::make_tuple();
-    return spawn_first<MainWorkItem>().get_result();
+    return MainWorkItem::process_variant::execute(hpx::util::make_tuple()).get_result();
 }
 
 /**

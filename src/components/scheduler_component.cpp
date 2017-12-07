@@ -73,10 +73,93 @@ namespace allscale { namespace components {
         thread_times.resize(hpx::get_os_thread_count());
     }
 
+    std::size_t scheduler::get_num_numa_nodes()
+    {
+        std::size_t numa_nodes = topo_->get_number_of_numa_nodes();
+        if (numa_nodes == 0)
+            numa_nodes = topo_->get_number_of_sockets();
+        std::vector<hpx::threads::mask_type> node_masks(numa_nodes);
+
+        std::size_t num_os_threads = hpx::get_os_thread_count();
+        for (std::size_t num_thread = 0; num_thread != num_os_threads;
+             ++num_thread)
+        {
+            std::size_t pu_num = rp_->get_pu_num(num_thread);
+            std::size_t numa_node = topo_->get_numa_node_number(pu_num);
+
+            auto const& mask = topo_->get_thread_affinity_mask(pu_num);
+
+            std::size_t mask_size = hpx::threads::mask_size(mask);
+            for (std::size_t idx = 0; idx != mask_size; ++idx)
+            {
+                if (hpx::threads::test(mask, idx))
+                {
+                    hpx::threads::set(node_masks[numa_node], idx);
+                }
+            }
+        }
+
+        // Sort out the masks which don't have any bits set
+        std::size_t res = 0;
+
+        for (auto& mask : node_masks)
+        {
+            if (hpx::threads::any(mask))
+            {
+                ++res;
+            }
+        }
+
+        return res;
+    }
+
+    std::size_t scheduler::get_num_numa_cores(std::size_t domain)
+    {
+        std::size_t numa_nodes = topo_->get_number_of_numa_nodes();
+        if (numa_nodes == 0)
+            numa_nodes = topo_->get_number_of_sockets();
+        std::vector<hpx::threads::mask_type> node_masks(numa_nodes);
+
+        std::size_t res = 0;
+        std::size_t num_os_threads = hpx::get_os_thread_count();
+        for (std::size_t num_thread = 0; num_thread != num_os_threads;
+             ++num_thread)
+        {
+            std::size_t pu_num = rp_->get_pu_num(num_thread);
+            std::size_t numa_node = topo_->get_numa_node_number(pu_num);
+            if(numa_node != domain) continue;
+
+            auto const& mask = topo_->get_thread_affinity_mask(pu_num);
+
+            std::size_t mask_size = hpx::threads::mask_size(mask);
+            for (std::size_t idx = 0; idx != mask_size; ++idx)
+            {
+                if (hpx::threads::test(mask, idx))
+                {
+                    ++res;
+                }
+            }
+        }
+        return res;
+    }
+
     void scheduler::init()
     {
         rp_ = &hpx::resource::get_partitioner();
         topo_ = &hpx::threads::get_topology();
+
+        mconfig_.num_localities = hpx::get_num_localities(hpx::launch::sync);
+        mconfig_.thread_depths.resize(get_num_numa_nodes());
+        // Setting the default thread depths for each NUMA domain.
+        for (std::size_t i = 0; i < mconfig_.thread_depths.size(); ++i)
+        {
+            std::size_t num_cores = get_num_numa_cores(i);
+            // We round up here...
+            if (num_cores == 1)
+                mconfig_.thread_depths[i] = 1;
+            else
+                mconfig_.thread_depths[i] = std::lround(std::pow(num_cores, 1.5));
+        }
 
         std::string input_objective_str = hpx::get_config_entry("allscale.objective", "");
         if ( !input_objective_str.empty() )
@@ -221,7 +304,18 @@ namespace allscale { namespace components {
     void scheduler::enqueue(work_item work, this_work_item::id const& id)
     {
         if (id)
+        {
             this_work_item::set_id(id);
+        }
+        else
+        {
+            work.set_this_id(mconfig_);
+        }
+
+        this_work_item::id parent_id = this_work_item::get_id();
+
+        bool sync = parent_id.thread_depth() == 1;// ||
+//             work.id().numa_domain() == parent_id.numa_domain();
 
         std::uint64_t schedule_rank = work.id().rank();
         if(!allscale::resilience::rank_running(schedule_rank))
@@ -243,18 +337,18 @@ namespace allscale { namespace components {
             if (work.is_first())
             {
                 std::size_t current_id = work.id().last();
-                const char* wi_name = work.name();
-                {
-                    std::unique_lock<mutex_type> lk(spawn_throttle_mtx_);
-                    auto it = spawn_throttle_.find(wi_name);
-                    if (it == spawn_throttle_.end())
-                    {
-                        auto em_res = spawn_throttle_.emplace(wi_name,
-                            treeture_buffer(6));//num_threads_));
-                        it = em_res.first;
-                    }
-                    it->second.add(std::move(lk), work.get_treeture());
-                }
+//                 const char* wi_name = work.name();
+//                 {
+//                     std::unique_lock<mutex_type> lk(spawn_throttle_mtx_);
+//                     auto it = spawn_throttle_.find(wi_name);
+//                     if (it == spawn_throttle_.end())
+//                     {
+//                         auto em_res = spawn_throttle_.emplace(wi_name,
+//                             treeture_buffer(6));//num_threads_));
+//                         it = em_res.first;
+//                     }
+//                     it->second.add(std::move(lk), work.get_treeture());
+//                 }
                 allscale::monitor::signal(allscale::monitor::work_item_first, work);
 
                 if (current_id % 100 == 0)
@@ -272,11 +366,12 @@ namespace allscale { namespace components {
             HPX_ASSERT(numa_domain < executors_.size());
             if (do_split(work))
             {
-                work.split(executors_[numa_domain]);
+                work.split(executors_[numa_domain], sync
+                    || work.id().numa_domain() == parent_id.numa_domain());
             }
             else
             {
-                work.process(executors_[numa_domain]);
+                work.process(executors_[numa_domain], sync);
             }
 
             return;

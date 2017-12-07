@@ -650,14 +650,14 @@ struct main_process
         char **argv = hpx::util::get<1>(clos);
 
         int size = 1024;
-        if (argc == 2)
+        if (argc >= 2)
         {
             size = std::atoi(argv[1]);
         }
         std::size_t iterations = 10;
         if (argc == 3)
         {
-            size = std::atoi(argv[2]);
+            iterations = std::atoi(argv[2]);
         }
 
         std::cout

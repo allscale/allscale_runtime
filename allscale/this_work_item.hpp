@@ -20,7 +20,15 @@ namespace allscale {
     struct work_item;
 }
 
-namespace allscale { namespace this_work_item {
+namespace allscale {
+
+    struct machine_config
+    {
+        std::size_t num_localities;
+        std::vector<std::size_t> thread_depths;
+    };
+
+    namespace this_work_item {
     struct id;
 
     id& get_id();
@@ -34,8 +42,7 @@ namespace allscale { namespace this_work_item {
 
         id();
 
-//         void set(std::shared_ptr<detail::work_item_impl_base>);
-        void set(detail::work_item_impl_base*, bool is_first);
+        void set(detail::work_item_impl_base*, machine_config const& mconfig);
 
         std::string name() const;
         std::size_t last() const;
@@ -49,6 +56,7 @@ namespace allscale { namespace this_work_item {
         bool splittable() const;
         std::size_t rank() const;
         std::size_t numa_domain() const;
+        std::size_t thread_depth() const;
 
         treeture<void> get_treeture() const;
 
@@ -90,8 +98,10 @@ namespace allscale { namespace this_work_item {
         std::shared_ptr<id> parent_;
         tree_config config_;
 
-        void setup_left();
-        void setup_right();
+        bool split_numa_depth(machine_config const&);
+        bool split_thread_depth(machine_config const&);
+        void setup_left(machine_config const&);
+        void setup_right(machine_config const&);
 
         std::list<std::size_t> id_;
         std::size_t next_id_;
