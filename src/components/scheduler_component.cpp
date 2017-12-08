@@ -11,7 +11,7 @@
 #include <iterator>
 #include <algorithm>
 #include <stdlib.h>
-
+#include <math.h>
 
 namespace allscale { namespace components {
 
@@ -170,6 +170,9 @@ namespace allscale { namespace components {
             {
                 auto idx = objective_str.find(':');
                 std::string obj = objective_str;
+#ifdef DEBUG_
+		std::cout << " Scheduling Objective provided: " << obj << "\n" ;
+#endif
                 // Don't scale objectives if none is given
                 double leeway = 1.0;
 
@@ -181,18 +184,31 @@ namespace allscale { namespace components {
 
                 if (obj == "time")
                 {
+		  
                     time_requested = true;
                     time_leeway = leeway;
+#ifdef DEBUG_
+		    std::cout << " Setting time policy\n" ;
+#endif
+
                 }
                 else if (obj == "resource")
                 {
                     resource_requested = true;
                     resource_leeway = leeway;
+#ifdef DEBUG_
+		    std::cout << " Setting resource policy\n" ;
+#endif
+		    
                 }
                 else if (obj == "energy")
                 {
                     energy_requested = true;
                     energy_leeway = leeway;
+#ifdef DEBUG_
+		    std::cout << " Setting energy policy\n" ;
+#endif
+		    
                 }
                 else
                 {
@@ -213,8 +229,10 @@ namespace allscale { namespace components {
             }
 
             if ( resource_requested && energy_requested )
+	      {
                 HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
                             boost::str(boost::format("Sorry not supported yet. Check back soon!")));
+	      }
         }
 
 
@@ -348,7 +366,7 @@ namespace allscale { namespace components {
 //                 }
                 allscale::monitor::signal(allscale::monitor::work_item_first, work);
 
-                if (current_id % 100 == 0)
+                if (current_id % 10 == 0)
                 {
                     periodic_throttle();
                 }
@@ -421,16 +439,44 @@ namespace allscale { namespace components {
 
     bool scheduler::periodic_throttle()
     {
+#ifdef DEBUG_
+      std::cout << "Entering periodic_throttle(), num_threads_: "<< num_threads_ << ", time_requested: " << time_requested << ", resource_requested: " << resource_requested <<  "\n";
+#endif
+      
         if ( num_threads_ > 1 && ( time_requested || resource_requested ) )
         {
             std::unique_lock<mutex_type> l(resize_mtx_);
             if ( current_avg_iter_time == 0.0 || allscale_monitor->get_number_of_iterations() < sampling_interval)
             {
+#ifdef DEBUG_
+	      std::cout << "current_avg_iter_time: " << current_avg_iter_time << ", allscale_monitor->get_number_of_iterations(): " << allscale_monitor->get_number_of_iterations() << ", sampling_interval: " << sampling_interval << "\n";
+#endif
+	      if(allscale_monitor->get_number_of_iterations() == 0)
+		{
+#ifdef DEBUG_
+		  std::cout << "number of iteration ==0, let's pass this round \n";
+#endif
+		  return true;
+		}
+	      
+	      
                 {
                     hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
                     current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
+		    if (std::isnan(current_avg_iter_time))
+		      {
+#ifdef DEBUG_
+			std::cout << "current_avg_iter_time get nan from allscale_monitor->get_avg_time_last_iterations()\n ";
+#endif
+			current_avg_iter_time = 0.0;
+		      }
+		    
 //                    current_avg_iter_time = allscale_monitor->get_last_iteration_time();
 //                    current_avg_iter_time = allscale_monitor->get_avg_work_item_times(sampling_interval);
+#ifdef DEBUG_
+		    std::cout << "Now current_avg_iter_time= " << current_avg_iter_time << ", return true\n";
+#endif
+		    
                 }
                 return true;
             } else if ( current_avg_iter_time > 0 )
@@ -445,7 +491,10 @@ namespace allscale { namespace components {
                     hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
 //                    current_avg_iter_time = allscale_monitor->get_last_iteration_time();
                     current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
-
+#ifdef DEBUG_
+		    std::cout << "last_avg_iter_time: " << last_avg_iter_time << ", current_avg_iter_time: " << current_avg_iter_time << "\n";
+#endif
+		    
                     // Select thread pool with the highest number of activated threads
                     for (std::size_t i = 0; i != thread_pools_.size(); ++i)
                     {
@@ -453,15 +502,25 @@ namespace allscale { namespace components {
                         std::size_t curr_active_pus =
                             hpx::threads::count(curr_mask);
                         active_threads_ += curr_active_pus;
+#ifdef DEBUG_
+			std::cout << "thread pool " << i << " has " << curr_active_pus << " active PUs\n";
+#endif
+			
                         if (curr_active_pus > domain_active_threads)
                         {
+#ifdef DEBUG_
+			  std::cout << "curr_active_pus: " << curr_active_pus << " domain_active_threads: "<< domain_active_threads << "\n";
+#endif
+			  
                             domain_active_threads = curr_active_pus;
                             active_mask = curr_mask;
                             pool_idx = i;
                         }
                     }
                 }
-
+#ifdef DEBUG_
+		std::cout << "total active PUs: " << active_threads_ << "\n";
+#endif
                 active_threads = active_threads_;
 
                 auto blocked_os_threads = active_mask & hpx::threads::not_(initial_masks_[pool_idx]);
@@ -469,6 +528,11 @@ namespace allscale { namespace components {
                 unsigned thread_use_count = thread_times[active_threads - 1].second;
                 double thread_exe_time = current_avg_iter_time + thread_times[active_threads - 1].first;
                 thread_times[active_threads - 1] = std::make_pair(thread_exe_time, thread_use_count + 1);
+#ifdef DEBUG_
+		std::cout << "thread_times[active_threads - 1].second: " << thread_times[active_threads - 1].second << "\n";
+		std::cout << "thread_times[active_threads - 1].first: " << thread_times[active_threads - 1].first << "\n";
+#endif
+		
 
                 std::size_t suspend_cap = 1; //active_threads < SMALL_SYSTEM  ? SMALL_SUSPEND_CAP : LARGE_SUSPEND_CAP;
                 std::size_t resume_cap = 1;  //active_threads < SMALL_SYSTEM  ? LARGE_RESUME_CAP : SMALL_RESUME_CAP;
@@ -486,7 +550,10 @@ namespace allscale { namespace components {
                     enable_flag = last_avg_iter_time < time_threshold;
                     min_threads = 1;
                 }
-
+#ifdef DEBUG_
+		std::cout << "domain_active_threads: " << domain_active_threads << ", min_threads: " << min_threads << "\n";
+#endif
+		
                 if (disable_flag && domain_active_threads > min_threads)
                 {
                     std::vector<std::size_t> suspend_threads;
@@ -495,21 +562,36 @@ namespace allscale { namespace components {
                     for (std::size_t i = 0; i < thread_count; ++i)
                     {
                         std::size_t pu_num = rp_->get_pu_num(i + thread_pools_[pool_idx]->get_thread_offset());
+#ifdef DEBUG_
+			std::cout << "pu_num: " << pu_num << "\n";
+#endif
+			
                         if (hpx::threads::test(active_mask, pu_num))
                         {
                             suspend_threads.push_back(i);
                             if (suspend_threads.size() == suspend_cap)
+			      {
+#ifdef DEBUG_
+				std::cout << "reached the cap of nb thread to suspend (" << suspend_cap << ")\n";
+#endif
                                 break;
+			      }
                         }
                     }
                     {
                         hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                         for(auto& pu: suspend_threads)
                         {
+#ifdef DEBUG_
+			  std::cout << "suspend thread on pu: " << pu << "\n" << std::flush;
+#endif
+			  
                             thread_pools_[pool_idx]->suspend_processing_unit(pu);
                         }
                     }
+#ifdef DEBUG_
                     std::cout << "Sent disable signal. Active threads: " << active_threads - suspend_cap << std::endl;
+#endif
                 }
                 else if (enable_flag && hpx::threads::any(blocked_os_threads))
                 {
@@ -537,7 +619,9 @@ namespace allscale { namespace components {
                             thread_pools_[pool_idx]->resume_processing_unit(pu);
                         }
                     }
+#ifdef DEBUG_
                     std::cout << "Sent enable signal. Active threads: " << active_threads + resume_cap << std::endl;
+#endif
                 }
             }
         }
