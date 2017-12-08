@@ -194,15 +194,17 @@ namespace allscale { namespace components {
         }
 
         char *env = std::getenv("ALLSCALE_RESILIENCE");
-        if (get_running_ranks() < 2 || (env && env[0] == '0')) {
-            resilience_disabled = true;
+        resilience_disabled = true;
+        if(get_running_ranks() >= 2 && (env && env[0] == '1'))
+        {
+            resilience_disabled = false;
+        }
+        else
+        {
 #ifdef DEBUG_
-            std::cout << "Resilience disabled for single locality!\n";
+            std::cout << "Resilience disabled!\n";
 #endif
             return;
-        }
-        else {
-            resilience_disabled = false;
         }
 
         my_state = TRUST;
