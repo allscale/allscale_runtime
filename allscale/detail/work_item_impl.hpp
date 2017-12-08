@@ -9,6 +9,7 @@
 #include <allscale/detail/work_item_impl_base.hpp>
 
 #include <hpx/include/serialization.hpp>
+#include <hpx/include/parallel_execution.hpp>
 #include <hpx/util/assert.hpp>
 #include <hpx/util/tuple.hpp>
 #include <hpx/lcos/when_all.hpp>
@@ -365,7 +366,8 @@ namespace allscale { namespace detail {
                                 Leases
                         ) = &work_item_impl::do_process<Closure>;
 
-                        hpx::apply(exec, f, std::move(this_), std::move(leases));
+                        hpx::parallel::execution::post(
+                            exec, f, std::move(this_), std::move(leases));
                     }
                 });
         }
@@ -391,7 +393,8 @@ namespace allscale { namespace detail {
                                     Leases
                             ) = &work_item_impl::do_process<Closure>;
 
-                            hpx::apply(exec, f, std::move(this_), std::move(leases));
+                            hpx::parallel::execution::post(
+                                exec, f, std::move(this_), std::move(leases));
                         }
                     }
                 );
@@ -412,7 +415,7 @@ namespace allscale { namespace detail {
             else
             {
                 auto this_ = shared_this();
-                hpx::apply(exec,
+                hpx::parallel::execution::post(exec,
                     [this_, exec]() mutable
                     {
                         HPX_ASSERT(this_->valid());
@@ -469,7 +472,7 @@ namespace allscale { namespace detail {
             {
                 typedef typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type reqs_type;
                 auto this_ = shared_this();
-                hpx::apply(exec,
+                hpx::parallel::execution::post(exec,
                     [this_]() mutable
                     {
                         HPX_ASSERT(this_->valid());

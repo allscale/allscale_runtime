@@ -10,6 +10,7 @@
 #include <hpx/include/lcos.hpp>
 #include <hpx/include/components.hpp>
 #include <hpx/include/serialization.hpp>
+#include <hpx/runtime/threads/executors/service_executors.hpp>
 #include <boost/dynamic_bitset.hpp>
 
 #include <boost/asio.hpp>
