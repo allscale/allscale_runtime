@@ -556,6 +556,9 @@ namespace allscale { namespace components {
 		
                 if (disable_flag && domain_active_threads > min_threads)
                 {
+#ifdef DEBUG_
+		  std::cout << "trying to suspend a thread\n" << std::flush; 
+#endif
                     std::vector<std::size_t> suspend_threads;
                     std::size_t thread_count = thread_pools_[pool_idx]->get_os_thread_count();
                     suspend_threads.reserve(thread_count);
@@ -595,8 +598,18 @@ namespace allscale { namespace components {
                 }
                 else if (enable_flag && hpx::threads::any(blocked_os_threads))
                 {
+#ifdef DEBUG_
+                    std::cout << "Trying to awake a thread\n" << std::flush;
+#endif
+
                     if ( active_threads < topo_->get_number_of_pus() / topo_->get_number_of_cores() + min_threads &&  enable_factor < 1.01 )
+		      {
+#ifdef DEBUG_
+			std::cout << "Setting enable_factor *= 1.0005\n" << std::flush;
+#endif
+
                         enable_factor *= 1.0005;
+		      }
 
 
                     std::vector<std::size_t> resume_threads;
