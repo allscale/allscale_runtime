@@ -334,7 +334,7 @@ namespace allscale { namespace detail {
         }
 
         template <typename ProcessVariant, typename Leases>
-        void get_deps(executor_type& exec, Leases leases,
+        void get_deps(executor_type& exec, bool sync, Leases leases,
             decltype(&ProcessVariant::template deps<Closure>))
         {
             typedef hpx::shared_future<void> deps_type;
@@ -354,19 +354,24 @@ namespace allscale { namespace detail {
 
             auto this_ = shared_this();
             state->set_on_completed(
-                [exec, state, this_, leases]() mutable
+                [exec, sync, state, this_, leases]() mutable
                 {
 //                     state->get_result();
-                    void (work_item_impl::*f)(
-                            Leases
-                    ) = &work_item_impl::do_process<Closure>;
+                    if (sync)
+                        this_->template do_process<Closure>(std::move(leases));
+                    else
+                    {
+                        void (work_item_impl::*f)(
+                                Leases
+                        ) = &work_item_impl::do_process<Closure>;
 
-                    hpx::apply(exec, f, std::move(this_), std::move(leases));
+                        hpx::apply(exec, f, std::move(this_), std::move(leases));
+                    }
                 });
         }
 
         template <typename ProcessVariant, typename Leases>
-        void get_deps(executor_type& exec, Leases leases, ...)
+        void get_deps(executor_type& exec, bool sync, Leases leases, ...)
         {
             auto this_ = shared_this();
             if (dep_.valid() && !dep_.is_ready())
@@ -376,11 +381,18 @@ namespace allscale { namespace detail {
                 typename hpx::traits::detail::shared_state_ptr_for<deps_type>::type const& state
                     = hpx::traits::future_access<deps_type>::get_shared_state(dep_);
                 state->set_on_completed(
-                    [exec, state, this_, leases]() mutable
+                    [exec, sync, state, this_, leases]() mutable
                     {
-                        void (work_item_impl::*f)(Leases) = &work_item_impl::do_process<Closure>;
+                        if (sync)
+                            this_->template do_process<Closure>(std::move(leases));
+                        else
+                        {
+                            void (work_item_impl::*f)(
+                                    Leases
+                            ) = &work_item_impl::do_process<Closure>;
 
-                        hpx::apply(exec, f, std::move(this_), std::move(leases));
+                            hpx::apply(exec, f, std::move(this_), std::move(leases));
+                        }
                     }
                 );
             }
@@ -395,7 +407,7 @@ namespace allscale { namespace detail {
             if (sync)
             {
                 get_deps<typename WorkItemDescription::process_variant>(
-                    exec, std::move(reqs), nullptr);
+                    exec, true, std::move(reqs), nullptr);
             }
             else
             {
@@ -405,7 +417,7 @@ namespace allscale { namespace detail {
                     {
                         HPX_ASSERT(this_->valid());
                         this_->template get_deps<typename WorkItemDescription::process_variant>(
-                            exec, std::move(hpx::util::tuple<>()), nullptr);
+                            exec, false, std::move(hpx::util::tuple<>()), nullptr);
                     });
             }
         }
@@ -423,7 +435,7 @@ namespace allscale { namespace detail {
                     hpx::util::unwrapping([this_, exec](reqs_type reqs) mutable
                     {
                         this_->template get_deps<typename WorkItemDescription::process_variant>(
-                            exec, std::move(reqs), nullptr);
+                            exec, true, std::move(reqs), nullptr);
                     })
                   , std::move(reqs));
             }
@@ -433,7 +445,7 @@ namespace allscale { namespace detail {
                     hpx::util::unwrapping([this_, exec](reqs_type reqs) mutable
                     {
                         this_->template get_deps<typename WorkItemDescription::process_variant>(
-                            exec, std::move(reqs), nullptr);
+                            exec, false, std::move(reqs), nullptr);
                     })
                   , std::move(reqs));
             }
