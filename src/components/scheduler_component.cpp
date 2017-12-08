@@ -239,10 +239,7 @@ namespace allscale { namespace components {
         for (std::size_t domain = 0; domain < numa_domains.size(); ++domain)
         {
             std::string pool_name;
-            if (domain == 0)
-                pool_name = "default";
-            else
-                pool_name = "allscale/numa/" + std::to_string(domain);
+            pool_name = "allscale/numa/" + std::to_string(domain);
 
             thread_pools_.push_back(
                 &hpx::resource::get_thread_pool(pool_name));
@@ -490,7 +487,6 @@ namespace allscale { namespace components {
                     min_threads = 1;
                 }
 
-
                 if (disable_flag && domain_active_threads > min_threads)
                 {
                     std::vector<std::size_t> suspend_threads;
@@ -510,7 +506,7 @@ namespace allscale { namespace components {
                         hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                         for(auto& pu: suspend_threads)
                         {
-                            thread_pools_[pool_idx]->remove_processing_unit(pu);
+                            thread_pools_[pool_idx]->suspend_processing_unit(pu);
                         }
                     }
                     std::cout << "Sent disable signal. Active threads: " << active_threads - suspend_cap << std::endl;
@@ -538,7 +534,7 @@ namespace allscale { namespace components {
                         hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                         for(auto& pu: resume_threads)
                         {
-                            thread_pools_[pool_idx]->add_processing_unit(pu, pu + thread_pools_[pool_idx]->get_thread_offset());
+                            thread_pools_[pool_idx]->resume_processing_unit(pu);
                         }
                     }
                     std::cout << "Sent enable signal. Active threads: " << active_threads + resume_cap << std::endl;
@@ -698,8 +694,8 @@ namespace allscale { namespace components {
     {
 //         timer_.stop();
 
-//        if ( time_requested || resource_requested )
-//            throttle_timer_.stop();
+//         if ( time_requested || resource_requested )
+//             throttle_timer_.stop();
 
         if ( energy_requested )
             frequency_timer_.stop();
@@ -714,6 +710,17 @@ namespace allscale { namespace components {
             for (int i = 0; i < thread_times.size(); i++)
             {
                 resource_usage += thread_times[i].first * (i + 1);
+            }
+
+            std::size_t pool_idx = 0;
+            for (auto &pool: thread_pools_)
+            {
+                std::size_t thread_count = pool->get_os_thread_count();
+                for (std::size_t i = 0; i < thread_count; ++i)
+                {
+                    pool->resume_processing_unit(i);
+                }
+                ++pool_idx;
             }
 
             std::cout << "Resource usage: " << resource_usage << std::endl;

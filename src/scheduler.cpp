@@ -25,21 +25,52 @@ namespace allscale
 //         rp.create_thread_pool("default");
         std::cerr << "===============================================================================\n";
         std::cerr << "Setting up Scheduler\n";
+
+        std::string input_objective_str = hpx::get_config_entry("allscale.objective", "none");
+        std::cerr << "  Scheduler objective is " << input_objective_str << "\n";
+        bool enable_elasticity = false;
+        if ( !input_objective_str.empty() )
+        {
+            std::istringstream iss_leeways(input_objective_str);
+            std::string objective_str;
+            while (iss_leeways >> objective_str)
+            {
+                auto idx = objective_str.find(':');
+                std::string obj = objective_str;
+                // Don't scale objectives if none is given
+                double leeway = 1.0;
+
+                if (idx != std::string::npos)
+                {
+                    obj = objective_str.substr(0, idx);
+                    leeway = std::stod( objective_str.substr(idx + 1) );
+                }
+
+                if (obj == "time")
+                {
+                    enable_elasticity = true;
+                    break;
+                }
+                else if (obj == "resource")
+                {
+                    enable_elasticity = true;
+                    break;
+                }
+            }
+        }
+
         std::cerr << "  Scheduling is using " << numa_domains.size() << " NUMA Domains\n";
+        rp.set_default_pool_name("allscale/numa/0");
 
         std::size_t domain = 0;
         bool skip = true;
         for (auto& numa: numa_domains)
         {
-            std::string pool_name;
-            if (domain == 0)
-                pool_name = "default";
-            else
-                pool_name = "allscale/numa/" + std::to_string(domain);
+            std::string pool_name = "allscale/numa/" + std::to_string(domain);
             std::cerr << "  Creating \"" << pool_name << "\" thread pool:\n";
 
             rp.create_thread_pool(pool_name,
-                [domain](hpx::threads::policies::callback_notifier& notifier,
+                [domain, enable_elasticity](hpx::threads::policies::callback_notifier& notifier,
                     std::size_t num_threads, std::size_t thread_offset,
                     std::size_t pool_index, std::string const& pool_name)
                 -> std::unique_ptr<hpx::threads::detail::thread_pool_base>
@@ -54,14 +85,17 @@ namespace allscale
                     std::unique_ptr<local_sched_type> sched(
                         new local_sched_type(init));
 
-                    hpx::threads::policies::scheduler_mode mode;
+                    hpx::threads::policies::scheduler_mode mode =
+                        hpx::threads::policies::scheduler_mode::delay_exit;
+
                     if (domain == 0)
                         mode = hpx::threads::policies::scheduler_mode(
-                            hpx::threads::policies::scheduler_mode::do_background_work |
-                            hpx::threads::policies::scheduler_mode::delay_exit);
-                    else
+                            hpx::threads::policies::scheduler_mode::do_background_work
+                          | mode);
+                    if(enable_elasticity)
                         mode = hpx::threads::policies::scheduler_mode(
-                            hpx::threads::policies::scheduler_mode::delay_exit);
+                            hpx::threads::policies::scheduler_mode::enable_elasticity
+                          | mode);
 
                     std::unique_ptr<hpx::threads::detail::thread_pool_base> pool(
                         new hpx::threads::detail::scheduled_thread_pool<
