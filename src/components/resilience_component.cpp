@@ -23,6 +23,7 @@ namespace allscale { namespace components {
 
     void resilience::set_guard(hpx::id_type guard, uint64_t guard_rank) {
         guard_ = guard;
+        guard_.make_unmanaged();
         guard_rank_ = guard_rank;
         std::string guard_ip_addr = hpx::async<get_ip_address_action>(guard_).get();
         delete guard_receiver_endpoint;
@@ -223,10 +224,13 @@ namespace allscale { namespace components {
         std::uint64_t left_id = (rank_ == 0)?(num_localities-1):(rank_-1);
         std::uint64_t left_left_id = (left_id == 0)?(num_localities-1):(left_id-1);
         guard_ = hpx::find_from_basename("allscale/resilience", right_id).get();
+        guard_.make_unmanaged();
         guard_rank_ = right_id;
         protectee_ = hpx::find_from_basename("allscale/resilience", left_id).get();
+        protectee_.make_unmanaged();
         protectee_rank_ = left_id;
         protectees_protectee_ = hpx::find_from_basename("allscale/resilience", left_left_id).get();
+        protectees_protectee_.make_unmanaged();
         protectees_protectee_rank_ = left_left_id;
 #ifdef DEBUG_
         std::cout << "Resilience component with rank " << rank_ << "started. Protecting " << protectee_rank_ << "\n";
@@ -342,6 +346,7 @@ namespace allscale { namespace components {
         hpx::async<set_guard_action>(protectee_, this->get_id(), rank_).get();
         std::pair<hpx::id_type,uint64_t> p = hpx::async<get_protectee_action>(protectee_).get();
         protectees_protectee_ = p.first;
+        protectees_protectee_.make_unmanaged();
         protectees_protectee_rank_ = p.second;
         remote_backups_.clear();
         remote_backups_ = hpx::async<get_local_backups_action>(protectee_).get();
@@ -390,14 +395,17 @@ namespace allscale { namespace components {
 
     void resilience::shutdown() {
         if (!resilience_disabled) {
-            std::unique_ptr<hpx::threads::executors::io_pool_executor> scheduler_;
             {
-                std::unique_lock<mutex_type> lk(access_scheduler_mtx_);
-                std::swap(scheduler_, scheduler);
+                std::unique_ptr<hpx::threads::executors::io_pool_executor> scheduler_;
+                {
+                    std::unique_lock<mutex_type> lk(access_scheduler_mtx_);
+                    std::swap(scheduler_, scheduler);
+                }
+                scheduler_.reset();
+                resilience_disabled = true;
             }
-            scheduler_.reset();
             // We need to invoke synchronously here
-            hpx::apply<shutdown_action>(guard_);
+            hpx::async<shutdown_action>(guard_).get();
         }
     }
 
