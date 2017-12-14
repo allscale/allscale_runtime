@@ -26,6 +26,7 @@ namespace allscale { namespace components {
       , sampling_interval(10)
       , enable_factor(1.0)
       , disable_factor(1.0)
+      , growing(true)
       , min_threads(4)
 	  , current_energy_usage(0)
       , last_actual_energy_usage(0)
@@ -523,7 +524,8 @@ namespace allscale { namespace components {
 #endif
                 active_threads = active_threads_;
 
-                auto blocked_os_threads = active_mask & hpx::threads::not_(initial_masks_[pool_idx]);
+		//                auto blocked_os_threads = active_mask & hpx::threads::not_(initial_masks_[pool_idx]);
+		auto blocked_os_threads = active_mask ^ initial_masks_[pool_idx];
 
                 unsigned thread_use_count = thread_times[active_threads - 1].second;
                 double thread_exe_time = current_avg_iter_time + thread_times[active_threads - 1].first;
@@ -538,12 +540,23 @@ namespace allscale { namespace components {
                 std::size_t resume_cap = 1;  //active_threads < SMALL_SYSTEM  ? LARGE_RESUME_CAP : SMALL_RESUME_CAP;
 
                 double time_threshold = current_avg_iter_time;
-                bool disable_flag = last_avg_iter_time > time_threshold;
-                bool enable_flag = last_avg_iter_time * enable_factor < time_threshold;
+
+		bool disable_flag = (growing && (last_avg_iter_time * enable_factor) < time_threshold) 
+		  || ((!growing) &&  last_avg_iter_time > (time_threshold * enable_factor));
+                bool enable_flag = ((!growing) && (last_avg_iter_time * enable_factor) < time_threshold) 
+		  || (growing &&  last_avg_iter_time > (time_threshold * enable_factor));
+		
+#ifdef DEBUG_
+		std::cout << "disable flag: " << disable_flag << ", enable flag: " << enable_flag << ", was growing: " << growing << "any blocked os threads" << hpx::threads::any(blocked_os_threads) << "\n";
+#endif
 
 
                 if ( resource_requested )
                 {
+#ifdef DEBUG_
+		    std::cout << "resource policy specifics \n";
+#endif
+
                     // If we have a sublinear speedup then prefer resources over time and throttle
                     time_threshold = current_avg_iter_time * (active_threads - suspend_cap ) / active_threads;
                     disable_flag = last_avg_iter_time > time_threshold;
@@ -557,8 +570,9 @@ namespace allscale { namespace components {
                 if (disable_flag && domain_active_threads > min_threads)
                 {
 #ifdef DEBUG_
-		  std::cout << "trying to suspend a thread\n" << std::flush; 
+		    std::cout << "trying to suspend a thread\n" << std::flush; 
 #endif
+		    growing = false;
                     std::vector<std::size_t> suspend_threads;
                     std::size_t thread_count = thread_pools_[pool_idx]->get_os_thread_count();
                     suspend_threads.reserve(thread_count);
@@ -601,7 +615,7 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
                     std::cout << "Trying to awake a thread\n" << std::flush;
 #endif
-
+		    growing = true;
                     if ( active_threads < topo_->get_number_of_pus() / topo_->get_number_of_cores() + min_threads &&  enable_factor < 1.01 )
 		      {
 #ifdef DEBUG_

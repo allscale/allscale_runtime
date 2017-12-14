@@ -100,6 +100,7 @@ namespace allscale { namespace components {
 
         double enable_factor;
         double disable_factor;
+        bool   growing;
         unsigned int min_threads;
         // Indices show number of threads, which hold pair of
         // execution times and number of times that particular thread used
