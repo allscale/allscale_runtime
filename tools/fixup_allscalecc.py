@@ -15,6 +15,7 @@ def fixup(pattern, replace):
 
 fixup(r'___gnu_cxx_colon__colon___normal_iterator', r'')
 fixup(r'__cxx11::', r'')
+fixup(r'chrono::_V2::', r'chrono::')
 fixup(r'std::basic_string<char, std::char_traits<char[ ]?>, std::allocator<char[ ]?> >', r'std::string')
 fixup(r'std::basic_ostream<char, std::char_traits<char[ ]?>[ ]?>', r'std::ostream')
 fixup(r'std::basic_ifstream<char, std::char_traits<char[ ]?>[ ]?>', r'std::ifstream')
