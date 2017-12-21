@@ -19,10 +19,10 @@ foreach(test ${tests})
         COMPONENT_DEPENDENCIES allscale
     )
   if (${test} STREQUAL "overlapping_async.insieme.seq")
-    add_test(NAME ${test}_test_exe COMMAND $<TARGET_FILE:${test}_test_exe> -Ihpx.stacks.use_guard_pages=0 --hpx:threads=1)
+    add_test(NAME ${test}_test_exe COMMAND $<TARGET_FILE:${test}_test_exe> --hpx:threads=1)
   else()
-    add_test(NAME ${test}_test_exe COMMAND $<TARGET_FILE:${test}_test_exe> -Ihpx.stacks.use_guard_pages=0)
+    add_test(NAME ${test}_test_exe COMMAND $<TARGET_FILE:${test}_test_exe>)
   endif()
 endforeach()
 
-add_test(NAME distributed.grid_init_test COMMAND ${HPX_PREFIX}/bin/hpxrun.py --verbose -l2 -t4 $<TARGET_FILE:grid_init_test_exe>)
+add_test(NAME distributed.grid_init_test COMMAND ${HPX_PREFIX}/bin/hpxrun.py --verbose -l2 -t4 $<TARGET_FILE:grid_init_test_exe> -- --hpx:ignore-batch-env)

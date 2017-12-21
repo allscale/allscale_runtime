@@ -10,6 +10,7 @@
 #include <hpx/include/lcos.hpp>
 #include <hpx/include/components.hpp>
 #include <hpx/include/serialization.hpp>
+#include <hpx/runtime/threads/executors/service_executors.hpp>
 #include <boost/dynamic_bitset.hpp>
 
 #include <boost/asio.hpp>
@@ -49,6 +50,7 @@ namespace allscale { namespace components {
            const std::size_t delta = 1000;
            boost::dynamic_bitset<> rank_running_;
            std::size_t get_running_ranks();
+	   void thread_safe_printer(std::string out);
            bool rank_running(uint64_t rank);
            void send_handler(boost::shared_ptr<std::string>, const boost::system::error_code&, std::size_t);
            void recv_handler(const boost::system::error_code& error, std::size_t bytes_transferred);

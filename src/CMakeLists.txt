@@ -23,7 +23,7 @@ else()
     MESSAGE(STATUS "Didnt find CPUFREQ, will compile without hardware reconf support")
 endif()
 
-add_hpx_component(allscale SOURCES ${_srcs})
+add_hpx_component(allscale SOURCES ${_srcs} COMPONENT_DEPENDENCIES iostreams)
 
 if(CPUFREQ_FOUND)
     target_link_libraries(allscale_component ${CPUFREQ_LIBRARIES})

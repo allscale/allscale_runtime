@@ -98,6 +98,7 @@ namespace allscale {
         std::shared_ptr<id> parent_;
         tree_config config_;
 
+        bool split_locality_depth(machine_config const&);
         bool split_numa_depth(machine_config const&);
         bool split_thread_depth(machine_config const&);
         void setup_left(machine_config const&);

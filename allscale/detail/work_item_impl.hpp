@@ -9,6 +9,7 @@
 #include <allscale/detail/work_item_impl_base.hpp>
 
 #include <hpx/include/serialization.hpp>
+#include <hpx/include/parallel_execution.hpp>
 #include <hpx/util/assert.hpp>
 #include <hpx/util/tuple.hpp>
 #include <hpx/lcos/when_all.hpp>
@@ -334,7 +335,7 @@ namespace allscale { namespace detail {
         }
 
         template <typename ProcessVariant, typename Leases>
-        void get_deps(executor_type& exec, Leases leases,
+        void get_deps(executor_type& exec, bool sync, Leases leases,
             decltype(&ProcessVariant::template deps<Closure>))
         {
             typedef hpx::shared_future<void> deps_type;
@@ -354,19 +355,25 @@ namespace allscale { namespace detail {
 
             auto this_ = shared_this();
             state->set_on_completed(
-                [exec, state, this_, leases]() mutable
+                [exec, sync, state, this_, leases]() mutable
                 {
 //                     state->get_result();
-                    void (work_item_impl::*f)(
-                            Leases
-                    ) = &work_item_impl::do_process<Closure>;
+                    if (sync)
+                        this_->template do_process<Closure>(std::move(leases));
+                    else
+                    {
+                        void (work_item_impl::*f)(
+                                Leases
+                        ) = &work_item_impl::do_process<Closure>;
 
-                    hpx::apply(exec, f, std::move(this_), std::move(leases));
+                        hpx::parallel::execution::post(
+                            exec, f, std::move(this_), std::move(leases));
+                    }
                 });
         }
 
         template <typename ProcessVariant, typename Leases>
-        void get_deps(executor_type& exec, Leases leases, ...)
+        void get_deps(executor_type& exec, bool sync, Leases leases, ...)
         {
             auto this_ = shared_this();
             if (dep_.valid() && !dep_.is_ready())
@@ -376,11 +383,19 @@ namespace allscale { namespace detail {
                 typename hpx::traits::detail::shared_state_ptr_for<deps_type>::type const& state
                     = hpx::traits::future_access<deps_type>::get_shared_state(dep_);
                 state->set_on_completed(
-                    [exec, state, this_, leases]() mutable
+                    [exec, sync, state, this_, leases]() mutable
                     {
-                        void (work_item_impl::*f)(Leases) = &work_item_impl::do_process<Closure>;
+                        if (sync)
+                            this_->template do_process<Closure>(std::move(leases));
+                        else
+                        {
+                            void (work_item_impl::*f)(
+                                    Leases
+                            ) = &work_item_impl::do_process<Closure>;
 
-                        hpx::apply(exec, f, std::move(this_), std::move(leases));
+                            hpx::parallel::execution::post(
+                                exec, f, std::move(this_), std::move(leases));
+                        }
                     }
                 );
             }
@@ -390,14 +405,32 @@ namespace allscale { namespace detail {
             }
         }
 
-        void process(executor_type& exec, bool sync)
+        void process(executor_type& exec, bool sync, hpx::util::tuple<>&& reqs)
         {
-            HPX_ASSERT(valid());
-            auto reqs = acquire<typename WorkItemDescription::process_variant>(nullptr);
-            typedef
-                typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type
-                reqs_type;
+            if (sync)
+            {
+                get_deps<typename WorkItemDescription::process_variant>(
+                    exec, true, std::move(reqs), nullptr);
+            }
+            else
+            {
+                auto this_ = shared_this();
+                hpx::parallel::execution::post(exec,
+                    [this_, exec]() mutable
+                    {
+                        HPX_ASSERT(this_->valid());
+                        this_->template get_deps<typename WorkItemDescription::process_variant>(
+                            exec, false, std::move(hpx::util::tuple<>()), nullptr);
+                    });
+            }
+        }
 
+        template <typename...Ts>
+        void process(executor_type& exec, bool sync, hpx::util::tuple<Ts...>&& reqs)
+        {
+            typedef
+                typename hpx::util::decay<decltype(hpx::util::unwrap(std::move(reqs)))>::type
+                reqs_type;
             auto this_ = shared_this();
             if (sync)
             {
@@ -405,7 +438,7 @@ namespace allscale { namespace detail {
                     hpx::util::unwrapping([this_, exec](reqs_type reqs) mutable
                     {
                         this_->template get_deps<typename WorkItemDescription::process_variant>(
-                            exec, std::move(reqs), nullptr);
+                            exec, true, std::move(reqs), nullptr);
                     })
                   , std::move(reqs));
             }
@@ -415,7 +448,63 @@ namespace allscale { namespace detail {
                     hpx::util::unwrapping([this_, exec](reqs_type reqs) mutable
                     {
                         this_->template get_deps<typename WorkItemDescription::process_variant>(
-                            exec, std::move(reqs), nullptr);
+                            exec, false, std::move(reqs), nullptr);
+                    })
+                  , std::move(reqs));
+            }
+        }
+
+
+        void process(executor_type& exec, bool sync)
+        {
+            HPX_ASSERT(valid());
+            process(exec, sync,
+                acquire<typename WorkItemDescription::process_variant>(nullptr));
+        }
+
+        void split_impl(executor_type& exec, bool sync, hpx::util::tuple<>&& reqs)
+        {
+            if (sync)
+            {
+                do_split(std::move(reqs));
+            }
+            else
+            {
+                typedef typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type reqs_type;
+                auto this_ = shared_this();
+                hpx::parallel::execution::post(exec,
+                    [this_]() mutable
+                    {
+                        HPX_ASSERT(this_->valid());
+                        this_->do_split(std::move(hpx::util::tuple<>()));
+                    });
+            }
+        }
+
+        template <typename...Ts>
+        void split_impl(executor_type& exec, bool sync, hpx::util::tuple<Ts...>&& reqs)
+        {
+            typedef
+                typename hpx::util::decay<decltype(hpx::util::unwrap(std::move(reqs)))>::type
+                reqs_type;
+            auto this_ = shared_this();
+            if (sync)
+            {
+                hpx::dataflow(hpx::launch::sync,
+                    hpx::util::unwrapping([this_](reqs_type reqs) mutable
+                    {
+                        HPX_ASSERT(this_->valid());
+                        this_->do_split(std::move(reqs));
+                    })
+                  , std::move(reqs));
+            }
+            else
+            {
+                hpx::dataflow(exec,
+                    hpx::util::unwrapping([this_](reqs_type reqs) mutable
+                    {
+                        HPX_ASSERT(this_->valid());
+                        this_->do_split(std::move(reqs));
                     })
                   , std::move(reqs));
             }
@@ -426,30 +515,8 @@ namespace allscale { namespace detail {
             WorkItemDescription_::split_variant::valid
         >::type split_impl(executor_type& exec, bool sync)
         {
-            auto reqs = acquire<typename WorkItemDescription::split_variant>(nullptr);
-
-            typedef typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type reqs_type;
-            auto this_ = shared_this();
-            if (sync)
-            {
-                hpx::dataflow(hpx::launch::sync,
-                    hpx::util::unwrapping([this_](reqs_type reqs) mutable
-                    {
-                        HPX_ASSERT(this_->valid());
-                        this_->do_split(std::move(reqs));
-                    })
-                  , std::move(reqs));
-            }
-            else
-            {
-                hpx::dataflow(exec,
-                    hpx::util::unwrapping([this_](reqs_type reqs) mutable
-                    {
-                        HPX_ASSERT(this_->valid());
-                        this_->do_split(std::move(reqs));
-                    })
-                  , std::move(reqs));
-            }
+            split_impl(exec, sync,
+                acquire<typename WorkItemDescription::split_variant>(nullptr));
         }
 
         template <typename WorkItemDescription_>

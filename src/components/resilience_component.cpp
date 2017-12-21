@@ -5,6 +5,7 @@
 #include <allscale/work_item.hpp>
 
 #include <hpx/include/thread_executors.hpp>
+#include <hpx/include/iostreams.hpp>
 #include <hpx/util/detail/yield_k.hpp>
 #include <hpx/util/asio_util.hpp>
 #include <chrono>
@@ -21,15 +22,20 @@ namespace allscale { namespace components {
     {
     }
 
+    void resilience::thread_safe_printer(std::string output) {
+#ifdef DEBUG_
+	hpx::cout << "DEBUG (" << rank_ << ")" << output;
+#endif //DEBUG_
+    }
+
     void resilience::set_guard(hpx::id_type guard, uint64_t guard_rank) {
         guard_ = guard;
+        guard_.make_unmanaged();
         guard_rank_ = guard_rank;
         std::string guard_ip_addr = hpx::async<get_ip_address_action>(guard_).get();
         delete guard_receiver_endpoint;
         guard_receiver_endpoint = new udp::endpoint(boost::asio::ip::address::from_string(guard_ip_addr), UDP_RECV_PORT+guard_rank_);
-#ifdef DEBUG_
-        std::cout << "My rank: " << rank_ << "; my new guard = " << guard_rank << "; my guard listen port = " << (UDP_RECV_PORT+guard_rank_) << "\n";
-#endif
+        thread_safe_printer(std::string("My new guard = " + std::to_string(guard_rank) + "; my guard listen port = " + std::to_string(UDP_RECV_PORT+guard_rank_) + "\n"));
     }
 
     void resilience::kill_me() {
@@ -63,48 +69,37 @@ namespace allscale { namespace components {
 
     void resilience::init_recovery() {
         if (my_state == SUSPECT) {
-#ifdef DEBUG_
-            std::cout << "protectee state = SUSPECT\n";
-#endif
+            thread_safe_printer("protectee state = SUSPECT\n");
             hpx::apply(&resilience::protectee_crashed, this);
             std::unique_lock<std::mutex> lk(cv_m);
-#ifdef DEBUG_
-            std::cout << "waiting on finished recovery...\n";
-#endif
+            thread_safe_printer("waiting on finished recovery...\n");
             cv.wait(lk, [this]{return recovery_done;});
-#ifdef DEBUG_
-            std::cout << "done waiting on finished recovery...\n";
-#endif
+            thread_safe_printer("done waiting on finished recovery...\n");
             recovery_done = false;
             my_state = TRUST;
         }
         else {
-#ifdef DEBUG_
-            std::cout << "protectee state = TRUST\n";
-#endif
+            thread_safe_printer("protectee state = TRUST\n");
         }
     }
 
     // ignore errors while sending -- we don't care about our guard
     void resilience::send_handler(boost::shared_ptr<std::string> message, const boost::system::error_code& error, std::size_t bytes_transferred) {
-#ifdef DEBUG_
         if (error)
-            std::cout << "Something went wrong sending ...\n";
+            thread_safe_printer("Something went wrong sending ...\n");
         else
-            std::cout << "Sent data successfully...\n";
-#endif
+            thread_safe_printer("Sent data successfully...\n");
     }
 
     // ignore errors while sending -- we don't care about our guard
     void resilience::recv_handler(const boost::system::error_code& error, std::size_t bytes_transferred) {
-#ifdef DEBUG_
         if (error)
-            std::cout << "Something went wrong receving ...\n";
+            thread_safe_printer("Something went wrong receving ...\n");
         else {
             std::size_t actual_epoch = 0;
             auto t_now =  std::chrono::high_resolution_clock::now();
             actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
-            std::cout << "Received data successfully at epoch " << actual_epoch << "\n";
+            thread_safe_printer("Received data successfully at epoch " + std::to_string(actual_epoch) + "\n");
 
             {
             std::unique_lock<mutex_type> lk(access_scheduler_mtx_);
@@ -113,7 +108,6 @@ namespace allscale { namespace components {
             }
 
         }
-#endif
     }
 
     //
@@ -126,7 +120,10 @@ namespace allscale { namespace components {
             std::this_thread::sleep_for(milliseconds(miu));
 #ifdef DEBUG_
             std::time_t now_c = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-            std::cout << "Rank " << rank_ << " will call async_send at " << actual_epoch  << " which is TIME " << std::put_time(std::localtime(&now_c), "%F %T") << "\n";
+            std::stringstream time_now;
+  	    time_now << std::put_time(std::localtime(&now_c), "%F %T");
+	
+            thread_safe_printer("Will call async_send at " + std::to_string(actual_epoch) + " which is TIME " + time_now.str() + "\n");
 #endif
             // ToDo: protect access to guard_receiver_endpoint (which I may modify) !!!
             send_sock->async_send_to(boost::asio::buffer(*data), *guard_receiver_endpoint, hpx::util::bind(&resilience::send_handler, this, data,
@@ -154,8 +151,11 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
                 t_now =  std::chrono::high_resolution_clock::now();
                 std::time_t now_c = std::chrono::system_clock::to_time_t( std::chrono::system_clock::now());
+		std::stringstream time_now;
+		time_now << std::put_time(std::localtime(&now_c), "%F %T");
                 actual_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
-                std::cout << "Rank " << rank_ << " will call async_receive at " << actual_epoch  << " which is TIME " << std::put_time(std::localtime(&now_c), "%F %T") << "\n";
+                std::string out = "Will call async_receive at " + std::to_string(actual_epoch) + " which is TIME " + time_now.str();
+		thread_safe_printer(out);
 
 #endif
                 char heartbeat[4];
@@ -163,6 +163,8 @@ namespace allscale { namespace components {
                                 boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
                 // git receive some time and read buffer
                 std::this_thread::sleep_for(milliseconds(delta));
+		// NOT THREAD-SAFE !!!
+		//thread_safe_printer("Receive buffer after sleeping: " + std::string(heartbeat) + "\n");
             }
             // my_state != TRUST
             else {
@@ -194,23 +196,22 @@ namespace allscale { namespace components {
         }
 
         char *env = std::getenv("ALLSCALE_RESILIENCE");
-        if (get_running_ranks() < 2 || (env && env[0] == '0')) {
-            resilience_disabled = true;
+        resilience_disabled = true;
+        if(get_running_ranks() >= 2 && (env && env[0] == '1'))
+        {
+            resilience_disabled = false;
+        }
+        else
+        {
 #ifdef DEBUG_
-            std::cout << "Resilience disabled for single locality!\n";
+            std::cout << "Resilience disabled!\n";
 #endif
             return;
-        }
-        else {
-            resilience_disabled = false;
         }
 
         my_state = TRUST;
         recovery_done = false;
         start_time = std::chrono::high_resolution_clock::now();
-//#ifdef DEBUG_
-        //std::cout << "Rank: " << rank_ << " sets start time to " << start_time << "\n";
-//#endif
         scheduler.reset(new hpx::threads::executors::io_pool_executor);
 
         allscale::monitor::connect(allscale::monitor::work_item_execution_started, allscale::resilience::global_w_exec_start_wrapper);
@@ -221,16 +222,15 @@ namespace allscale { namespace components {
         std::uint64_t left_id = (rank_ == 0)?(num_localities-1):(rank_-1);
         std::uint64_t left_left_id = (left_id == 0)?(num_localities-1):(left_id-1);
         guard_ = hpx::find_from_basename("allscale/resilience", right_id).get();
+        guard_.make_unmanaged();
         guard_rank_ = right_id;
         protectee_ = hpx::find_from_basename("allscale/resilience", left_id).get();
+        protectee_.make_unmanaged();
         protectee_rank_ = left_id;
         protectees_protectee_ = hpx::find_from_basename("allscale/resilience", left_left_id).get();
+        protectees_protectee_.make_unmanaged();
         protectees_protectee_rank_ = left_left_id;
-#ifdef DEBUG_
-        std::cout << "Resilience component with rank " << rank_ << "started. Protecting " << protectee_rank_ << "\n";
-#endif
-
-
+        thread_safe_printer("Resilience component started. Protecting " + std::to_string(protectee_rank_) + "\n");
 
         //sock = new boost::asio::ip::udp::socket(service, udp::endpoint(udp::v4(), UDP_RECV_PORT+rank_));
 
@@ -238,9 +238,7 @@ namespace allscale { namespace components {
         std::string my_ip_addr = hpx::async<get_ip_address_action>(hpx::find_here()).get();
         my_receiver_endpoint = new udp::endpoint(boost::asio::ip::address::from_string(my_ip_addr), UDP_RECV_PORT+rank_);
 
-#ifdef DEBUG_
-        std::cout << "My receiver endpoint = " << my_ip_addr << ":" << (UDP_RECV_PORT+rank_) << "\n";
-#endif
+        thread_safe_printer("My receiver endpoint = " + my_ip_addr + ":" + std::to_string(UDP_RECV_PORT+rank_) + "\n");
         std::string guard_ip_addr = hpx::async<get_ip_address_action>(guard_).get();
         guard_receiver_endpoint = new udp::endpoint(boost::asio::ip::address::from_string(guard_ip_addr), UDP_RECV_PORT+guard_rank_);
 
@@ -277,18 +275,13 @@ namespace allscale { namespace components {
             }
         }
 
-
-#ifdef DEBUG_
-        std::cout << "Done backing up : " << w.id().name() << std::endl;
-#endif
+        thread_safe_printer("Done backing up : " + w.id().name() + "\n");
     }
 
     void resilience::w_exec_finish_wrapper(work_item const& w) {
         if (resilience_disabled) return;
 
-#ifdef DEBUG_
-        std::cout << "Finish " << w.id().name() << "\n";
-#endif // DEBUG_
+        thread_safe_printer("Finish " + w.id().name() + "\n");
 
         if (w.id().depth() != get_cp_granularity()) return;
 
@@ -314,10 +307,7 @@ namespace allscale { namespace components {
 
     void resilience::protectee_crashed() {
 
-#ifdef DEBUG_
-        std::cout << "Begin recovery ...\n";
-        std::cout << "set bitrank of " << protectee_rank_ << " to false\n";
-#endif // DEBUG_
+        thread_safe_printer("Begin recovery ...\nset bitrank of " + std::to_string(protectee_rank_) + " to false\n");
         {
             std::unique_lock<mutex_type> lock(running_ranks_mutex_);
             rank_running_[protectee_rank_] = false;
@@ -325,14 +315,10 @@ namespace allscale { namespace components {
 
         for (auto c : remote_backups_) {
             work_item restored = c.second;
-#ifdef DEBUG_
-            std::cout << "Will reschedule task " << restored.id().name() << "\n";
-#endif // DEBUG_
+            thread_safe_printer("Will reschedule task " + restored.id().name() + "\n");
             allscale::scheduler::schedule(std::move(restored));
         }
-#ifdef DEBUG_
-        std::cout << "Done rescheduling ...\n";
-#endif
+        thread_safe_printer("Done rescheduling ...\n");
         // restore guard / protectee connections
         hpx::util::high_resolution_timer t;
         protectee_ = protectees_protectee_;
@@ -340,6 +326,7 @@ namespace allscale { namespace components {
         hpx::async<set_guard_action>(protectee_, this->get_id(), rank_).get();
         std::pair<hpx::id_type,uint64_t> p = hpx::async<get_protectee_action>(protectee_).get();
         protectees_protectee_ = p.first;
+        protectees_protectee_.make_unmanaged();
         protectees_protectee_rank_ = p.second;
         remote_backups_.clear();
         remote_backups_ = hpx::async<get_local_backups_action>(protectee_).get();
@@ -348,9 +335,7 @@ namespace allscale { namespace components {
             recovery_done = true;
         }
         cv.notify_one();
-#ifdef DEBUG_
-        std::cout << "Finish recovery\n";
-#endif // DEBUG_
+        thread_safe_printer("Finish recovery\n");
     }
 
 	int resilience::get_cp_granularity() {
@@ -359,9 +344,7 @@ namespace allscale { namespace components {
 
     void resilience::remote_backup(work_item w) {
         std::unique_lock<mutex_type> lock(backup_mutex_);
-#ifdef DEBUG_
-        std::cout << "Will backup task " << w.id().name() << "\n";
-#endif
+        thread_safe_printer("Will backup task " + w.id().name() + "\n");
         remote_backups_[w.id().name()] = w;
     }
 
@@ -369,9 +352,7 @@ namespace allscale { namespace components {
         work_item bw;
         {
             std::unique_lock<mutex_type> lock(backup_mutex_);
-#ifdef DEBUG_
-            std::cout << "Will unbackup task " << name << "\n";
-#endif
+            thread_safe_printer("Will unbackup task " + name + "\n");
             auto b = remote_backups_.find(name);
             if (b == remote_backups_.end())
             {
@@ -388,14 +369,17 @@ namespace allscale { namespace components {
 
     void resilience::shutdown() {
         if (!resilience_disabled) {
-            std::unique_ptr<hpx::threads::executors::io_pool_executor> scheduler_;
             {
-                std::unique_lock<mutex_type> lk(access_scheduler_mtx_);
-                std::swap(scheduler_, scheduler);
+                std::unique_ptr<hpx::threads::executors::io_pool_executor> scheduler_;
+                {
+                    std::unique_lock<mutex_type> lk(access_scheduler_mtx_);
+                    std::swap(scheduler_, scheduler);
+                }
+                scheduler_.reset();
+                resilience_disabled = true;
             }
-            scheduler_.reset();
             // We need to invoke synchronously here
-            hpx::apply<shutdown_action>(guard_);
+            hpx::async<shutdown_action>(guard_).get();
         }
     }
 

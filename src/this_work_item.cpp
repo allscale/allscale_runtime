@@ -45,13 +45,26 @@ namespace allscale { namespace this_work_item {
         next_id_(0)
     {
         HPX_ASSERT(i == 0);
-        config_.rank_ = 0;
+        config_.rank_ = -1;
         config_.numa_domain_ = 0;
-        config_.locality_depth_ = hpx::get_num_localities(hpx::launch::sync);
+        config_.locality_depth_ = -1;//hpx::get_num_localities(hpx::launch::sync);
         config_.numa_depth_ = -1;//get_num_numa_nodes();
         config_.thread_depth_ = -1;
         config_.gpu_depth_ = -1;
         config_.needs_checkpoint_ = false;
+    }
+
+    bool id::split_locality_depth(machine_config const& mconfig)
+    {
+        auto& parent = parent_->config_;
+        if (parent.locality_depth_ == std::uint64_t(-1))
+        {
+            config_.rank_ = hpx::get_locality_id();
+            config_.locality_depth_ = mconfig.num_localities;
+            config_.numa_domain_ = parent.numa_domain_;
+            return false;
+        }
+        return true;
     }
 
     bool id::split_numa_depth(machine_config const& mconfig)
@@ -87,6 +100,8 @@ namespace allscale { namespace this_work_item {
         auto& parent = parent_->config_;
         config_.rank_ = parent.rank_;
         config_.numa_domain_ = parent.numa_domain_;
+        if (!split_locality_depth(mconfig)) return;
+
         if (parent.locality_depth_ > 1)
         {
             config_.locality_depth_ = parent.locality_depth_ / 2;
@@ -120,6 +135,8 @@ namespace allscale { namespace this_work_item {
     void id::setup_right(machine_config const& mconfig)
     {
         auto& parent = parent_->config_;
+        if (!split_locality_depth(mconfig)) return;
+
         if (parent.locality_depth_ > 1)
         {
             config_.rank_ = parent.rank_ + (parent.locality_depth_ / 2);
@@ -194,8 +211,8 @@ namespace allscale { namespace this_work_item {
         id_ = parent.id_;
         id_.push_back(parent.next_id_++);
 
-        HPX_ASSERT(parent.config_.rank_ != std::uint64_t(-1));
-        HPX_ASSERT(parent.config_.locality_depth_ != std::uint64_t(-1));
+//         HPX_ASSERT(parent.config_.rank_ != std::uint64_t(-1));
+//         HPX_ASSERT(parent.config_.locality_depth_ != std::uint64_t(-1));
 //         HPX_ASSERT(parent.config_.numa_depth_ != std::uint8_t(-1));
 //         HPX_ASSERT(parent.thread_depth_ != std::size_t(-1));
 

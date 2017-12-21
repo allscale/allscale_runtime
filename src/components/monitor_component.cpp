@@ -619,9 +619,11 @@ namespace allscale { namespace components {
       }
 
       if(num_iters <= history->iteration_time.size())
-	 return avg_time/(double)num_iters;
+          return avg_time/(double)num_iters;
+      else if(history->iteration_time.empty())
+          return avg_time;
       else
-	 return avg_time/(double)history->iteration_time.size();
+          return avg_time/(double)history->iteration_time.size();
    }
 
 

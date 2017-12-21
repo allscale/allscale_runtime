@@ -12,6 +12,7 @@ namespace allscale
         // A class aggregating task dependencies
         struct dependencies
         {
+            dependencies() {}
             explicit dependencies(hpx::future<void>&& dep) : dep_(std::move(dep)) {}
             hpx::shared_future<void> dep_;
         };
@@ -22,9 +23,10 @@ namespace allscale
     spawn_with_dependencies(const runtime::dependencies& deps, Ts&&...vs)
     {
         typedef typename WorkItemDescription::result_type result_type;
-        HPX_ASSERT(this_work_item::get_id().get_treeture());
 
         allscale::treeture<void> parent(this_work_item::get_id().get_treeture());
+        if (!parent)
+            parent = treeture<void>{};
         allscale::treeture<result_type> tres(parent_arg(), parent);
 
         work_item wi(false, WorkItemDescription(), deps.dep_, tres, std::forward<Ts>(vs)...);
