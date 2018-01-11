@@ -31,7 +31,7 @@ namespace allscale {
     }
 
     void resilience::stop() {
-        get_ptr()->shutdown();
+        get_ptr()->shutdown(1);
     }
 
     void resilience::global_w_exec_start_wrapper(const work_item &work) {
