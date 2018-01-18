@@ -50,7 +50,6 @@ namespace allscale { namespace components {
            bool rank_running(uint64_t rank);
            void failure_detection_loop_async ();
            void send_heartbeat_loop ();
-           void init_recovery();
            void thread_safe_printer(std::string output);
            // END failure detection here
 
@@ -58,10 +57,11 @@ namespace allscale { namespace components {
            hpx::id_type guard_;
            uint64_t guard_rank_;
            hpx::id_type protectee_;
-           uint64_t protectee_rank_;
+           static std::size_t protectee_rank_;
            hpx::id_type protectees_protectee_;
            uint64_t protectees_protectee_rank_;
            mutable mutex_type backup_mutex_;
+           mutable mutex_type remote_backup_mutex_;
            mutable mutex_type running_ranks_mutex_;
            std::map<std::string, work_item> local_backups_;
            mutable mutex_type result_mutex_;
@@ -69,8 +69,6 @@ namespace allscale { namespace components {
            void init();
            resilience(std::uint64_t rank);
            void protectee_crashed();
-           HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,protectee_crashed);
-           void handle_my_crash();
            int get_cp_granularity();
 
            void set_guard(hpx::id_type guard, uint64_t guard_rank);
@@ -83,8 +81,6 @@ namespace allscale { namespace components {
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,get_local_backups);
            void remote_backup(work_item wi);
            HPX_DEFINE_COMPONENT_ACTION(resilience,remote_backup);
-           void kill_me();
-           HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,kill_me);
            void remote_unbackup(std::string name);
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,remote_unbackup);
            void shutdown(std::size_t token);
@@ -114,10 +110,8 @@ namespace hpx { namespace traits {
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::send_heartbeat_action, send_heartbeat_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::remote_backup_action, remote_backup_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::remote_unbackup_action, remote_unbackup_action)
-HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::protectee_crashed_action, protectee_crashed_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::set_guard_action, set_guard_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_protectee_action, get_protectee_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_local_backups_action, get_local_backups_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::shutdown_action, allscale_resilience_shutdown_action)
-HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::kill_me_action, kill_me_action)
 #endif

@@ -68,9 +68,9 @@ namespace allscale {
     }
 
     // ignore signum here ...
-    void resilience::handle_my_crash(int signum)
-    {
-        HPX_ASSERT(get_ptr());
-        get_ptr()->handle_my_crash();
-    }
+//    void resilience::handle_my_crash(int signum)
+//    {
+//        HPX_ASSERT(get_ptr());
+//        get_ptr()->handle_my_crash();
+//    }
 }

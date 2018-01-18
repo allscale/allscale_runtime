@@ -6,6 +6,12 @@ add_hpx_executable(
 )
 
 add_hpx_executable(
+  simple
+  SOURCES simple.cpp
+  COMPONENT_DEPENDENCIES allscale
+)
+
+add_hpx_executable(
   stencil_1d_pfor
   SOURCES stencil_1d_pfor.cpp
   COMPONENT_DEPENDENCIES allscale
