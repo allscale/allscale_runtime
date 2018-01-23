@@ -31,7 +31,7 @@ namespace allscale {
     }
 
     void resilience::stop() {
-        get_ptr()->shutdown();
+        get_ptr()->shutdown(1);
     }
 
     void resilience::global_w_exec_start_wrapper(const work_item &work) {
@@ -68,9 +68,9 @@ namespace allscale {
     }
 
     // ignore signum here ...
-    void resilience::handle_my_crash(int signum)
-    {
-        HPX_ASSERT(get_ptr());
-        get_ptr()->handle_my_crash();
-    }
+//    void resilience::handle_my_crash(int signum)
+//    {
+//        HPX_ASSERT(get_ptr());
+//        get_ptr()->handle_my_crash();
+//    }
 }

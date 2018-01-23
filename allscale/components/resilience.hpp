@@ -10,7 +10,6 @@
 #include <hpx/include/lcos.hpp>
 #include <hpx/include/components.hpp>
 #include <hpx/include/serialization.hpp>
-#include <hpx/runtime/threads/executors/service_executors.hpp>
 #include <boost/dynamic_bitset.hpp>
 
 #include <boost/asio.hpp>
@@ -29,50 +28,40 @@ namespace allscale { namespace components {
 
            typedef hpx::lcos::local::spinlock mutex_type;
 
-           std::unique_ptr<hpx::threads::executors::io_pool_executor> scheduler;
+           //std::unique_ptr<hpx::threads::executors::io_pool_executor> scheduler;
 
 
-           //UDP port
-           const int UDP_RECV_PORT = 44444;
-           const int UDP_SEND_PORT = 44445;
+           bool env_resilience_disabled = false;
            // START failure detection here (Kiril)
            udp::endpoint * my_receiver_endpoint, *guard_receiver_endpoint;
            enum state {TRUST, SUSPECT, RECOVERING};
            std::condition_variable cv;
            std::mutex cv_m;
-           udp::socket *send_sock;
-           udp::socket *recv_sock;
            bool recovery_done; // protected via cv and cv_m
            std::atomic<state> my_state;
+           std::atomic_bool keep_running;
            std::chrono::high_resolution_clock::time_point start_time,trust_lease;
-           //std::size_t heartbeat_counter;
+           std::atomic<std::size_t> protectee_heartbeat;
+           std::size_t my_heartbeat;
            const std::size_t miu = 1000;
            const std::size_t delta = 1000;
            boost::dynamic_bitset<> rank_running_;
            std::size_t get_running_ranks();
-	   void thread_safe_printer(std::string out);
            bool rank_running(uint64_t rank);
-           void send_handler(boost::shared_ptr<std::string>, const boost::system::error_code&, std::size_t);
-           void recv_handler(const boost::system::error_code& error, std::size_t bytes_transferred);
            void failure_detection_loop_async ();
            void send_heartbeat_loop ();
-           void receive_heartbeat_loop ();
-           void init_recovery();
-           //void send_heartbeat(std::size_t counter);
-           //HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,send_heartbeat);
-           std::string get_ip_address();
-           HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,get_ip_address);
+           void thread_safe_printer(std::string output);
            // END failure detection here
 
-           std::atomic_bool resilience_disabled;
            uint64_t rank_, num_localities;
            hpx::id_type guard_;
            uint64_t guard_rank_;
            hpx::id_type protectee_;
-           uint64_t protectee_rank_;
+           static std::size_t protectee_rank_;
            hpx::id_type protectees_protectee_;
            uint64_t protectees_protectee_rank_;
            mutable mutex_type backup_mutex_;
+           mutable mutex_type remote_backup_mutex_;
            mutable mutex_type running_ranks_mutex_;
            std::map<std::string, work_item> local_backups_;
            mutable mutex_type result_mutex_;
@@ -80,23 +69,21 @@ namespace allscale { namespace components {
            void init();
            resilience(std::uint64_t rank);
            void protectee_crashed();
-           HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,protectee_crashed);
-           void handle_my_crash();
            int get_cp_granularity();
 
            void set_guard(hpx::id_type guard, uint64_t guard_rank);
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,set_guard);
+           void send_heartbeat(uint64_t heartbeat);
+           HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,send_heartbeat);
            std::pair<hpx::id_type,uint64_t> get_protectee();
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,get_protectee);
            std::map<std::string,work_item> get_local_backups();
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,get_local_backups);
            void remote_backup(work_item wi);
            HPX_DEFINE_COMPONENT_ACTION(resilience,remote_backup);
-           void kill_me();
-           HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,kill_me);
            void remote_unbackup(std::string name);
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,remote_unbackup);
-           void shutdown();
+           void shutdown(std::size_t token);
            HPX_DEFINE_COMPONENT_ACTION(resilience,shutdown);
 
            // Wrapping functions to signals from the runtime
@@ -120,14 +107,11 @@ namespace hpx { namespace traits {
     };
 }}
 
+HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::send_heartbeat_action, send_heartbeat_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::remote_backup_action, remote_backup_action)
-//HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::send_heartbeat_action, send_heartbeat_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::remote_unbackup_action, remote_unbackup_action)
-HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::protectee_crashed_action, protectee_crashed_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::set_guard_action, set_guard_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_protectee_action, get_protectee_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_local_backups_action, get_local_backups_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::shutdown_action, allscale_resilience_shutdown_action)
-HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::kill_me_action, kill_me_action)
-HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_ip_address_action, get_ip_address_action)
 #endif
