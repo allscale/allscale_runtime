@@ -362,14 +362,21 @@ struct main_process
        
        // DO ACTUAL WORK: SPAWN FIRST WORK ITEM
        hpx::util::high_resolution_timer timer;
+       //auto startus = std::chrono::high_resolution_clock::now();
+
        hpx::when_all(
             allscale::spawn_first<transpose>(mat_a, mat_b, begin, end).get_future()
         ).get();
-       
+      
+
+
+       //auto endus = std::chrono::high_resolution_clock::now();
+       //std::chrono::duration<double> diff = endus-startus;
+       //std::cout << "time: " << diff.count() << " s\n";
        double elapsed = timer.elapsed();
 
        double mups = (((N*N)/(elapsed/iterations))/1000000);
-       std::cout << "Elapsed time: " << elapsed/iterations << "MUPS: " << mups << '\n';
+       std::cout << "Elapsed time: " << elapsed << " MUPS: " << mups << '\n';
 //       // ===================================================
 //
 //
@@ -398,7 +405,7 @@ struct main_process
 //
 //       std::cout<< N << std::endl;
 //
-//     // ============ LOOK AT RESULT==========================
+     // ============ LOOK AT RESULT==========================
 //       auto lease_result = allscale::data_item_manager::acquire(
 //           allscale::createDataItemRequirement(
 //               mat_b,
@@ -406,16 +413,16 @@ struct main_process
 //               allscale::access_mode::ReadOnly
 //           )).get();
 //       auto ref_result = allscale::data_item_manager::get(mat_b);
+//
+//       std::cout<< " N " << N << std::endl;
 //       for(int j = 0; j < N; ++j){    
 //           for(int i = 0; i < N; ++i){
 //               coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
-//               std::cout<< ref_result[tmp] << " ";                                                 
 //           }
 //           std::cout<<std::endl;                                                                       
 //       }
-//       std::cout<<std::endl;
 //     // ===================================================
-//     
+     
      //allscale::data_item_manager::release(lease_result);
 
 
@@ -430,7 +437,6 @@ struct main_process
 int main(int argc, char **argv) {
    
 
-    N=atoi(argv[3]);
         /*
     po::options_description desc("Allowed options");
     desc.add_options()
