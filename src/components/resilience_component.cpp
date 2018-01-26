@@ -243,7 +243,6 @@ std::size_t resilience::protectee_rank_ = 0;
     }
 
     void resilience::shutdown(std::size_t token) {
-	    std::cout << hpx::get_locality_id() << " is calling shutdown\n";
         if (!(get_running_ranks() < 2 || env_resilience_disabled)) {
             keep_running = false;
             // dpn't forget to end the circle
