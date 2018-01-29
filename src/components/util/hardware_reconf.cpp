@@ -49,9 +49,16 @@ namespace allscale { namespace components { namespace util {
     int hardware_reconf::set_frequency(unsigned int min_cpu, unsigned int max_cpu, unsigned long target_frequency)
     {
         int res = 0;
-        for (int cpu_id = min_cpu; cpu_id < max_cpu; cpu_id++)
+	hardware_reconf::hw_topology topo = read_hw_topology();
+        unsigned int max_cpu_id = topo.num_logical_cores;
+        unsigned int hw_threads = topo.num_hw_threads;
+	for (int cpu_id = min_cpu; cpu_id < min_cpu + (max_cpu * hw_threads); cpu_id += hw_threads)
         {
-            res = cpufreq_set_frequency(cpu_id, target_frequency) && res;
+	    // cpu exists
+	    if (!cpufreq_cpu_exists(cpu_id))
+		{
+		    res = cpufreq_set_frequency(cpu_id, target_frequency);
+		}
         }
 
         return res;

@@ -279,9 +279,23 @@ namespace allscale { namespace components {
 			freq_step = 8; //cpu_freqs.size() / 2;
 			freq_times.resize(cpu_freqs.size());
 
+#ifdef DEBUG_
+			std::cout << "Frequencies: " ;
+			for (auto& ind : cpu_freqs )
+			    {
+				std::cout << ind << " ";
+			    }
+			std::cout << "\n" << std::flush;
+#endif
+			
+
 			auto min_max_freqs = std::minmax_element(cpu_freqs.begin(), cpu_freqs.end());
 			min_freq = *min_max_freqs.first;
 			max_freq = *min_max_freqs.second;
+
+#ifdef DEBUG_
+			std::cout << "Min freq:  " << min_freq << ", Max freq: " << max_freq << "\n" << std::flush;
+#endif
 
 			// We have to set CPU governors to userpace in order to change frequencies later
 			std::string governor = "userspace";
@@ -291,18 +305,36 @@ namespace allscale { namespace components {
 
 			topo = hardware_reconf::read_hw_topology();
 			for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
-			    int res = hardware_reconf::set_freq_policy(cpu_id, policy);
+			    {
+				int res = hardware_reconf::set_freq_policy(cpu_id, policy);
+#ifdef DEBUG_
+				std::cout << "cpu_id "<< cpu_id << " initial freq policy setting. ret=  " << res << "\n" << std::flush;
+#endif
+			    }
 
 			// Set frequency of all threads to max when we start
 			int res = hardware_reconf::set_frequency(0, os_thread_count, cpu_freqs[0]);
+#ifdef DEBUG_
+			std::cout << "All cpus set to freq  "<< cpu_freqs[0] << ", (ret= " << res <<", os_thread_count = " << os_thread_count << ")\n" << std::flush;
+#endif
 
 			std::this_thread::sleep_for(std::chrono::microseconds(2));
 
 			// Make sure frequency change happened before continuing
 			for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
 			    {
-				unsigned long hardware_freq = hardware_reconf::get_hardware_freq(cpu_id);
-				HPX_ASSERT(hardware_freq == cpu_freqs[0]);
+				unsigned long hardware_freq = 0;
+				do
+				    {
+					hardware_freq = hardware_reconf::get_hardware_freq(cpu_id);
+#ifdef DEBUG_
+					bool res = (hardware_freq == cpu_freqs[0]);
+					std::cout << "current freq on cpu "<< cpu_id << " is " << hardware_freq << " (target freq is " << cpu_freqs[0] << " (equal = " << res <<")\n" << std::flush;
+#endif
+					//			hardware_reconf::set_frequency(cpu_id, cpu_id+1, cpu_freqs[0]);
+					std::this_thread::sleep_for(std::chrono::microseconds(1000000));
+					//					HPX_ASSERT(hardware_freq == cpu_freqs[0]);
+				    } while (hardware_freq != cpu_freqs[0]);
 			    }
 
 
@@ -623,6 +655,7 @@ namespace allscale { namespace components {
 					//hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
 					for(auto& pu: suspend_threads)
 					    {
+						hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
 #ifdef DEBUG_
 						std::cout << "suspend thread on pu: " << rp_->get_pu_num(pu + thread_pools_[pool_idx]->get_thread_offset()) << "\n" << std::flush;
 #endif
@@ -726,6 +759,7 @@ namespace allscale { namespace components {
 					//hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
 					for(auto& pu: resume_threads)
 					    {
+						hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
 						thread_pools_[pool_idx]->resume_processing_unit(pu);
 					    }
 				    }
