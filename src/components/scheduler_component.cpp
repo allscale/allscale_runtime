@@ -313,29 +313,66 @@ namespace allscale { namespace components {
 			    }
 
 			// Set frequency of all threads to max when we start
-			int res = hardware_reconf::set_frequency(0, os_thread_count, cpu_freqs[0]);
+			//TODO change for rp
+			{
+			    // Select thread pool with the highest number of activated threads
+			    for (std::size_t i = 0; i != thread_pools_.size(); ++i)
+				{
+				    std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
+				    for (std::size_t j = thread_count - 1; j != 0 ; j--)
+					{
+					    std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
+
+					    if (!cpufreq_cpu_exists(pu_num))
+						{
+						    int res = hardware_reconf::set_frequency(pu_num, 1 , cpu_freqs[0]);		    
 #ifdef DEBUG_
-			std::cout << "All cpus set to freq  "<< cpu_freqs[0] << ", (ret= " << res <<", os_thread_count = " << os_thread_count << ")\n" << std::flush;
+						    std::cout << "Setting cpu " << pu_num <<" to freq  "<< cpu_freqs[0] << ", (ret= " << res << ")\n" << std::flush;
 #endif
+						}
+
+					}
+				    
+				}
+			    
+			}
+			
 
 			std::this_thread::sleep_for(std::chrono::microseconds(2));
 
 			// Make sure frequency change happened before continuing
-			for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
-			    {
-				unsigned long hardware_freq = 0;
-				do
-				    {
-					hardware_freq = hardware_reconf::get_hardware_freq(cpu_id);
+			std::cout << "topo.num_logical_cores: " << topo.num_logical_cores << "topo.num_hw_threads" << topo.num_hw_threads<< "\n" << std::flush; 
+			{
+			    // Select thread pool with the highest number of activated threads
+			    for (std::size_t i = 0; i != thread_pools_.size(); ++i)
+				{
+				    unsigned long hardware_freq = 0;
+				    std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
+				    for (std::size_t j = thread_count - 1; j != 0 ; j--)
+					{
+					    std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
+					    
+					    if (!cpufreq_cpu_exists(pu_num))
+						{
+						    do
+							{
+							    hardware_freq = hardware_reconf::get_hardware_freq(pu_num);
 #ifdef DEBUG_
-					bool res = (hardware_freq == cpu_freqs[0]);
-					std::cout << "current freq on cpu "<< cpu_id << " is " << hardware_freq << " (target freq is " << cpu_freqs[0] << " (equal = " << res <<")\n" << std::flush;
+							    std::cout << "current freq on cpu "<< pu_num << " is " << hardware_freq << " (target freq is " << cpu_freqs[0] << " )\n" << std::flush;
+							    std::this_thread::sleep_for(std::chrono::microseconds(1000000));
 #endif
-					//			hardware_reconf::set_frequency(cpu_id, cpu_id+1, cpu_freqs[0]);
-					std::this_thread::sleep_for(std::chrono::microseconds(1000000));
-					//					HPX_ASSERT(hardware_freq == cpu_freqs[0]);
-				    } while (hardware_freq != cpu_freqs[0]);
-			    }
+							    
+							    //					HPX_ASSERT(hardware_freq == cpu_freqs[0]);
+							} while (hardware_freq != cpu_freqs[0]);
+
+						}
+
+					}
+				    
+				}
+			    
+			}
+
 
 
 			frequency_timer_.start();
