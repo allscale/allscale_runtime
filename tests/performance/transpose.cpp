@@ -339,7 +339,6 @@ struct main_process
     {
 
         
-        std::cout<<"order: " << N << std::endl;
 
         allscale::api::user::data::GridPoint<2> size(N,N);
         data_item_shared_data_type sharedData(size);
@@ -380,8 +379,8 @@ struct main_process
        double mups = (((N*N)/(elapsed/iterations))/1000000);
        double combined_matrix_size = 2.0 * sizeof(double) * N * N;
        double mbytes_per_second = combined_matrix_size/(elapsed/iterations) * 1.0E-06;
-       std::cout << "Rate (MBs) | Elapsed time (s) | MUP/S: "<<'\n';
-       std::cout << mbytes_per_second << "," << elapsed << "," << mups << '\n';
+       std::cout << "Rate (MBs) | avg time (s) | MUP/S: "<<'\n';
+       std::cout << mbytes_per_second << "," << elapsed/iterations << "," << mups << '\n';
 //       // ===================================================
 //
 //
@@ -440,14 +439,14 @@ struct main_process
 };
 
 int main(int argc, char **argv) {
-    if(argc==4){
-        iterations = std::atoi(argv[1]);
-        N = std::atoi(argv[2]);
-        tile_size = std::atoi(argv[3]);
+    if(argc==5){
+        iterations = std::atoi(argv[2]);
+        N = std::atoi(argv[3]);
+        tile_size = std::atoi(argv[4]);
         return allscale::runtime::main_wrapper<main_work>(argc, argv);
     }
     else{
-        std::cout<<"Wrong number of Arguments, should be: ./transpose_test iterations order tilesize"<< std::endl;
+        std::cout<<"Wrong number of Arguments, should be: ./transpose_test --hpx:threads=42 iterations order tilesize"<< std::endl;
         return -1;
     }
     
