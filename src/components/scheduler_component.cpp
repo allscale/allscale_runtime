@@ -279,9 +279,23 @@ namespace allscale { namespace components {
 			freq_step = 8; //cpu_freqs.size() / 2;
 			freq_times.resize(cpu_freqs.size());
 
+#ifdef DEBUG_
+			std::cout << "Frequencies: " ;
+			for (auto& ind : cpu_freqs )
+			    {
+				std::cout << ind << " ";
+			    }
+			std::cout << "\n" << std::flush;
+#endif
+			
+
 			auto min_max_freqs = std::minmax_element(cpu_freqs.begin(), cpu_freqs.end());
 			min_freq = *min_max_freqs.first;
 			max_freq = *min_max_freqs.second;
+
+#ifdef DEBUG_
+			std::cout << "Min freq:  " << min_freq << ", Max freq: " << max_freq << "\n" << std::flush;
+#endif
 
 			// We have to set CPU governors to userpace in order to change frequencies later
 			std::string governor = "userspace";
@@ -291,19 +305,74 @@ namespace allscale { namespace components {
 
 			topo = hardware_reconf::read_hw_topology();
 			for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
-			    int res = hardware_reconf::set_freq_policy(cpu_id, policy);
+			    {
+				int res = hardware_reconf::set_freq_policy(cpu_id, policy);
+#ifdef DEBUG_
+				std::cout << "cpu_id "<< cpu_id << " initial freq policy setting. ret=  " << res << "\n" << std::flush;
+#endif
+			    }
 
 			// Set frequency of all threads to max when we start
-			int res = hardware_reconf::set_frequency(0, os_thread_count, cpu_freqs[0]);
+			//TODO change for rp
+			{
+			    // Select thread pool with the highest number of activated threads
+			    for (std::size_t i = 0; i != thread_pools_.size(); ++i)
+				{
+				    std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
+				    for (std::size_t j = thread_count - 1; j != 0 ; j--)
+					{
+					    std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
+
+					    if (!cpufreq_cpu_exists(pu_num))
+						{
+						    int res = hardware_reconf::set_frequency(pu_num, 1 , cpu_freqs[0]);		    
+#ifdef DEBUG_
+						    std::cout << "Setting cpu " << pu_num <<" to freq  "<< cpu_freqs[0] << ", (ret= " << res << ")\n" << std::flush;
+#endif
+						}
+
+					}
+				    
+				}
+			    
+			}
+			
 
 			std::this_thread::sleep_for(std::chrono::microseconds(2));
 
 			// Make sure frequency change happened before continuing
-			for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
-			    {
-				unsigned long hardware_freq = hardware_reconf::get_hardware_freq(cpu_id);
-				HPX_ASSERT(hardware_freq == cpu_freqs[0]);
-			    }
+			std::cout << "topo.num_logical_cores: " << topo.num_logical_cores << "topo.num_hw_threads" << topo.num_hw_threads<< "\n" << std::flush; 
+			{
+			    // Select thread pool with the highest number of activated threads
+			    for (std::size_t i = 0; i != thread_pools_.size(); ++i)
+				{
+				    unsigned long hardware_freq = 0;
+				    std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
+				    for (std::size_t j = thread_count - 1; j != 0 ; j--)
+					{
+					    std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
+					    
+					    if (!cpufreq_cpu_exists(pu_num))
+						{
+						    do
+							{
+							    hardware_freq = hardware_reconf::get_hardware_freq(pu_num);
+#ifdef DEBUG_
+							    std::cout << "current freq on cpu "<< pu_num << " is " << hardware_freq << " (target freq is " << cpu_freqs[0] << " )\n" << std::flush;
+							    std::this_thread::sleep_for(std::chrono::microseconds(1000000));
+#endif
+							    
+							    //					HPX_ASSERT(hardware_freq == cpu_freqs[0]);
+							} while (hardware_freq != cpu_freqs[0]);
+
+						}
+
+					}
+				    
+				}
+			    
+			}
+
 
 
 			frequency_timer_.start();
@@ -623,6 +692,7 @@ namespace allscale { namespace components {
 					//hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
 					for(auto& pu: suspend_threads)
 					    {
+						hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
 #ifdef DEBUG_
 						std::cout << "suspend thread on pu: " << rp_->get_pu_num(pu + thread_pools_[pool_idx]->get_thread_offset()) << "\n" << std::flush;
 #endif
@@ -726,6 +796,7 @@ namespace allscale { namespace components {
 					//hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
 					for(auto& pu: resume_threads)
 					    {
+						hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
 						thread_pools_[pool_idx]->resume_processing_unit(pu);
 					    }
 				    }
