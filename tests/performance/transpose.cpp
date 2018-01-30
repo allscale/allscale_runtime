@@ -376,7 +376,10 @@ struct main_process
        double elapsed = timer.elapsed();
 
        double mups = (((N*N)/(elapsed/iterations))/1000000);
-       std::cout << "Elapsed time: " << elapsed << " MUPS: " << mups << '\n';
+       double combined_matrix_size = 2.0 * sizeof(double) * N * N;
+       double mbytes_per_second = combined_matrix_size/(elapsed/iterations) * 1.0E-06;
+       std::cout << "Rate (MBs) | Elapsed time (s) | MUP/S: "<<'\n';
+       std::cout << mbytes_per_second << "," << elapsed << "," << mups << '\n';
 //       // ===================================================
 //
 //
