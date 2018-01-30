@@ -18,6 +18,7 @@
 #include <hpx/config.hpp>
 #include <hpx/include/components.hpp>
 #include <boost/program_options.hpp>
+#include <cstdlib>
 
 ALLSCALE_REGISTER_TREETURE_TYPE(int)
 
@@ -27,8 +28,8 @@ ALLSCALE_REGISTER_TREETURE_TYPE(int)
 HPX_REGISTER_COMPONENT_MODULE();
 
 
-long N = 10000;
 long iterations = 100;
+long N = 10000;
 long tile_size = 32;
 
 long const NN = 10000;
@@ -338,6 +339,7 @@ struct main_process
     {
 
         
+        std::cout<<"order: " << N << std::endl;
 
         allscale::api::user::data::GridPoint<2> size(N,N);
         data_item_shared_data_type sharedData(size);
@@ -438,8 +440,17 @@ struct main_process
 };
 
 int main(int argc, char **argv) {
-   
-
+    if(argc==4){
+        iterations = std::atoi(argv[1]);
+        N = std::atoi(argv[2]);
+        tile_size = std::atoi(argv[3]);
+        return allscale::runtime::main_wrapper<main_work>(argc, argv);
+    }
+    else{
+        std::cout<<"Wrong number of Arguments, should be: ./transpose_test iterations order tilesize"<< std::endl;
+        return -1;
+    }
+    
         /*
     po::options_description desc("Allowed options");
     desc.add_options()
@@ -454,5 +465,4 @@ int main(int argc, char **argv) {
     } else {
         cout << "Number of elements was not set, using default = 10000.\n";
     }*/
-    return allscale::runtime::main_wrapper<main_work>(argc, argv);
 }
