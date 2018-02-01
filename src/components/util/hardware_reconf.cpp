@@ -237,7 +237,7 @@ namespace allscale { namespace components { namespace util {
         for (unsigned int cpu_id = min_cpu_id; cpu_id < max_cpu_id; cpu_id++)
         {
             std::string sysfs_cpu_file = boost::str(boost::format(sysfs_file) % cpu_id);
-            std::cout << "Making offlie: " << sysfs_cpu_file << std::endl;
+            std::cout << "Making offline: " << sysfs_cpu_file << std::endl;
             threads.push_back(std::move(std::thread(hardware_reconf::write_to_file, 0, sysfs_cpu_file)));
         }
 

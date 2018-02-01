@@ -261,10 +261,13 @@ namespace allscale { namespace components {
 		    std::string pool_name;
 		    pool_name = "allscale/numa/" + std::to_string(domain);
 
-		    thread_pools_.push_back(
-					    &hpx::resource::get_thread_pool(pool_name));
+		    thread_pools_.push_back( &hpx::resource::get_thread_pool(pool_name));
 		    std::cerr << "Attached to " << pool_name << " (" << thread_pools_.back() << '\n';
 		    initial_masks_.push_back(thread_pools_.back()->get_used_processing_units());
+		    suspending_masks_.push_back(thread_pools_.back()->get_used_processing_units());
+		    hpx::threads::reset((suspending_masks_.back()));
+		    resuming_masks_.push_back(thread_pools_.back()->get_used_processing_units());
+		    hpx::threads::reset((resuming_masks_.back()));
 		    executors_.emplace_back(pool_name);
 		}
 
@@ -437,9 +440,10 @@ namespace allscale { namespace components {
 			    //                 }
 			    allscale::monitor::signal(allscale::monitor::work_item_first, work);
 
-			    if (current_id % 10 == 0)
+			    if ((current_id >=50 ) && (current_id % 50 == 0))
 				{
 				    periodic_throttle();
+				    //periodic_frequency_scale();
 				}
 			}
 		    else
@@ -462,7 +466,7 @@ namespace allscale { namespace components {
 
 		    return;
 		}
-
+	    //task not meant to be local: move task to remote nodes
 	    network_.schedule(schedule_rank, std::move(work), this_work_item::get_id());
 	}
 
@@ -613,11 +617,58 @@ namespace allscale { namespace components {
 					// Select thread pool with the highest number of activated threads
 					for (std::size_t i = 0; i != thread_pools_.size(); ++i)
 					    {
+						//get the current used PUs as HPX knows
 						hpx::threads::mask_type curr_mask = thread_pools_[i]->get_used_processing_units();
+#ifdef DEBUG_
+						std::cout << "Thread pool " << i << " has supposedly for active PUs: ";
+						for (std::size_t j = 0 ; j <  thread_pools_[i]->get_os_thread_count() ; j++)
+						    {
+							std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
+							if (hpx::threads::test(curr_mask, pu_num))
+								    std::cout << pu_num << " " ;
+						    }
+						std::cout << "\n" << std::flush;
+#endif
+							
+						// remove from curr_mask any suspending thread still pending
+						for (std::size_t j = 0 ; j <  thread_pools_[i]->get_os_thread_count() ; j++)
+						    {
+							std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
+
+ // use this opportunity to update state of suspending threads
+							if  ( (hpx::threads::test(suspending_masks_[i], pu_num)) && !(hpx::threads::test(curr_mask, pu_num)) )
+							    {
+#ifdef DEBUG_
+							    std::cout << " PU: " << pu_num << " suspension has finally happened\n" << std::flush; 
+#endif
+							    hpx::threads::unset(suspending_masks_[i], pu_num);
+							    }
+							// use also this opportunity to update resuming threads mask
+							if( (hpx::threads::test(resuming_masks_[i], pu_num)) && (hpx::threads::test(curr_mask, pu_num)) )
+							    {
+#ifdef DEBUG_
+							    std::cout << " PU: " << pu_num << " resuming has finally happened\n" << std::flush; 
+#endif
+							    hpx::threads::unset(resuming_masks_[i], pu_num);
+							    }
+							// remove suspending threads from active list if necessary
+							if ((hpx::threads::test(curr_mask, pu_num)) && (hpx::threads::test(suspending_masks_[i], pu_num)) )
+							    {
+#ifdef DEBUG_
+								std::cout << " PU: " << pu_num << " suspension pending\n" << std::flush; 
+#endif
+								hpx::threads::unset(curr_mask, pu_num);
+							    }
+							
+						    }
+						// don't mind the resuming threads here: 
+						// if they appear in used_processing_unit, assume it has resumed
+						
+						//count real active threads
 						std::size_t curr_active_pus = hpx::threads::count(curr_mask);
 						active_threads_ += curr_active_pus;
 #ifdef DEBUG_
-						std::cout << "thread pool " << i << " has " << curr_active_pus << " active PUs: ";
+						std::cout << "Thread pool " << i << " has actually " << curr_active_pus << " active PUs: ";
 						for (std::size_t j = 0 ; j <  thread_pools_[i]->get_os_thread_count() ; j++)
 						    {
 							std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
@@ -626,7 +677,7 @@ namespace allscale { namespace components {
 						    }
 						std::cout << "\n" << std::flush;
 #endif
-						
+						// select this pool if new maximum found
 						if (curr_active_pus > domain_active_threads)
 						    {
 #ifdef DEBUG_
@@ -651,7 +702,7 @@ namespace allscale { namespace components {
 				    active_threads = active_threads_;
 				    
 				    //                auto blocked_os_threads = active_mask & hpx::threads::not_(initial_masks_[pool_idx]);
-				    // what thread are blocked
+				    // what threads are blocked
 				    auto blocked_os_threads = active_mask ^ initial_masks_[pool_idx];
 				    
 				    /*******not sure we need that *********************************************/
@@ -664,7 +715,7 @@ namespace allscale { namespace components {
 // #endif
 				    /**************************************************************************/
 				    
-				    
+				    // fill a vector of PUs to suspend
 				    std::vector<std::size_t> suspend_threads;
 				    std::size_t thread_count = thread_pools_[pool_idx]->get_os_thread_count();
 				    suspend_threads.reserve(thread_count);
@@ -679,6 +730,7 @@ namespace allscale { namespace components {
 					    if (hpx::threads::test(active_mask, pu_num))
 						{
 						    suspend_threads.push_back(i);
+						    hpx::threads::set(suspending_masks_[pool_idx], pu_num);
 						    if (suspend_threads.size() == suspend_cap)
 							{
 #ifdef DEBUG_
@@ -715,15 +767,59 @@ namespace allscale { namespace components {
 				    std::size_t active_threads_ = 0;
 				    std::size_t domain_blocked_threads = 0; //std::numeric_limits<std::size_t>::max();
 				    std::size_t pool_idx = 0;
-				    {
-					// Select thread pool with the largest number of blocked threads 
+				    // Select thread pool with the largest number of blocked threads 
+				    {					
 					for (std::size_t i = 0; i != thread_pools_.size(); ++i)
 					    {
 						hpx::threads::mask_type curr_mask = thread_pools_[i]->get_used_processing_units();
+
+#ifdef DEBUG_
+						std::cout << "Thread pool " << i << " has supposedly for active PUs: ";
+						for (std::size_t j = 0 ; j <  thread_pools_[i]->get_os_thread_count() ; j++)
+						    {
+							std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
+							if (hpx::threads::test(curr_mask, pu_num))
+							    std::cout << pu_num << " " ;
+						    }
+						std::cout << "\n" << std::flush;
+#endif
+
+						
+						for (std::size_t j = 0 ; j <  thread_pools_[i]->get_os_thread_count() ; j++)
+						    {
+							std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
+							// use also this opportunity to update resuming threads mask
+							if( (hpx::threads::test(resuming_masks_[i], pu_num)) && (hpx::threads::test(curr_mask, pu_num)) )
+							    {
+#ifdef DEBUG_
+								std::cout << " PU: " << pu_num << " resuming has finally happened\n" << std::flush; 
+#endif
+								hpx::threads::unset(resuming_masks_[i], pu_num);
+							    }
+							// use this opportunity to update state of suspending threads
+							if  ( (hpx::threads::test(suspending_masks_[i], pu_num)) && !(hpx::threads::test(curr_mask, pu_num)) )
+							    {
+#ifdef DEBUG_
+								std::cout << " PU: " << pu_num << " suspension has finally happened\n" << std::flush; 
+#endif
+								hpx::threads::unset(suspending_masks_[i], pu_num);
+							    }
+							
+
+							// if already resuming this thread, let's consider it active
+							if( (hpx::threads::test(resuming_masks_[i], pu_num)) && !(hpx::threads::test(curr_mask, pu_num)) )
+							    {
+#ifdef DEBUG_
+								std::cout << " PU: " << pu_num << " already resuming, consider active\n" << std::flush; 
+#endif
+								hpx::threads::set(curr_mask, pu_num);
+							    }
+						    }
+						
 						std::size_t curr_active_pus = hpx::threads::count(curr_mask);
 						active_threads_ += curr_active_pus;
 #ifdef DEBUG_
-						std::cout << "thread pool " << i << " has " << curr_active_pus << " active PUs: ";
+						std::cout << "Thread pool " << i << " has actually " << curr_active_pus << " active PUs: ";
 						for (std::size_t j = 0 ; j <  thread_pools_[i]->get_os_thread_count() ; j++)
 						    {
 							std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
@@ -755,7 +851,7 @@ namespace allscale { namespace components {
 				    if (domain_blocked_threads == 0)
 					{
 #ifdef DEBUG_
-					    std::cout << "every thread is awake\n" << std::flush;
+					    std::cout << "Every thread is awake\n" << std::flush;
 #endif
 
 					    return true;
@@ -784,9 +880,9 @@ namespace allscale { namespace components {
 					    if (hpx::threads::test(blocked_mask, pu_num))
 						{
 #ifdef DEBUG_
-					    std::cout << "selecting pu " << pu_num << " for resume\n" << std::flush;
+						    std::cout << "selecting pu " << pu_num << " for resume\n" << std::flush;
 #endif
-
+						    hpx::threads::set(resuming_masks_[pool_idx], pu_num);
 						    resume_threads.push_back(i);
 						    if (resume_threads.size() == resume_cap)
 							break;

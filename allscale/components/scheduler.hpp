@@ -92,6 +92,8 @@ namespace allscale { namespace components {
 
         std::vector<hpx::threads::detail::thread_pool_base*> thread_pools_;
         std::vector<hpx::threads::mask_type> initial_masks_;
+	std::vector<hpx::threads::mask_type> suspending_masks_;
+	std::vector<hpx::threads::mask_type> resuming_masks_;
         std::vector<executor_type> executors_;
         std::atomic<std::size_t> current_;
 
