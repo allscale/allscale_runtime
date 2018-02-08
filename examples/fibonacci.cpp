@@ -191,9 +191,11 @@ int hpx_main(int argc, char **argv)
         }
         allscale::scheduler::stop();
         allscale::resilience::stop();
-        allscale::monitor::stop();
-        return hpx::finalize();
     }
+
+    allscale::monitor::stop();
+
+    if(hpx::get_locality_id() == 0) return hpx::finalize();
 
     //std::terminate();
     return 0;

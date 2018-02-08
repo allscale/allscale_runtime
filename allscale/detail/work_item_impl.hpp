@@ -220,10 +220,12 @@ namespace allscale { namespace detail {
             traits::is_treeture<Future>::value
         >::type
         finalize(
-            std::shared_ptr<work_item_impl> this_, Future && work_res, Leases leases)
+            std::shared_ptr<work_item_impl> this_, Future && work_res, Leases leases, bool is_split)
         {
-            monitor::signal(monitor::work_item_execution_finished,
-                work_item(this_));
+            if(is_split) monitor::signal(monitor::work_item_split_execution_finished,
+                		            work_item(this_));
+	    else monitor::signal(monitor::work_item_process_execution_finished, work_item(this_));
+
 
             typedef typename std::decay<Future>::type work_res_type;
             typedef typename hpx::traits::detail::shared_state_ptr_for<work_res_type>::type
@@ -252,10 +254,12 @@ namespace allscale { namespace detail {
             !traits::is_treeture<Future>::value
         >::type
         finalize(
-            std::shared_ptr<work_item_impl> this_, Future && work_res, Leases leases)
+            std::shared_ptr<work_item_impl> this_, Future && work_res, Leases leases, bool is_split)
         {
-            monitor::signal(monitor::work_item_execution_finished,
-                work_item(this_));
+            if(is_split) monitor::signal(monitor::work_item_split_execution_finished,
+                				work_item(this_));
+	    else monitor::signal(monitor::work_item_process_execution_finished, work_item(this_));
+
 
             typename hpx::util::detail::make_index_pack<
                 hpx::util::tuple_size<Leases>::type::value>::type pack;
@@ -277,14 +281,14 @@ namespace allscale { namespace detail {
 		do_process(Leases leases, Ts ...vs)
         {
             std::shared_ptr < work_item_impl > this_(shared_this());
-            monitor::signal(monitor::work_item_execution_started,
+            monitor::signal(monitor::work_item_process_execution_started,
                 work_item(this_));
             set_id si(this->id_);
 
             auto work_res =
                 WorkItemDescription::process_variant::execute(closure_);
 
-            finalize(std::move(this_), std::move(work_res), std::move(leases));
+            finalize(std::move(this_), std::move(work_res), std::move(leases), false);
 		}
 
         template <typename Closure_, typename Leases, typename ...Ts>
@@ -297,13 +301,13 @@ namespace allscale { namespace detail {
 		do_process(Leases leases, Ts ...vs)
         {
             std::shared_ptr < work_item_impl > this_(shared_this());
-            monitor::signal(monitor::work_item_execution_started,
+            monitor::signal(monitor::work_item_process_execution_started,
                 work_item(this_));
             set_id si(this->id_);
 
             WorkItemDescription::process_variant::execute(closure_);
 
-            finalize(std::move(this_), hpx::util::unused_type(), std::move(leases));
+            finalize(std::move(this_), hpx::util::unused_type(), std::move(leases), false);
 		}
 
         template <typename T>
@@ -323,7 +327,7 @@ namespace allscale { namespace detail {
 		void do_split(Leases leases)
         {
             std::shared_ptr < work_item_impl > this_(shared_this());
-            monitor::signal(monitor::work_item_execution_started, work_item(this_));
+            monitor::signal(monitor::work_item_split_execution_started, work_item(this_));
 
             set_id si(this->id_);
 
@@ -331,7 +335,7 @@ namespace allscale { namespace detail {
                 WorkItemDescription::split_variant::execute(closure_);
             set_children(work_res);
 
-            finalize(std::move(this_), std::move(work_res), std::move(leases));
+            finalize(std::move(this_), std::move(work_res), std::move(leases), true);
         }
 
         template <typename ProcessVariant, typename Leases>

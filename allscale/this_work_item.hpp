@@ -3,6 +3,7 @@
 #define ALLSCALE_THIS_WORK_ITEM_HPP
 
 #include <allscale/treeture.hpp>
+#include <allscale/profile.hpp>
 
 #include <cstddef>
 #include <list>
@@ -65,6 +66,10 @@ namespace allscale {
             return !id_.empty();
         }
 
+        void set_profile(std::shared_ptr<allscale::profile> const & p) { profile = p; }
+
+        std::shared_ptr<allscale::profile> const & get_profile() { return profile; }
+
     private:
         friend bool operator==(id const& lhs, id const& rhs);
         friend bool operator!=(id const& lhs, id const& rhs);
@@ -109,6 +114,8 @@ namespace allscale {
         treeture<void> tres_;
 //         detail::work_item_impl_base* wi_;
 //         std::shared_ptr<detail::work_item_impl_base> wi_;
+
+        std::shared_ptr<allscale::profile> profile;
 
         friend class hpx::serialization::access;
         template <typename Archive>

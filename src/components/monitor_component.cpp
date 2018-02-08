@@ -2,19 +2,62 @@
 #include <allscale/monitor.hpp>
 
 #include <math.h>
+#include <limits>
+#include <algorithm>
+#include <string>
+#include <unistd.h>
+
+#include <hpx/compat/thread.hpp>
+
+#include <hpx/runtime/serialization/serialize.hpp>
+#include <hpx/runtime/serialization/string.hpp>
+#include <hpx/runtime/serialization/vector.hpp>
+#include <hpx/runtime/serialization/unordered_map.hpp>
+#include <hpx/runtime/shutdown_function.hpp>
+
+#include <hpx/lcos/gather.hpp>
+
 #ifdef HAVE_PAPI
 #include <boost/tokenizer.hpp>
 #include <string.h>
 #endif
 
+char const* gather_basename1 = "allscale/monitor/gather1";
+
+HPX_REGISTER_GATHER(profile_map, profile_gatherer);
+
+char const* gather_basename2 = "allscale/monitor/gather2";
+HPX_REGISTER_GATHER(dependency_graph, dependency_gatherer);
+
+//HPX_REGISTER_GATHER(std::vector<allscale::work_item_stats>, profile_gatherer);
+
+using namespace std::chrono;
+
 namespace allscale { namespace components {
 
 
    monitor::monitor(std::uint64_t rank)
-     : rank_(rank)
+     : num_localities_(hpx::get_num_localities().get())
+     , rank_(rank)
+     , enable_monitor(true)
      , output_profile_table_(0)
      , output_treeture_(0)
      , output_iteration_trees_(0)
+     , collect_papi_(0)
+     , cutoff_level_(0)
+     , done(false)
+     , current_read_queue(0)
+     , current_write_queue(0)
+//#ifdef WI_STATS
+     , total_split_time(0)
+     , total_process_time(0)
+     , num_split_tasks(0)
+     , num_process_tasks(0)
+     , min_split_task(0)
+     , max_split_task(0)
+     , min_process_task(0)
+     , max_process_task(0)
+//#endif
 #ifdef REALTIME_VIZ
      , num_active_tasks_(0)
      , total_tasks_(0)
@@ -69,6 +112,106 @@ namespace allscale { namespace components {
 #endif
 
 
+   std::uint64_t monitor::get_timestamp( void ) {
+      uint64_t timestamp = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
+      timestamp = timestamp - execution_init;
+      return timestamp;
+   }
+
+
+   // Additional OS-thread process profiles in here
+   void monitor::process_profiles()
+   {
+       std::shared_ptr<allscale::profile> profile;
+       std::string id, parent_id;
+
+       std::cout << "Starting additional monitoring OS-thread\n";
+ 
+       // Wait until there's some work to do
+       std::unique_lock<std::mutex> lk(m_queue);
+       while(!done)
+       {
+          cv.wait(lk);
+          current_write_queue++;
+          current_write_queue = current_write_queue%2;
+          lk.unlock();
+
+
+          while(!queues[current_read_queue].empty()) {
+
+             profile = queues[current_read_queue].front();
+
+	     id = profile->get_wid();
+             parent_id = profile->get_parent_wid();
+
+             // Save the treeture graph
+             // TODO Check whether this needs an extra mutex 
+//             std::shared_ptr<allscale::work_item_dependency> wd(
+//                 new allscale::work_item_dependency(parent_id, id));
+
+             // Need to lock in case there's another thread accessing the the perf stats
+             std::unique_lock<mutex_type> lock(work_map_mutex);
+
+//             w_graph.push_back(wd);
+
+       	     auto it = w_dependencies.find(parent_id);
+             if( it == w_dependencies.end() ) {
+                   w_dependencies.insert(std::make_pair(parent_id,
+                         std::vector<std::string>(1, id)));
+             }
+             else it->second.push_back(id);
+
+//             w_names.insert(std::make_pair(parent_id, id));
+             profiles.insert(std::make_pair(id, profile));
+
+	     // Save work item time in the times vector to compute stats on-the-fly if need be for the last X work items
+             work_item_times.push_back(profile->get_exclusive_time());
+             lock.unlock();
+             queues[current_read_queue].pop(); 
+          }
+          lk.lock();
+          current_read_queue++;
+          current_read_queue = current_read_queue%2;
+       }
+
+
+       // Check if there are remaining profiles in the queue
+       while(!queues[current_read_queue].empty())
+       {
+//          std::cerr << "Processing profile " << profile_queue.front()->get_wid() << std::endl;
+
+             profile = queues[current_read_queue].front();
+             id = profile->get_wid();
+             parent_id = profile->get_parent_wid();
+
+//             std::shared_ptr<allscale::work_item_dependency> wd(
+//                 new allscale::work_item_dependency(parent_id, id));
+
+             std::unique_lock<mutex_type> lock(work_map_mutex);
+//             w_graph.push_back(wd);
+
+             auto it = w_dependencies.find(parent_id);
+             if( it == w_dependencies.end() ) {
+                   w_dependencies.insert(std::make_pair(parent_id,
+                         std::vector<std::string>(1, id)));
+             }
+             else it->second.push_back(id);
+
+//             w_names.insert(std::make_pair(parent_id, id));
+             profiles.insert(std::make_pair(id, profile));
+             
+             // Save work item time in the times vector to compute stats on-the-fly if need be for the last X work items
+             work_item_times.push_back(profile->get_exclusive_time());
+             
+             lock.unlock();
+             
+
+             queues[current_read_queue].pop();
+
+       }
+       lk.unlock();
+   }
+
 
    void monitor::update_work_item_stats(work_item const& w, std::shared_ptr<allscale::profile> p)
    {
@@ -88,30 +231,34 @@ namespace allscale { namespace components {
 
 
 #ifdef HAVE_PAPI
-      // Record PAPI counters for this work item
-      hpx::performance_counters::counter_value papi_value;
-      std::size_t tid = hpx::get_worker_thread_num();
+      if(collect_papi_) {
+         // Record PAPI counters for this work item
+         hpx::performance_counters::counter_value papi_value;
+         std::size_t tid = hpx::get_worker_thread_num();
 //      std::multimap<std::uint32_t, hpx::performance_counters::performance_counter>::const_iterator it1, it2;
-      std::multimap<std::uint32_t, hpx::id_type>::const_iterator it1, it2;
-      it1 = counters.lower_bound(tid);
-      it2 = counters.upper_bound(tid);
+         std::multimap<std::uint32_t, hpx::id_type>::const_iterator it1, it2;
+         it1 = counters.lower_bound(tid);
+         it2 = counters.upper_bound(tid);
 
-      std::uint32_t counter_num = 0;
+         std::uint32_t counter_num = 0;
 
-      while(it1 != it2)
-      {
-          if(p->papi_counters_start[counter_num] != 0) {
-	       papi_value = hpx::performance_counters::stubs::performance_counter::get_value(
+         while(it1 != it2)
+         {
+             if(p->papi_counters_start[counter_num] != 0) {
+	          papi_value = hpx::performance_counters::stubs::performance_counter::get_value(
 			hpx::launch::sync, it1->second);
 
-               p->papi_counters_stop[counter_num] = papi_value.get_value<long long>();
-          }
-          ++it1; counter_num++;
+                  p->papi_counters_stop[counter_num] = papi_value.get_value<long long>();
+             }
+             ++it1; counter_num++;
+         }
       }
-
 #endif
 
 #if 0
+      // REMOVED DUE TO OVERHEAD ISSUES
+      // Now this is computed on-demand
+    
       // Update stats per work item name
       time = p->get_exclusive_time();
       auto it = work_item_stats_map.find(w.name());
@@ -169,78 +316,34 @@ namespace allscale { namespace components {
    }
 
 
-   void monitor::w_exec_start_wrapper(work_item const& w)
+   void monitor::w_exec_split_start_wrapper(work_item const& w)
    {
-      allscale::this_work_item::id my_wid = w.id();
+
+      allscale::this_work_item::id& my_wid = const_cast<allscale::this_work_item::id&>(const_cast<work_item&>(w).id());
       std::shared_ptr<allscale::profile> p;
-      std::shared_ptr<allscale::work_item_dependency> wd(
-          new allscale::work_item_dependency(my_wid.parent().name(), my_wid.name()));
+      bool notify_consumer = false;
 
+//std::cerr << hpx::get_worker_thread_num() << " Start split wrapper " << my_wid.name() << "\n";
 
-      std::lock_guard<mutex_type> lock(work_map_mutex);
-
-//      std::size_t my_tid = hpx::get_worker_thread_num();
-//      std::cerr << "Start signal caught, WI: " << w.name() << " " << my_wid.name() << " Thread " << my_tid << std::endl;
-
-      w_names.insert(std::make_pair(my_wid.name(), w.name()));
-
-      std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it_profiles = profiles.find(my_wid.name());
-
-      if( it_profiles == profiles.end() ) {
+      if(( p = my_wid.get_profile()) == nullptr) {
          // Profile does not exist yet, we create it
-         p = std::make_shared<profile>();
-         profiles.insert(std::make_pair(my_wid.name(), p));
-
-
-#ifdef HAVE_PAPI
-         hpx::performance_counters::counter_value papi_value;
-         std::size_t tid = hpx::get_worker_thread_num();
-//         std::multimap<std::uint32_t, hpx::performance_counters::performance_counter>::const_iterator it1, it2;
-         std::multimap<std::uint32_t, hpx::id_type>::const_iterator it1, it2;
-         it1 = counters.lower_bound(tid);
-         it2 = counters.upper_bound(tid);
-
-         std::uint32_t counter_num = 0;
-
-         while(it1 != it2)
-         {
-//             p->papi_counters_start[counter_num] = (it1->second).get_value<long long>().get();
-             papi_value = hpx::performance_counters::stubs::performance_counter::get_value(
-			hpx::launch::sync, it1->second);
-
-             p->papi_counters_start[counter_num] = papi_value.get_value<long long>();
-	     ++it1; counter_num++;
-         }
-#endif
-      }
+         p = std::make_shared<profile>(my_wid.name(), w.name(), my_wid.parent().name());
+         my_wid.set_profile(p);
+      }      
       else {
-         // Profile exists, finish wrapper executed before than start wrapper
-         p = it_profiles->second;
-         // We use current time as final time for the WI since this wrapper has
-         // been called after the WI finalization wrapper
+         // Profile exists, finish wrapper executed before start wrapper
          p->end = std::chrono::steady_clock::now();
-         update_work_item_stats(w, p);  // Item has already finish time
-      }
 
-      if(output_treeture_ || output_iteration_trees_) {
-         w_graph.push_back(wd);
+         // Put the profile in the queue for the OS-thread to process it
+         { 
+            std::lock_guard<std::mutex> lk(m_queue);
 
-         auto it = graph.find(my_wid.parent().name());
-         if( it == graph.end() ) {
-            graph.insert(std::make_pair(my_wid.parent().name(),
-                         std::vector<std::string>(1, my_wid.name())));
+            queues[current_write_queue].push(p);
+            if(queues[current_write_queue].size() >= MIN_QUEUE_ELEMS)
+		notify_consumer = true;
          }
-         else it->second.push_back(my_wid.name());
-       }
-
-#ifdef REALTIME_VIZ
-      if(realtime_viz) {
-         std::unique_lock<std::mutex> lock2(counter_mutex_);
-         num_active_tasks_++;
-         lock2.unlock();
+         if(notify_consumer) cv.notify_one();
       }
-#endif
-
 
 /*
       std::cout
@@ -255,36 +358,88 @@ namespace allscale { namespace components {
    }
 
 
-   void monitor::global_w_exec_start_wrapper(work_item const& w)
+   void monitor::global_w_exec_split_start_wrapper(work_item const& w)
    {
-        allscale::monitor::get().w_exec_start_wrapper(w);
+        allscale::monitor::get().w_exec_split_start_wrapper(w);
    }
 
 
 
-   void monitor::w_exec_finish_wrapper(work_item const& w)
+   void monitor::w_exec_process_start_wrapper(work_item const& w)
    {
-      allscale::this_work_item::id my_wid = w.id();
+
+      allscale::this_work_item::id& my_wid = const_cast<allscale::this_work_item::id&>(const_cast<work_item&>(w).id());
       std::shared_ptr<allscale::profile> p;
-      std::shared_ptr<allscale::work_item_stats> stats;
+      bool notify_consumer = false;
 
+//std::cerr << "Start process wrapper " << my_wid.name() << "\n";
 
-      std::lock_guard<mutex_type> lock(work_map_mutex);
-
-//      std::size_t my_tid = hpx::get_worker_thread_num();
-//      std::cerr << "Finish signal caught, WI: " << w.name() << " " << my_wid.name() << " Thread " << my_tid << std::endl;
-
-      std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it_profiles = profiles.find(my_wid.name());
-
-      if( it_profiles == profiles.end() ) {
-         p = std::make_shared<profile>();
-         profiles.insert(std::make_pair(my_wid.name(), p));
+      if(( p = my_wid.get_profile()) == nullptr) {
+         // Profile does not exist yet, we create it
+         p = std::make_shared<profile>(my_wid.name(), w.name(), my_wid.parent().name());
+         my_wid.set_profile(p);
       }
       else {
-         p = it_profiles->second;
+         // Profile exists, finish wrapper executed before start wrapper
          p->end = std::chrono::steady_clock::now();
-         update_work_item_stats(w, p);
+
+         // Put the profile in the queue for the OS-thread to process it
+         {
+            std::lock_guard<std::mutex> lk(m_queue);
+
+            queues[current_write_queue].push(p);
+            if(queues[current_write_queue].size() >= MIN_QUEUE_ELEMS)
+                notify_consumer = true;
+         }
+         if(notify_consumer) cv.notify_one();
       }
+   }
+
+
+   void monitor::global_w_exec_process_start_wrapper(work_item const& w)
+   {
+        allscale::monitor::get().w_exec_process_start_wrapper(w);
+   }
+
+
+   void monitor::w_exec_split_finish_wrapper(work_item const& w)
+   {
+
+      allscale::this_work_item::id& my_wid = const_cast<allscale::this_work_item::id&>(const_cast<work_item&>(w).id());
+//      allscale::this_work_item::id my_wid = w.id();
+      std::shared_ptr<allscale::profile> p;
+//      std::shared_ptr<allscale::work_item_stats> stats;
+      bool notify_consumer = false;
+
+
+      if(( p = my_wid.get_profile()) == nullptr) {
+         // Profile does not exist yet, finish wrapper executed before than create
+         p = std::make_shared<profile>(my_wid.name(), w.name(), my_wid.parent().name());
+         my_wid.set_profile(p);
+      }
+      else {
+         p->end = std::chrono::steady_clock::now();
+
+         // Put the profile in the queue for the OS-thread to process it 
+         {
+           std::lock_guard<std::mutex> lk(m_queue);
+
+           queues[current_write_queue].push(p);
+           if(queues[current_write_queue].size() >= MIN_QUEUE_ELEMS)
+		notify_consumer = true;
+           num_split_tasks++; 
+           double task_time = p->get_exclusive_time();
+           total_split_time += task_time;
+           if(!min_split_task || min_split_task > task_time)
+               min_split_task = task_time;
+
+           if(max_split_task <= task_time)
+               max_split_task = task_time;
+         }
+         if(notify_consumer) cv.notify_one();
+     }
+
+
 /*
       std::cout
           << "Finish work item "
@@ -296,14 +451,62 @@ namespace allscale { namespace components {
    }
 
 
-   void monitor::global_w_exec_finish_wrapper(work_item const& w)
+   void monitor::global_w_exec_split_finish_wrapper(work_item const& w)
    {
-        allscale::monitor::get().w_exec_finish_wrapper(w);
+        allscale::monitor::get().w_exec_split_finish_wrapper(w);
+   }
+
+
+   void monitor::w_exec_process_finish_wrapper(work_item const& w)
+   {
+
+      allscale::this_work_item::id& my_wid = const_cast<allscale::this_work_item::id&>(const_cast<work_item&>(w).id());
+//      allscale::this_work_item::id my_wid = w.id();
+      std::shared_ptr<allscale::profile> p;
+//      std::shared_ptr<allscale::work_item_stats> stats;
+      bool notify_consumer = false;
+
+
+      if(( p = my_wid.get_profile()) == nullptr) {
+         // Profile does not exist yet, finish wrapper executed before than create
+         p = std::make_shared<profile>(my_wid.name(), w.name(), my_wid.parent().name());
+         my_wid.set_profile(p);
+      }
+      else {
+         p->end = std::chrono::steady_clock::now();
+
+         // Put the profile in the queue for the OS-thread to process it 
+         {
+           std::lock_guard<std::mutex> lk(m_queue);
+
+           queues[current_write_queue].push(p);
+           if(queues[current_write_queue].size() >= MIN_QUEUE_ELEMS)
+                notify_consumer = true;
+           num_process_tasks++;
+           double task_time = p->get_exclusive_time();
+           total_process_time += task_time;
+           if(!min_process_task || min_process_task > task_time)
+               min_process_task = task_time;
+
+           if(max_process_task <= task_time)
+               max_process_task = task_time;
+
+         }
+         if(notify_consumer) cv.notify_one();
+     }
+ 
+   }
+   
+
+   void monitor::global_w_exec_process_finish_wrapper(work_item const& w)
+   {
+        allscale::monitor::get().w_exec_process_finish_wrapper(w);
    }
 
 
    void monitor::w_result_propagated_wrapper(allscale::work_item const& w)
    {
+/*
       allscale::this_work_item::id my_wid = w.id();
       std::shared_ptr<allscale::profile> p;
 
@@ -320,9 +523,6 @@ namespace allscale { namespace components {
          p->result_ready = std::chrono::steady_clock::now();
       }
 
-
-
-/*
       std::cout
           << "Result propagated work item "
           << w.name()
@@ -341,6 +541,8 @@ namespace allscale { namespace components {
    // Signal for new iteration
    void monitor::w_app_iteration(allscale::work_item const& w)
    {
+      std::lock_guard<mutex_type> lock(history_mutex);
+
       if(history->current_iteration < 0) {
 //	 history = std::make_shared<allscale::historical_data>();
 	 history->last_iteration_start = std::chrono::steady_clock::now();
@@ -375,6 +577,7 @@ namespace allscale { namespace components {
       std::lock_guard<mutex_type> lock(work_map_mutex);
       std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it = profiles.find(w_id);
 
+
       if( it == profiles.end() )
          return 0.0;
       else
@@ -384,45 +587,92 @@ namespace allscale { namespace components {
 
    double monitor::get_exclusive_time_remote(hpx::id_type locality, std::string w_id)
    {
-        return 0.0;
+      get_exclusive_time_action act;
+      hpx::future<double> f = hpx::async(act, locality, w_id);
+
+      return f.get();
    }
+
 
    // Returns the inclusive time for a work item with ID w_id
    double monitor::get_inclusive_time(std::string w_id)
    {
-      std::lock_guard<mutex_type> lock(work_map_mutex);
-      std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it = profiles.find(w_id);
+      std::shared_ptr<allscale::profile> p;
 
-      if( it == profiles.end() )
-         return 0.0;
-      else
-         return (it->second)->get_inclusive_time();
+      std::lock_guard<mutex_type> lock(work_map_mutex);
+
+      std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it = profiles.find(w_id);
+      std::chrono::steady_clock::time_point start_time, max_time;
+
+      if( it == profiles.end() ) return 0.0;
+
+      start_time = max_time = (it->second)->start;
+
+      // Inclusive time computed as the difference between work item start time and maximum children finish time
+      auto it_g = w_dependencies.find(w_id);
+
+      if(it_g == w_dependencies.end()) return 0.0;
+
+      for(auto it2 = (it_g->second).begin(); it2 != (it_g->second).end(); ++it2)
+      {
+          auto it_profiles = profiles.find(*it2);
+            if(it_profiles != profiles.end()) {
+                p = it_profiles->second;
+                max_time = (p->end > max_time) ? p->end : max_time;
+            }
+      }
+
+      std::chrono::duration<double> time_elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(max_time - start_time);
+      return time_elapsed.count();
+
    }
 
 
    double monitor::get_inclusive_time_remote(hpx::id_type locality, std::string w_id)
    {
-        return 0.0;
+      get_inclusive_time_action act;
+      hpx::future<double> f = hpx::async(act, locality, w_id);
+
+      return f.get();
    }
 
 
    // Returns the average exclusive time for a work item with name w_name
    double monitor::get_average_exclusive_time(std::string w_name)
    {
+      double total = 0.0;
+      long long num_wi = 0;
       std::lock_guard<mutex_type> lock(work_map_mutex);
-      std::unordered_map<std::string, std::shared_ptr<allscale::work_item_stats>>::const_iterator it =
-	  work_item_stats_map.find(w_name);
+//      std::shared_ptr<allscale::profile> p;
 
-      if( it == work_item_stats_map.end() )
-         return 0.0;
-      else
-         return (it->second)->get_average();
+      for(auto it = profiles.begin(); it != profiles.end(); ++it)
+         if((it->second)->get_wname() == w_name) {
+                total += (it->second)->get_exclusive_time();
+                num_wi++;
+         }
+
+/*
+      for(auto it = w_names.begin(); it != w_names.end(); ++it)
+         if(it->second == w_name) {
+            auto it_profiles = profiles.find(it->first);
+            if(it_profiles != profiles.end()) {
+                p = it_profiles->second;
+                total += p->get_exclusive_time();
+                num_wi++;
+            }
+         }
+*/
+      if(num_wi > 0) return total/num_wi;
+      else return 0.0;
    }
 
 
    double monitor::get_average_exclusive_time_remote(hpx::id_type locality, std::string w_name)
    {
-        return 0.0;
+      get_average_exclusive_time_action act;
+      hpx::future<double> f = hpx::async(act, locality, w_name);
+
+      return f.get();
    }
 
 
@@ -430,20 +680,40 @@ namespace allscale { namespace components {
    double monitor::get_minimum_exclusive_time(std::string w_name)
    {
       std::lock_guard<mutex_type> lock(work_map_mutex);
-      std::unordered_map<std::string, std::shared_ptr<allscale::work_item_stats>>::const_iterator it =
-          work_item_stats_map.find(w_name);
+      double min = std::numeric_limits<double>::max();
+      long long num_wi = 0;
+//      std::shared_ptr<allscale::profile> p;
 
-      if( it == work_item_stats_map.end() )
-         return 0.0;
-      else
-         return (it->second)->get_min();
+      for(auto it = profiles.begin(); it != profiles.end(); ++it)
+         if((it->second)->get_wname() == w_name) {
+                double time = (it->second)->get_exclusive_time();
+                min = ((time < min) ? time : min );
+                num_wi++;
+         }
 
+/*
+      for(auto it = w_names.begin(); it != w_names.end(); ++it)
+         if(it->second == w_name) {
+            auto it_profiles = profiles.find(it->first);
+            if(it_profiles != profiles.end()) {
+                p = it_profiles->second;
+                double time = p->get_exclusive_time();
+                min = ((time < min) ? time : min );
+                num_wi++;
+            }
+         }
+*/
+      if(num_wi > 0) return min;
+      else return 0.0;
    }
 
 
    double monitor::get_minimum_exclusive_time_remote(hpx::id_type locality, std::string w_name)
    {
-        return 0.0;
+      get_minimum_exclusive_time_action act;
+      hpx::future<double> f = hpx::async(act, locality, w_name);
+
+      return f.get();
    }
 
 
@@ -451,57 +721,117 @@ namespace allscale { namespace components {
    double monitor::get_maximum_exclusive_time(std::string w_name)
    {
       std::lock_guard<mutex_type> lock(work_map_mutex);
-      std::unordered_map<std::string, std::shared_ptr<allscale::work_item_stats>>::const_iterator it =
-          work_item_stats_map.find(w_name);
+      double max = 0.0;
+//      std::shared_ptr<allscale::profile> p;
 
-      if( it == work_item_stats_map.end() )
-         return 0.0;
-      else
-         return (it->second)->get_max();
+      for(auto it = profiles.begin(); it != profiles.end(); ++it)
+         if((it->second)->get_wname() == w_name) {
+                double time = (it->second)->get_exclusive_time();
+                max = ((time > max) ? time : max );
+         }
 
+/*
+      for(auto it = w_names.begin(); it != w_names.end(); ++it)
+         if(it->second == w_name) {
+            auto it_profiles = profiles.find(it->first);
+            if(it_profiles != profiles.end()) {
+                p = it_profiles->second;
+                double time = p->get_exclusive_time();
+                max = ((time > max) ? time : max );
+            }
+         }
+*/
+      return max;
    }
+
 
 
    double monitor::get_maximum_exclusive_time_remote(hpx::id_type locality, std::string w_name)
    {
-        return 0.0;
+      get_maximum_exclusive_time_action act;
+      hpx::future<double> f = hpx::async(act, locality, w_name);
+
+      return f.get();
    }
 
    // Returns the mean exclusive time for all children
    double monitor::get_children_mean_time(std::string w_id)
    {
-      std::lock_guard<mutex_type> lock(work_map_mutex);
-      std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it = profiles.find(w_id);
+      double total = 0.0;
+      long long num_children = 0;
+      std::shared_ptr<allscale::profile> p;
 
-      if( it == profiles.end() )
-         return 0.0;
+      std::lock_guard<mutex_type> lock(work_map_mutex);
+      auto it = w_dependencies.find(w_id);
+
+      if(it == w_dependencies.end()) return 0.0;
+
+      num_children = (it->second).size();
+
+      for(auto it2 = (it->second).begin(); it2 != (it->second).end(); ++it2)
+      {
+          auto it_profiles = profiles.find(*it2);
+            if(it_profiles != profiles.end()) {
+                p = it_profiles->second;
+                total += p->get_exclusive_time();
+            }
+      }
+
+      if( num_children > 0 )
+         return total/num_children;
       else
-         return (it->second)->Mean();
+         return 0.0;
    }
 
 
    double monitor::get_children_mean_time_remote(hpx::id_type locality, std::string w_id)
    {
-        return 0.0;
+      get_children_mean_time_action act;
+      hpx::future<double> f = hpx::async(act, locality, w_id);
+
+      return f.get();
    }
 
 
    // Returns the exclusive time standard deviation for all children
    double monitor::get_children_SD_time(std::string w_id)
    {
-      std::lock_guard<mutex_type> lock(work_map_mutex);
-      std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it = profiles.find(w_id);
+      std::vector<double> times;
+      double total, mean, stdev, accum = 0.0;
+      std::shared_ptr<allscale::profile> p;
 
-      if( it == profiles.end() )
-         return 0.0;
-      else
-         return (it->second)->StandardDeviation();
+      std::lock_guard<mutex_type> lock(work_map_mutex);
+      auto it = w_dependencies.find(w_id);
+
+      if(it == w_dependencies.end()) return 0.0;
+
+      for(auto it2 = (it->second).begin(); it2 != (it->second).end(); ++it2)
+      {
+          auto it_profiles = profiles.find(*it2);
+            if(it_profiles != profiles.end()) {
+                p = it_profiles->second;
+                times.push_back(p->get_exclusive_time());
+            }
+      }
+
+     total = std::accumulate(std::begin(times), std::end(times), 0.0);
+     mean =  total / times.size();
+
+     std::for_each (std::begin(times), std::end(times), [&](const double d) {
+           accum += (d - mean) * (d - mean);
+      });
+
+     stdev = sqrt(accum / (times.size()-1));
+     return stdev;
    }
 
 
    double monitor::get_children_SD_time_remote(hpx::id_type locality, std::string w_id)
    {
-        return 0.0;
+      get_children_SD_time_action act;
+      hpx::future<double> f = hpx::async(act, locality, w_id);
+
+      return f.get();
    }
 
 
@@ -588,27 +918,61 @@ namespace allscale { namespace components {
 
    double monitor::get_iteration_time(int i)
    {
+      std::lock_guard<mutex_type> lock(history_mutex);
+
       if(i < 0 || i >= history->iteration_time.size()) return 0.0;
       else return history->iteration_time[i];
    }
 
 
+   double monitor::get_iteration_time_remote(hpx::id_type locality, int i)
+   {
+      get_iteration_time_action act;
+      hpx::future<double> f = hpx::async(act, locality, i);
+
+      return f.get();
+   }
+
+
    double monitor::get_last_iteration_time()
    {
+      std::lock_guard<mutex_type> lock(history_mutex);
+ 
       if(!(history->iteration_time.size())) return 0.0;
       else return history->iteration_time.back();
    }
 
+
+   double monitor::get_last_iteration_time_remote(hpx::id_type locality)
+   {
+      get_last_iteration_time_action act;
+      hpx::future<double> f = hpx::async(act, locality);
+
+      return f.get();
+   }
+
+
    long monitor::get_number_of_iterations()
    {
+      std::lock_guard<mutex_type> lock(history_mutex);
+
       return history->current_iteration;
    }
 
+
+   long monitor::get_number_of_iterations_remote(hpx::id_type locality)
+   {
+      get_number_of_iterations_action act;
+      hpx::future<long> f = hpx::async(act, locality);
+
+      return f.get();
+   }
 
    double monitor::get_avg_time_last_iterations(std::uint32_t num_iters)
    {
       double avg_time = 0.0;
       std::uint32_t j = num_iters;
+      std::lock_guard<mutex_type> lock(history_mutex);
 
       for(std::vector<double>::reverse_iterator i = history->iteration_time.rbegin();
 		   i != history->iteration_time.rend(); ++i)
@@ -626,12 +990,22 @@ namespace allscale { namespace components {
           return avg_time/(double)history->iteration_time.size();
    }
 
+   double monitor::get_avg_time_last_iterations_remote(hpx::id_type locality, std::uint32_t num_iters)
+   {
+      get_avg_time_last_iterations_action act;
+      hpx::future<double> f = hpx::async(act, locality, num_iters);
+
+      return f.get();
+   }
+
 
    // Translates a work ID changing it prefix with the last iteration root
    // Returns the same label for work items of the first iteration
    std::string monitor::match_previous_treeture(std::string const& w_ID)
    {
       std::string match = w_ID;
+      std::lock_guard<mutex_type> lock(history_mutex);
+
       int last_iteration = history->current_iteration - 1;
 
       if(last_iteration >= 0) {
@@ -644,15 +1018,18 @@ namespace allscale { namespace components {
    }
 
 
-   void monitor::print_node(std::ofstream& myfile, std::string node, double total_tree_time)
+   void monitor::print_node(std::ofstream& myfile, std::string node, double total_tree_time, 
+				profile_map& global_stats, dependency_graph& g)
    {
       std::string label;
       double excl_elapsed, incl_elapsed;
 
-      auto profile_it = profiles.find(node);
+      auto profile_it = global_stats.find(node);
+      if(profile_it == global_stats.end()) return;
 
-      excl_elapsed = (profile_it->second)->get_exclusive_time();
-      incl_elapsed = (profile_it->second)->get_inclusive_time();
+
+      excl_elapsed = (profile_it->second).get_exclusive_time();
+      incl_elapsed = (profile_it->second).get_inclusive_time();
 
       std::stringstream stream;
       stream << std::scientific << std::setprecision(3) << excl_elapsed;
@@ -663,76 +1040,73 @@ namespace allscale { namespace components {
       label += std::string("\\n Tincl = ") + stream.str();
 
       unsigned color = allscale::components::util::intensity_to_rgb(excl_elapsed, total_tree_time);
-      auto it = w_names.find(profile_it->first);
 
-      myfile << "  \"" << profile_it->first << " " << it->second
+      myfile << "  \"" << profile_it->first << " " << (profile_it->second).get_name()
             << label <<"\"     [ fillcolor=\"#" << std::hex << color << "\" ]" << std::endl;
 
+
       // Traverse children recursively
-      for( auto children = graph[node].begin(); children != graph[node].end(); ++children )
-     	  print_node(myfile, *children, total_tree_time);
+      auto dep_it = g.find(node);
+      if(dep_it != g.end()) 
+         for( auto children = (dep_it->second).begin(); children != (dep_it->second).end(); ++children )
+     	     print_node(myfile, *children, total_tree_time, global_stats, g);
 
       return;
 
    }
 
-   void monitor::print_edges(std::ofstream& myfile, std::string node)
+   void monitor::print_edges(std::ofstream& myfile, std::string node, 
+				profile_map& global_stats, dependency_graph& g)
    {
       double excl_elapsed, incl_elapsed;
+      std::string label1, label2;
 
-      auto it = graph.find(node);
+      auto it = global_stats.find(node);
       // Tree leaf
-      if( it == graph.end() ) return;
+      if( it == global_stats.end() ) return;
 
-      for(auto child = (it->second).begin(); child != (it->second).end(); ++child) {
-          std::string label1, label2;
+      label1 = node + ' ' + (it->second).get_name();
 
-          auto it = w_names.find(node);
-          if(it != w_names.end()) label1 = node + ' ' + it->second;
-          else label1 = node;
+      excl_elapsed = (it->second).get_exclusive_time();
+      incl_elapsed = (it->second).get_inclusive_time();
 
-          auto it2 = profiles.find(node);
-          if(it2 != profiles.end()) {
-                excl_elapsed = (it2->second)->get_exclusive_time();
-                incl_elapsed = (it2->second)->get_inclusive_time();
+      std::stringstream stream;
+      stream << std::scientific << std::setprecision(3) << excl_elapsed;
+      label1 += std::string("\\n Texcl = ") + stream.str();
+      // Clear the string
+      stream.str(std::string());
+      stream << std::scientific << std::setprecision(3) << incl_elapsed;
+      label1 += std::string("\\n Tincl = ") + stream.str();
 
-                std::stringstream stream;
-                stream << std::scientific << std::setprecision(3) << excl_elapsed;
-                label1 += std::string("\\n Texcl = ") + stream.str();
-                // Clear the string
-                stream.str(std::string());
-                stream << std::scientific << std::setprecision(3) << incl_elapsed;
-                label1 += std::string("\\n Tincl = ") + stream.str();
+      auto dep_it = g.find(node);
+      if(dep_it != g.end())
+         for(auto child = (dep_it->second).begin(); child != (dep_it->second).end(); ++child) {
 
-          }
+             auto it2 = global_stats.find(*child);
+             if(it2 == global_stats.end()) continue;
 
-          it = w_names.find(*child);
-          if(it != w_names.end()) label2 = (*child) + ' ' + it->second;
-          else label2 = (*child);
+             label2 = (*child) + ' ' + (it->second).get_name();
 
-          it2 = profiles.find(*child);
-          if(it2 != profiles.end()) {
-                excl_elapsed = (it2->second)->get_exclusive_time();
-                incl_elapsed = (it2->second)->get_inclusive_time();
+             excl_elapsed = (it2->second).get_exclusive_time();
+             incl_elapsed = (it2->second).get_inclusive_time();
 
-                std::stringstream stream;
-                stream << std::scientific << std::setprecision(3) << excl_elapsed;
-                label2 += std::string("\\n Texcl = ") + stream.str();
-                // Clear the string
-                stream.str(std::string());
-                stream << std::scientific << std::setprecision(3) << incl_elapsed;
-                label2 += std::string("\\n Tincl = ") + stream.str();
+             std::stringstream stream;
+             stream << std::scientific << std::setprecision(3) << excl_elapsed;
+             label2 += std::string("\\n Texcl = ") + stream.str();
+             // Clear the string
+             stream.str(std::string());
+             stream << std::scientific << std::setprecision(3) << incl_elapsed;
+             label2 += std::string("\\n Tincl = ") + stream.str();
 
-          }
+             myfile << "  \"" << label1 << "\" -> \"" << label2 << "\"" << std::endl;
 
-          myfile << "  \"" << label1 << "\" -> \"" << label2 << "\"" << std::endl;
-
-          print_edges(myfile, *child);
-      }
+             print_edges(myfile, *child, global_stats, g);
+         }
    }
 
 
-   void monitor::print_treeture(std::string filename, std::string root, double total_tree_time)
+   void monitor::print_treeture(std::string filename, std::string root, double total_tree_time, 
+					profile_map& global_stats, dependency_graph& g)
    {
       double excl_elapsed, incl_elapsed;
       std::ofstream myfile;
@@ -753,56 +1127,11 @@ namespace allscale { namespace components {
              << "style=filled ];\n\n";
 
       // First print node attributes (colour)
-      print_node(myfile, root, total_tree_time);
+      print_node(myfile, root, total_tree_time, global_stats, g);
 
 
       // Print Edges
-      print_edges(myfile, root);
-/*
-      for(auto w_dep = w_graph.begin(); w_dep != w_graph.end(); ++w_dep) {
-          std::string label1, label2;
-
-          auto it = w_names.find((*w_dep)->parent);
-          if(it != w_names.end()) label1 = (*w_dep)->parent + ' ' + it->second;
-          else label1 = (*w_dep)->parent;
-
-          auto it2 = profiles.find((*w_dep)->parent);
-          if(it2 != profiles.end()) {
-                excl_elapsed = (it2->second)->get_exclusive_time();
-                incl_elapsed = (it2->second)->get_inclusive_time();
-
-                std::stringstream stream;
-                stream << std::scientific << std::setprecision(3) << excl_elapsed;
-                label1 += std::string("\\n Texcl = ") + stream.str();
-                // Clear the string
-                stream.str(std::string());
-                stream << std::scientific << std::setprecision(3) << incl_elapsed;
-                label1 += std::string("\\n Tincl = ") + stream.str();
-
-          }
-
-          it = w_names.find((*w_dep)->child);
-          if(it != w_names.end()) label2 = (*w_dep)->child + ' ' + it->second;
-          else label2 = (*w_dep)->child;
-
-          it2 = profiles.find((*w_dep)->child);
-          if(it2 != profiles.end()) {
-                excl_elapsed = (it2->second)->get_exclusive_time();
-                incl_elapsed = (it2->second)->get_inclusive_time();
-
-                std::stringstream stream;
-                stream << std::scientific << std::setprecision(3) << excl_elapsed;
-                label2 += std::string("\\n Texcl = ") + stream.str();
-                // Clear the string
-                stream.str(std::string());
-                stream << std::scientific << std::setprecision(3) << incl_elapsed;
-                label2 += std::string("\\n Tincl = ") + stream.str();
-
-          }
-
-          myfile << "  \"" << label1 << "\" -> \"" << label2 << "\"" << std::endl;
-      }
-*/
+      print_edges(myfile, root, global_stats, g);
 
       myfile << "}\n";
 
@@ -826,105 +1155,13 @@ namespace allscale { namespace components {
          filename += std::to_string(iter_number);
          filename += ".dot";
 
-	 print_treeture(filename, *it1, *it2);
+//	 print_treeture(filename, *it1, *it2);
 	 iter_number++;
       }
    }
 
-   // Create task graph
-   // TODO make it shorter and more structured
-   void monitor::create_work_item_graph() {
-//      std::lock_guard<mutex_type> lock(work_map_mutex);
-      double excl_elapsed, incl_elapsed;
-      std::ofstream myfile;
-      myfile.open("treeture.dot");
 
-      // Init colour palette for graph colouring
-      allscale::components::util::init_gradient_HSV_color();
-
-      // Print the graph
-      myfile << "digraph {\n";
-
-      // Print graph attributes
-      myfile << "node [\n"
-             << "fillcolor=white,\n"
-             << "fontsize=11,\n"
-             << "shape=box,\n"
-             << "style=filled ];\n\n";
-
-      // First print node attributes (colour)
-      for(auto nodes = profiles.begin(); nodes != profiles.end(); ++nodes) {
-         std::string label;
-	 excl_elapsed = (nodes->second)->get_exclusive_time();
-         incl_elapsed = (nodes->second)->get_inclusive_time();
-
-         std::stringstream stream;
-         stream << std::scientific << std::setprecision(3) << excl_elapsed;
-         label += std::string("\\n Texcl = ") + stream.str();
-         // Clear the string
-         stream.str(std::string());
-         stream << std::scientific << std::setprecision(3) << incl_elapsed;
-         label += std::string("\\n Tincl = ") + stream.str();
-
-         unsigned color = allscale::components::util::intensity_to_rgb(excl_elapsed, wall_clock);
-         auto it = w_names.find(nodes->first);
-
-         myfile << "  \"" << nodes->first << " " << it->second
-                << label <<"\"     [ fillcolor=\"#" << std::hex << color << "\" ]" << std::endl;
-      }
-
-      // Print Edges
-      for(auto w_dep = w_graph.begin(); w_dep != w_graph.end(); ++w_dep) {
-          std::string label1, label2;
-
-          auto it = w_names.find((*w_dep)->parent);
-          if(it != w_names.end()) label1 = (*w_dep)->parent + ' ' + it->second;
-          else label1 = (*w_dep)->parent;
-
-          auto it2 = profiles.find((*w_dep)->parent);
-          if(it2 != profiles.end()) {
-          	excl_elapsed = (it2->second)->get_exclusive_time();
-          	incl_elapsed = (it2->second)->get_inclusive_time();
-
-		std::stringstream stream;
-		stream << std::scientific << std::setprecision(3) << excl_elapsed;
-		label1 += std::string("\\n Texcl = ") + stream.str();
-                // Clear the string
-		stream.str(std::string());
-                stream << std::scientific << std::setprecision(3) << incl_elapsed;
-                label1 += std::string("\\n Tincl = ") + stream.str();
-
-          }
-
-          it = w_names.find((*w_dep)->child);
-          if(it != w_names.end()) label2 = (*w_dep)->child + ' ' + it->second;
-          else label2 = (*w_dep)->child;
-
-          it2 = profiles.find((*w_dep)->child);
-          if(it2 != profiles.end()) {
-                excl_elapsed = (it2->second)->get_exclusive_time();
-                incl_elapsed = (it2->second)->get_inclusive_time();
-
-                std::stringstream stream;
-                stream << std::scientific << std::setprecision(3) << excl_elapsed;
-                label2 += std::string("\\n Texcl = ") + stream.str();
-                // Clear the string
-                stream.str(std::string());
-                stream << std::scientific << std::setprecision(3) << incl_elapsed;
-                label2 += std::string("\\n Tincl = ") + stream.str();
-
-          }
-
-          myfile << "  \"" << label1 << "\" -> \"" << label2 << "\"" << std::endl;
-      }
-
-      myfile << "}\n";
-      w_graph.clear();
-      myfile.close();
-   }
-
-
-   void monitor::monitor_component_output() {
+   void monitor::monitor_component_output(profile_map &global_stats) {
 //      std::lock_guard<mutex_type> lock(work_map_mutex);
 
 
@@ -932,36 +1169,41 @@ namespace allscale { namespace components {
       std::cerr << "\nWork Item		Exclusive time  |  % Total  |  Inclusive time  |  % Total   |   Mean (child.)  |   SD (child.)  "
                 << "\n------------------------------------------------------------------------------------------------------------------\n";
 
-      std::vector<std::string> w_id;
+
+      // Sort work items by id
+//      std::sort(global_stats.begin(), global_stats.end());
+
+      std::vector<std::string> w_ids;
+      w_ids.reserve(global_stats.size());
+
       // sort work_item names
-      for(auto it : profiles) {
-         std::string name = it.first;
-         w_id.push_back(name);
-         }
-
-      std::sort(w_id.begin(), w_id.end());
-      // iterate over the profiles
-      for(std::string i : w_id) {
-          std::shared_ptr<profile> p = profiles[i];
-        if (p) {
-            double excl_elapsed = p->get_exclusive_time();
-            double perc_excl_elapsed = (excl_elapsed/wall_clock) * 100;
-            double incl_elapsed = p->get_inclusive_time();
-            double perc_incl_elapsed = (incl_elapsed/wall_clock) * 100;
-
-            std::cerr.precision(5);
-            std::cerr << std::scientific << "   " << i + ' ' + w_names[i] << "\t\t " << excl_elapsed << "\t\t";
-            std::cerr.precision(2);
-            std::cerr << std::fixed << perc_excl_elapsed;
-            std::cerr.precision(5);
-            std::cerr << std::scientific << "\t" << incl_elapsed << "\t\t";
-            std::cerr.precision(2);
-            std::cerr << std::fixed << perc_incl_elapsed << "\t";
-            std::cerr.precision(5);
-            std::cerr << std::fixed << p->Mean() << "       " << p->StandardDeviation() << std::endl;
-        }
+      for(auto& it : global_stats) {
+         w_ids.push_back(it.first);
       }
-      w_id.clear();
+
+      std::sort(w_ids.begin(), w_ids.end());
+
+
+      // iterate over the profiles
+      for(auto s : w_ids) {
+
+        if(s == "0") continue;   //skip main profile, think whether no need to save it
+
+        profile_map::iterator it = global_stats.find(s);
+        if(it == global_stats.end()) continue;
+
+        std::cerr.precision(5);
+        std::cerr << std::scientific << "   " << s + ' ' + (it->second).get_name() << "\t\t " << (it->second).get_exclusive_time() << "\t\t";
+            std::cerr.precision(2);
+            std::cerr << std::fixed << ((it->second).get_exclusive_time()/wall_clock) * 100;
+            std::cerr.precision(5);
+            std::cerr << std::scientific << "\t" << (it->second).get_inclusive_time() << "\t\t";
+            std::cerr.precision(2);
+            std::cerr << std::fixed << ((it->second).get_inclusive_time()/wall_clock) * 100;
+            std::cerr.precision(5);
+            std::cerr << std::fixed << (it->second).get_children_mean() << "       " << (it->second).get_children_SD() << std::endl;
+//            std::cerr << std::fixed << p->Mean() << "       " << p->StandardDeviation() << std::endl;
+      }
     }
 
 
@@ -1009,7 +1251,9 @@ namespace allscale { namespace components {
 #endif
 
 
+
    void monitor::stop() {
+
 
       execution_end = std::chrono::steady_clock::now();
 
@@ -1025,10 +1269,32 @@ namespace allscale { namespace components {
       // Finish time for "main" work item
 //      std::lock_guard<mutex_type> lock(work_map_mutex);
       std::string mystring("0");
-      std::shared_ptr<allscale::profile> p = profiles[mystring];
-      p->end = execution_end;
-      p->result_ready = execution_end;
+//      std::shared_ptr<allscale::profile> p = profiles[mystring];
+//      p->end = execution_end;
+//      p->result_ready = execution_end;
 
+      // Finish additional OS-thread
+      { 
+         std::lock_guard<std::mutex> lk(m_queue);
+         done = true;
+      }
+      if(enable_monitor) {
+	cv.notify_one();
+        worker_thread.join();
+ 
+     }
+/*
+      {
+         std::lock_guard<std::mutex> lk(m_queue);
+         std::cerr << "Num split tasks " << num_split_tasks << "   Avg split time " << total_split_time/num_split_tasks 
+		   << " Min split time " << min_split_task << " Max split task " << max_split_task << std::endl;
+
+         std::cerr << "Num process tasks " << num_process_tasks << "   Avg process time " << total_process_time/num_process_tasks 
+                   << " Min process time " << min_process_task << " Max process task " << max_process_task << std::endl;
+
+
+      }
+*/
 #ifdef HAVE_PAPI
 /*      for(std::vector<hpx::performance_counters::performance_counter>::iterator it = counters.begin(); it != counters.end(); ++it)
       {
@@ -1041,21 +1307,68 @@ namespace allscale { namespace components {
 #endif
 
 
-      // Dump profile reports and graphs
-      if(output_profile_table_) {
-	 monitor_component_output();
+      if(output_profile_table_ || output_treeture_ || output_iteration_trees_) {
 
+        // Compute work item stats from profiles map
+        double e_time, i_time, children_mean_time, children_sd;
+        profile_map my_local_stats, global_stats;
+        dependency_graph global_graph;
+
+        for ( auto it = profiles.begin(); it != profiles.end(); ++it ) {
+
+	   	allscale::work_item_stats stats(it->first, (it->second)->get_wname(), get_exclusive_time(it->first), 
+                    get_inclusive_time(it->first), get_children_mean_time(it->first), 
+	            get_children_SD_time(it->first));
+
+		my_local_stats.insert(std::make_pair(it->first, stats));
+        }
+
+        // Collect info from all localities
+        if(rank_ == 0) {
+           hpx::future<std::vector<profile_map>> f =
+		hpx::lcos::gather_here(gather_basename1, hpx::make_ready_future(my_local_stats));
+
+           std::vector<profile_map> rcv_buffer = f.get();
+
+
+           for ( auto it = rcv_buffer.begin(); it != rcv_buffer.end(); ++it ) 
+           {
+		global_stats.insert((*it).begin(), (*it).end());
+           }
+        }
+        else hpx::lcos::gather_there(gather_basename1, hpx::make_ready_future(my_local_stats)).wait(); 
+
+
+        // Collect work item dependencies from all localities
+        if(rank_ == 0) {
+           hpx::future<std::vector<dependency_graph>> f =
+                hpx::lcos::gather_here(gather_basename2, hpx::make_ready_future(w_dependencies));
+
+           std::vector<dependency_graph> rcv_buffer = f.get();
+
+
+           for ( auto it = rcv_buffer.begin(); it != rcv_buffer.end(); ++it )
+           {
+                global_graph.insert((*it).begin(), (*it).end());
+           }
+
+        }
+        else hpx::lcos::gather_there(gather_basename2, hpx::make_ready_future(w_dependencies)).wait();
+
+        if(rank_ == 0 && output_profile_table_) {
+            monitor_component_output(global_stats);
 #ifdef HAVE_PAPI
-         monitor_papi_output();
+            monitor_papi_output();
 #endif
-      }
+        }
 
-      if(output_treeture_)
-         create_work_item_graph();
+        if(rank_ == 0 && output_treeture_)
+            print_treeture("treeture.dot", "0.0", wall_clock, global_stats, global_graph);
 
-      if(output_iteration_trees_) {
-         history->new_iteration(std::string("foo"));
-         print_trees_per_iteration();
+        if(rank_ == 0 && output_iteration_trees_) {
+            history->new_iteration(std::string("foo"));
+            print_trees_per_iteration();
+        }
       }
    }
 
@@ -1063,26 +1376,61 @@ namespace allscale { namespace components {
 //      (allscale::monitor::get_ptr().get())->monitor_component_finalize();
    }
 
+
    void monitor::init() {
-      bool enable_signals = true;
+
       if(const char* env_p = std::getenv("ALLSCALE_MONITOR"))
       {
           if(atoi(env_p) == 0)
-              enable_signals = false;
+              enable_monitor = false;
       }
 
-      if(enable_signals)
+      if(enable_monitor)
       {
-          allscale::monitor::connect(allscale::monitor::work_item_execution_started, monitor::global_w_exec_start_wrapper);
-          allscale::monitor::connect(allscale::monitor::work_item_execution_finished, monitor::global_w_exec_finish_wrapper);
-          allscale::monitor::connect(allscale::monitor::work_item_result_propagated, monitor::global_w_result_propagated_wrapper);
+          allscale::monitor::connect(allscale::monitor::work_item_split_execution_started, monitor::global_w_exec_split_start_wrapper);
+          allscale::monitor::connect(allscale::monitor::work_item_process_execution_started, monitor::global_w_exec_process_start_wrapper);
+          allscale::monitor::connect(allscale::monitor::work_item_split_execution_finished, monitor::global_w_exec_split_finish_wrapper);
+          allscale::monitor::connect(allscale::monitor::work_item_process_execution_finished, monitor::global_w_exec_process_finish_wrapper);
+//          allscale::monitor::connect(allscale::monitor::work_item_result_propagated, monitor::global_w_result_propagated_wrapper);
           allscale::monitor::connect(allscale::monitor::work_item_first, monitor::global_w_app_iteration);
       }
 
 //      const int result = std::atexit(global_finalize);
 //      if(result != 0) std::cerr << "Registration of monitor_finalize function failed!" << std::endl;
 
+
+      std::uint64_t left_id =
+         rank_ == 0 ? num_localities_ - 1 : rank_ - 1;
+      std::uint64_t right_id =
+         rank_ == num_localities_ - 1 ? 0 : rank_ + 1;
+
+ 
+      hpx::future<hpx::id_type> right_future =
+          hpx::find_from_basename("allscale/monitor", right_id);
+                                                                  
+      if(left_id != right_id)
+      {
+           hpx::future<hpx::id_type> left_future =
+               hpx::find_from_basename("allscale/monitor", left_id);
+                                                                                                                
+           left_ = left_future.get();
+      }
+                                                                                                                        
+      if(num_localities_ > 1)
+          right_ = right_future.get();
+ 
+
       // Check environment variables
+/*
+      if(const char* env_p = std::getenv("MONITOR_CUTOFF")) {
+         char *p;
+         cutoff_level_ = strtol(env_p, &p, 10);
+         if(*p) {
+           std::cerr << "ERROR: Invalid cutoff value" << std::endl;
+           cutoff_level_ = 0;
+         }
+      }
+*/
       if(const char* env_p = std::getenv("PRINT_PERFORMANCE_TABLE"))
          if(atoi(env_p) == 1) output_profile_table_ = 1;
 
@@ -1126,7 +1474,7 @@ namespace allscale { namespace components {
 
      if(const char* env_p = std::getenv("MONITOR_PAPI")) {
 #ifdef HAVE_PAPI
-
+        collect_papi_ = 1;
  	std::string counter_names(env_p);
         static const char *counter_set_name = "/papi{locality#%d/worker-thread#%d}/%s";
         const std::uint32_t prefix = hpx::get_locality_id();
@@ -1168,15 +1516,21 @@ namespace allscale { namespace components {
 
 
       execution_start = std::chrono::steady_clock::now();
+      execution_init = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
 
+
+      // Create specialised OS-thread to proces profiles
+      if(enable_monitor) worker_thread = std::thread(&allscale::components::monitor::process_profiles, this);
+ 
       // Create the profile for the "Main"
-      std::shared_ptr<allscale::profile> p(new profile());
+      std::shared_ptr<allscale::profile> p(new profile("0", "Main", " "));
       std::string mystring("0");
+
       profiles.insert(std::make_pair(mystring, p));
-      w_names.insert(std::make_pair(mystring, std::string("Main")));
+//      w_names.insert(std::make_pair(mystring, std::string("Main")));
 
       // Insert the root "0" in the graph
-      graph.insert(std::make_pair(std::string("0"), std::vector<std::string>()));
+      w_dependencies.insert(std::make_pair(std::string("0"), std::vector<std::string>()));
 
       // Init historical data
       history = std::make_shared<allscale::historical_data>();
@@ -1192,3 +1546,18 @@ namespace allscale { namespace components {
 
 
 }}
+
+
+//HPX_REGISTER_ACTION(allscale::components::monitor::get_my_rank_action, get_my_rank_action);
+HPX_REGISTER_ACTION(allscale::components::monitor::get_exclusive_time_action, get_exclusive_time_action);
+HPX_REGISTER_ACTION(allscale::components::monitor::get_inclusive_time_action, get_inclusive_time_action);
+HPX_REGISTER_ACTION(allscale::components::monitor::get_average_exclusive_time_action, get_average_exclusive_time_action);
+HPX_REGISTER_ACTION(allscale::components::monitor::get_minimum_exclusive_time_action, get_minimum_exclusive_time_action);
+HPX_REGISTER_ACTION(allscale::components::monitor::get_maximum_exclusive_time_action, get_maximum_exclusive_time_action);
+HPX_REGISTER_ACTION(allscale::components::monitor::get_children_mean_time_action, get_children_mean_time_action);
+HPX_REGISTER_ACTION(allscale::components::monitor::get_children_SD_time_action, get_children_SD_time_action);
+HPX_REGISTER_ACTION(allscale::components::monitor::get_iteration_time_action, get_iteration_time_action);
+HPX_REGISTER_ACTION(allscale::components::monitor::get_last_iteration_time_action, get_last_iteration_time_action);
+HPX_REGISTER_ACTION(allscale::components::monitor::get_number_of_iterations_action, get_number_of_iterations_action);
+HPX_REGISTER_ACTION(allscale::components::monitor::get_avg_time_last_iterations_action, get_avg_time_last_iterations_action);
+

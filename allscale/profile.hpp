@@ -4,10 +4,13 @@
 
 #include <chrono>
 #include <math.h>
+#include <vector>
+#include <string>
 
 #ifdef HAVE_PAPI
 #include <string.h>
 #endif
+
 
 namespace allscale
 {
@@ -22,17 +25,26 @@ namespace allscale
         std::uint32_t num_counters;
 #endif
 
+        std::string work_item_id_;
+        std::string parent_work_item_id_;
+        std::string work_item_name_;
+
         // Data to compute mean and stdev for all children
         // see http://www.johndcook.com/standard_deviation.html
         // or Donald Knuth's Art of Computer Programming, Vol 2, page 232, 3rd edition
-        unsigned int m_n;
-        double m_oldM, m_newM, m_oldS, m_newS;
+//        unsigned int m_n;
+//        double m_oldM, m_newM, m_oldS, m_newS;
 
 
-        profile():start(std::chrono::steady_clock::now())
+        profile(std::string id, std::string name, std::string parent_id):start(std::chrono::steady_clock::now())
         {
-           m_n = 0;
-           m_oldM = m_newM = m_oldS = m_newS = 0.0;
+
+           work_item_id_ = id;
+           work_item_name_ = name;
+           parent_work_item_id_ = parent_id;
+
+//           m_n = 0;
+//           m_oldM = m_newM = m_oldS = m_newS = 0.0;
 #ifdef HAVE_PAPI
            memset(papi_counters_start, 0, sizeof(long long) * 4);
            memset(papi_counters_stop, 0, sizeof(long long) * 4);
@@ -40,6 +52,11 @@ namespace allscale
         }
 
 
+        std::string get_wid() { return work_item_id_; }
+        std::string get_parent_wid() { return parent_work_item_id_; }
+        std::string get_wname() { return work_item_name_; }
+
+/*
 	void push(double x)
 	{
 	   m_n++;
@@ -75,7 +92,7 @@ namespace allscale
 	{
 	   return sqrt( Variance() );
 	}
-
+*/
 
         // Other performance metrics
         double get_exclusive_time() {
@@ -85,6 +102,13 @@ namespace allscale
 
         }
 
+
+        uint64_t get_exclusive_time_ns() {
+
+           uint64_t time_elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+           return time_elapsed;
+
+        }
 
         double get_inclusive_time() {
 

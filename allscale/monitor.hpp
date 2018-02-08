@@ -21,11 +21,13 @@ namespace allscale {
         enum event {
             work_item_enqueued = 0,
             work_item_dequeued = 1,
-            work_item_execution_started = 2,
-            work_item_execution_finished = 3,
-            work_item_result_propagated = 4,
-            work_item_first = 5,
-            last_ = 6
+            work_item_split_execution_started = 2,
+            work_item_process_execution_started = 3,
+            work_item_split_execution_finished = 4,
+            work_item_process_execution_finished = 5,
+            work_item_result_propagated = 6,
+            work_item_first = 7,
+            last_ = 8
         };
 
         typedef
@@ -34,6 +36,7 @@ namespace allscale {
 
         static components::monitor* run(std::size_t rank);
         static void connect(event e, event_function f);
+        static void disconnect(event e, event_function f);
         static void signal(event e, work_item const& w);
         static components::monitor & get();
         static components::monitor *get_ptr();

@@ -37,6 +37,7 @@ namespace allscale { namespace this_work_item {
         config_.thread_depth_ = -1;
         config_.gpu_depth_ = -1;
         config_.needs_checkpoint_ = false;
+        profile = nullptr;
     }
 
 
@@ -52,6 +53,7 @@ namespace allscale { namespace this_work_item {
         config_.thread_depth_ = -1;
         config_.gpu_depth_ = -1;
         config_.needs_checkpoint_ = false;
+        profile = nullptr;
     }
 
     bool id::split_locality_depth(machine_config const& mconfig)

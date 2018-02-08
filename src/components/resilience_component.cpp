@@ -214,7 +214,7 @@ namespace allscale { namespace components {
         start_time = std::chrono::high_resolution_clock::now();
         scheduler.reset(new hpx::threads::executors::io_pool_executor);
 
-        allscale::monitor::connect(allscale::monitor::work_item_execution_started, allscale::resilience::global_w_exec_start_wrapper);
+        allscale::monitor::connect(allscale::monitor::work_item_split_execution_started, allscale::resilience::global_w_exec_start_wrapper);
         allscale::monitor::connect(allscale::monitor::work_item_result_propagated, resilience::global_w_exec_finish_wrapper);
         hpx::get_num_localities().get();
 
