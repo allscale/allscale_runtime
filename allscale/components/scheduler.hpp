@@ -73,7 +73,8 @@ namespace allscale { namespace components {
 
         bool periodic_throttle();
         bool periodic_frequency_scale();
-
+	bool power_periodic_frequency_scale();
+	
         hpx::util::interval_timer timer_;
         hpx::util::interval_timer throttle_timer_;
         hpx::util::interval_timer frequency_timer_;
@@ -115,6 +116,10 @@ namespace allscale { namespace components {
         unsigned long long last_energy_usage;
         unsigned long long last_actual_energy_usage;
         unsigned long long actual_energy_usage;
+	unsigned long long current_power_usage;
+	unsigned long long last_power_usage;
+	unsigned long long power_sum;
+	unsigned long long power_count;
 #if defined(ALLSCALE_HAVE_CPUFREQ)
         cpufreq_policy policy;
         hardware_reconf::hw_topology topo;

@@ -139,6 +139,7 @@ namespace allscale { namespace components { namespace util {
         /// \note               This function may be removed and moved into the monitoring component
         ///                     in future. 
         static unsigned long long read_system_energy(const std::string &sysfs_file = "/sys/devices/system/cpu/occ_sensors/system/system-energy");
+	static unsigned long long read_system_power(const std::string &sysfs_file = "/sys/devices/system/cpu/occ_sensors/system/power");
 
 
         /// \brief This function reads number of physical, logical cores, and hardware threads on a node.
@@ -161,9 +162,10 @@ namespace allscale { namespace components { namespace util {
         /// \param max_cpu_id   [in] end cpu id, exclusive
         ///
         static void make_cpus_online(unsigned int min_cpu_id, unsigned int max_cpu_id);
-
+        static void topo_init();
         private:
              static mutex_type freq_mtx_;
+	     static hw_topology initial_topo;
              static void write_to_file(int value, const std::string& file_name);
 
     };

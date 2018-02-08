@@ -25,13 +25,17 @@ namespace allscale { namespace components {
 	    , active_threads(os_thread_count)
 	    , current_avg_iter_time(0.0)
 	    , sampling_interval(10)
-	    , enable_factor(1.1)
-	    , disable_factor(1.0)
+	    , enable_factor(1.05)
+	    , disable_factor(1.05)
 	    , growing(true)
 	    , min_threads(1)
 	    , current_energy_usage(0)
 	    , last_actual_energy_usage(0)
 	    , actual_energy_usage(0)
+	    , current_power_usage(0)
+	    , last_power_usage(0)
+	    , power_sum(0)
+	    , power_count(0)
 #if defined(ALLSCALE_HAVE_CPUFREQ)
 	    , target_freq_found(false)
 #endif
@@ -41,7 +45,6 @@ namespace allscale { namespace components {
 	    , time_leeway(1.0)
 	    , resource_leeway(1.0)
 	    , energy_leeway(1.0)
-	      //       , count_(0)
 	    , timer_(
 		     hpx::util::bind(
 				     &scheduler::collect_counters,
@@ -125,7 +128,7 @@ namespace allscale { namespace components {
 	    std::size_t res = 0;
 	    std::size_t num_os_threads = hpx::get_os_thread_count();
 	    for (std::size_t num_thread = 0; num_thread != num_os_threads;
-		 ++num_thread)
+		 num_thread++)
 		{
 		    std::size_t pu_num = rp_->get_pu_num(num_thread);
 		    std::size_t numa_node = topo_->get_numa_node_number(pu_num);
@@ -153,7 +156,7 @@ namespace allscale { namespace components {
 	    mconfig_.num_localities = hpx::get_num_localities(hpx::launch::sync);
 	    mconfig_.thread_depths.resize(get_num_numa_nodes());
 	    // Setting the default thread depths for each NUMA domain.
-	    for (std::size_t i = 0; i < mconfig_.thread_depths.size(); ++i)
+	    for (std::size_t i = 0; i < mconfig_.thread_depths.size(); i++)
 		{
 		    std::size_t num_cores = get_num_numa_cores(i);
 		    // We round up here...
@@ -299,30 +302,62 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
 			std::cout << "Min freq:  " << min_freq << ", Max freq: " << max_freq << "\n" << std::flush;
 #endif
-
+			//TODO: specific Power8
+			hardware_reconf::make_cpus_online(0, 160);
+			hardware_reconf::topo_init();
 			// We have to set CPU governors to userpace in order to change frequencies later
-			std::string governor = "userspace";
+			std::string governor = "ondemand";
+			
+			policy.governor = const_cast<char*>(governor.c_str());
+
+			topo = hardware_reconf::read_hw_topology();
+			// first reinitialize to a normal setup
+			
+			for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id ++)
+			    {
+				int res = hardware_reconf::set_freq_policy(cpu_id, policy);
+				// if (res)
+				//     {
+				// 	HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
+				// 			    "Requesting energy objective without being able to set cpu frequency");
+					
+				// 	return;
+				//     }
+#ifdef DEBUG_
+				std::cout << "cpu_id "<< cpu_id << " back to on-demand. ret=  " << res << "\n" << std::flush;
+#endif
+			    }
+			
+			
+			governor = "userspace";
 			policy.governor = const_cast<char*>(governor.c_str());
 			policy.min = min_freq;
 			policy.max = max_freq;
 
-			topo = hardware_reconf::read_hw_topology();
+
 			for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
 			    {
 				int res = hardware_reconf::set_freq_policy(cpu_id, policy);
+				if (res)
+				    {
+					HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
+					    "Requesting energy objective without being able to set cpu frequency");
+
+					return;
+				    }
 #ifdef DEBUG_
 				std::cout << "cpu_id "<< cpu_id << " initial freq policy setting. ret=  " << res << "\n" << std::flush;
 #endif
 			    }
 
 			// Set frequency of all threads to max when we start
-			//TODO change for rp
+			
 			{
-			    // Select thread pool with the highest number of activated threads
+			    // set freq to all PUs used by allscale
 			    for (std::size_t i = 0; i != thread_pools_.size(); ++i)
 				{
 				    std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
-				    for (std::size_t j = thread_count - 1; j != 0 ; j--)
+				    for (std::size_t j = 0  ; j < thread_count ; j++)
 					{
 					    std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
 
@@ -346,12 +381,12 @@ namespace allscale { namespace components {
 			// Make sure frequency change happened before continuing
 			std::cout << "topo.num_logical_cores: " << topo.num_logical_cores << "topo.num_hw_threads" << topo.num_hw_threads<< "\n" << std::flush; 
 			{
-			    // Select thread pool with the highest number of activated threads
+			    // check status of Pus frequency
 			    for (std::size_t i = 0; i != thread_pools_.size(); ++i)
 				{
 				    unsigned long hardware_freq = 0;
 				    std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
-				    for (std::size_t j = thread_count - 1; j != 0 ; j--)
+				    for (std::size_t j =  0 ;  j < thread_count ; j++)
 					{
 					    std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
 					    
@@ -362,7 +397,7 @@ namespace allscale { namespace components {
 							    hardware_freq = hardware_reconf::get_hardware_freq(pu_num);
 #ifdef DEBUG_
 							    std::cout << "current freq on cpu "<< pu_num << " is " << hardware_freq << " (target freq is " << cpu_freqs[0] << " )\n" << std::flush;
-							    std::this_thread::sleep_for(std::chrono::microseconds(1000000));
+							    //std::this_thread::sleep_for(std::chrono::microseconds(1000000));
 #endif
 							    
 							    //					HPX_ASSERT(hardware_freq == cpu_freqs[0]);
@@ -375,6 +410,30 @@ namespace allscale { namespace components {
 				}
 			    
 			}
+			
+			// offline unused cpus
+			for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
+			    {
+				bool found_it = false;
+				for ( std::size_t i = 0; i != thread_pools_.size(); i++)
+				    {
+					if (hpx::threads::test(initial_masks_[i], cpu_id))
+					    {
+						std::cout << " cpu_id "<< cpu_id << " found\n" << std::flush;
+						found_it = true;
+						
+					    }
+				    }
+				
+				if (!found_it)
+				    {
+#ifdef DEBUG_
+					std::cout << " setting cpu_id "<< cpu_id << " offline \n" << std::flush;
+#endif
+				
+					hardware_reconf::make_cpus_offline(cpu_id, cpu_id + topo.num_hw_threads);
+				    }
+			    }
 
 
 
@@ -392,6 +451,7 @@ namespace allscale { namespace components {
 
 	void scheduler::enqueue(work_item work, this_work_item::id const& id)
 	{
+	    static thread_local unsigned int current_period = 0;
 	    if (id)
 		{
 		    this_work_item::set_id(id);
@@ -423,32 +483,39 @@ namespace allscale { namespace components {
 	    // schedule locally
 	    if (schedule_rank == rank_)
 		{
-		    if (work.is_first())
-			{
-			    std::size_t current_id = work.id().last();
-			    //                 const char* wi_name = work.name();
-			    //                 {
-			    //                     std::unique_lock<mutex_type> lk(spawn_throttle_mtx_);
-			    //                     auto it = spawn_throttle_.find(wi_name);
-			    //                     if (it == spawn_throttle_.end())
-			    //                     {
-			    //                         auto em_res = spawn_throttle_.emplace(wi_name,
-			    //                             treeture_buffer(6));//num_threads_));
-			    //                         it = em_res.first;
-			    //                     }
-			    //                     it->second.add(std::move(lk), work.get_treeture());
-			    //                 }
-			    allscale::monitor::signal(allscale::monitor::work_item_first, work);
+ 		    if (work.is_first())
+ 			{
+ 			    std::size_t current_id = work.id().last();
+// #ifdef DEBUG_
+//  			    std::cout << "current_id: "<< current_id << " (could be " << work.id().name()  << " ), on rank : " << rank_ << "\n" << std::flush;
+// #endif
 
-			    if ((current_id >=50 ) && (current_id % 50 == 0))
-				{
-				    periodic_throttle();
-				    //periodic_frequency_scale();
+
+ 			    //                 const char* wi_name = work.name();
+ 			    //                 {
+ 			    //                     std::unique_lock<mutex_type> lk(spawn_throttle_mtx_);
+// // 			    //                     auto it = spawn_throttle_.find(wi_name);
+// // 			    //                     if (it == spawn_throttle_.end())
+// // 			    //                     {
+// // 			    //                         auto em_res = spawn_throttle_.emplace(wi_name,
+// // 			    //                             treeture_buffer(6));//num_threads_));
+// // 			    //                         it = em_res.first;
+// // 			    //                     }
+// // 			    //                     it->second.add(std::move(lk), work.get_treeture());
+// // 			    //                 }
+ 			    allscale::monitor::signal(allscale::monitor::work_item_first, work);
+
+			    if ((current_id >=5 ) && (current_id % 5 == 0))
+ 			     	{
+ 			     	    periodic_throttle();
 				}
+			    if ((current_id >=20 ) && (current_id % 20 == 0))
+ 			     	{
+				    power_periodic_frequency_scale();
+ 			     	}
+			    
 			}
-		    else
-			{
-			}
+
 		    allscale::monitor::signal(allscale::monitor::work_item_enqueued, work);
 
 		    // FIXME: modulus shouldn't be needed here
@@ -577,8 +644,8 @@ namespace allscale { namespace components {
 			    double time_threshold = current_avg_iter_time;
 
 			    //check if we need to suspend or resume some threads
-			    bool disable_flag = (growing && (last_avg_iter_time * enable_factor) < time_threshold) 
-				|| ((!growing) &&  last_avg_iter_time > (time_threshold * enable_factor));
+			    bool disable_flag = (growing && (last_avg_iter_time * disable_factor) < time_threshold) 
+				|| ((!growing) &&  last_avg_iter_time > (time_threshold * disable_factor));
 			    bool enable_flag = ((!growing) && (last_avg_iter_time * enable_factor) < time_threshold) 
 				|| (growing &&  last_avg_iter_time > (time_threshold * enable_factor));
 		
@@ -909,146 +976,271 @@ namespace allscale { namespace components {
 
 	bool scheduler::periodic_frequency_scale()
 	{
+
 #if defined(ALLSCALE_HAVE_CPUFREQ)
-	    std::unique_lock<mutex_type> l(resize_mtx_);
-	    if ( !target_freq_found )
+	    if (energy_requested)
+		{
+		    std::unique_lock<mutex_type> l(resize_mtx_);
+		    if ( !target_freq_found )
+			{
+			    if ( current_energy_usage == 0 )
+				{
+				    current_energy_usage = hardware_reconf::read_system_energy();
+				    return true;
+				} 
+			    else if ( current_energy_usage > 0 )
+				{
+				    //read_system_energy() gives total number of joule spent since system powering
+				    
+				    last_energy_usage = current_energy_usage;
+				    current_energy_usage = hardware_reconf::read_system_energy();
+				    //need to compute energy usage as difference between now and last time
+				    last_actual_energy_usage = actual_energy_usage;
+				    actual_energy_usage = current_energy_usage - last_energy_usage;
+				    
+				    last_avg_iter_time = current_avg_iter_time;
+				    {
+					hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+					//                    current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
+					current_avg_iter_time = allscale_monitor->get_last_iteration_time();
+				    }
+				    
+				    unsigned int freq_idx = -1;
+				    unsigned long current_freq_hw = hardware_reconf::get_hardware_freq(0);
+				    //unsigned long current_freq_kernel = hardware_reconf::get_kernel_freq(0);
+				    //std::cout << "current_freq_hw: " << current_freq_hw << ", current_freq_kernel: " << current_freq_kernel << std::endl;
+				    
+				    // Get freq index in cpu_freq
+				    std::vector<unsigned long>::iterator it = std::find(cpu_freqs.begin(), cpu_freqs.end(), current_freq_hw);
+				    if ( it != cpu_freqs.end() )
+					freq_idx = it - cpu_freqs.begin();
+				    else
+					{
+					    // If you run it without sudo, get_hardware_freq will fail and end up here as well!
+					    HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::periodic_frequency_scale",
+								boost::str(boost::format("Cannot find frequency: %s in the list of frequencies. Something must be wrong!") % current_freq_hw));
+					}
+				    
+				    freq_times[freq_idx] = std::make_pair(actual_energy_usage, current_avg_iter_time);
+				    
+				    unsigned long target_freq = current_freq_hw;
+				    // If we have not finished until the minimum frequnecy then continue
+				    if ( target_freq != min_freq ) 
+					{
+					    hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+					    //Start decreasing frequencies by 2
+					    hardware_reconf::set_next_frequency(freq_step, true);
+					    target_freq = hardware_reconf::get_hardware_freq(0);
+					    std::cout << "Decrease frequency. " << "actual_energy_usage: "
+						      << actual_energy_usage << ", current_freq_hw: "
+						      << current_freq_hw << ", target_freq: "
+						      << target_freq << ", current_avg_iter_time: "
+						      << current_avg_iter_time << std::endl;
+					}
+				    else
+					{   // We should have measurement with all frequencies with step 2
+					    // End of freq_times contains minimum frequency
+					    unsigned long long min_energy = freq_times.back().first;
+					    unsigned int min_energy_idx = freq_times.size() - 1;
+					    
+					    double min_exec_time = freq_times[0].second;
+					    unsigned int min_exec_time_idx = 0;
+					    
+					    for (int i = 0; i < freq_times.size(); i++)
+						{
+						    // If we have frequencies with zero energy usage
+						    // it means we haven't measured them, so skip them
+						    if ( freq_times[i].first == 0 )
+							continue;
+						    
+						    if ( min_energy > freq_times[i].first )
+							{
+							    min_energy = freq_times[i].first;
+							    min_energy_idx = i;
+							}
+						    
+						    if ( min_exec_time > freq_times[i].second )
+							{
+							    min_exec_time = freq_times[i].second;
+							    min_exec_time_idx = i;
+							}
+						}
+					    
+					    // We will save minimum energy and execution time
+					    // and use them for comparision using leeways
+					    unsigned long long optimal_energy = min_energy;
+					    double optimal_exec_time = min_exec_time;
+					    
+					    if ( time_requested && energy_requested )
+						{
+						    for (int i = 0; i < freq_times.size(); i++)
+							{
+							    // the frequencies that have not been used will have default value of zero
+							    if ( freq_times[i].first == 0 )
+								continue;
+							    
+							    if ( ( time_leeway < 1 && energy_leeway == 1.0 ) && freq_times[i].second  - min_exec_time <  min_exec_time * time_leeway )
+								{
+								    if ( optimal_energy > freq_times[i].first )
+									{
+									    min_energy_idx = i;
+									    min_exec_time_idx = i;
+									    optimal_energy = freq_times[i].first;
+									}
+								}
+							    else if ( ( energy_leeway < 1 && time_leeway == 1.0 ) && freq_times[i].first  - min_energy <  min_energy * energy_leeway  )
+								{
+								    
+								    if ( optimal_exec_time > freq_times[i].second )
+									{
+									    min_energy_idx = i;
+									    min_exec_time_idx = i;
+									    optimal_exec_time = freq_times[i].second;
+									}
+								}
+							    else if ( time_leeway == 1.0 && energy_leeway == 1.0 )
+								{
+								    if ( optimal_energy > freq_times[i].first && optimal_exec_time > freq_times[i].second )
+									{
+									    optimal_energy = freq_times[i].first;
+									    min_energy_idx = i;
+									    min_exec_time_idx = i;
+									    optimal_exec_time = freq_times[i].second;
+									}
+								}
+							}
+						}
+					    
+					    hardware_reconf::set_frequencies_bulk(os_thread_count, cpu_freqs[min_energy_idx]);
+					    target_freq_found = true;
+					    std::cout << "Min energy: " << freq_times[min_energy_idx].first << " with freq: "
+						      << cpu_freqs[min_energy_idx] << ", Min time with freq: "
+						      << cpu_freqs[min_exec_time_idx] << std::endl;
+					}
+				}
+			}
+		}
+	    else
 		{
 		    if ( current_energy_usage == 0 )
 			{
 			    current_energy_usage = hardware_reconf::read_system_energy();
 			    return true;
-			} else if ( current_energy_usage > 0 )
+			} 
+		    else if ( current_energy_usage > 0 )
 			{
-			    last_energy_usage = current_energy_usage;
-			    current_energy_usage = hardware_reconf::read_system_energy();
-			    last_actual_energy_usage = actual_energy_usage;
-			    actual_energy_usage = current_energy_usage - last_energy_usage;
-
-			    last_avg_iter_time = current_avg_iter_time;
-			    {
-				hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-				//                    current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
-				current_avg_iter_time = allscale_monitor->get_last_iteration_time();
-			    }
-
-			    unsigned int freq_idx = -1;
-			    unsigned long current_freq_hw = hardware_reconf::get_hardware_freq(0);
-			    //unsigned long current_freq_kernel = hardware_reconf::get_kernel_freq(0);
-			    //std::cout << "current_freq_hw: " << current_freq_hw << ", current_freq_kernel: " << current_freq_kernel << std::endl;
-
-			    // Get freq index in cpu_freq
-			    std::vector<unsigned long>::iterator it = std::find(cpu_freqs.begin(), cpu_freqs.end(), current_freq_hw);
-			    if ( it != cpu_freqs.end() )
-				freq_idx = it - cpu_freqs.begin();
-			    else
-				{
-				    // If you run it without sudo, get_hardware_freq will fail and end up here as well!
-				    HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::periodic_frequency_scale",
-							boost::str(boost::format("Cannot find frequency: %s in the list of frequencies. Something must be wrong!") % current_freq_hw));
-				}
-
-			    freq_times[freq_idx] = std::make_pair(actual_energy_usage, current_avg_iter_time);
-
-			    unsigned long target_freq = current_freq_hw;
-			    // If we have not finished until the minimum frequnecy then continue
-			    if ( target_freq != min_freq ) {
-				hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
-				//Start decreasing frequencies by 2
-				hardware_reconf::set_next_frequency(freq_step, true);
-				target_freq = hardware_reconf::get_hardware_freq(0);
-				std::cout << "Decrease frequency. " << "actual_energy_usage: "
-					  << actual_energy_usage << ", current_freq_hw: "
-					  << current_freq_hw << ", target_freq: "
-					  << target_freq << ", current_avg_iter_time: "
-					  << current_avg_iter_time << std::endl;
-			    }
-			    else
-				{   // We should have measurement with all frequencies with step 2
-				    // End of freq_times contains minimum frequency
-				    unsigned long long min_energy = freq_times.back().first;
-				    unsigned int min_energy_idx = freq_times.size() - 1;
-
-				    double min_exec_time = freq_times[0].second;
-				    unsigned int min_exec_time_idx = 0;
-
-				    for (int i = 0; i < freq_times.size(); i++)
-					{
-					    // If we have frequencies with zero energy usage
-					    // it means we haven't measured them, so skip them
-					    if ( freq_times[i].first == 0 )
-						continue;
-
-					    if ( min_energy > freq_times[i].first )
-						{
-						    min_energy = freq_times[i].first;
-						    min_energy_idx = i;
-						}
-
-					    if ( min_exec_time > freq_times[i].second )
-						{
-						    min_exec_time = freq_times[i].second;
-						    min_exec_time_idx = i;
-						}
-					}
-
-				    // We will save minimum energy and execution time
-				    // and use them for comparision using leeways
-				    unsigned long long optimal_energy = min_energy;
-				    double optimal_exec_time = min_exec_time;
-
-				    if ( time_requested && energy_requested )
-					{
-					    for (int i = 0; i < freq_times.size(); i++)
-						{
-						    // the frequencies that have not been used will have default value of zero
-						    if ( freq_times[i].first == 0 )
-							continue;
-
-						    if ( ( time_leeway < 1 && energy_leeway == 1.0 ) && freq_times[i].second  - min_exec_time <  min_exec_time * time_leeway )
-							{
-							    if ( optimal_energy > freq_times[i].first )
-								{
-								    min_energy_idx = i;
-								    min_exec_time_idx = i;
-								    optimal_energy = freq_times[i].first;
-								}
-							}
-						    else if ( ( energy_leeway < 1 && time_leeway == 1.0 ) && freq_times[i].first  - min_energy <  min_energy * energy_leeway  )
-							{
-
-							    if ( optimal_exec_time > freq_times[i].second )
-								{
-								    min_energy_idx = i;
-								    min_exec_time_idx = i;
-								    optimal_exec_time = freq_times[i].second;
-								}
-							}
-						    else if ( time_leeway == 1.0 && energy_leeway == 1.0 )
-							{
-							    if ( optimal_energy > freq_times[i].first && optimal_exec_time > freq_times[i].second )
-								{
-								    optimal_energy = freq_times[i].first;
-								    min_energy_idx = i;
-								    min_exec_time_idx = i;
-								    optimal_exec_time = freq_times[i].second;
-								}
-							}
-						}
-					}
-
-				    hardware_reconf::set_frequencies_bulk(os_thread_count, cpu_freqs[min_energy_idx]);
-				    target_freq_found = true;
-				    std::cout << "Min energy: " << freq_times[min_energy_idx].first << " with freq: "
-					      << cpu_freqs[min_energy_idx] << ", Min time with freq: "
-					      << cpu_freqs[min_exec_time_idx] << std::endl;
-				}
+			    return true;
 			}
 		}
 #endif
-
+	    
 	    return true;
 	}
 
+
+	bool scheduler::power_periodic_frequency_scale()
+	{
+	    
+#if defined(ALLSCALE_HAVE_CPUFREQ)
+	    if (energy_requested)
+		{
+		    std::unique_lock<mutex_type> l(resize_mtx_);
+		    
+		    //update current power usage				    
+		    last_power_usage++;
+		    current_power_usage = hardware_reconf::read_system_power();
+		    power_sum += current_power_usage;
+		    power_count++;
+		    last_avg_iter_time = current_avg_iter_time;
+		    {
+			//	hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+			//                    current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
+			current_avg_iter_time = allscale_monitor->get_last_iteration_time();
+		    }
+		    
+		    unsigned int freq_idx = -1;
+		    unsigned long current_freq_hw = hardware_reconf::get_hardware_freq(0);
+		    //unsigned long current_freq_kernel = hardware_reconf::get_kernel_freq(0);
+		    //std::cout << "current_freq_hw: " << current_freq_hw << ", current_freq_kernel: " << current_freq_kernel << std::endl;
+		    std::cout << "power: " << current_power_usage << ", time: " << current_avg_iter_time << ", current_freq_hw: " << current_freq_hw << "\n" << std::flush; 
+		    // Get freq index in cpu_freq
+		    std::vector<unsigned long>::iterator it = std::find(cpu_freqs.begin(), cpu_freqs.end(), current_freq_hw);
+		    
+		    if ( it != cpu_freqs.end() )
+			{
+			    freq_idx = it - cpu_freqs.begin();
+			    std::cout << "iterator " << freq_idx << "\n" << std::flush; 
+			}
+		    else
+			{
+			    // If you run it without sudo, get_hardware_freq will fail and end up here as well!
+			    HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::periodic_frequency_scale",
+						boost::str(boost::format("Cannot find frequency: %s in the list of frequencies. Something must be wrong!") % current_freq_hw));
+			}
+		    
+		    freq_times[freq_idx] = std::make_pair(current_power_usage, current_avg_iter_time);
+		    
+		    //to avoid not updating power/freq values, lets rolls them out once in a while
+		    if (last_power_usage >=20)
+			{
+			    std::cout << "resetting power logs\n" << std::flush;
+			    if ( freq_idx + freq_step < cpu_freqs.size() ) 
+				{
+				    freq_times[freq_idx + freq_step] = std::make_pair(0, 0);
+				}
+			    if ( freq_idx - freq_step > 0 ) 
+				{
+				    freq_times[freq_idx - freq_step] = std::make_pair(0, 0);
+				}
+			    last_power_usage = 0;
+			}
+				    
+		    //unsigned long target_freq = current_freq_hw;
+		    // If we have not finished until the minimum frequnecy then continue
+		    if ( freq_idx + freq_step < cpu_freqs.size() ) 
+			{
+			    std::cout << "current power: " << freq_times[freq_idx].first << " power for lower freq: " << freq_times[freq_idx + freq_step].first << "\n" << std::flush;
+			    if (freq_times[freq_idx].first > freq_times[freq_idx + freq_step].first)
+				{
+				    std::cout << " lowering frequency\n" << std::flush;
+				    hardware_reconf::set_next_frequency(freq_step, true);
+				    last_power_usage = 0;
+				    return true;
+				}
+			    
+			    // hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+			    // //Start decreasing frequencies by 2
+			    // hardware_reconf::set_next_frequency(freq_step, true);
+			    // target_freq = hardware_reconf::get_hardware_freq(0);
+			    // std::cout << "Decrease frequency. " << "current_power_usage: "
+			    // 	      << current_power_usage << ", current_freq_hw: "
+			    // 	      << current_freq_hw << ", target_freq: "
+			    // 	      << target_freq << ", current_avg_iter_time: "
+			    // 	      << current_avg_iter_time << std::endl;
+			}
+		    if (freq_idx - freq_step > 0 )
+			{
+			    std::cout << "current power: " << freq_times[freq_idx].first << " power for higher freq: " << freq_times[freq_idx - freq_step].first << "\n" << std::flush;
+			    if (freq_times[freq_idx].first > freq_times[freq_idx - freq_step].first)
+				{
+				    std::cout << " increasing frequency\n" << std::flush;
+				    hardware_reconf::set_next_frequency(freq_step, false);
+				    last_power_usage = 0;
+				    return true;
+				}
+			}
+		}
+	    else
+		{
+		    current_power_usage = hardware_reconf::read_system_power();
+		    power_sum += current_power_usage;
+		    power_count++;
+		    //		    std::cout << "Current power: " << current_power_usage << "\n" << std::flush;
+		}
+#endif
+	    
+	    return true;
+	}
 
 
 	void scheduler::stop()
@@ -1059,7 +1251,7 @@ namespace allscale { namespace components {
 	    //             throttle_timer_.stop();
 
 	    if ( energy_requested )
-		frequency_timer_.stop();
+	    	frequency_timer_.stop();
 
 	    if(stopped_)
 		return;
@@ -1090,16 +1282,37 @@ namespace allscale { namespace components {
 	    if ( energy_requested )
 		{
 #if defined(ALLSCALE_HAVE_CPUFREQ)
-		    std::string governor = "ondemand";
-		    policy.governor = const_cast<char*>(governor.c_str());
 
 		    for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
-			int res = hardware_reconf::set_freq_policy(cpu_id, policy);
+			    {
+				bool found_it = false;
+				for ( std::size_t i = 0; i != thread_pools_.size(); i++)
+				    {
+					if (hpx::threads::test(initial_masks_[i], cpu_id))
+					    found_it = true;
+				    }
+				
+				if (!found_it)
+				    {
+					hardware_reconf::make_cpus_online(cpu_id, cpu_id + topo.num_hw_threads);
+				    }
+#ifdef DEBUG_
+				std::cout << " setting cpu_id "<< cpu_id << " back online \n" << std::flush;
+#endif
+			    }
 
+		    std::string governor = "ondemand";
+		    policy.governor = const_cast<char*>(governor.c_str());
 		    std::cout << "Set CPU governors back to " << governor << std::endl;
+		    for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
+			int res = hardware_reconf::set_freq_policy(cpu_id, policy);
 #endif
 		}
 
+	    if (power_count)
+		{
+		    std::cout << "Power average usage: " << (power_sum / power_count) << "\n" << std::flush; 
+		}
 	    stopped_ = true;
 	    //         work_queue_cv_.notify_all();
 	    //         std::cout << "rank(" << rank_ << "): scheduled " << count_ << "\n";
