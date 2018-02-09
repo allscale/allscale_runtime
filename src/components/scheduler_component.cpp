@@ -66,11 +66,11 @@ namespace allscale { namespace components {
 			      )
 	    , frequency_timer_(
 			       hpx::util::bind(
-					       &scheduler::periodic_frequency_scale,
+					       &scheduler::power_periodic_frequency_scale,
 					       this
 					       ),
 			       10000000, //0.1 sec
-			       "scheduler::periodic_frequency_scale",
+			       "scheduler::power_periodic_frequency_scale",
 			       true
 			       )
 	{
@@ -1161,20 +1161,20 @@ namespace allscale { namespace components {
 		    unsigned int freq_idx = -1;
 		    unsigned long current_freq_hw = hardware_reconf::get_hardware_freq(0);
 		    //unsigned long current_freq_kernel = hardware_reconf::get_kernel_freq(0);
-		    //std::cout << "current_freq_hw: " << current_freq_hw << ", current_freq_kernel: " << current_freq_kernel << std::endl;
-		    std::cout << "power: " << current_power_usage << ", time: " << current_avg_iter_time << ", current_freq_hw: " << current_freq_hw << "\n" << std::flush; 
+		    
+		    // std::cout << "power: " << current_power_usage << ", time: " << current_avg_iter_time << ", current_freq_hw: " << current_freq_hw << "\n" << std::flush; 
 		    // Get freq index in cpu_freq
 		    std::vector<unsigned long>::iterator it = std::find(cpu_freqs.begin(), cpu_freqs.end(), current_freq_hw);
 		    
 		    if ( it != cpu_freqs.end() )
 			{
 			    freq_idx = it - cpu_freqs.begin();
-			    std::cout << "iterator " << freq_idx << "\n" << std::flush; 
+			    //  std::cout << "iterator " << freq_idx << "\n" << std::flush; 
 			}
 		    else
 			{
 			    // If you run it without sudo, get_hardware_freq will fail and end up here as well!
-			    HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::periodic_frequency_scale",
+			    HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::power_periodic_frequency_scale",
 						boost::str(boost::format("Cannot find frequency: %s in the list of frequencies. Something must be wrong!") % current_freq_hw));
 			}
 		    
@@ -1183,12 +1183,12 @@ namespace allscale { namespace components {
 		    //to avoid not updating power/freq values, lets rolls them out once in a while
 		    if (last_power_usage >=20)
 			{
-			    std::cout << "resetting power logs\n" << std::flush;
+			    //   std::cout << "resetting power logs\n" << std::flush;
 			    if ( freq_idx + freq_step < cpu_freqs.size() ) 
 				{
 				    freq_times[freq_idx + freq_step] = std::make_pair(0, 0);
 				}
-			    if ( freq_idx - freq_step > 0 ) 
+			    if ( freq_idx  > freq_step ) 
 				{
 				    freq_times[freq_idx - freq_step] = std::make_pair(0, 0);
 				}
@@ -1199,10 +1199,10 @@ namespace allscale { namespace components {
 		    // If we have not finished until the minimum frequnecy then continue
 		    if ( freq_idx + freq_step < cpu_freqs.size() ) 
 			{
-			    std::cout << "current power: " << freq_times[freq_idx].first << " power for lower freq: " << freq_times[freq_idx + freq_step].first << "\n" << std::flush;
+			    //	    std::cout << "current power: " << freq_times[freq_idx].first << " power for lower freq: " << freq_times[freq_idx + freq_step].first << "\n" << std::flush;
 			    if (freq_times[freq_idx].first > freq_times[freq_idx + freq_step].first)
 				{
-				    std::cout << " lowering frequency\n" << std::flush;
+				    //	    std::cout << " lowering frequency\n" << std::flush;
 				    hardware_reconf::set_next_frequency(freq_step, true);
 				    last_power_usage = 0;
 				    return true;
@@ -1218,12 +1218,12 @@ namespace allscale { namespace components {
 			    // 	      << target_freq << ", current_avg_iter_time: "
 			    // 	      << current_avg_iter_time << std::endl;
 			}
-		    if (freq_idx - freq_step > 0 )
+		    if (freq_idx   > freq_step )
 			{
-			    std::cout << "current power: " << freq_times[freq_idx].first << " power for higher freq: " << freq_times[freq_idx - freq_step].first << "\n" << std::flush;
+			    // std::cout << "current power: " << freq_times[freq_idx].first << " power for higher freq: " << freq_times[freq_idx - freq_step].first << "\n" << std::flush;
 			    if (freq_times[freq_idx].first > freq_times[freq_idx - freq_step].first)
 				{
-				    std::cout << " increasing frequency\n" << std::flush;
+				    //	    std::cout << " increasing frequency\n" << std::flush;
 				    hardware_reconf::set_next_frequency(freq_step, false);
 				    last_power_usage = 0;
 				    return true;
@@ -1294,11 +1294,12 @@ namespace allscale { namespace components {
 				
 				if (!found_it)
 				    {
+#ifdef DEBUG_
+					std::cout << " setting cpu_id "<< cpu_id << " back online \n" << std::flush;
+#endif
+
 					hardware_reconf::make_cpus_online(cpu_id, cpu_id + topo.num_hw_threads);
 				    }
-#ifdef DEBUG_
-				std::cout << " setting cpu_id "<< cpu_id << " back online \n" << std::flush;
-#endif
 			    }
 
 		    std::string governor = "ondemand";

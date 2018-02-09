@@ -302,7 +302,7 @@ namespace allscale { namespace components { namespace util {
         for (unsigned int cpu_id = min_cpu_id; cpu_id < max_cpu_id; cpu_id++)
         {
             std::string sysfs_cpu_file = boost::str(boost::format(sysfs_file) % cpu_id);
-            std::cout << "Making offline: " << sysfs_cpu_file << std::endl;
+	    //  std::cout << "Making offline: " << sysfs_cpu_file << std::endl;
             hardware_reconf::write_to_file( 0, sysfs_cpu_file);
         }
 
@@ -320,11 +320,11 @@ namespace allscale { namespace components { namespace util {
     }
     void hardware_reconf::write_to_file(int value, const std::string& file_name)
     {
-	std::cout << "writing val: " << value << " to " << file_name << "\n" <<std::flush;
+	//	std::cout << "writing val: " << value << " to " << file_name << "\n" <<std::flush;
         std::ofstream sysfs_cpu(file_name);
         sysfs_cpu << value;
         sysfs_cpu.close();
-	std::cout << "writing done\n" <<std::flush;
+	//std::cout << "writing done\n" <<std::flush;
     }
     void hardware_reconf::topo_init()
     {
