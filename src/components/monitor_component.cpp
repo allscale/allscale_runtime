@@ -213,6 +213,8 @@ namespace allscale { namespace components {
    }
 
 
+
+
    void monitor::update_work_item_stats(work_item const& w, std::shared_ptr<allscale::profile> p)
    {
       double time;
@@ -884,6 +886,48 @@ namespace allscale { namespace components {
    }
 
 
+  double monitor::get_idle_rate()
+  {
+     hpx::performance_counters::counter_value idle_value;
+
+     idle_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                          hpx::launch::sync, idle_rate_counter_);
+
+
+     return idle_value.get_value<double>() * 0.01;
+
+  }
+
+
+  double monitor::get_idle_rate_remote(hpx::id_type locality)
+  {
+      get_idle_rate_action act;
+      hpx::future<double> f = hpx::async(act, locality);
+
+      return f.get();
+  }
+
+
+  double monitor::get_avg_idle_rate()
+  {
+     hpx::performance_counters::counter_value idle_avg_value;
+
+     idle_avg_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                          hpx::launch::sync, idle_rate_avg_counter_);
+
+
+     return idle_avg_value.get_value<double>() * 0.01;
+  }
+
+
+  double monitor::get_avg_idle_rate_remote(hpx::id_type locality)
+  {
+      get_avg_idle_rate_action act;
+      hpx::future<double> f = hpx::async(act, locality);
+
+      return f.get();
+  }
+
 
 #ifdef HAVE_PAPI
    // Returns PAPI counters for a work item with ID w_id
@@ -1283,6 +1327,12 @@ namespace allscale { namespace components {
         worker_thread.join();
  
      }
+
+
+
+      // Stop performance counter
+      hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, idle_rate_counter_);
+      hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, idle_rate_avg_counter_);
 /*
       {
          std::lock_guard<std::mutex> lk(m_queue);
@@ -1521,6 +1571,24 @@ namespace allscale { namespace components {
 
       // Create specialised OS-thread to proces profiles
       if(enable_monitor) worker_thread = std::thread(&allscale::components::monitor::process_profiles, this);
+
+      // Create idle rate counters per locality
+      static const char * idle_counter_name = "/threads{locality#%d/total}/idle-rate";
+      static const char * idle_counter_avg_name = "/statistics{/threads{locality#%d/total}/idle-rate}/average@500";
+
+      const std::uint32_t prefix = hpx::get_locality_id();
+
+      std::cerr << "Registering counter " << boost::str(boost::format(idle_counter_name) % prefix) << std::endl;
+      idle_rate_counter_ = hpx::performance_counters::get_counter(
+              boost::str(boost::format(idle_counter_name) % prefix));
+
+      std::cerr << "Registering counter " << boost::str(boost::format(idle_counter_avg_name) % prefix) << std::endl;
+      idle_rate_avg_counter_ = hpx::performance_counters::get_counter(
+              boost::str(boost::format(idle_counter_avg_name) % prefix));
+
+      hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_rate_counter_);
+      hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_rate_avg_counter_);
+
  
       // Create the profile for the "Main"
       std::shared_ptr<allscale::profile> p(new profile("0", "Main", " "));
@@ -1560,4 +1628,5 @@ HPX_REGISTER_ACTION(allscale::components::monitor::get_iteration_time_action, ge
 HPX_REGISTER_ACTION(allscale::components::monitor::get_last_iteration_time_action, get_last_iteration_time_action);
 HPX_REGISTER_ACTION(allscale::components::monitor::get_number_of_iterations_action, get_number_of_iterations_action);
 HPX_REGISTER_ACTION(allscale::components::monitor::get_avg_time_last_iterations_action, get_avg_time_last_iterations_action);
-
+HPX_REGISTER_ACTION(allscale::components::monitor::get_idle_rate_action, get_idle_rate_action);
+HPX_REGISTER_ACTION(allscale::components::monitor::get_avg_idle_rate_action, get_avg_idle_rate_action);

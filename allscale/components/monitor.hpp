@@ -27,6 +27,8 @@
 
 #include <hpx/include/lcos.hpp>
 
+#include <hpx/include/performance_counters.hpp>
+
 #ifdef REALTIME_VIZ
 #include <hpx/util/interval_timer.hpp>
 //#include <iostream>
@@ -236,6 +238,25 @@ namespace allscale { namespace components {
            uint64_t get_timestamp( void );
 
 
+           /// \brief This function returns the idle rate 
+           ///        for the current locality.
+           ///
+           /// \returns             idle rate
+           double get_idle_rate();
+ 
+
+           /// \brief This function returns the average idle rate 
+           ///        of the current locality.
+           ///
+           /// \returns             average idle rate
+           double get_avg_idle_rate();
+
+           HPX_DEFINE_COMPONENT_ACTION(monitor, get_idle_rate);
+           HPX_DEFINE_COMPONENT_ACTION(monitor, get_avg_idle_rate);
+
+           double get_idle_rate_remote(hpx::id_type locality);
+           double get_avg_idle_rate_remote(hpx::id_type locality);
+
            // Wrapping functions to signals from the runtime
            static void global_w_exec_split_start_wrapper(work_item const& w);
            void w_exec_split_start_wrapper(work_item const& w);
@@ -359,6 +380,12 @@ namespace allscale { namespace components {
              void monitor_component_output(std::unordered_map<std::string, allscale::work_item_stats>& s);
               
 
+             // Counters for idle-rate
+             hpx::id_type idle_rate_counter_;
+             double idle_rate_;
+             hpx::id_type idle_rate_avg_counter_;
+             double idle_rate_avg_;
+
 #ifdef HAVE_PAPI
              // PAPI counters per thread
 //             std::multimap<std::uint32_t, hpx::performance_counters::performance_counter> counters;
@@ -388,4 +415,6 @@ HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_iteration_tim
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_last_iteration_time_action, get_last_iteration_time_action);
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_number_of_iterations_action, get_number_of_iterations_action);
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_avg_time_last_iterations_action, get_avg_time_last_iterations_action);
+HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_idle_rate_action, get_idle_rate_action);
+HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_avg_idle_rate_action, get_avg_idle_rate_action);
 #endif
