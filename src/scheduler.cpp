@@ -60,13 +60,13 @@ namespace allscale
         }
 
         std::cerr << "  Scheduling is using " << numa_domains.size() << " NUMA Domains\n";
-        rp.set_default_pool_name("allscale/numa/0");
+        rp.set_default_pool_name("allscale-numa-0");
 
         std::size_t domain = 0;
         bool skip = true;
         for (auto& numa: numa_domains)
         {
-            std::string pool_name = "allscale/numa/" + std::to_string(domain);
+            std::string pool_name = "allscale-numa-" + std::to_string(domain);
             std::cerr << "  Creating \"" << pool_name << "\" thread pool:\n";
 
             rp.create_thread_pool(pool_name,
