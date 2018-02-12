@@ -470,7 +470,6 @@ namespace allscale { namespace detail {
             }
             else
             {
-                typedef typename hpx::util::decay<decltype(hpx::util::unwrap(reqs))>::type reqs_type;
                 auto this_ = shared_this();
                 hpx::parallel::execution::post(exec,
                     [this_]() mutable
