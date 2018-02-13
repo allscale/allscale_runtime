@@ -73,7 +73,7 @@ namespace allscale
                 [domain, enable_elasticity](hpx::threads::policies::callback_notifier& notifier,
                     std::size_t num_threads, std::size_t thread_offset,
                     std::size_t pool_index, std::string const& pool_name)
-                -> std::unique_ptr<hpx::threads::detail::thread_pool_base>
+                -> std::unique_ptr<hpx::threads::thread_pool_base>
                 {
                     // instantiate the scheduler
                     typedef hpx::threads::policies::local_priority_queue_scheduler<
@@ -97,7 +97,7 @@ namespace allscale
                             hpx::threads::policies::scheduler_mode::enable_elasticity
                           | mode);
 
-                    std::unique_ptr<hpx::threads::detail::thread_pool_base> pool(
+                    std::unique_ptr<hpx::threads::thread_pool_base> pool(
                         new hpx::threads::detail::scheduled_thread_pool<
                                 local_sched_type
                             >(std::move(sched), notifier,
