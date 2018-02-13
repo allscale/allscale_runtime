@@ -36,6 +36,7 @@ namespace allscale
         scheduler(std::size_t rank);
 
         static void schedule(work_item work);
+        static void schedule(work_item work, this_work_item::id const&);
         static components::scheduler* run(std::size_t rank);
         static void stop();
         static components::scheduler* get_ptr();

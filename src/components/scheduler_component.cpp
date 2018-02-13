@@ -189,7 +189,7 @@ namespace allscale { namespace components {
 
 			    if (obj == "time")
 				{
-		  
+
 				    time_requested = true;
 				    time_leeway = leeway;
 #ifdef DEBUG_
@@ -204,7 +204,7 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
 				    std::cout << " Setting resource policy\n" ;
 #endif
-		    
+
 				}
 			    else if (obj == "energy")
 				{
@@ -213,7 +213,7 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
 				    std::cout << " Setting energy policy\n" ;
 #endif
-		    
+
 				}
 			    else
 				{
@@ -262,7 +262,7 @@ namespace allscale { namespace components {
 	    for (std::size_t domain = 0; domain < numa_domains.size(); ++domain)
 		{
 		    std::string pool_name;
-		    pool_name = "allscale/numa/" + std::to_string(domain);
+		    pool_name = "allscale-numa-" + std::to_string(domain);
 
 		    thread_pools_.push_back( &hpx::resource::get_thread_pool(pool_name));
 		    std::cerr << "Attached to " << pool_name << " (" << thread_pools_.back() << '\n';
@@ -293,7 +293,7 @@ namespace allscale { namespace components {
 			    }
 			std::cout << "\n" << std::flush;
 #endif
-			
+
 
 			auto min_max_freqs = std::minmax_element(cpu_freqs.begin(), cpu_freqs.end());
 			min_freq = *min_max_freqs.first;
@@ -363,23 +363,23 @@ namespace allscale { namespace components {
 
 					    if (!cpufreq_cpu_exists(pu_num))
 						{
-						    int res = hardware_reconf::set_frequency(pu_num, 1 , cpu_freqs[0]);		    
+						    int res = hardware_reconf::set_frequency(pu_num, 1 , cpu_freqs[0]);
 #ifdef DEBUG_
 						    std::cout << "Setting cpu " << pu_num <<" to freq  "<< cpu_freqs[0] << ", (ret= " << res << ")\n" << std::flush;
 #endif
 						}
 
 					}
-				    
+
 				}
-			    
+
 			}
-			
+
 
 			std::this_thread::sleep_for(std::chrono::microseconds(2));
 
 			// Make sure frequency change happened before continuing
-			std::cout << "topo.num_logical_cores: " << topo.num_logical_cores << "topo.num_hw_threads" << topo.num_hw_threads<< "\n" << std::flush; 
+			std::cout << "topo.num_logical_cores: " << topo.num_logical_cores << "topo.num_hw_threads" << topo.num_hw_threads<< "\n" << std::flush;
 			{
 			    // check status of Pus frequency
 			    for (std::size_t i = 0; i != thread_pools_.size(); ++i)
@@ -389,7 +389,7 @@ namespace allscale { namespace components {
 				    for (std::size_t j =  0 ;  j < thread_count ; j++)
 					{
 					    std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
-					    
+
 					    if (!cpufreq_cpu_exists(pu_num))
 						{
 						    do
@@ -399,16 +399,16 @@ namespace allscale { namespace components {
 							    std::cout << "current freq on cpu "<< pu_num << " is " << hardware_freq << " (target freq is " << cpu_freqs[0] << " )\n" << std::flush;
 							    //std::this_thread::sleep_for(std::chrono::microseconds(1000000));
 #endif
-							    
+
 							    //					HPX_ASSERT(hardware_freq == cpu_freqs[0]);
 							} while (hardware_freq != cpu_freqs[0]);
 
 						}
 
 					}
-				    
+
 				}
-			    
+
 			}
 			
 			// offline unused cpus
@@ -602,8 +602,8 @@ namespace allscale { namespace components {
 #endif
 				    return true;
 				}
-	      
-	      
+
+
 			    {
 				hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
 				current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
@@ -614,13 +614,13 @@ namespace allscale { namespace components {
 #endif
 					current_avg_iter_time = 0.0;
 				    }
-		    
+
 				//                    current_avg_iter_time = allscale_monitor->get_last_iteration_time();
 				//                    current_avg_iter_time = allscale_monitor->get_avg_work_item_times(sampling_interval);
 #ifdef DEBUG_
 				std::cout << "Now current_avg_iter_time= " << current_avg_iter_time << ", return true\n";
 #endif
-		    
+
 			    }
 			    return true;
 			} //From now, we should have enough information
@@ -628,27 +628,28 @@ namespace allscale { namespace components {
 			{
 			    //hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
 			    //current_avg_iter_time = allscale_monitor->get_last_iteration_time();
-			    
+
 			    // get the average iteration time from the monitoring
 			    last_avg_iter_time = current_avg_iter_time;
 			    current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
 #ifdef DEBUG_
 			    std::cout << "last_avg_iter_time: " << last_avg_iter_time << ", current_avg_iter_time: " << current_avg_iter_time << "\n";
 #endif
-			    
-		    
-			    
+
+
+
 			    std::size_t suspend_cap = 1; //active_threads < SMALL_SYSTEM  ? SMALL_SUSPEND_CAP : LARGE_SUSPEND_CAP;
 			    std::size_t resume_cap = 1;  //active_threads < SMALL_SYSTEM  ? LARGE_RESUME_CAP : SMALL_RESUME_CAP;
 
 			    double time_threshold = current_avg_iter_time;
 
 			    //check if we need to suspend or resume some threads
+
 			    bool disable_flag = (growing && (last_avg_iter_time * disable_factor) < time_threshold) 
 				|| ((!growing) &&  last_avg_iter_time > (time_threshold * disable_factor));
 			    bool enable_flag = ((!growing) && (last_avg_iter_time * enable_factor) < time_threshold) 
 				|| (growing &&  last_avg_iter_time > (time_threshold * enable_factor));
-		
+
 #ifdef DEBUG_
 			    std::cout << "disable flag: " << disable_flag << ", enable flag: " << enable_flag << ", was growing: " << growing  << "\n";
 #endif
@@ -669,11 +670,11 @@ namespace allscale { namespace components {
 // #ifdef DEBUG_
 // 			    std::cout << "domain_active_threads: " << domain_active_threads << ", min_threads: " << min_threads << "\n";
 // #endif
-		
+
 			    if (disable_flag )
 				{
 #ifdef DEBUG_
-				    std::cout << "trying to suspend a thread\n" << std::flush; 
+				    std::cout << "trying to suspend a thread\n" << std::flush;
 #endif
 				    //find out which pool has the most threads
 				    hpx::threads::mask_type active_mask;
@@ -744,13 +745,14 @@ namespace allscale { namespace components {
 						    }
 						std::cout << "\n" << std::flush;
 #endif
+
 						// select this pool if new maximum found
 						if (curr_active_pus > domain_active_threads)
 						    {
 #ifdef DEBUG_
 							std::cout << "curr_active_pus: " << curr_active_pus << " domain_active_threads: "<< domain_active_threads << ", selecting pool " << i << " for next suspend\n";
 #endif
-							
+
 							domain_active_threads = curr_active_pus;
 							active_mask = curr_mask;
 							pool_idx = i;
@@ -767,11 +769,11 @@ namespace allscale { namespace components {
 					    return true;
 					}
 				    active_threads = active_threads_;
-				    
+
 				    //                auto blocked_os_threads = active_mask & hpx::threads::not_(initial_masks_[pool_idx]);
 				    // what threads are blocked
 				    auto blocked_os_threads = active_mask ^ initial_masks_[pool_idx];
-				    
+
 				    /*******not sure we need that *********************************************/
 // 				    unsigned thread_use_count = thread_times[active_threads - 1].second;
 // 				    double thread_exe_time = current_avg_iter_time + thread_times[active_threads - 1].first;
@@ -793,7 +795,7 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
 					    std::cout << "testing pu_num: " << pu_num << "\n";
 #endif
-			
+
 					    if (hpx::threads::test(active_mask, pu_num))
 						{
 						    suspend_threads.push_back(i);
@@ -815,7 +817,7 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
 						std::cout << "suspend thread on pu: " << rp_->get_pu_num(pu + thread_pools_[pool_idx]->get_thread_offset()) << "\n" << std::flush;
 #endif
-			  
+
 						thread_pools_[pool_idx]->suspend_processing_unit(pu);
 					    }
 				    }
@@ -834,6 +836,7 @@ namespace allscale { namespace components {
 				    std::size_t active_threads_ = 0;
 				    std::size_t domain_blocked_threads = 0; //std::numeric_limits<std::size_t>::max();
 				    std::size_t pool_idx = 0;
+
 				    // Select thread pool with the largest number of blocked threads 
 				    {					
 					for (std::size_t i = 0; i != thread_pools_.size(); ++i)
@@ -903,7 +906,7 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
 							std::cout << "nb_blocked_threads: " << nb_blocked_threads << " domain_blocked_threads: "<< domain_blocked_threads << ", selecting pool " << i << " for next resume\n";
 #endif
-							
+
 							domain_blocked_threads = nb_blocked_threads;
 							blocked_mask = blocked_os_threads;
 							pool_idx = i;

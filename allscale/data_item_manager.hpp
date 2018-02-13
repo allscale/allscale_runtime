@@ -21,7 +21,6 @@ namespace allscale
         static allscale::data_item_reference<DataItemType>
         create(Args&&...args)
         {
-            auto dm = data_item_manager_impl<DataItemType>::get_ptr();
             return
                 data_item_reference<DataItemType>(
                     hpx::local_new<detail::id_holder>(

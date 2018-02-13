@@ -27,13 +27,6 @@ ALLSCALE_REGISTER_TREETURE_TYPE(int)
 
 HPX_REGISTER_COMPONENT_MODULE();
 
-
-long iterations = 100;
-long N = 10000;
-long tile_size = 32;
-
-long const NN = 10000;
-
 //using data_item_type_grid = allscale::api::user::data::Grid<int,1>;
 
 //using data_item_type = allscale::api::user::data::StaticGrid<int, N, N>;
@@ -197,21 +190,22 @@ struct transpose_split {
     {
         auto mat_a = hpx::util::get<0>(c);
         auto mat_b = hpx::util::get<1>(c);
-        
-        
+
+
         auto begin = hpx::util::get<2>(c);
         auto end = hpx::util::get<3>(c);
+        long tile_size = hpx::util::get<4>(c);
 
         std::size_t depth = allscale::this_work_item::get_id().depth();
         auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
         //std::cout<<"about to split range : " << range.begin() << " to " << range.end() << std::endl;
-        
+
         auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
-        
+
         //std::cout<<"splitted, got left: " << fragments.left.begin() << " " << fragments.left.end() << " right: " << fragments.right.begin() << " " <<fragments.right.end() << std::endl;
         return allscale::runtime::treeture_parallel(
-            allscale::spawn<transpose>(mat_a, mat_b, fragments.left.begin(), fragments.left.end()),
-            allscale::spawn<transpose>(mat_a, mat_b,  fragments.right.begin(), fragments.right.end())
+            allscale::spawn<transpose>(mat_a, mat_b, fragments.left.begin(), fragments.left.end(), tile_size),
+            allscale::spawn<transpose>(mat_a, mat_b,  fragments.right.begin(), fragments.right.end(), tile_size)
         );
     }
 
@@ -220,16 +214,17 @@ struct transpose_split {
 
 struct transpose_process {
     template <typename Closure>
-    static hpx::util::unused_type execute(Closure const& c)
+    static void execute(Closure const& c)
     {
         auto ref_mat_a = hpx::util::get<0>(c);
         auto data_a = allscale::data_item_manager::get(ref_mat_a);
-     
+
         auto ref_mat_b = hpx::util::get<1>(c);
         auto data_b = allscale::data_item_manager::get(ref_mat_b);
-        
+
         auto begin = hpx::util::get<2>(c);
         auto end = hpx::util::get<3>(c);
+        long tile_size = hpx::util::get<4>(c);
 
         region_type region(begin, end);
 
@@ -237,50 +232,28 @@ struct transpose_process {
         coordinate_type e_src(hpx::util::get<3>(c));
         coordinate_type s_dst(allscale::utils::Vector<long,2>( s_src[1], s_src[0] ) );
         coordinate_type e_dst(allscale::utils::Vector<long,2>( e_src[1], e_src[0] ) );
-        
+
         /*std::cout << hpx::get_locality_id() << " transpose process: s_src" << s_src << " e_src: " << e_src << " s_dst: " << s_dst
             << " e_dst " << e_dst <<  '\n';
         */
-        for(int a = 0 ; a < iterations; ++a){    
-            int tmp,jt,it;
-            for(int i = s_src[0]; i < e_src[0]; i+=tile_size){                                             
-                for(int j = s_src[1]; j < e_src[1]; j+=tile_size){
-                    //iterate thru tiles
-                    for (it=i; it< std::min(e_src[0],i+tile_size); it++){
-                        for (jt=j; jt< std::min(e_src[1],j+tile_size);jt++){ 
-                            coordinate_type pos_src( allscale::utils::Vector<long,2>( it, jt ) );
-                            coordinate_type pos_dst( allscale::utils::Vector<long,2>( jt, it ) );
-                            data_b[pos_dst]  = data_a[pos_src];
-                            data_a[pos_src] = 1.0f;
-
-                        }    
-                    }
-                        //tmp  = data_a[pos_src];                                        
-                } 
-            }
-       }
-/*
-        for(int i = s_src[0]; i < e_src[0]; i++){                                             
-            for(int j = s_src[1]; j < e_src[1]; j++){
+        for(long i = s_src[0]; i < e_src[0]; i+=tile_size)
+        {
+            for(long j = s_src[1]; j < e_src[1]; j+=tile_size)
+            {
                 //iterate thru tiles
-                        coordinate_type pos_src( allscale::utils::Vector<long,2>( i, j ) );
-                        coordinate_type pos_dst( allscale::utils::Vector<long,2>( j, i ) );
-                        data_b[pos_dst]  = data_a[pos_src];                      
-            }    
-         }
-                    //tmp  = data_a[pos_src];                                        
-        
-  */      
-        /*
-            for(int j = s_src[1]; j < e_src[1]; ++j){
-                for(int i = s_src[0]; i < e_src[0]; ++i){                                             
-                coordinate_type pos_src( allscale::utils::Vector<long,2>( i, j ) );
-                    coordinate_type pos_dst( allscale::utils::Vector<long,2>( j, i ) );
-                    data_b[pos_dst]  = data_a[pos_src];                                        
+                for (long it=i; it< std::min(e_src[0],i+tile_size); it++)
+                {
+                    for (long jt=j; jt< std::min(e_src[1],j+tile_size);jt++)
+                    {
+                        coordinate_type pos_src( allscale::utils::Vector<long,2>( it, jt ) );
+                        coordinate_type pos_dst( allscale::utils::Vector<long,2>( jt, it ) );
+                        data_b[pos_dst] = data_a[pos_src];
+                        data_a[pos_src] += 1.0f;
 
-                } 
-            }*/ 
-        return hpx::util::unused;
+                    }
+                }
+            }
+        }
     }
 
     template <typename Closure>
@@ -292,14 +265,14 @@ struct transpose_process {
     {
         // READ ACCESS REQUIRED TO SRC MATRIX
         region_type r_src(hpx::util::get<2>(c), hpx::util::get<3>(c));
-        
+
         // READ/WRITE ACCESS REQUIRED TO DST MATRIX
         coordinate_type s_src(hpx::util::get<2>(c));
         coordinate_type e_src(hpx::util::get<3>(c));
         coordinate_type s_dst(allscale::utils::Vector<long,2>( s_src[1], s_src[0] ) );
         coordinate_type e_dst(allscale::utils::Vector<long,2>( e_src[1], e_src[0] ) );
         region_type r_dst(s_dst,e_dst);
-        
+
         //acquire regions now
         return hpx::util::make_tuple(
             allscale::createDataItemRequirement(
@@ -335,14 +308,23 @@ using main_work = allscale::work_item_description<
 
 struct main_process
 {
-    static allscale::treeture<int> execute(hpx::util::tuple<> const& c)
+    static allscale::treeture<int> execute(hpx::util::tuple<int, char**> const& c)
     {
-
-        
+        int argc = hpx::util::get<0>(c);
+        char** argv = hpx::util::get<1>(c);
+        long iterations = 1;
+        if (argc > 1)
+            iterations = std::atoi(argv[1]);
+        long N = 10000;
+        if (argc > 2)
+            N = std::atoi(argv[2]);
+        long tile_size = 32;
+        if (argc > 3)
+            tile_size = std::atoi(argv[3]);
 
         allscale::api::user::data::GridPoint<2> size(N,N);
         data_item_shared_data_type sharedData(size);
-        
+
         allscale::data_item_reference<data_item_type> mat_a
             = allscale::data_item_manager::create<data_item_type>(sharedData);
 
@@ -353,22 +335,34 @@ struct main_process
         coordinate_type begin(0, 0);
         coordinate_type end(N, N);
 
+        std::cout
+            << "Transpose AllScale benchmark:\n"
+            << "\t    localities = " << hpx::get_num_localities().get() << "\n"
+            << "\tcores/locality = " << hpx::get_os_thread_count() << "\n"
+            << "\t    iterations = " << iterations << "\n"
+            << "\t             N = " << N << "\n"
+            << "\t     tile_size = " << tile_size << "\n"
+            << "\n"
+            ;
 
 
         allscale::spawn_first<grid_init>(mat_a, begin, end, 0).wait();
 
         allscale::spawn_first<grid_init>(mat_b, begin, end, 1).wait();
 
-       region_type whole_region({0,0}, {N, N});
-       
-       // DO ACTUAL WORK: SPAWN FIRST WORK ITEM
-       hpx::util::high_resolution_timer timer;
-       //auto startus = std::chrono::high_resolution_clock::now();
+        region_type whole_region({0,0}, {N, N});
 
-       hpx::when_all(
-            allscale::spawn_first<transpose>(mat_a, mat_b, begin, end).get_future()
-        ).get();
-      
+        // First iteration as warm up...
+        allscale::spawn_first<transpose>(mat_a, mat_b, begin, end, tile_size).wait();
+
+        // DO ACTUAL WORK: SPAWN FIRST WORK ITEM
+        hpx::util::high_resolution_timer timer;
+        //auto startus = std::chrono::high_resolution_clock::now();
+
+        for (long i = 0; i != iterations; ++i)
+        {
+            allscale::spawn_first<transpose>(mat_a, mat_b, begin, end, tile_size).wait();
+        }
 
 
        //auto endus = std::chrono::high_resolution_clock::now();
@@ -392,17 +386,17 @@ struct main_process
 //               allscale::access_mode::ReadOnly
 //           )).get();
 //       auto ref_result_a = allscale::data_item_manager::get(mat_a);
-//       for(int j = 0; j < N; ++j){    
+//       for(int j = 0; j < N; ++j){
 //           for(int i = 0; i < N; ++i){
 //               coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
-//               std::cout<< ref_result_a[tmp] << " ";                                                 
+//               std::cout<< ref_result_a[tmp] << " ";
 //
 //           }
-//           std::cout<<std::endl;                                                                       
+//           std::cout<<std::endl;
 //       }
 //       std::cout<<std::endl;
 //     // ===================================================
-//       
+//
 //
 //       std::cout<<std::endl;
 //       std::cout<<std::endl;
@@ -419,14 +413,14 @@ struct main_process
 //       auto ref_result = allscale::data_item_manager::get(mat_b);
 //
 //       std::cout<< " N " << N << std::endl;
-//       for(int j = 0; j < N; ++j){    
+//       for(int j = 0; j < N; ++j){
 //           for(int i = 0; i < N; ++i){
 //               coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
 //           }
-//           std::cout<<std::endl;                                                                       
+//           std::cout<<std::endl;
 //       }
 //     // ===================================================
-     
+
      //allscale::data_item_manager::release(lease_result);
 
 
@@ -439,29 +433,5 @@ struct main_process
 };
 
 int main(int argc, char **argv) {
-    if(argc==5){
-        iterations = std::atoi(argv[2]);
-        N = std::atoi(argv[3]);
-        tile_size = std::atoi(argv[4]);
-        return allscale::runtime::main_wrapper<main_work>(argc, argv);
-    }
-    else{
-        std::cout<<"Wrong number of Arguments, should be: ./transpose_test --hpx:threads=42 iterations order tilesize"<< std::endl;
-        return -1;
-    }
-    
-        /*
-    po::options_description desc("Allowed options");
-    desc.add_options()
-        ("N", po::value<uint32_t>(), "set number of elements in grid, default = 10000");
-    po::variables_map vm;        
-    po::store(po::parse_command_line(argc, argv, desc), vm);
-    po::notify(vm);    
-    if (vm.count("N")) {
-        cout << "Number of elements was set to " 
-             << vm["N"].as<uint32_t>() << ".\n";
-        N = vm["N"].as<uint32_t>(); 
-    } else {
-        cout << "Number of elements was not set, using default = 10000.\n";
-    }*/
+    return allscale::runtime::main_wrapper<main_work>(argc, argv);
 }

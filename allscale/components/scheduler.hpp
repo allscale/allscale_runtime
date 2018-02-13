@@ -91,7 +91,7 @@ namespace allscale { namespace components {
 
         hpx::id_type allscale_app_counter_id;
 
-        std::vector<hpx::threads::detail::thread_pool_base*> thread_pools_;
+        std::vector<hpx::threads::thread_pool_base*> thread_pools_;
         std::vector<hpx::threads::mask_type> initial_masks_;
 	std::vector<hpx::threads::mask_type> suspending_masks_;
 	std::vector<hpx::threads::mask_type> resuming_masks_;
