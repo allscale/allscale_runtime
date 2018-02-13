@@ -135,6 +135,12 @@ namespace allscale
         get().enqueue(work, this_work_item::id());
     }
 
+    void scheduler::schedule(work_item work, this_work_item::id const& id)
+    {
+//    	std::cerr<<"schedulign work item on loc " << hpx::get_locality_id()<<std::endl;
+        get().enqueue(work, id);
+    }
+
     components::scheduler* scheduler::run(std::size_t rank)
     {
         static this_work_item::id main_id(0);
