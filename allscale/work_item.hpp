@@ -117,7 +117,7 @@ namespace allscale {
             return "";
         }
 
-        treeture<void> get_treeture()
+        treeture<void> get_treeture() const
         {
             return impl_->get_treeture();
         }

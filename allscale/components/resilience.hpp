@@ -61,11 +61,13 @@ namespace allscale { namespace components {
            hpx::id_type protectees_protectee_;
            uint64_t protectees_protectee_rank_;
            mutable mutex_type backup_mutex_;
+           mutable mutex_type delegated_items_mutex_;
            mutable mutex_type remote_backup_mutex_;
            mutable mutex_type running_ranks_mutex_;
            std::map<std::string, work_item> local_backups_;
            mutable mutex_type result_mutex_;
            std::map<std::string, work_item> remote_backups_;
+           std::map<std::string, work_item> delegated_items_;
            void init();
            resilience(std::uint64_t rank);
            void protectee_crashed();
@@ -91,6 +93,8 @@ namespace allscale { namespace components {
            void w_exec_start_wrapper(work_item const& w);
            static void global_w_exec_finish_wrapper(work_item const& w);
            void w_exec_finish_wrapper(work_item const& w);
+           static void global_w_exec_dispatched_wrapper(work_item const& w);
+           void w_exec_dispatched_wrapper(work_item const& w);
            mutable mutex_type access_scheduler_mtx_;
        };
 }}

@@ -463,6 +463,7 @@ namespace allscale { namespace components {
 		    return;
 		}
 
+        allscale::monitor::signal(allscale::monitor::work_item_dispatched, work);
 	    network_.schedule(schedule_rank, std::move(work), this_work_item::get_id());
 	}
 
