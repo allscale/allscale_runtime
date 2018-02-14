@@ -68,6 +68,7 @@ namespace allscale { namespace detail {
         int sequencer[] = {
             (allscale::data_item_manager::release(hpx::util::get<Is>(leases)), 0)...
         };
+        (void)sequencer;
     }
 
     inline void release(hpx::util::detail::pack_c<std::size_t>, hpx::util::tuple<> const&)
