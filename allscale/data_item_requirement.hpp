@@ -55,294 +55,110 @@ namespace allscale{
     namespace detail
     {
 
-        template <std::size_t I, std::size_t J, typename Vector, typename Tuple1,
-            typename Tuple2, typename Enable = void>
-        struct merge_data_item_reqs_create;
+		// -- a utility to check whether a type is contained in a list of types --
 
-        template <std::size_t I, std::size_t J, typename Vector, typename Tuple1,
-            typename Tuple2>
-        struct merge_data_item_reqs_create<I, J, Vector, Tuple1, Tuple2,
-            typename std::enable_if<
-                I == hpx::util::tuple_size<typename std::decay<Tuple2>::type>::value
-            >::type
-        >
-        {
-            typedef Tuple1 type;
+		template<typename T, typename ... List>
+		struct contains_type;
 
-            template <typename Tuple>
-            static type call(Vector const&, Tuple&& tuple1, Tuple2 const& tuple2)
-            {
-                return std::forward<Tuple>(tuple1);
-            }
+		template<typename T>
+		struct contains_type<T> : public std::false_type {};
 
-        };
+		template<typename T, typename First, typename ... Rest>
+		struct contains_type<T,First,Rest...> : public std::integral_constant<bool,std::is_same<T,First>::value || contains_type<T,Rest...>::value> {};
 
-        template <std::size_t I, std::size_t J, typename Vector, typename Tuple1,
-            typename Tuple2>
-        struct merge_data_item_reqs_create<I, J, Vector, Tuple1, Tuple2,
-            typename std::enable_if<
-                I < hpx::util::tuple_size<typename std::decay<Tuple2>::type>::value
-            >::type
-        >
-        {
-            typedef
-                typename merge_data_item_reqs_create<I + 1, J, Vector,
-                    decltype(
-                        hpx::util::tuple_cat(
-                            std::declval<Tuple1>(),
-                            hpx::util::make_tuple(hpx::util::get<I>(std::declval<Tuple2&&>()))
-                        )
-                    ),
-                    Tuple2
-                >::type
-                type;
 
-            template <typename Vector_, typename Tuple1_, typename Tuple2_>
-            static type call(Vector_&& v, Tuple1_&& tuple1, Tuple2_&& tuple2)
-            {
-                auto new_ =
-                    hpx::util::tuple_cat(
-                        std::forward<Tuple1_>(tuple1),
-                        hpx::util::make_tuple(hpx::util::get<I>(std::forward<Tuple2_>(tuple2)))
-                    );
-                typedef decltype(new_) new_type;
-                return
-                    merge_data_item_reqs_create<I+1, J, Vector_, new_type, Tuple2_>::call(
-                        std::forward<Vector_>(v), std::move(new_),
-                        std::forward<Tuple2_>(tuple2)
-                    );
-            }
-        };
+		// -- a utility to obtain the index of a type in a tuple type --
 
-        template <std::size_t I, typename Vector, typename Tuple1,
-            typename Tuple2>
-        struct merge_data_item_reqs_create<I, I, Vector, Tuple1, Tuple2,
-            typename std::enable_if<
-                I < hpx::util::tuple_size<typename std::decay<Tuple2>::type>::value
-            >::type
-        >
-        {
-            typedef
-                typename merge_data_item_reqs_create<I + 1, I, Vector,
-                    decltype(
-                        hpx::util::tuple_cat(
-                            std::declval<Tuple1>(),
-                            hpx::util::make_tuple(std::declval<Vector>())
-                        )
-                    ),
-                    Tuple2
-                >::type
-                type;
+		template<typename T, typename Tuple>
+		struct index_of;
 
-            template <typename Vector_, typename Tuple1_, typename Tuple2_>
-            static type call(Vector_&& v, Tuple1_&& tuple1, Tuple2_&& tuple2)
-            {
-                auto new_ =
-                    hpx::util::tuple_cat(
-                        std::forward<Tuple1_>(tuple1),
-                        hpx::util::make_tuple(std::forward<Vector_>(v))
-                    );
-                typedef decltype(new_) new_type;
-                return
-                    merge_data_item_reqs_create<I+1, I, Vector_, new_type, Tuple2_>::call(
-                        std::forward<Vector_>(v), std::move(new_),
-                        std::forward<Tuple2_>(tuple2)
-                    );
-            }
-        };
+		template<typename T>
+		struct index_of<T,hpx::util::tuple<>> : public std::integral_constant<std::size_t,std::size_t(-1)> {};
 
-        // Helper to determine the Index if a element in a tuple. Idx is used
-        // to introspect the Idx-th element in Tuple
-        template <std::size_t Idx, typename Tuple, std::size_t Jdx, typename UTuple, typename Enable=void>
-        struct merge_index;
+		template<typename T, typename First, typename ... Rest>
+		struct index_of<T,hpx::util::tuple<First,Rest...>>
+			: public std::integral_constant<std::size_t,(std::is_same<T,First>::value)?0:1+index_of<T,hpx::util::tuple<Rest...>>::value> {};
 
-        // In the case, where we traversed all elements, we "return" -1
-        template <typename std::size_t Idx, typename Tuple, std::size_t Jdx, typename UTuple>
-        struct merge_index<Idx, Tuple, Jdx, UTuple,
-            typename std::enable_if<
-                Idx == hpx::util::tuple_size<Tuple>::value ||
-                Jdx == hpx::util::tuple_size<UTuple>::value
-            >::type
-        >
-        {
-            static constexpr std::size_t value = std::size_t(-1);
-            static constexpr bool push_back = false;
-        };
 
-        template <typename std::size_t Idx, typename Tuple, std::size_t Jdx, typename UTuple>
-        struct merge_index<Idx, Tuple, Jdx, UTuple,
-            typename std::enable_if<
-                Idx < hpx::util::tuple_size<Tuple>::value &&
-                Jdx < hpx::util::tuple_size<UTuple>::value
-            >::type
-        >
-        {
-            typedef
-                typename std::decay<
-                    typename hpx::util::tuple_element<Idx, Tuple>::type
-                >::type
-                type;
+		// -- a simple wrapper converting a type T in a std::vector<T> --
 
-            typedef
-                typename std::decay<
-                    typename hpx::util::tuple_element<Jdx, UTuple>::type
-                >::type
-                utype;
+		template<typename T>
+		using vector_of_t = std::vector<T>;
 
-            typedef merge_index<Idx + 1, Tuple, Jdx, UTuple> next_index;
 
-            // Check if we have a match
-            static constexpr std::size_t value =
-                std::is_same<utype, type>::value || std::is_same<std::vector<utype>, type>::value
-                ? Idx : next_index::value;
+		// -- a utility to prepent an type to a tuple type --
 
-            // Signal that we already have a vector and may just insert the
-            // element
-            static constexpr bool push_back = std::is_same<std::vector<utype>, type>::value
-                ? true : std::is_same<utype, type>::value ? false : next_index::push_back;
-        };
+		template<typename Element, typename Tuple>
+		struct prepent_tuple;
 
-        // This overload is called whenever we iterated over all elements. In
-        // which case we just return our result.
-        template <std::size_t Idx, typename Res, typename Tuple>
-        Res merge_data_item_reqs(Res res, Tuple&& dir_tuple,
-            // Check to see if we reached the end
-            typename std::enable_if<
-                Idx == hpx::util::tuple_size<Tuple>::value, void*
-            >::type = nullptr)
-        {
-            return res;
-        }
+		template<typename T, typename ... Es>
+		struct prepent_tuple<T,hpx::util::tuple<Es...>> {
+			using type = hpx::util::tuple<T,Es...>;
+		};
 
-        // This overload is called whenever there is an element in the
-        // tuple with the same vector type.
-        template <std::size_t Idx, typename Res, typename Tuple>
-        auto merge_data_item_reqs(Res res, Tuple&& dir_tuple,
-            // Check to see if we reached the end
-            typename std::enable_if<
-                Idx < hpx::util::tuple_size<Tuple>::value
-            , void*>::type = nullptr,
-            // merge_index returns the index or -1 if the type has not been in
-            // the map before
-            typename std::enable_if<
-                merge_index<
-                    0, Res, Idx, typename std::decay<Tuple>::type
-                >::value != std::size_t(-1) &&
-                merge_index<
-                    0, Res, Idx, typename std::decay<Tuple>::type
-                >::push_back
-            , void*>::type = nullptr
-        )
-        {
-            typedef
-                merge_index<0, Res, Idx, typename std::decay<Tuple>::type>
-                this_index;
-            typedef typename this_index::utype elem_type;
-            constexpr std::size_t jdx = this_index::value;
+		template<typename Element, typename Tuple>
+		using prepent_tuple_t = typename prepent_tuple<Element,Tuple>::type;
 
-            auto &vec = hpx::util::get<jdx>(res);
-            bool merged = false;
-            auto &&orig_dir = hpx::util::get<Idx>(std::forward<Tuple>(dir_tuple));
-            for (auto& dir: vec)
-            {
-                if (dir.mode == orig_dir.mode && dir.ref.id() == orig_dir.ref.id())
-                {
-                    merged = true;
-                    dir.region = elem_type::region_type::merge(dir.region, orig_dir.region);
-                    break;
-                }
-            }
 
-            if (!merged)
-                vec.push_back(std::move(orig_dir));
+		// -- a utility to compute the return type of a data requirement merge operation --
 
-            return merge_data_item_reqs<Idx + 1>(std::move(res),
-                std::forward<Tuple>(dir_tuple));
-        }
+		template<typename TupleType>
+		struct merge_data_item_reqs_result;
 
-        // This overload is called whenever there is an element in the
-        // tuple with the same type already and a vector needs to be created.
-        template <std::size_t Idx, typename Res, typename Tuple>
-        auto merge_data_item_reqs(Res res, Tuple&& dir_tuple,
-            // Check to see if we reached the end
-            typename std::enable_if<
-                Idx < hpx::util::tuple_size<Tuple>::value
-            , void*>::type = nullptr,
-            // merge_index returns the index or -1 if the type has not been in
-            // the map before
-            typename std::enable_if<
-                merge_index<
-                    0, Res, Idx, typename std::decay<Tuple>::type
-                >::value != std::size_t(-1) &&
-                !merge_index<
-                    0, Res, Idx, typename std::decay<Tuple>::type
-                >::push_back
-            , void*>::type = nullptr
-        )
-        {
-            typedef
-                merge_index<0, Res, Idx, typename std::decay<Tuple>::type>
-                this_index;
-            typedef typename this_index::utype elem_type;
-            constexpr std::size_t jdx = this_index::value;
-            typedef std::vector<elem_type> vector;
+		template<>
+		struct merge_data_item_reqs_result<hpx::util::tuple<>> {
+			using type = hpx::util::tuple<>;
+		};
 
-            vector v;
-            v.reserve(2);
-            v.push_back(std::move(hpx::util::get<jdx>(res)));
+		template<typename First, typename ... Rest>
+		struct merge_data_item_reqs_result<hpx::util::tuple<First,Rest...>> {
+			using type = typename std::conditional<
+				contains_type<First,Rest...>::value,
+				typename merge_data_item_reqs_result<hpx::util::tuple<Rest...>>::type,
+				prepent_tuple_t<vector_of_t<First>,typename merge_data_item_reqs_result<hpx::util::tuple<Rest...>>::type>
+			>::type;
+		};
 
-            auto &&orig_dir = hpx::util::get<Idx>(std::forward<Tuple>(dir_tuple));
-            if (v[0].mode == orig_dir.mode && v[0].ref.id() == orig_dir.ref.id())
-            {
-                v[0].region = elem_type::region_type::merge(v[0].region, orig_dir.region);
-            }
-            else
-            {
-                v.push_back(std::move(orig_dir));
-            }
 
-            // We recursively advance to the element in the tuple, and append
-            // the current element to the result tuple
-            return merge_data_item_reqs<Idx + 1>(
-                merge_data_item_reqs_create<0, jdx, vector, hpx::util::tuple<>, Res>::call(
-                    v, hpx::util::tuple<>(), std::move(res)),
-                std::forward<Tuple>(dir_tuple));
-        }
+		// -- a utility to sort data requirements into vectors of requirements --
 
-        // This overload is called whenever there has not been an element in the
-        // tuple with the same type, yet.
-        template <std::size_t Idx, typename Res, typename Tuple>
-        auto merge_data_item_reqs(Res res, Tuple&& dir_tuple,
-            // Check to see if we reached the end
-            typename std::enable_if<
-                Idx < hpx::util::tuple_size<Tuple>::value>::type* = nullptr,
-            // merge_index returns the index or -1 if the type has not been in
-            // the map before
-            typename std::enable_if<
-                merge_index<
-                    0, Res, Idx, typename std::decay<Tuple>::type
-                >::value == std::size_t(-1)>::type* = nullptr
-        )
-        {
-            // We recursively advance to the element in the tuple, and append
-            // the current element to the result tuple
-            return merge_data_item_reqs<Idx + 1>(
-                hpx::util::tuple_cat(
-                    std::move(res),
-                    hpx::util::make_tuple(hpx::util::get<Idx>(std::forward<Tuple>(dir_tuple)))
-                ),
-                std::forward<Tuple>(dir_tuple)
-            );
-        }
+		template<std::size_t pos>
+		struct merge_data_item_reqs_inserter {
 
-        template <typename DIRTuple>
-        auto merge_data_item_reqs(DIRTuple&& dir_tuple)
-        {
-            return merge_data_item_reqs<0>(
-                hpx::util::tuple<>(),
-                std::forward<DIRTuple>(dir_tuple)
-            );
-        }
+			template<typename Tuple, typename Res>
+			static void insert(Tuple&& tuple, Res& res) {
+				const auto& cur = hpx::util::get<pos-1>(tuple);
+				using require_type = typename std::decay<decltype(cur)>::type;
+				hpx::util::get<index_of<vector_of_t<require_type>,Res>::value>(res).push_back(std::move(cur));
+				merge_data_item_reqs_inserter<pos-1>::insert(std::move(tuple),res);
+			}
+		};
+
+		template<>
+		struct merge_data_item_reqs_inserter<0> {
+			template<typename Tuple, typename Res>
+			static void insert(Tuple&&, Res&) {
+				// nothing
+			}
+		};
+
+
+		// -- aggregates requirements into vectors of same-typed requirements --
+
+		template <typename DIRTuple>
+		auto merge_data_item_reqs(DIRTuple&& dir_tuple)
+		{
+			// create result
+			using result_t = typename merge_data_item_reqs_result<DIRTuple>::type;
+			result_t res;
+
+			// fill result
+			merge_data_item_reqs_inserter<hpx::util::tuple_size<DIRTuple>::value>::insert(std::move(dir_tuple),res);
+
+			// done
+			return std::move(res);
+		}
+
     }
 }
 #endif
