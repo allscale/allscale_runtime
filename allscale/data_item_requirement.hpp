@@ -73,7 +73,7 @@ namespace allscale{
 		struct index_of;
 
 		template<typename T>
-		struct index_of<T,hpx::util::tuple<>> : public std::integral_constant<std::size_t,-1> {};
+		struct index_of<T,hpx::util::tuple<>> : public std::integral_constant<std::size_t,std::size_t(-1)> {};
 
 		template<typename T, typename First, typename ... Rest>
 		struct index_of<T,hpx::util::tuple<First,Rest...>>
@@ -118,7 +118,7 @@ namespace allscale{
 				prepent_tuple_t<vector_of_t<First>,typename merge_data_item_reqs_result<hpx::util::tuple<Rest...>>::type>
 			>::type;
 		};
-	
+
 
 		// -- a utility to sort data requirements into vectors of requirements --
 
