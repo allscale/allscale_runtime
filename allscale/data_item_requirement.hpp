@@ -48,7 +48,7 @@ namespace allscale{
         access_mode mode
     )
     {
-        //instance a data_item_requirement
+        //instance of a data_item_requirement
         return { ref, region, mode };
     }
 

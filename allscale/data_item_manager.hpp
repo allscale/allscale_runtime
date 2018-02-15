@@ -49,7 +49,9 @@ namespace allscale
         template<typename DataItemType>
 		static void release(const allscale::lease<DataItemType>& lease)
         {
-            return data_item_manager_impl<DataItemType>::release(lease);
+            if (lease.mode == access_mode::Invalid)
+                return;
+            data_item_manager_impl<DataItemType>::release(lease);
         }
 
         template<typename DataItemType>
@@ -62,7 +64,10 @@ namespace allscale
         template<typename DataItemType>
 		static void release(const std::vector<allscale::lease<DataItemType>>& lease)
         {
-            return data_item_manager_impl<DataItemType>::release(lease);
+            for(auto const& l: lease)
+                if (l.mode == access_mode::Invalid) return;
+
+            data_item_manager_impl<DataItemType>::release(lease);
         }
 
         template<typename DataItemType>

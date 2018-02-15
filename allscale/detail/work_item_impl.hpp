@@ -86,6 +86,25 @@ namespace allscale { namespace detail {
         return reqs;
     }
 
+    template <typename DataItem>
+    inline std::size_t check_invalid(lease<DataItem> const& l)
+    {
+        if (l.mode == access_mode::Invalid)
+            return l.rank_;
+        return std::size_t(-2);
+    }
+
+    template <typename DataItem, typename Allocator>
+    inline std::size_t check_invalid(std::vector<lease<DataItem>, Allocator> const& ls)
+    {
+        for (auto& l: ls)
+        {
+            if(check_invalid(l) == std::size_t(-2)) continue;
+            return l.rank_;
+        }
+        return std::size_t(-2);
+    }
+
     template <typename Requirements, std::size_t... Is>
     inline auto get_leases(hpx::util::detail::pack_c<std::size_t, Is...>, Requirements const& reqs)
      -> hpx::util::tuple<
@@ -177,7 +196,8 @@ namespace allscale { namespace detail {
         }
 
         bool can_split() const {
-            return WorkItemDescription::can_split_variant::call(closure_);
+            return WorkItemDescription::can_split_variant::call(closure_) &&
+                WorkItemDescription::split_variant::valid;
         }
 
         template <typename Variant>
@@ -406,60 +426,99 @@ namespace allscale { namespace detail {
             }
         }
 
-        void process(executor_type& exec, bool sync, hpx::util::tuple<>&& reqs)
+        template <typename Reqs>
+        hpx::future<std::size_t> process(executor_type& exec, bool sync,
+            hpx::util::detail::pack_c<std::size_t>, Reqs&& reqs)
         {
             if (sync)
             {
                 get_deps<typename WorkItemDescription::process_variant>(
-                    exec, true, std::move(reqs), nullptr);
+                    exec, true, hpx::util::tuple<>(), nullptr);
+                return hpx::make_ready_future(std::size_t(-2));
             }
             else
             {
                 auto this_ = shared_this();
-                hpx::parallel::execution::post(exec,
+                return hpx::parallel::execution::async_execute(exec,
                     [this_, exec]() mutable
                     {
                         HPX_ASSERT(this_->valid());
                         this_->template get_deps<typename WorkItemDescription::process_variant>(
-                            exec, false, std::move(hpx::util::tuple<>()), nullptr);
+                            exec, false, hpx::util::tuple<>(), nullptr);
+                        return std::size_t(-2);
                     });
             }
         }
 
-        template <typename...Ts>
-        void process(executor_type& exec, bool sync, hpx::util::tuple<Ts...>&& reqs)
+        template <typename Reqs, std::size_t...Is>
+        hpx::future<std::size_t> process(executor_type& exec, bool sync,
+            hpx::util::detail::pack_c<std::size_t, Is...>, Reqs&& reqs)
         {
             typedef
-                typename hpx::util::decay<decltype(hpx::util::unwrap(std::move(reqs)))>::type
+                typename hpx::util::decay<decltype(hpx::util::unwrap(std::forward<Reqs>(reqs)))>::type
                 reqs_type;
             auto this_ = shared_this();
             if (sync)
             {
-                hpx::dataflow(hpx::launch::sync,
+                return hpx::dataflow(hpx::launch::sync,
                     hpx::util::unwrapping([this_, exec](reqs_type reqs) mutable
                     {
+                        std::size_t ranks[] = {
+                            check_invalid(hpx::util::get<Is>(reqs))...
+                        };
+                        for(std::size_t rank: ranks)
+                        {
+                            if (rank == std::size_t(-2)) continue;
+
+                            // Release the ones we got...
+                            typename hpx::util::detail::make_index_pack<
+                                hpx::util::tuple_size<reqs_type>::type::value>::type pack;
+                            release(pack, reqs);
+                            return rank;
+                        }
                         this_->template get_deps<typename WorkItemDescription::process_variant>(
                             exec, true, std::move(reqs), nullptr);
+                        return std::size_t(-2);
                     })
-                  , std::move(reqs));
+                  , std::forward<Reqs>(reqs));
             }
             else
             {
-                hpx::dataflow(exec,
+                return hpx::dataflow(exec,
                     hpx::util::unwrapping([this_, exec](reqs_type reqs) mutable
                     {
+                        std::size_t ranks[] = {
+                            check_invalid(hpx::util::get<Is>(reqs))...
+                        };
+                        for(std::size_t rank: ranks)
+                        {
+                            if (rank == std::size_t(-2)) continue;
+
+                            // Release the ones we got...
+                            typename hpx::util::detail::make_index_pack<
+                                hpx::util::tuple_size<reqs_type>::type::value>::type pack;
+                            release(pack, reqs);
+                            return rank;
+                        }
                         this_->template get_deps<typename WorkItemDescription::process_variant>(
                             exec, false, std::move(reqs), nullptr);
+                        return std::size_t(-2);
                     })
-                  , std::move(reqs));
+                  , std::forward<Reqs>(reqs));
             }
         }
 
-
-        void process(executor_type& exec, bool sync)
+        hpx::future<std::size_t> process(executor_type& exec, bool sync)
         {
             HPX_ASSERT(valid());
-            process(exec, sync,
+            typename hpx::util::detail::make_index_pack<
+                hpx::util::tuple_size<
+                    typename hpx::util::decay<
+                        decltype(acquire<typename WorkItemDescription::process_variant>(nullptr))
+                    >::type
+                >::type::value
+            >::type pack;
+            return process(exec, sync, pack,
                 acquire<typename WorkItemDescription::process_variant>(nullptr));
         }
 
@@ -524,7 +583,8 @@ namespace allscale { namespace detail {
             !WorkItemDescription_::split_variant::valid
         >::type split_impl(executor_type& exec, bool sync)
         {
-            process(exec, sync);
+            throw std::logic_error(
+                "Calling split on a work item without valid split variant");
         }
 
         void split(executor_type& exec, bool sync)
@@ -562,7 +622,9 @@ namespace allscale { namespace detail {
     >::type
     serialize(Archive& ar, work_item_impl<WorkItemDescription, Closure>& wi, unsigned)
     {
-        throw std::runtime_error("Attempt to serialize non serializable work_item");
+
+        std::cerr << "Attempt to serialize non serializable work_item: " << wi.name() << "\n";
+        std::abort();
     }
 
     template <typename WorkItemDescription, typename Closure>

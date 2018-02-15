@@ -457,7 +457,30 @@ namespace allscale { namespace components {
 			}
 		    else
 			{
-			    work.process(executors_[numa_domain], sync);
+                auto this_id = this_work_item::get_id();
+			    work.process(executors_[numa_domain], sync).then(
+                    [this_id, work, numa_domain, this](hpx::future<std::size_t>&& f) mutable
+                    {
+                        // the process variant might fail if we try to acquire
+                        // data item read/write on multiple localities
+                        // we need to split then.
+                        std::size_t expected_rank = f.get();
+                        if(expected_rank == std::size_t(-1))
+                        {
+                            // We should move on and split...
+                            if (!work.can_split())
+                            {
+                                std::cerr << "Requesting split, but can not split further!\n";
+                                std::abort();
+                            }
+                            work.split(executors_[numa_domain], false);
+                        }
+                        else if(expected_rank != std::size_t(-2))
+                        {
+                            work.update_rank(expected_rank);
+                            network_.schedule(expected_rank, std::move(work), this_id);
+                        }
+                    });
 			}
 
 		    return;
