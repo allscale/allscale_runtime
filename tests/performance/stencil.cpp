@@ -42,8 +42,14 @@ long tile_size = 32;
 
 int stencil_size;
 
-DTYPE weight[2*RADIUS+1][2*RADIUS+1];
+DTYPE weight[2*RADIUS+1][2*RADIUS+1] = {   {-0.125,0,0,0,0}, 
+                                            {-0.25,0,0,-0.125,-0.25},
+                                            {0,0.25,0.125,0,0},
+                                            {0.25,0,0,0,0},
+                                            {0.125,0,0,0,0}
+                                       };
 
+const double bla [2][2] = {{1,2},{3,4}};
 DTYPE  f_active_points; /* interior of grid with respect to stencil            */
 
 //using data_item_type = allscale::api::user::data::StaticGrid<int, N, N>;
@@ -62,6 +68,114 @@ REGISTER_DATAITEMSERVER(data_item_type);
 
 
 using namespace std;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// grid init source
+
+struct grid_init_src_name {
+    static const char* name() { return "grid_init_src"; }
+};
+
+struct grid_init_src_split;
+struct grid_init_src_process;
+struct grid_init_src_can_split;
+
+using grid_init_src = allscale::work_item_description<
+    void,
+    grid_init_src_name,
+    allscale::do_serialization,
+    grid_init_src_split,
+    grid_init_src_process,
+    grid_init_src_can_split
+>;
+
+struct grid_init_src_can_split
+{
+    template <typename Closure>
+    static bool call(Closure const& c)
+    {
+        auto begin = hpx::util::get<1>(c);
+        auto end = hpx::util::get<2>(c);
+
+        return sumOfSquares(end - begin) > 1;
+    }
+};
+
+struct grid_init_src_split {
+    template <typename Closure>
+    static allscale::treeture<void> execute(Closure const& c)
+    {
+        auto data = hpx::util::get<0>(c);
+        auto begin = hpx::util::get<1>(c);
+        auto end = hpx::util::get<2>(c);
+        auto dim = hpx::util::get<3>(c);
+        std::size_t depth = allscale::this_work_item::get_id().depth();
+        auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
+        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(dim, range);
+
+        return allscale::runtime::treeture_parallel(
+            allscale::spawn<grid_init_src>(data, fragments.left.begin(), fragments.left.end(), dim),
+            allscale::spawn<grid_init_src>(data, fragments.right.begin(), fragments.right.end(), dim)
+        );
+    }
+
+    static constexpr bool valid = true;
+};
+
+struct grid_init_src_process {
+    template <typename Closure>
+    static hpx::util::unused_type execute(Closure const& c)
+    {
+        auto ref = hpx::util::get<0>(c);
+        auto data = allscale::data_item_manager::get(ref);
+        auto begin = hpx::util::get<1>(c);
+        auto end = hpx::util::get<2>(c);
+
+        region_type region(begin, end);
+
+        for(int i = begin[0]; i < end[0]; ++i){
+            for(int j = begin[1]; j < end[1]; ++j){
+
+                coordinate_type pos( allscale::utils::Vector<long,2>( i, j ) );
+                //data[pos] = 1.0;
+                data[pos] = COEFX*i+COEFY*j;
+
+            }
+        }
+
+        /*
+        region.scan(
+            [&](auto const& pos)
+            {
+//                 std::cout << "Setting " << pos << ' ' << pos.x + pos.y << '\n';
+                data[pos] =  hpx::get_locality_id();
+            }
+        );*/
+
+        return hpx::util::unused;
+    }
+
+    template <typename Closure>
+    static hpx::util::tuple<
+        allscale::data_item_requirement<data_item_type >
+    >
+    get_requirements(Closure const& c)
+    {
+        region_type r(hpx::util::get<1>(c), hpx::util::get<2>(c));
+        return hpx::util::make_tuple(
+            allscale::createDataItemRequirement(
+                hpx::util::get<0>(c),
+                r,
+                allscale::access_mode::ReadWrite
+            )
+        );
+    }
+    static constexpr bool valid = true;
+};
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,6 +247,7 @@ struct grid_init_process {
 
                 coordinate_type pos( allscale::utils::Vector<long,2>( i, j ) );
                 data[pos] = 0.0;
+
             }
         }
 
@@ -238,10 +353,17 @@ struct stencil_process {
         coordinate_type s_src(hpx::util::get<2>(c));
         coordinate_type e_src(hpx::util::get<3>(c));
        
-        
+        coordinate_type begin(hpx::util::get<2>(c));
+        coordinate_type end(hpx::util::get<3>(c));
+       
+
         std::cout<< " s_src: " << s_src << " e_src: " << e_src << "loc: " << hpx::get_locality_id() << std::endl;
-        for(int o = s_src[0]-2; o < e_src[0] + 2; o++){
-            for(int t = s_src[1]-2; t < e_src[1] + 2; t++){
+
+        //region_type r_src({begin[0]-RADIUS,begin[1]-RADIUS},{end[0]+RADIUS,end[1]+RADIUS});
+        //std::cout<< r_src << std::endl;
+        /*
+        for(int o = s_src[0]-2; o < e_src[0]+2; o++){
+            for(int t = s_src[1]-2; t < e_src[1]+2; t++){
 
                 coordinate_type pos_tmp( allscale::utils::Vector<long,2>( o, t ) );
                 //std::cout<< data_a[pos_tmp] << " s_src: " << s_src << " e_src: " << e_src << " | ";
@@ -255,41 +377,52 @@ struct stencil_process {
            std::cout<<std::endl;
            std::cout<<std::endl;
            std::cout<<std::endl;
-        
+      */ 
         //std::cout<<"process for " << s_src << " to " << e_src << std::endl; 
         int tmp,jt,it;
         int jj,ii;
         int i,j;
-        for(j = s_src[0]; j < e_src[0]; j++){                                             
-            for(i = s_src[1]; i < e_src[1]; i++){
-                        coordinate_type pos_src( allscale::utils::Vector<long,2>( i, j ) );
+        for(j = s_src[1]; j < e_src[1]; j++){                                             
+            for(i = s_src[0]; i < e_src[0]; i++){
+                        coordinate_type pos_src( allscale::utils::Vector<long,2>( j, i ) );
                         
                         //std::cout<< "" <<  pos_src << std::endl;
                         //data_b[pos_src]  = data_a[pos_src];
                         //data_a[pos_src] += 1.0f;
+                        double tmp_res;
                         for (jj=-RADIUS; jj<=RADIUS; jj++){  
                             //std::cout<<"A" << WEIGHT(0,jj)*data_a[pos_col_neigb]<<" " ; 
                             //data_b[pos_src] += WEIGHT(0,jj)*data_a[pos_col_neigb];
-                            coordinate_type pos_col_neigb( allscale::utils::Vector<long,2>( i, j+jj ) );
-                            auto tmp_res = WEIGHT(0,jj)*data_a[pos_col_neigb];
+                            //coordinate_type pos_col_neigb( allscale::utils::Vector<long,2>( i, j+jj ) );
+                            coordinate_type pos_col_neigb( allscale::utils::Vector<long,2>(  j+jj,i ) );
+                            std::cout<<i<<"|"<<j+jj << " " << pos_col_neigb << " "  << data_a[pos_col_neigb] <<  std::endl;
                             //std::cout<< "loc: " << hpx::get_locality_id() << " start: " << s_src << " end: " << e_src << "neigb is  " << data_a[pos_col_neigb] << std::endl;
 //                            std::cout<< pos_src << " " << data_b[pos_src] << " " << tmp_res << " " << data_a[pos_col_neigb] << std::endl;
-                            data_b[pos_src] += tmp_res;
+                            data_b[pos_src] += WEIGHT(0,jj)*data_a[pos_col_neigb];
+                            tmp_res += WEIGHT(0,jj)*data_a[pos_col_neigb];
+            //                std::cout<<data_a[pos_col_neigb]<< " " << WEIGHT(0,jj) <<  std::endl;
                          //   std::cout<<"BLA" << data_b[pos_src];
                         }
 
                         for (ii=-RADIUS; ii<0; ii++){
                            // std::cout<<"B" ; 
-                            coordinate_type pos_row_neigb( allscale::utils::Vector<long,2>( i+ii, j ) );
+                            //coordinate_type pos_row_neigb( allscale::utils::Vector<long,2>( i+ii, j ) );
+                            coordinate_type pos_row_neigb( allscale::utils::Vector<long,2>( j,i+ii ) );
                             data_b[pos_src] += WEIGHT(ii,0)*data_a[pos_row_neigb];
+                            tmp_res += WEIGHT(ii,0)*data_a[pos_row_neigb];
+
+                            std::cout<<i+ii<<"|"<<j << " " << pos_row_neigb << " "  << data_a[pos_row_neigb] <<  std::endl;
+          //                  std::cout<<data_a[pos_row_neigb]<< " " << WEIGHT(0,jj) <<  std::endl;
                         }
                         for (ii=1; ii<=RADIUS; ii++){       
                             //std::cout<<"C" ;
-                            coordinate_type pos_row_neigb( allscale::utils::Vector<long,2>( i+ii, j ) );
+                            coordinate_type pos_row_neigb( allscale::utils::Vector<long,2>( j,i+ii) );
                             data_b[pos_src] += WEIGHT(ii,0)*data_a[pos_row_neigb];
+                            tmp_res += WEIGHT(ii,0)*data_a[pos_row_neigb];
+                            std::cout<<i+ii<<"|"<<j << " " << pos_row_neigb << " "  << data_a[pos_row_neigb] <<  std::endl;
                         }
 
-                        //std::cout<< pos_src << " " << data_b[pos_src] << " " << std::endl;
+                        std::cout<< pos_src << " " << tmp_res << " " << hpx::get_locality_id() << std::endl;
 
             } 
         }
@@ -309,16 +442,22 @@ struct stencil_process {
         // READ ACCESS REQUIRED TO SRC MATRIX
         //region_type r_src(begin,end);
         
-        region_type r_src({begin[0]-RADIUS,begin[1]-RADIUS},{end[0]-1+RADIUS,end[1]-1+RADIUS});
-
-      //  region_type r_src({0,0}, {0,0});
+        //region_type r_src({begin[0]-RADIUS,begin[1]-RADIUS},{end[0]+RADIUS,end[1]+RADIUS});
+       
+        //reversed:
+        region_type r_src({begin[1]-RADIUS,begin[0]-RADIUS},{end[1]+RADIUS,end[0]+RADIUS});
+       // std::cout<<"r_src: " << r_src << " for : " << begin << "|"<<end<<std::endl;
+        //region_type r_src({0,0}, {10,10});
         //std::cout<< "begin: " << begin << " end: "<<  end <<"getting reqs: " << r_src << std::endl;
         //std::cout<< "with ghost region: " << with_ghost_regions << std::endl;
         // READ/WRITE ACCESS REQUIRED TO DST MATRIX
         coordinate_type s_src(hpx::util::get<2>(c));
         coordinate_type e_src(hpx::util::get<3>(c));
-        coordinate_type s_dst(allscale::utils::Vector<long,2>( s_src[0], s_src[1] ) );
-        coordinate_type e_dst(allscale::utils::Vector<long,2>( e_src[0], e_src[1] ) );
+        
+        coordinate_type s_dst(allscale::utils::Vector<long,2>( s_src[1], s_src[0] ) );
+        coordinate_type e_dst(allscale::utils::Vector<long,2>( e_src[1], e_src[0] ) );
+        
+
         region_type r_dst(s_dst,e_dst);
         
         //acquire regions now
@@ -368,6 +507,7 @@ struct main_process
      //   DTYPE  weight[2*RADIUS+1][2*RADIUS+1]; 
         
         int ii,jj;
+        
         for (jj=-RADIUS; jj<=RADIUS; jj++) {
             for (ii=-RADIUS; ii<=RADIUS; ii++) {
                 WEIGHT(ii,jj) = (DTYPE) 0.0;
@@ -381,16 +521,22 @@ struct main_process
         stencil_size = 4*RADIUS+1;
 
 
-
+            /*
         for (jj=-RADIUS; jj<=RADIUS; jj++) {
             for (ii=-RADIUS; ii<=RADIUS; ii++) {
-                //std::cout<< WEIGHT(ii,jj) << " ";
+                std::cout<< WEIGHT(ii,jj) << " ";
             }
-           // std::cout<<std::endl;
-        }
+            std::cout<<std::endl;
+        }*/
+   /* 
+        std::cout<<std::endl;
+        for(int h=0; h < 5; h++){
+            for(int g=0; g < 5; g++){
+                std::cout<<weight[h][g]<<" " ;
 
-
-
+            }
+            std::cout<<std::endl;
+        }*/
 
         allscale::api::user::data::GridPoint<2> size(N,N);
         data_item_shared_data_type sharedData(size);
@@ -406,29 +552,33 @@ struct main_process
         coordinate_type end(N-RADIUS, N-RADIUS);
         region_type whole_region({0,0}, {N, N});
 
-        allscale::spawn_first<grid_init>(mat_a, begin, end, 0).wait();
-        allscale::spawn_first<grid_init>(mat_b, begin, end, 1).wait();
+
+        coordinate_type begin_init(0, 0);
+        coordinate_type end_init(N, N);
+        
+        allscale::spawn_first<grid_init_src>(mat_a, begin_init,end_init, 0).wait();
+        allscale::spawn_first<grid_init>(mat_b, begin_init, end_init, 1).wait();
 
          // ============ INIT SOURCE ARRAY WITH COEFFS ==========================
-        auto lease_ref_mat_a = allscale::data_item_manager::acquire(
-              allscale::createDataItemRequirement(
-                  mat_a,
-                  whole_region,
-                  allscale::access_mode::ReadWrite
-        )).get();
-        auto ref_mat_a = allscale::data_item_manager::get(mat_a);
-        for(int j = 0; j < N; ++j){    
-              for(int i = 0; i < N; ++i){
-                  coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
-                   ref_mat_a[tmp] = COEFX*i+COEFY*j;
-                    //std::cout<<ref_mat_a[tmp]<<" " ;
-              }
-                std::cout<<std::endl;
-        }
-
-        allscale::data_item_manager::release(lease_ref_mat_a);
-
-
+//        auto lease_ref_mat_a = allscale::data_item_manager::acquire(
+//              allscale::createDataItemRequirement(
+//                  mat_a,
+//                  whole_region,
+//                  allscale::access_mode::ReadWrite
+//        )).get();
+//        auto ref_mat_a = allscale::data_item_manager::get(mat_a);
+//        for(int j = 0; j < N; ++j){    
+//              for(int i = 0; i < N; ++i){
+//                  coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
+//                   ref_mat_a[tmp] = COEFX*i+COEFY*j;
+//                    //std::cout<<ref_mat_a[tmp]<<" " ;
+//              }
+//                std::cout<<std::endl;
+//        }
+//
+//        allscale::data_item_manager::release(lease_ref_mat_a);
+//
+//
 
 
 
@@ -492,14 +642,15 @@ struct main_process
 
       for(int j = 0; j < N; ++j){    
           for(int i = 0; i < N; ++i){
-              coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
+              coordinate_type tmp(allscale::utils::Vector<long,2>(j,i));
               my_norm += std::abs(ref_result[tmp]);
-             // std::cout<< ref_result[tmp] << " ";                                                 
+              std::cout<< ref_result[tmp] << " ";                                                 
           }
+          std::cout<<std::endl;
       }
     // ===================================================
      
-     //allscale::data_item_manager::release(lease_result);
+        allscale::data_item_manager::release(lease_result);
 
 
         double reference_norm = 0.0;
