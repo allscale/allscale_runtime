@@ -8,8 +8,8 @@
 #include <allscale/location_info.hpp>
 #include <allscale/transfer_plan.hpp>
 #include <allscale/simple_transfer_plan_generator.hpp>
-#include <map>
-
+#include <unordered_map>
+#include <unordered_set>
 
 #include <memory>
 #include "allscale/api/core/data.h"
@@ -109,12 +109,12 @@ public:
 
     mutable mutex_type mtx_;
     hpx::lcos::local::detail::condition_variable write_cv;
-    typedef	std::map<hpx::naming::gid_type, fragment_info> store_type;
+    typedef	std::unordered_map<hpx::naming::gid_type, fragment_info> store_type;
 
 	store_type store;
     data_item_network network;
 
-    typedef std::map<hpx::naming::gid_type, location_info> location_store_type;
+    typedef std::unordered_map<hpx::naming::gid_type, location_info> location_store_type;
     location_store_type location_store;
 
     public:
@@ -142,6 +142,69 @@ public:
                 to_test = region_type::difference(info.writeLocked, req.region);
             }
 
+            // Check if we own the entire region requested...
+            region_type remainder = req.region;
+            auto locate_it = location_store.find(req.ref.id());
+
+            if(locate_it == location_store.end())
+            {
+                return hpx::make_ready_future(lease_type());
+            }
+            HPX_ASSERT(locate_it != location_store.end());
+
+            std::set<std::size_t> remote_ranks;
+            bool has_local = false;
+            for(auto const& p: locate_it->second.parts())
+            {
+                auto part = region_type::intersect(p.region, req.region);
+                if (!part.empty())
+                {
+                    if (p.rank != rank_)
+                    {
+                        remote_ranks.insert(p.rank);
+                    }
+                    else
+                    {
+                        has_local = true;
+                    }
+
+                    remainder = region_type::difference(remainder, part);
+                    if (remainder.empty()) break;
+                }
+            }
+
+            // remainder not empty, we couldn't find it in our cache...
+            if (!remainder.empty())
+            {
+                // Dispatch, we found one, so go there.
+                if (remote_ranks.size() == 1)
+                {
+                    return hpx::make_ready_future(lease_type(*remote_ranks.begin()));
+                }
+                // Dispatch to 0, since it knows about everyone
+                // FIXME: Adapt to binary lookup
+                return hpx::make_ready_future(lease_type(0));
+            }
+
+            if (!remote_ranks.empty())
+            {
+                if (remote_ranks.size() == 1)
+                {
+                    if (has_local)
+                    {
+                        // More than one owner, one is local --> need to split
+                        return hpx::make_ready_future(lease_type());
+                    }
+                    // Exactly one owner --> dispatch to it
+                    return hpx::make_ready_future(lease_type(*remote_ranks.begin()));
+                }
+                else
+                {
+                    // There is more than two remotes, just split
+                    return hpx::make_ready_future(lease_type());
+                }
+            }
+
             // FIXME: add debug check that all other fragments don't have
             // any kinds of locks on this fragment...
             info.writeLocked = region_type::merge(
@@ -167,21 +230,30 @@ public:
                 transferred.reserve(parts.size());
                 // collect data on data distribution,
                 // FIXME: add different strategies?
-                // FIXME: Combine parts belonging to same locality?
-                for(auto const& p: parts)
+                std::unordered_map<std::size_t, region_type> transfers;
+                // First, collect all needed requirements from the different ranks...
+                for (auto const& p: parts)
                 {
                     if (p.rank != rank_)
                     {
                         auto overlap = region_type::intersect(req.region, p.region);
                         HPX_ASSERT(!overlap.empty());
-                        hpx::lcos::local::packaged_task<hpx::future<void>(hpx::id_type const& id)> task(
-                            [overlap, req](hpx::id_type id)
-                            {
-                                return hpx::async<transfer_action>(id, req.ref.id(), overlap);
-                            });
-                        transferred.push_back(task.get_future());
-                        network.apply(p.rank, std::move(task));
+                        auto & to_transfer = transfers[p.rank];
+                        to_transfer = region_type::merge(to_transfer, overlap);
                     }
+                }
+                // ... then issue the transfers...
+                for (auto const& p: transfers)
+                {
+                    HPX_ASSERT(p.first != rank_);
+                    auto rid = req.ref.id();
+                    hpx::lcos::local::packaged_task<hpx::future<void>(hpx::id_type const& id)> task(
+                        [to_transfer = std::move(p.second), rid = std::move(rid)](hpx::id_type id) mutable
+                        {
+                            return hpx::async<transfer_action>(id, std::move(rid), std::move(to_transfer));
+                        });
+                    transferred.push_back(task.get_future());
+                    network.apply(p.first, std::move(task));
                 }
 
                 return hpx::when_all(transferred).then(
@@ -219,14 +291,16 @@ public:
             store_it = store_pair.first;
 
             // The first access needs to be ReadWrite...
-            needs_first_touch = true;
-
+            needs_first_touch = req.mode == access_mode::ReadWrite;
+//             needs_first_touch = true;
         }
         auto& info = store_it->second;
 
         if(!needs_first_touch)
         {
-            if (region_type::intersect(info.fragment.getCoveredRegion(), req.region).empty())
+            if (!region_type::difference(req.region, info.fragment.getCoveredRegion()).empty()
+                && req.mode == access_mode::ReadWrite
+                )
                 needs_first_touch = true;
         }
 
@@ -238,28 +312,33 @@ public:
             // We store the region information locally for caching purposes
             location_store[req.ref.id()].add_part(req.region, rank_);
 
-            l.unlock();
-            hpx::lcos::local::packaged_task<hpx::future<lease_type>(hpx::id_type const& id)> task(
-                // This stores our "first touch" acquired region to our manager
-                [this, req, store_it](hpx::id_type const& id)
-                {
-                    return hpx::async<first_touch_action>(id, req.ref.id(), req.region, rank_).then(
-                        [this, req, store_it](hpx::future<void> f)
-                        {
-                            f.get();
-                            std::unique_lock<mutex_type> l(mtx_);
-                            return acquire_impl(req, store_it, std::move(l));
-                        }
-                    );
-                }
-            );
-            hpx::future<lease_type> ret = task.get_future();
+            // Propagate storage information "up", only needed if we are not the
+            // root.
+            if (rank_ != 0)
             {
-                // TODO: implement binary tree lookup
-                network.apply(0, std::move(task));
-            }
+                l.unlock();
+                hpx::lcos::local::packaged_task<hpx::future<lease_type>(hpx::id_type const& id)> task(
+                    // This stores our "first touch" acquired region to our manager
+                    [this, req, store_it](hpx::id_type const& id)
+                    {
+                        return hpx::async<first_touch_action>(id, req.ref.id(), req.region, rank_).then(
+                            [this, req, store_it](hpx::future<void> f)
+                            {
+                                f.get();
+                                std::unique_lock<mutex_type> l(mtx_);
+                                return acquire_impl(req, store_it, std::move(l));
+                            }
+                        );
+                    }
+                );
+                hpx::future<lease_type> ret = task.get_future();
+                {
+                    // TODO: implement binary tree lookup
+                    network.apply(0, std::move(task));
+                }
 
-            return ret;
+                return ret;
+            }
         }
 
         return acquire_impl(req, store_it, std::move(l));

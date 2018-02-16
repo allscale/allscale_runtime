@@ -103,6 +103,12 @@ namespace allscale {
             return impl_->can_split();
         }
 
+        void update_rank(std::size_t rank)
+        {
+            HPX_ASSERT(impl_);
+            impl_->update_rank(rank);
+        }
+
         this_work_item::id const& id() const
         {
             if (impl_)
@@ -135,10 +141,10 @@ namespace allscale {
             impl_->on_ready(std::move(f));
         }
 
-        void process(executor_type& exec, bool sync) {
+        hpx::future<std::size_t> process(executor_type& exec, bool sync) {
             HPX_ASSERT(valid());
             HPX_ASSERT(impl_->valid());
-            impl_->process(exec, sync);
+            return impl_->process(exec, sync);
     //         impl_.reset();
         }
 

@@ -32,6 +32,11 @@ namespace allscale { namespace detail {
         work_item_impl_base(work_item_impl_base const&) = delete;
 		work_item_impl_base& operator=(work_item_impl_base const&) = delete;
 
+        void update_rank(std::size_t rank)
+        {
+            id_.update_rank(rank);
+        }
+
 		void set_this_id(machine_config const& config);
 		this_work_item::id const& id() const;
 		virtual const char* name() const=0;
@@ -42,7 +47,7 @@ namespace allscale { namespace detail {
         virtual void on_ready(hpx::util::unique_function_nonser<void()> f)=0;
 
 		virtual bool can_split() const=0;
-		virtual void process(executor_type& exec, bool sync)=0;
+		virtual hpx::future<std::size_t> process(executor_type& exec, bool sync)=0;
 		virtual void split(executor_type& exec, bool sync)=0;
 
 //		virtual void requires()=0;
