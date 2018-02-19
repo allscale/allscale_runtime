@@ -64,7 +64,7 @@ namespace allscale { namespace components {
                                               &scheduler::periodic_throttle,
                                               this
                                               ),
-                              100000, //0.1 sec
+                              1000000, //1 sec
                               "scheduler::periodic_throttle",
                               true
                               )
@@ -73,8 +73,17 @@ namespace allscale { namespace components {
                                                &scheduler::power_periodic_frequency_scale,
                                                this
                                                ),
-                               10000000, //0.1 sec
+                               10000000, //1 sec
                                "scheduler::power_periodic_frequency_scale",
+                               true
+                               )
+            , multi_objectives_timer_(
+                               hpx::util::bind(
+                                               &scheduler::multi_objectives_adjust_timed,
+                                               this
+                                               ),
+                               10000000, //1 sec
+                               "scheduler::multi_objectives_adjust",
                                true
                                )
         {
@@ -180,13 +189,17 @@ namespace allscale { namespace components {
                             auto idx = objective_str.find(':');
                             std::string obj = objective_str;
 #ifdef DEBUG_
-                            std::cout << " Scheduling Objective provided: " << obj << "\n" ;
+                            std::cout << "Scheduling Objective provided: " << obj << "\n" ;
 #endif
                             // Don't scale objectives if none is given
                             double leeway = 1.0;
 
                             if (idx != std::string::npos)
                                 {
+#ifdef DEBUG_
+                                    std::cout << "found a leeway, triggering multi-objectives policies\n" <<std::flush ;
+#endif
+
                                     multi_objectives = true;
                                     obj = objective_str.substr(0, idx);
                                     leeway = std::stod( objective_str.substr(idx + 1) );
@@ -528,7 +541,11 @@ namespace allscale { namespace components {
                             // //                           //                 }
                             allscale::monitor::signal(allscale::monitor::work_item_first, work);
                             //this is the place where we take policy specific actions
-                            if ( time_requested || resource_requested)
+                            if (multi_objectives)
+                                {
+                                    multi_objectives_adjust(current_id);
+                                }
+                            else if ( time_requested || resource_requested)
                                 {
                                     if ((current_id >= period_for_time ) && (current_id % period_for_time == 0))
                                         {
@@ -542,11 +559,6 @@ namespace allscale { namespace components {
                                             power_periodic_frequency_scale();
                                         }
                                 }
-                            else if (multi_objectives)
-                                {
-                                    multi_objectives_adjust();
-                                }
-
                         }
 
                     allscale::monitor::signal(allscale::monitor::work_item_enqueued, work);
@@ -638,7 +650,7 @@ namespace allscale { namespace components {
         bool scheduler::periodic_throttle()
         {
             //will have some work to do only if we started with more than one thread, and if scheduling policy allows it
-            if ( num_threads_ > 1 && ( time_requested || resource_requested ) )
+            if ( num_threads_ > 1 &&  ( time_requested || resource_requested ) )
                 {
                     //early stage of the execution don't provide correct intelligence on sampling, so we skip them
                     std::unique_lock<mutex_type> l(resize_mtx_);
@@ -1313,9 +1325,17 @@ namespace allscale { namespace components {
             return true;
         }
 
-        bool scheduler::multi_objectives_adjust()
+        //multi-objectives policy called on task enqueued 
+        bool scheduler::multi_objectives_adjust(std::size_t current_id)
         {
             return true;
+        }
+
+        //multi-objectives policy called on timer
+        bool scheduler::multi_objectives_adjust_timed()
+        {
+            // adjust multi objectives on timer: pass a fake current_id that matches all modulos
+            return multi_objectives_adjust(period_for_time*period_for_resource*period_for_power);
         }
 
         void scheduler::stop()

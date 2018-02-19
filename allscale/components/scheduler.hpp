@@ -74,11 +74,13 @@ namespace allscale { namespace components {
         bool periodic_throttle();
         bool periodic_frequency_scale();
 	bool power_periodic_frequency_scale();
-        bool multi_objectives_adjust();
-	
+        bool multi_objectives_adjust(std::size_t current_id);
+	bool multi_objectives_adjust_timed();
+        
         hpx::util::interval_timer timer_;
         hpx::util::interval_timer throttle_timer_;
         hpx::util::interval_timer frequency_timer_;
+        hpx::util::interval_timer multi_objectives_timer_;
 
         mutex_type counters_mtx_;
         hpx::id_type idle_rate_counter_;
