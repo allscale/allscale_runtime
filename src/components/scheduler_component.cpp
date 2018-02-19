@@ -39,12 +39,16 @@ namespace allscale { namespace components {
 #if defined(ALLSCALE_HAVE_CPUFREQ)
             , target_freq_found(false)
 #endif
+            , multi_objectives(false)
             , time_requested(false)
             , resource_requested(false)
             , energy_requested(false)
             , time_leeway(1.0)
             , resource_leeway(1.0)
             , energy_leeway(1.0)
+            , period_for_time(10)
+            , period_for_resource(10)
+            , period_for_power(20)
             , timer_(
                      hpx::util::bind(
                                      &scheduler::collect_counters,
@@ -183,14 +187,17 @@ namespace allscale { namespace components {
 
                             if (idx != std::string::npos)
                                 {
+                                    multi_objectives = true;
                                     obj = objective_str.substr(0, idx);
                                     leeway = std::stod( objective_str.substr(idx + 1) );
                                 }
 
                             if (obj == "time")
                                 {
-
-                                    time_requested = true;
+                                    if (idx == std::string::npos)
+                                        {
+                                            time_requested = true;
+                                        }
                                     time_leeway = leeway;
 #ifdef DEBUG_
                                     std::cout << " Setting time policy\n" ;
@@ -199,7 +206,10 @@ namespace allscale { namespace components {
                                 }
                             else if (obj == "resource")
                                 {
-                                    resource_requested = true;
+                                    if (idx == std::string::npos)
+                                        {
+                                            resource_requested = true;
+                                        }
                                     resource_leeway = leeway;
 #ifdef DEBUG_
                                     std::cout << " Setting resource policy\n" ;
@@ -208,7 +218,10 @@ namespace allscale { namespace components {
                                 }
                             else if (obj == "energy")
                                 {
-                                    energy_requested = true;
+                                    if (idx == std::string::npos)
+                                        {
+                                            energy_requested = true;
+                                        }
                                     energy_leeway = leeway;
 #ifdef DEBUG_
                                     std::cout << " Setting energy policy\n" ;
@@ -227,17 +240,17 @@ namespace allscale { namespace components {
 
                             if ( time_leeway > 1 || resource_leeway > 1 || energy_leeway > 1 )
                                 {
-                                    HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init", "leeways should be within [0, 1]");
+                                    HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init", "leeways should be within ]0, 1]");
                                 }
 
                             //                objectives_with_leeways.push_back(std::make_pair(obj, leeway));
                         }
 
-                    if ( resource_requested && energy_requested )
-                        {
-                            HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
-                                                boost::str(boost::format("Sorry not supported yet. Check back soon!")));
-                        }
+                    // if ( resource_requested && energy_requested )
+                    //     {
+                    //         HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
+                    //                             boost::str(boost::format("Sorry not supported yet. Check back soon!")));
+                    //     }
                 }
 
 
@@ -276,175 +289,179 @@ namespace allscale { namespace components {
 
             //         timer_.start();
 
-            if ( time_requested || resource_requested || energy_requested ) {
-                if ( energy_requested )
-                    {
+            // if ( time_requested || resource_requested || energy_requested || multi_objectives ) 
+            //     {
+            // if energy is to be taken into account, need to prep for it
+            if ( energy_requested || multi_objectives )
+                {
 #if defined(ALLSCALE_HAVE_CPUFREQ)
-                        using hardware_reconf = allscale::components::util::hardware_reconf;
-                        cpu_freqs = hardware_reconf::get_frequencies(0);
-                        freq_step = 8; //cpu_freqs.size() / 2;
-                        freq_times.resize(cpu_freqs.size());
-
+                    using hardware_reconf = allscale::components::util::hardware_reconf;
+                    cpu_freqs = hardware_reconf::get_frequencies(0);
+                    freq_step = 8; //cpu_freqs.size() / 2;
+                    freq_times.resize(cpu_freqs.size());
+                            
 #ifdef DEBUG_
-                        std::cout << "Frequencies: " ;
-                        for (auto& ind : cpu_freqs )
-                            {
-                                std::cout << ind << " ";
-                            }
-                        std::cout << "\n" << std::flush;
-#endif
-
-
-                        auto min_max_freqs = std::minmax_element(cpu_freqs.begin(), cpu_freqs.end());
-                        min_freq = *min_max_freqs.first;
-                        max_freq = *min_max_freqs.second;
-
-#ifdef DEBUG_
-                        std::cout << "Min freq:  " << min_freq << ", Max freq: " << max_freq << "\n" << std::flush;
-#endif
-                        //TODO: specific Power8
-                        hardware_reconf::make_cpus_online(0, 160);
-                        hardware_reconf::topo_init();
-                        // We have to set CPU governors to userpace in order to change frequencies later
-                        std::string governor = "ondemand";
-
-                        policy.governor = const_cast<char*>(governor.c_str());
-
-                        topo = hardware_reconf::read_hw_topology();
-                        // first reinitialize to a normal setup
-
-                        for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id ++)
-                            {
-                                int res = hardware_reconf::set_freq_policy(cpu_id, policy);
-                                // if (res)
-                                //     {
-                                //      HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
-                                //                          "Requesting energy objective without being able to set cpu frequency");
-
-                                //      return;
-                                //     }
-#ifdef DEBUG_
-                                std::cout << "cpu_id "<< cpu_id << " back to on-demand. ret=  " << res << "\n" << std::flush;
-#endif
-                            }
-
-
-                        governor = "userspace";
-                        policy.governor = const_cast<char*>(governor.c_str());
-                        policy.min = min_freq;
-                        policy.max = max_freq;
-
-
-                        for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
-                            {
-                                int res = hardware_reconf::set_freq_policy(cpu_id, policy);
-                                if (res)
-                                    {
-                                        HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
-                                                            "Requesting energy objective without being able to set cpu frequency");
-
-                                        return;
-                                    }
-#ifdef DEBUG_
-                                std::cout << "cpu_id "<< cpu_id << " initial freq policy setting. ret=  " << res << "\n" << std::flush;
-#endif
-                            }
-
-                        // Set frequency of all threads to max when we start
-
+                    std::cout << "Frequencies: " ;
+                    for (auto& ind : cpu_freqs )
                         {
-                            // set freq to all PUs used by allscale
-                            for (std::size_t i = 0; i != thread_pools_.size(); ++i)
-                                {
-                                    std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
-                                    for (std::size_t j = 0  ; j < thread_count ; j++)
-                                        {
-                                            std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
-
-                                            if (!cpufreq_cpu_exists(pu_num))
-                                                {
-                                                    int res = hardware_reconf::set_frequency(pu_num, 1 , cpu_freqs[0]);
-#ifdef DEBUG_
-                                                    std::cout << "Setting cpu " << pu_num <<" to freq  "<< cpu_freqs[0] << ", (ret= " << res << ")\n" << std::flush;
-#endif
-                                                }
-
-                                        }
-
-                                }
-
+                            std::cout << ind << " ";
                         }
-
-
-                        std::this_thread::sleep_for(std::chrono::microseconds(2));
-
-                        // Make sure frequency change happened before continuing
-                        std::cout << "topo.num_logical_cores: " << topo.num_logical_cores << "topo.num_hw_threads" << topo.num_hw_threads<< "\n" << std::flush;
+                    std::cout << "\n" << std::flush;
+#endif
+                            
+                            
+                    auto min_max_freqs = std::minmax_element(cpu_freqs.begin(), cpu_freqs.end());
+                    min_freq = *min_max_freqs.first;
+                    max_freq = *min_max_freqs.second;
+                            
+#ifdef DEBUG_
+                    std::cout << "Min freq:  " << min_freq << ", Max freq: " << max_freq << "\n" << std::flush;
+#endif
+                    //TODO: specific Power8
+                    size_t nbpus = topo_->get_number_of_pus();
+                    hardware_reconf::make_cpus_online(0, nbpus);
+                    hardware_reconf::topo_init();
+                    // We have to set CPU governors to userpace in order to change frequencies later
+                    std::string governor = "ondemand";
+                            
+                    policy.governor = const_cast<char*>(governor.c_str());
+                            
+                    topo = hardware_reconf::read_hw_topology();
+                    // first reinitialize to a normal setup
+                            
+                    for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id ++)
                         {
-                            // check status of Pus frequency
-                            for (std::size_t i = 0; i != thread_pools_.size(); ++i)
-                                {
-                                    unsigned long hardware_freq = 0;
-                                    std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
-                                    for (std::size_t j =  0 ;  j < thread_count ; j++)
-                                        {
-                                            std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
-
-                                            if (!cpufreq_cpu_exists(pu_num))
-                                                {
-                                                    do
-                                                        {
-                                                            hardware_freq = hardware_reconf::get_hardware_freq(pu_num);
+                            int res = hardware_reconf::set_freq_policy(cpu_id, policy);
+                            // if (res)
+                            //     {
+                            //      HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
+                            //                          "Requesting energy objective without being able to set cpu frequency");
+                                    
+                            //      return;
+                            //     }
 #ifdef DEBUG_
-                                                            std::cout << "current freq on cpu "<< pu_num << " is " << hardware_freq << " (target freq is " << cpu_freqs[0] << " )\n" << std::flush;
-                                                            //std::this_thread::sleep_for(std::chrono::microseconds(1000000));
+                            std::cout << "cpu_id "<< cpu_id << " back to on-demand. ret=  " << res << "\n" << std::flush;
 #endif
-
-                                                            //                                  HPX_ASSERT(hardware_freq == cpu_freqs[0]);
-                                                        } while (hardware_freq != cpu_freqs[0]);
-
-                                                }
-
-                                        }
-
-                                }
-
                         }
-
-                        // offline unused cpus
-                        for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
+                            
+                            
+                    governor = "userspace";
+                    policy.governor = const_cast<char*>(governor.c_str());
+                    policy.min = min_freq;
+                    policy.max = max_freq;
+                            
+                            
+                    for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
+                        {
+                            int res = hardware_reconf::set_freq_policy(cpu_id, policy);
+                            if (res)
+                                {
+                                    HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
+                                                        "Requesting energy objective without being able to set cpu frequency");
+                                            
+                                    return;
+                                }
+#ifdef DEBUG_
+                            std::cout << "cpu_id "<< cpu_id << " initial freq policy setting. ret=  " << res << "\n" << std::flush;
+#endif
+                        }
+                            
+                    // Set frequency of all threads to max when we start
+                            
+                    {
+                        // set freq to all PUs used by allscale
+                        for (std::size_t i = 0; i != thread_pools_.size(); ++i)
                             {
-                                bool found_it = false;
-                                for ( std::size_t i = 0; i != thread_pools_.size(); i++)
+                                std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
+                                for (std::size_t j = 0  ; j < thread_count ; j++)
                                     {
-                                        if (hpx::threads::test(initial_masks_[i], cpu_id))
+                                        std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
+                                                
+                                        if (!cpufreq_cpu_exists(pu_num))
                                             {
-                                                std::cout << " cpu_id "<< cpu_id << " found\n" << std::flush;
-                                                found_it = true;
-
-                                            }
-                                    }
-
-                                if (!found_it)
-                                    {
+                                                int res = hardware_reconf::set_frequency(pu_num, 1 , cpu_freqs[0]);
 #ifdef DEBUG_
-                                        std::cout << " setting cpu_id "<< cpu_id << " offline \n" << std::flush;
+                                                std::cout << "Setting cpu " << pu_num <<" to freq  "<< cpu_freqs[0] << ", (ret= " << res << ")\n" << std::flush;
 #endif
-
-                                        hardware_reconf::make_cpus_offline(cpu_id, cpu_id + topo.num_hw_threads);
+                                            }
+                                                
                                     }
+                                        
                             }
-
-
-
-                        frequency_timer_.start();
-#else
-                        HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
-                                            "Requesting energy objective without having compiled with cpufreq");
-#endif
+                                
                     }
-            }
-
+                            
+                            
+                    std::this_thread::sleep_for(std::chrono::microseconds(2));
+                            
+                    // Make sure frequency change happened before continuing
+                    std::cout << "topo.num_logical_cores: " << topo.num_logical_cores << "topo.num_hw_threads" << topo.num_hw_threads<< "\n" << std::flush;
+                    {
+                        // check status of Pus frequency
+                        for (std::size_t i = 0; i != thread_pools_.size(); ++i)
+                            {
+                                unsigned long hardware_freq = 0;
+                                std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
+                                for (std::size_t j =  0 ;  j < thread_count ; j++)
+                                    {
+                                        std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
+                                                
+                                        if (!cpufreq_cpu_exists(pu_num))
+                                            {
+                                                do
+                                                    {
+                                                        hardware_freq = hardware_reconf::get_hardware_freq(pu_num);
+#ifdef DEBUG_
+                                                        std::cout << "current freq on cpu "<< pu_num << " is " << hardware_freq << " (target freq is " << cpu_freqs[0] << " )\n" << std::flush;
+                                                        //std::this_thread::sleep_for(std::chrono::microseconds(1000000));
+#endif
+                                                                
+                                                        //                                  HPX_ASSERT(hardware_freq == cpu_freqs[0]);
+                                                    } while (hardware_freq != cpu_freqs[0]);
+                                                        
+                                            }
+                                                
+                                    }
+                                        
+                            }
+                                
+                    }
+                            
+                    // offline unused cpus
+                    for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
+                        {
+                            bool found_it = false;
+                            for ( std::size_t i = 0; i != thread_pools_.size(); i++)
+                                {
+                                    if (hpx::threads::test(initial_masks_[i], cpu_id))
+                                        {
+                                            std::cout << " cpu_id "<< cpu_id << " found\n" << std::flush;
+                                            found_it = true;
+                                                    
+                                        }
+                                }
+                                    
+                            if (!found_it)
+                                {
+#ifdef DEBUG_
+                                    std::cout << " setting cpu_id "<< cpu_id << " offline \n" << std::flush;
+#endif
+                                            
+                                    hardware_reconf::make_cpus_offline(cpu_id, cpu_id + topo.num_hw_threads);
+                                }
+                        }
+                            
+                            
+                            
+                    frequency_timer_.start();
+#else
+                    // should we really abort or should we reset energy to 1 ?
+                    HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
+                                        "Requesting energy objective without having compiled with cpufreq");
+#endif
+                }
+                    // }
+            
             std::cerr
                 << "Scheduler with rank " << rank_ << " created!\n";
         }
@@ -510,14 +527,24 @@ namespace allscale { namespace components {
                             // //                           //                     it->second.add(std::move(lk), work.get_treeture());
                             // //                           //                 }
                             allscale::monitor::signal(allscale::monitor::work_item_first, work);
-
-                            if ((current_id >=5 ) && (current_id % 5 == 0))
+                            //this is the place where we take policy specific actions
+                            if ( time_requested || resource_requested)
                                 {
-                                    periodic_throttle();
+                                    if ((current_id >= period_for_time ) && (current_id % period_for_time == 0))
+                                        {
+                                            periodic_throttle();
+                                        }
                                 }
-                            if ((current_id >=20 ) && (current_id % 20 == 0))
+                            else if (energy_requested)
                                 {
-                                    power_periodic_frequency_scale();
+                                    if ((current_id >= period_for_power ) && (current_id % period_for_power == 0))
+                                        {
+                                            power_periodic_frequency_scale();
+                                        }
+                                }
+                            else if (multi_objectives)
+                                {
+                                    multi_objectives_adjust();
                                 }
 
                         }
@@ -1286,6 +1313,10 @@ namespace allscale { namespace components {
             return true;
         }
 
+        bool scheduler::multi_objectives_adjust()
+        {
+            return true;
+        }
 
         void scheduler::stop()
         {

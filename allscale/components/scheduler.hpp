@@ -74,6 +74,7 @@ namespace allscale { namespace components {
         bool periodic_throttle();
         bool periodic_frequency_scale();
 	bool power_periodic_frequency_scale();
+        bool multi_objectives_adjust();
 	
         hpx::util::interval_timer timer_;
         hpx::util::interval_timer throttle_timer_;
@@ -146,6 +147,7 @@ namespace allscale { namespace components {
             "energy",
     	};
 
+        bool multi_objectives;
         bool time_requested;
         bool resource_requested;
         bool energy_requested;
@@ -153,6 +155,10 @@ namespace allscale { namespace components {
         double time_leeway;
         double resource_leeway;
         double energy_leeway;
+        unsigned int period_for_time;
+        unsigned int period_for_resource;
+        unsigned int period_for_power;
+            
 
     };
 }}
