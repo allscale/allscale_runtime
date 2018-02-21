@@ -325,7 +325,7 @@ struct stencil_split {
         
         auto begin = hpx::util::get<2>(c);
         auto end = hpx::util::get<3>(c);
-        //std::cout<<"begin: " << begin << " end: " << end << std::endl;
+        std::cout<<"SPLIT begin: " << begin << " end: " << end << " " << "loc: " << hpx::get_locality_id() << std::endl;
         std::size_t depth = allscale::this_work_item::get_id().depth();
         auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
         
@@ -357,7 +357,8 @@ struct stencil_process {
         coordinate_type end(hpx::util::get<3>(c));
        
 
-        std::cout<< " s_src: " << s_src << " e_src: " << e_src << "loc: " << hpx::get_locality_id() << std::endl;
+        std::cout<<"PROCESS begin: " << begin << " end: " << end << " " << "loc: " << hpx::get_locality_id() << std::endl;
+       // std::cout<< " s_src: " << s_src << " e_src: " << e_src << "loc: " << hpx::get_locality_id() << std::endl;
 
         //region_type r_src({begin[0]-RADIUS,begin[1]-RADIUS},{end[0]+RADIUS,end[1]+RADIUS});
         //std::cout<< r_src << std::endl;
@@ -389,7 +390,7 @@ struct stencil_process {
                         //std::cout<< "" <<  pos_src << std::endl;
                         //data_b[pos_src]  = data_a[pos_src];
                         //data_a[pos_src] += 1.0f;
-                        double tmp_res;
+                        double tmp_res = data_b[pos_src];
                         for (jj=-RADIUS; jj<=RADIUS; jj++){  
                             //std::cout<<"A" << WEIGHT(0,jj)*data_a[pos_col_neigb]<<" " ; 
                             //data_b[pos_src] += WEIGHT(0,jj)*data_a[pos_col_neigb];
@@ -422,7 +423,7 @@ struct stencil_process {
                             std::cout<<i+ii<<"|"<<j << " " << pos_row_neigb << " "  << data_a[pos_row_neigb] <<  std::endl;
                         }
 
-                        std::cout<< pos_src << " " << tmp_res << " " << hpx::get_locality_id() << std::endl;
+                        std::cout<< pos_src << " " << tmp_res << " " << data_b[pos_src] << " loc: " << hpx::get_locality_id() << std::endl;
 
             } 
         }
@@ -591,8 +592,8 @@ struct main_process
          
        // DO ACTUAL WORK: SPAWN FIRST WORK ITEM
        hpx::util::high_resolution_timer timer;
-       std::cout<<"iterations is : " << iterations << std::endl;
        for(int i = 0 ; i <= iterations; ++i){
+           std::cout<<"iteration : " << i << std::endl;
            allscale::spawn_first<stencil>(mat_a, mat_b, begin, end).wait();
        }
 
@@ -642,7 +643,7 @@ struct main_process
 
       for(int j = 0; j < N; ++j){    
           for(int i = 0; i < N; ++i){
-              coordinate_type tmp(allscale::utils::Vector<long,2>(j,i));
+              coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
               my_norm += std::abs(ref_result[tmp]);
               std::cout<< ref_result[tmp] << " ";                                                 
           }
