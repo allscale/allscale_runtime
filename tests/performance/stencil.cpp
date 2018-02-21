@@ -22,6 +22,7 @@
 #include <cstdlib>
 
 ALLSCALE_REGISTER_TREETURE_TYPE(int)
+ALLSCALE_REGISTER_TREETURE_TYPE(double)
 
 #define EXPECT_EQ(X,Y)  X==Y
 #define EXPECT_NE(X,Y)  X!=Y
@@ -282,6 +283,125 @@ struct grid_init_process {
 };
 
 
+////////////////////////////////////////////////////////////////////////////////
+// grid validate
+
+struct grid_validate_name {
+    static const char* name() { return "grid_validate"; }
+};
+
+struct grid_validate_split;
+struct grid_validate_process;
+struct grid_validate_can_split;
+
+using grid_validate = allscale::work_item_description<
+    double,
+    grid_validate_name,
+    allscale::do_serialization,
+    grid_validate_split,
+    grid_validate_process,
+    grid_validate_can_split
+>;
+
+struct grid_validate_can_split
+{
+    template <typename Closure>
+    static bool call(Closure const& c)
+    {
+        auto begin = hpx::util::get<1>(c);
+        auto end = hpx::util::get<2>(c);
+
+        return sumOfSquares(end - begin) > 1;
+    }
+};
+
+struct grid_validate_split {
+    template <typename Closure>
+    static allscale::treeture<double> execute(Closure const& c)
+    {
+        auto data = hpx::util::get<0>(c);
+        auto begin = hpx::util::get<1>(c);
+        auto end = hpx::util::get<2>(c);
+        auto dim = hpx::util::get<3>(c);
+        std::size_t depth = allscale::this_work_item::get_id().depth();
+        auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
+        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(dim, range);
+        /*
+        std::cout<<"validate split " << std::endl;
+        return allscale::runtime::treeture_parallel(
+            allscale::spawn<grid_validate>(data, fragments.left.begin(), fragments.left.end(), dim),
+            allscale::spawn<grid_validate>(data, fragments.right.begin(), fragments.right.end(), dim)
+        );
+        */
+
+        return hpx::dataflow(
+            [](hpx::future<double> a, hpx::future<double> b)
+            {
+                return a.get() + b.get();
+            },
+            allscale::spawn<grid_validate>(data, fragments.left.begin(), fragments.left.end(), dim).get_future(),
+            allscale::spawn<grid_validate>(data, fragments.right.begin(), fragments.right.end(), dim).get_future()
+        );
+
+    }
+
+    static constexpr bool valid = true;
+};
+
+struct grid_validate_process {
+    template <typename Closure>
+    static double execute(Closure const& c)
+    {
+        auto ref = hpx::util::get<0>(c);
+        auto data = allscale::data_item_manager::get(ref);
+        auto begin = hpx::util::get<1>(c);
+        auto end = hpx::util::get<2>(c);
+
+        region_type region(begin, end);
+        double tmp_res = 0;
+        for(int j = begin[1]; j < end[1]; ++j){
+            for(int i = begin[0]; i < end[0]; ++i){
+
+                coordinate_type pos( allscale::utils::Vector<long,2>( j, i ) );
+                tmp_res += std::abs(data[pos]);
+                std::cout<< data[pos] << " ";
+            }
+            std::cout<<std::endl;
+        }
+        return tmp_res;
+    }
+
+    template <typename Closure>
+    static hpx::util::tuple<
+        allscale::data_item_requirement<data_item_type >
+    >
+    get_requirements(Closure const& c)
+    {
+        region_type r(hpx::util::get<1>(c), hpx::util::get<2>(c));
+        return hpx::util::make_tuple(
+            allscale::createDataItemRequirement(
+                hpx::util::get<0>(c),
+                r,
+                allscale::access_mode::ReadOnly
+            )
+        );
+    }
+    static constexpr bool valid = true;
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // stencil
@@ -325,7 +445,7 @@ struct stencil_split {
         
         auto begin = hpx::util::get<2>(c);
         auto end = hpx::util::get<3>(c);
-        std::cout<<"SPLIT begin: " << begin << " end: " << end << " " << "loc: " << hpx::get_locality_id() << std::endl;
+     //   std::cout<<"SPLIT begin: " << begin << " end: " << end << " " << "loc: " << hpx::get_locality_id() << std::endl;
         std::size_t depth = allscale::this_work_item::get_id().depth();
         auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
         
@@ -357,7 +477,7 @@ struct stencil_process {
         coordinate_type end(hpx::util::get<3>(c));
        
 
-        std::cout<<"PROCESS begin: " << begin << " end: " << end << " " << "loc: " << hpx::get_locality_id() << std::endl;
+        //std::cout<<"PROCESS begin: " << begin << " end: " << end << " " << "loc: " << hpx::get_locality_id() << std::endl;
        // std::cout<< " s_src: " << s_src << " e_src: " << e_src << "loc: " << hpx::get_locality_id() << std::endl;
 
         //region_type r_src({begin[0]-RADIUS,begin[1]-RADIUS},{end[0]+RADIUS,end[1]+RADIUS});
@@ -396,7 +516,7 @@ struct stencil_process {
                             //data_b[pos_src] += WEIGHT(0,jj)*data_a[pos_col_neigb];
                             //coordinate_type pos_col_neigb( allscale::utils::Vector<long,2>( i, j+jj ) );
                             coordinate_type pos_col_neigb( allscale::utils::Vector<long,2>(  j+jj,i ) );
-                            std::cout<<i<<"|"<<j+jj << " " << pos_col_neigb << " "  << data_a[pos_col_neigb] <<  std::endl;
+       //                     std::cout<<i<<"|"<<j+jj << " " << pos_col_neigb << " "  << data_a[pos_col_neigb] <<  std::endl;
                             //std::cout<< "loc: " << hpx::get_locality_id() << " start: " << s_src << " end: " << e_src << "neigb is  " << data_a[pos_col_neigb] << std::endl;
 //                            std::cout<< pos_src << " " << data_b[pos_src] << " " << tmp_res << " " << data_a[pos_col_neigb] << std::endl;
                             data_b[pos_src] += WEIGHT(0,jj)*data_a[pos_col_neigb];
@@ -412,7 +532,7 @@ struct stencil_process {
                             data_b[pos_src] += WEIGHT(ii,0)*data_a[pos_row_neigb];
                             tmp_res += WEIGHT(ii,0)*data_a[pos_row_neigb];
 
-                            std::cout<<i+ii<<"|"<<j << " " << pos_row_neigb << " "  << data_a[pos_row_neigb] <<  std::endl;
+     //                       std::cout<<i+ii<<"|"<<j << " " << pos_row_neigb << " "  << data_a[pos_row_neigb] <<  std::endl;
           //                  std::cout<<data_a[pos_row_neigb]<< " " << WEIGHT(0,jj) <<  std::endl;
                         }
                         for (ii=1; ii<=RADIUS; ii++){       
@@ -420,12 +540,14 @@ struct stencil_process {
                             coordinate_type pos_row_neigb( allscale::utils::Vector<long,2>( j,i+ii) );
                             data_b[pos_src] += WEIGHT(ii,0)*data_a[pos_row_neigb];
                             tmp_res += WEIGHT(ii,0)*data_a[pos_row_neigb];
-                            std::cout<<i+ii<<"|"<<j << " " << pos_row_neigb << " "  << data_a[pos_row_neigb] <<  std::endl;
+   //                         std::cout<<i+ii<<"|"<<j << " " << pos_row_neigb << " "  << data_a[pos_row_neigb] <<  std::endl;
                         }
 
-                        std::cout<< pos_src << " " << tmp_res << " " << data_b[pos_src] << " loc: " << hpx::get_locality_id() << std::endl;
+                        //std::cout<< pos_src << " " << tmp_res << " " << data_b[pos_src] << " loc: " << hpx::get_locality_id() << " ";
+                        std::cout<< data_b[pos_src] << " ";
 
             } 
+            std::cout<<std::endl;
         }
         return hpx::util::unused;
     }
@@ -477,6 +599,7 @@ struct stencil_process {
     }
     static constexpr bool valid = true;
 };
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -597,7 +720,10 @@ struct main_process
            allscale::spawn_first<stencil>(mat_a, mat_b, begin, end).wait();
        }
 
-
+       std::cout<<std::endl;
+       std::cout<<std::endl;
+       std::cout<<std::endl;
+       std::cout<<std::endl;          
 
        //auto startus = std::chrono::high_resolution_clock::now();
    
@@ -611,59 +737,42 @@ struct main_process
        double mbytes_per_second = combined_matrix_size/(elapsed/iterations) * 1.0E-06;
        std::cout << "Rate (MBs) | avg time (s) | MUP/S: "<<'\n';
        std::cout << mbytes_per_second << "," << elapsed/iterations << "," << mups << '\n';
-  /*
-       // ============ LOOK AT RESULT==========================
-      auto lease_result_a = allscale::data_item_manager::acquire(
-          allscale::createDataItemRequirement(
-              mat_a,
-              whole_region,
-              allscale::access_mode::ReadOnly
-          )).get();
-      auto ref_result_a = allscale::data_item_manager::get(mat_a);
-      for(int j = 0; j < N; ++j){    
-          for(int i = 0; i < N; ++i){
-              coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
-              std::cout<< ref_result_a[tmp] << " ";                                                 
-
-          }
-          std::cout<<std::endl;                                                                       
-      }
-      std::cout<<std::endl;
-  */
-       // ============ LOOK AT RESULT==========================
-       
-        double my_norm = 0.0;
+        
+       //VALIDATE RESULTS
+       allscale::treeture<double> vld = allscale::spawn_first<grid_validate>(mat_b, begin_init, end_init, 1);
+    
+       double res = vld.get_result();
+       res = res / f_active_points;
+       std::cout<<std::endl;
+       std::cout<<std::endl;
+       std::cout<<std::endl;
+       std::cout<<std::endl;   
        auto lease_result = allscale::data_item_manager::acquire(
-          allscale::createDataItemRequirement(
-              mat_b,
-              whole_region,
-              allscale::access_mode::ReadOnly
-          )).get();
-      auto ref_result = allscale::data_item_manager::get(mat_b);
+            allscale::createDataItemRequirement(
+                mat_b,
+                whole_region,
+                allscale::access_mode::ReadOnly
+            )).get();
+        auto ref_result = allscale::data_item_manager::get(mat_b);
 
-      for(int j = 0; j < N; ++j){    
-          for(int i = 0; i < N; ++i){
-              coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
-              my_norm += std::abs(ref_result[tmp]);
-              std::cout<< ref_result[tmp] << " ";                                                 
-          }
-          std::cout<<std::endl;
-      }
-    // ===================================================
-     
+        for(int j = 0; j < N; ++j){    
+            for(int i = 0; i < N; ++i){
+                coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
+                //my_norm += std::abs(ref_result[tmp]);
+                std::cout<< ref_result[tmp] << " ";                                                 
+            }
+            std::cout<<std::endl;
+        }
+   
         allscale::data_item_manager::release(lease_result);
-
-
         double reference_norm = 0.0;
         allscale::data_item_manager::destroy(mat_a);
         allscale::data_item_manager::destroy(mat_b);
 
-        my_norm =  my_norm / f_active_points;
         reference_norm = (DTYPE) (iterations+1) * (COEFX + COEFY);
-        if (std::abs(my_norm-reference_norm) > EPSILON) {
-                std::cout<<"ERROR WRONG SOLUTION:" << my_norm << "should be: " << reference_norm<<std::endl;
+        if (std::abs(res-reference_norm) > EPSILON) {
+                std::cout<<"ERROR WRONG SOLUTION:" << res << "should be: " << reference_norm<<std::endl;
         }
-
         return allscale::make_ready_treeture(0);
     }
     static constexpr bool valid = true;
@@ -671,19 +780,4 @@ struct main_process
 
 int main(int argc, char **argv) {
         return allscale::runtime::main_wrapper<main_work>(argc, argv);
-
-        /*
-    po::options_description desc("Allowed options");
-    desc.add_options()
-        ("N", po::value<uint32_t>(), "set number of elements in grid, default = 10000");
-    po::variables_map vm;        
-    po::store(po::parse_command_line(argc, argv, desc), vm);
-    po::notify(vm);    
-    if (vm.count("N")) {
-        cout << "Number of elements was set to " 
-             << vm["N"].as<uint32_t>() << ".\n";
-        N = vm["N"].as<uint32_t>(); 
-    } else {
-        cout << "Number of elements was not set, using default = 10000.\n";
-    }*/
 }
