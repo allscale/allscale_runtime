@@ -20,7 +20,7 @@ namespace allscale {
         static components::resilience &get();
         static std::pair<hpx::id_type, uint64_t> get_protectee();
         static void handle_my_crash(int signum);
-        static void global_w_exec_start_wrapper(work_item const &w);
+        static void global_wi_dispatched(work_item const& w, size_t schedule_rank);
         static bool rank_running(uint64_t rank);
     private:
         static std::size_t rank_;

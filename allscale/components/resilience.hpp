@@ -14,6 +14,8 @@
 
 #include <boost/asio.hpp>
 
+#include <map>
+
 using boost::asio::ip::udp;
 
 namespace allscale { namespace components {
@@ -54,6 +56,7 @@ namespace allscale { namespace components {
            // END failure detection here
 
            uint64_t rank_, num_localities;
+           std::vector<hpx::naming::id_type> localities;
            hpx::id_type guard_;
            uint64_t guard_rank_;
            hpx::id_type protectee_;
@@ -67,12 +70,16 @@ namespace allscale { namespace components {
            std::map<std::string, work_item> local_backups_;
            mutable mutex_type result_mutex_;
            std::map<std::string, work_item> remote_backups_;
-           std::map<std::string, work_item> delegated_items_;
+           std::multimap<size_t, work_item > delegated_items_;
            void init();
            resilience(std::uint64_t rank);
            void protectee_crashed();
            int get_cp_granularity();
+           void reschedule_dispatched_to_dead(size_t rank, size_t token);
+           HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,reschedule_dispatched_to_dead);
 
+           //std::vector<work_item> get_delegated_items(std::size_t schedule_id);
+           //HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,get_delegated_items);
            void set_guard(hpx::id_type guard, uint64_t guard_rank);
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,set_guard);
            void send_heartbeat(uint64_t heartbeat);
@@ -81,10 +88,6 @@ namespace allscale { namespace components {
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,get_protectee);
            std::map<std::string,work_item> get_local_backups();
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,get_local_backups);
-           void remote_backup(work_item wi);
-           HPX_DEFINE_COMPONENT_ACTION(resilience,remote_backup);
-           void remote_unbackup(std::string name);
-           HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,remote_unbackup);
            void shutdown(std::size_t token);
            HPX_DEFINE_COMPONENT_ACTION(resilience,shutdown);
 
@@ -93,29 +96,14 @@ namespace allscale { namespace components {
            void w_exec_start_wrapper(work_item const& w);
            static void global_w_exec_finish_wrapper(work_item const& w);
            void w_exec_finish_wrapper(work_item const& w);
-           static void global_w_exec_dispatched_wrapper(work_item const& w);
-           void w_exec_dispatched_wrapper(work_item const& w);
            mutable mutex_type access_scheduler_mtx_;
+           void work_item_dispatched(work_item const& w, size_t schedule_rank);
        };
 }}
 
-namespace hpx { namespace traits {
-    template <>
-    struct action_schedule_thread<allscale::components::resilience::remote_backup_action>
-    {
-        static void call(naming::address_type lva, naming::component_type comp_type,
-            threads::thread_init_data& data, threads::thread_state_enum initial)
-        {
-            data.func(hpx::threads::wait_signaled);
-        }
-    };
-}}
-
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::send_heartbeat_action, send_heartbeat_action)
-HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::remote_backup_action, remote_backup_action)
-HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::remote_unbackup_action, remote_unbackup_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::set_guard_action, set_guard_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_protectee_action, get_protectee_action)
-HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::get_local_backups_action, get_local_backups_action)
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::shutdown_action, allscale_resilience_shutdown_action)
+HPX_REGISTER_ACTION_DECLARATION(allscale::components::resilience::reschedule_dispatched_to_dead_action, allscale_resilience_reshedule_dispatched_to_dead_action)
 #endif

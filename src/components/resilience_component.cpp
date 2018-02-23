@@ -55,7 +55,7 @@ namespace allscale { namespace components {
             my_heartbeat = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
             hpx::apply<send_heartbeat_action>(guard_, my_heartbeat);
             thread_safe_printer("my counter = " + std::to_string(my_heartbeat) + " protectee COUNTER = " + std::to_string(protectee_heartbeat) + "\n");
-            if (my_heartbeat > protectee_heartbeat + 5) {
+            if (my_heartbeat > protectee_heartbeat + 10) {
                 thread_safe_printer("DETECTED FAILURE!!!\n");
                 // here comes recovery
                 my_state = SUSPECT;
@@ -79,15 +79,12 @@ namespace allscale { namespace components {
         return std::make_pair(protectee_, protectee_rank_);
     }
 
-    std::map<std::string,work_item> resilience::get_local_backups() {
-        return local_backups_;
-    }
-
     void resilience::init() {
         char *env = std::getenv("ALLSCALE_RESILIENCE");
         env_resilience_disabled = (env && env[0] == '0');
 
         num_localities = hpx::get_num_localities().get();
+        localities = hpx::find_all_localities();
         {
             std::unique_lock<mutex_type> lock(running_ranks_mutex_);
             rank_running_.resize(num_localities, true);
@@ -104,10 +101,6 @@ namespace allscale { namespace components {
         keep_running = true;
         recovery_done = false;
         start_time = std::chrono::high_resolution_clock::now();
-
-        allscale::monitor::connect(allscale::monitor::work_item_execution_started, resilience::global_w_exec_start_wrapper);
-        allscale::monitor::connect(allscale::monitor::work_item_result_propagated, resilience::global_w_exec_finish_wrapper);
-        allscale::monitor::connect(allscale::monitor::work_item_dispatched, resilience::global_w_exec_dispatched_wrapper);
         hpx::get_num_localities().get();
 
         std::uint64_t right_id = (rank_ + 1) % num_localities;
@@ -129,26 +122,42 @@ namespace allscale { namespace components {
         failure_detection_loop_async();
     }
 
-    void resilience::global_w_exec_finish_wrapper(work_item const& w)
-    {
-        allscale::resilience::get().w_exec_finish_wrapper(w);
+    void resilience::reschedule_dispatched_to_dead(size_t dead_rank, size_t token) {
+        thread_safe_printer("Calling reschedule_dispatched_to_dead...\n");
+        std::multimap<size_t, work_item > delegated_items_copy;
+        {
+            std::unique_lock<mutex_type> lock(delegated_items_mutex_);
+            std::swap(delegated_items_, delegated_items_copy);
+        }
+        {
+            std::unique_lock<mutex_type> lock(running_ranks_mutex_);
+            rank_running_[dead_rank] = false;
+            auto protectee_locality = get_locality_from_id(protectee_);
+            auto it = std::find(localities.begin(), localities.end(), protectee_locality);
+            localities.erase(it);
+            num_localities--;
+        }
+        auto range = delegated_items_copy.equal_range(dead_rank);
+        for (auto it = range.first; it != range.second; it++) {
+            auto w = it->second;
+            auto id = w.id();
+            thread_safe_printer("Reschedule delegated item:"+id.name());
+            allscale::scheduler::schedule(std::move(w), id);
+        }
+
+        token++;
+        if (get_running_ranks() > token) {
+            hpx::async<reschedule_dispatched_to_dead_action>(guard_, token, dead_rank);
+        }
     }
 
-    void resilience::global_w_exec_start_wrapper(work_item const& w) {
-        allscale::resilience::get().w_exec_start_wrapper(w);
-    }
-
-
-    void resilience::global_w_exec_dispatched_wrapper(work_item const& w)
-    {
-        allscale::resilience::get().w_exec_dispatched_wrapper(w);
-    }
-
-    void resilience::w_exec_dispatched_wrapper(work_item const& w) {
-        std::unique_lock<mutex_type> lock(delegated_items_mutex_);
-        delegated_items_[w.id().name()] = w;
-        lock.unlock();
-        std::cout << "WOO!\n";
+    void resilience::work_item_dispatched(work_item const& w, size_t schedule_rank) {
+        auto p = std::make_pair(schedule_rank,w);
+        {
+            std::unique_lock<mutex_type> lock(delegated_items_mutex_);
+            delegated_items_.insert(p);
+        }
+        std::cout << "WOO -> schedule_rank = " << schedule_rank << "!\n";
         auto treeture = w.get_treeture();
         
         // get signal from treeture when finished
@@ -156,47 +165,15 @@ namespace allscale { namespace components {
         treeture.get_future().then(
                         hpx::util::bind(
                             hpx::util::one_shot(
-                            [w, this]()
+                            [schedule_rank, w, this]()
                             {
+                                //thread_safe_printer("Before erase item"+w.id().name());
                                 std::unique_lock<mutex_type> lock(this->delegated_items_mutex_);
-                                this->delegated_items_.erase(w.id().name());
+// this deletes all tasks of delegated locality -- potentially wrong
+                                auto it = this->delegated_items_.find(schedule_rank);
+                                if (it != delegated_items_.end()) this->delegated_items_.erase(it);
+                                //thread_safe_printer("After erase item"+w.id().name());
                             })));
-    }
-
-    // equiv. to taskAcquired in prototype
-    void resilience::w_exec_start_wrapper(work_item const& w) {
-        if (get_running_ranks() < 2 || env_resilience_disabled) 
-            return;
-
-        if (w.id().depth() != get_cp_granularity()) return;
-
-        //@ToDo: do I really need to block (via get) here?
-        if (get_running_ranks() > 1) {
-            //hpx::async<remote_backup_action>(guard_, w).get();
-            //std::unique_lock<mutex_type> lock(backup_mutex_);
-            thread_safe_printer("local_backups_["+w.id().name()+"]\n");
-            local_backups_[w.id().name()] = w;
-        }
-
-
-        thread_safe_printer("Done backing up : "+w.id().name()+"\n");
-    }
-
-    void resilience::w_exec_finish_wrapper(work_item const& w) {
-        if (get_running_ranks() < 2 || env_resilience_disabled) 
-            return;
-
-
-        if (w.id().depth() != get_cp_granularity()) return;
-
-        //@ToDo: do I really need to block (via get) here?
-        if (get_running_ranks() > 1)  {
-            hpx::async<remote_unbackup_action>(guard_, w.id().name()).get();
-            //std::unique_lock<mutex_type> lock(backup_mutex_);
-            thread_safe_printer("local_backups_["+w.id().name()+"].erase()\n");
-            local_backups_.erase(w.id().name());
-        }
-
     }
 
     std::size_t resilience::get_running_ranks() {
@@ -209,32 +186,6 @@ namespace allscale { namespace components {
 
     void resilience::protectee_crashed() {
 
-        thread_safe_printer("set bitrank of "+std::to_string(protectee_rank_)+" to false\n");
-        //{
-        //std::unique_lock<mutex_type> lock2(running_ranks_mutex_);
-        thread_safe_printer("in lock region of set bitrank\n");
-        rank_running_[protectee_rank_] = false;
-        //lock2.unlock();
-        //}
-        thread_safe_printer("after set bitrank of "+std::to_string(protectee_rank_)+" to false\n");
-
-        //std::unique_lock<mutex_type> lock(remote_backup_mutex_);
-        thread_safe_printer("after lock before rescheduling");
-
-        //for (auto c : remote_backups_) {
-        
-        std::map<std::string, work_item> delegated_items_copy_;
-        {
-            std::unique_lock<mutex_type> lock2(delegated_items_mutex_);
-            std::swap(delegated_items_, delegated_items_copy_);
-        }
-        for (auto c : delegated_items_copy_) {
-            work_item restored = c.second;
-            thread_safe_printer("Will reschedule task "+restored.id().name()+"\n");
-            auto id = restored.id();
-            allscale::scheduler::schedule(std::move(restored), id);
-        }
-
         thread_safe_printer("After rescheduling\n");
         //remote_backups_.clear();
         //if (get_running_ranks() > 1)
@@ -242,6 +193,7 @@ namespace allscale { namespace components {
             //remote_backups_ = hpx::async<get_local_backups_action>(protectee_).get();
         //lock.unlock();
 
+        size_t dead_protectee_rank = protectee_rank_;
         thread_safe_printer("Done rescheduling ...\n");
         // restore guard / protectee connections
         hpx::util::high_resolution_timer t;
@@ -253,35 +205,13 @@ namespace allscale { namespace components {
         protectees_protectee_.make_unmanaged();
         protectees_protectee_rank_ = p.second;
         thread_safe_printer("Finish recovery\n");
+
+        hpx::async<reschedule_dispatched_to_dead_action>(guard_, dead_protectee_rank, 0).get();
+
     }
 
     int resilience::get_cp_granularity() {
         return 3;
-    }
-
-    void resilience::remote_backup(work_item w) {
-        //std::unique_lock<mutex_type> lock(remote_backup_mutex_);
-        thread_safe_printer("remote_backups_["+w.id().name()+"]\n");
-        //remote_backups_[w.id().name()] = w;
-    }
-
-    void resilience::remote_unbackup(std::string name) {
-        //work_item bw;
-        //{
-            //std::unique_lock<mutex_type> lock(backup_mutex_);
-            //auto b = remote_backups_.find(name);
-            //if (b == remote_backups_.end())
-            //{
-                //std::cerr << "ERROR: Backup not found that should be there!\n";
-                //return;
-            //}
-            // We safe the backed up work item so that dtor of the underlying
-            // treeture isn't triggered when we erase from the map while the lock
-            // is being held.
-            //bw = b->second;
-            thread_safe_printer("remote_backups_["+name+"].erase()\n");
-            //remote_backups_.erase(b);
-        //}
     }
 
     void resilience::shutdown(std::size_t token) {
@@ -298,9 +228,7 @@ namespace allscale { namespace components {
 } // end namespace allscale
 
 HPX_REGISTER_ACTION(allscale::components::resilience::send_heartbeat_action, send_heartbeat_action);
-HPX_REGISTER_ACTION(allscale::components::resilience::remote_backup_action, remote_backup_action);
-HPX_REGISTER_ACTION(allscale::components::resilience::remote_unbackup_action, remote_unbackup_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::set_guard_action, set_guard_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::get_protectee_action, get_protectee_action);
-HPX_REGISTER_ACTION(allscale::components::resilience::get_local_backups_action, get_local_backups_action);
 HPX_REGISTER_ACTION(allscale::components::resilience::shutdown_action, allscale_resilience_shutdown_action);
+HPX_REGISTER_ACTION(allscale::components::resilience::reschedule_dispatched_to_dead_action, reschedule_dispatched_to_dead_action);

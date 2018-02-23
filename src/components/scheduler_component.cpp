@@ -413,9 +413,9 @@ namespace allscale { namespace components {
 
 	    HPX_ASSERT(schedule_rank != std::uint64_t(-1));
 
-// #ifdef DEBUG_
-// 	    std::cout << "Will schedule task " << work.id().name() << " on rank " << schedule_rank << std::endl;
-// #endif
+ #ifdef DEBUG_
+ 	    std::cout << "Will schedule task " << work.id().name() << " on rank " << schedule_rank << std::endl;
+ #endif
 
 	    // schedule locally
 	    if (schedule_rank == rank_)
@@ -463,7 +463,9 @@ namespace allscale { namespace components {
 		    return;
 		}
 
-        allscale::monitor::signal(allscale::monitor::work_item_dispatched, work);
+        //allscale::monitor::signal(allscale::monitor::work_item_dispatched, work, scheduler_rank);
+        // if remote scheduling, signal resilience component
+        allscale::resilience::global_wi_dispatched(work, schedule_rank);
 	    network_.schedule(schedule_rank, std::move(work), this_work_item::get_id());
 	}
 

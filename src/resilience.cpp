@@ -56,6 +56,10 @@ namespace allscale {
         return get_ptr()->get_protectee();
     }
 
+    void resilience::global_wi_dispatched(work_item const& w, size_t schedule_rank) {
+        get_ptr()->work_item_dispatched(w, schedule_rank);
+    }
+
     bool resilience::rank_running(uint64_t rank) {
         if (rank_ == std::size_t(-1) || rank == rank_)
             return true;
