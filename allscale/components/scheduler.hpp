@@ -70,7 +70,10 @@ namespace allscale { namespace components {
         bool do_split(work_item const& work);
 
         bool collect_counters();
-
+        //try to suspend resource_step threads, return number of threads which received a new suspend order;
+        unsigned int suspend_threads();
+        //try to resume resource_step threads, return number of threads which received a new resume order;
+        unsigned int resume_threads();
         bool periodic_throttle();
         bool periodic_frequency_scale();
 	bool power_periodic_frequency_scale();
@@ -94,6 +97,7 @@ namespace allscale { namespace components {
 
         hpx::id_type allscale_app_counter_id;
 
+        //extra masks to better handle suspending/resuming threads
         std::vector<hpx::threads::thread_pool_base*> thread_pools_;
         std::vector<hpx::threads::mask_type> initial_masks_;
 	std::vector<hpx::threads::mask_type> suspending_masks_;
@@ -101,20 +105,20 @@ namespace allscale { namespace components {
         std::vector<executor_type> executors_;
         std::atomic<std::size_t> current_;
 
-        std::size_t os_thread_count;
-        std::size_t active_threads;
+        // resources tracking
+        std::size_t os_thread_count; // initial (max) resources
+        std::size_t active_threads;  // current resources
 
         double enable_factor;
         double disable_factor;
         bool   growing;
         unsigned int min_threads;
-        // Indices show number of threads, which hold pair of
-        // execution times and number of times that particular thread used
-        // due to suspend and resume
-        std::vector<std::pair<double, unsigned int>> thread_times;
 
         unsigned long min_freq;
         unsigned long max_freq;
+        unsigned long max_resource;
+        unsigned long max_time;
+        unsigned long max_power;
         unsigned long long current_energy_usage;
         unsigned long long last_energy_usage;
         unsigned long long last_actual_energy_usage;
@@ -130,9 +134,14 @@ namespace allscale { namespace components {
         // Indices correspond to the freq id in cpu_freqs, and
         // each pair holds energy usage and execution time
         std::vector<std::pair<unsigned long long, double>> freq_times;
+        std::vector<std::vector<std::pair<unsigned long long, double>>> objectives_status;
         unsigned int freq_step;
+        
         bool target_freq_found;
 #endif
+        unsigned int resource_step;
+        unsigned int resource_jump;
+        bool target_resource_found;
 
         mutable mutex_type throttle_mtx_;
         mutable mutex_type resize_mtx_;
