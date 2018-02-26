@@ -12,7 +12,7 @@ namespace allscale
         // A class aggregating task dependencies
         struct dependencies
         {
-            dependencies() {}
+            dependencies() =default;
             explicit dependencies(hpx::future<void>&& dep) : dep_(std::move(dep)) {}
             hpx::shared_future<void> dep_;
         };

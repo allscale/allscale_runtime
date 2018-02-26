@@ -45,6 +45,20 @@ REGISTER_DATAITEMSERVER(data_item_type);
 
 using namespace std;
 
+struct transpose_can_split
+{
+    template <typename Closure>
+    static bool call(Closure const& c)
+    {
+        auto begin = hpx::util::get<0>(c);
+        auto end = hpx::util::get<1>(c);
+
+        HPX_ASSERT(end[0] - begin[0] >= 5);
+
+        return end[0] - begin[0] > 10;
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 // grid init
 
@@ -54,7 +68,6 @@ struct grid_init_name {
 
 struct grid_init_split;
 struct grid_init_process;
-struct grid_init_can_split;
 
 using grid_init = allscale::work_item_description<
     void,
@@ -62,37 +75,28 @@ using grid_init = allscale::work_item_description<
     allscale::do_serialization,
     grid_init_split,
     grid_init_process,
-    grid_init_can_split
+    transpose_can_split
 >;
 
-struct grid_init_can_split
-{
-    template <typename Closure>
-    static bool call(Closure const& c)
-    {
-        auto begin = hpx::util::get<1>(c);
-        auto end = hpx::util::get<2>(c);
-
-        return sumOfSquares(end - begin) > 1;
-    }
-};
 
 struct grid_init_split {
     template <typename Closure>
     static allscale::treeture<void> execute(Closure const& c)
     {
-        auto data = hpx::util::get<0>(c);
-        auto begin = hpx::util::get<1>(c);
-        auto end = hpx::util::get<2>(c);
+        auto begin = hpx::util::get<0>(c);
+        auto end = hpx::util::get<1>(c);
+        auto data = hpx::util::get<2>(c);
         auto dim = hpx::util::get<3>(c);
         auto N = hpx::util::get<4>(c);
 
-        auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
-        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
+        auto mid = begin[0] + (end[0] - begin[0]) / 2;
+
+        auto left_end = end; left_end[0] = mid;
+        auto right_begin = begin; right_begin[0] = mid;
 
         return allscale::runtime::treeture_parallel(
-            allscale::spawn<grid_init>(data, fragments.left.begin(), fragments.left.end(), dim, N),
-            allscale::spawn<grid_init>(data, fragments.right.begin(), fragments.right.end(), dim, N)
+            allscale::spawn<grid_init>(begin, left_end, data, dim, N),
+            allscale::spawn<grid_init>(right_begin, end, data, dim, N)
         );
     }
 
@@ -103,13 +107,13 @@ struct grid_init_process {
     template <typename Closure>
     static void execute(Closure const& c)
     {
-        auto ref = hpx::util::get<0>(c);
-        auto data = allscale::data_item_manager::get(ref);
-        auto begin = hpx::util::get<1>(c);
-        auto end = hpx::util::get<2>(c);
+        auto begin = hpx::util::get<0>(c);
+        auto end = hpx::util::get<1>(c);
+        auto ref = hpx::util::get<2>(c);
         auto dim = hpx::util::get<3>(c);
         auto N = hpx::util::get<4>(c);
 
+        auto data = allscale::data_item_manager::get(ref);
         region_type region(begin, end);
 
         region.scan([&](auto p)
@@ -127,11 +131,10 @@ struct grid_init_process {
     >
     get_requirements(Closure const& c)
     {
-        region_type r(hpx::util::get<1>(c), hpx::util::get<2>(c));
         return hpx::util::make_tuple(
             allscale::createDataItemRequirement(
-                hpx::util::get<0>(c),
-                r,
+                hpx::util::get<2>(c),
+                region_type(hpx::util::get<0>(c), hpx::util::get<1>(c)),
                 allscale::access_mode::ReadWrite
             )
         );
@@ -145,7 +148,6 @@ struct transpose_incr_name {
 
 struct transpose_incr_process;
 struct transpose_incr_split;
-struct transpose_incr_can_split;
 
 using transpose_incr = allscale::work_item_description<
     void,
@@ -153,19 +155,18 @@ using transpose_incr = allscale::work_item_description<
     allscale::do_serialization,
     transpose_incr_split,
     transpose_incr_process,
-    transpose_incr_can_split
+    transpose_can_split
 >;
 
 struct transpose_incr_process {
     template <typename Closure>
     static void execute(Closure const& c)
     {
-        auto ref_mat = hpx::util::get<0>(c);
-        auto data = allscale::data_item_manager::get(ref_mat);
-
-        auto begin = hpx::util::get<1>(c);
-        auto end = hpx::util::get<2>(c);
+        auto begin = hpx::util::get<0>(c);
+        auto end = hpx::util::get<1>(c);
+        auto ref_mat = hpx::util::get<2>(c);
         auto tile_size = hpx::util::get<3>(c);
+        auto data = allscale::data_item_manager::get(ref_mat);
 
 //         region_type region(begin, end);
 //
@@ -196,16 +197,14 @@ struct transpose_incr_process {
     get_requirements(Closure const& c)
     {
         // READ ACCESS REQUIRED TO SRC MATRIX
-        auto begin = hpx::util::get<1>(c);
-        auto end = hpx::util::get<2>(c);
-
-        region_type region(begin, end);
+        auto begin = hpx::util::get<0>(c);
+        auto end = hpx::util::get<1>(c);
 
         //acquire regions now
         return hpx::util::make_tuple(
             allscale::createDataItemRequirement(
-                hpx::util::get<0>(c),
-                region,
+                hpx::util::get<2>(c),
+                region_type(begin, end),
                 allscale::access_mode::ReadWrite
             )
         );
@@ -217,34 +216,25 @@ struct transpose_incr_split {
     template <typename Closure>
     static allscale::treeture<void> execute(Closure const& c)
     {
-        auto data = hpx::util::get<0>(c);
-        auto begin = hpx::util::get<1>(c);
-        auto end = hpx::util::get<2>(c);
+        auto begin = hpx::util::get<0>(c);
+        auto end = hpx::util::get<1>(c);
+        auto data = hpx::util::get<2>(c);
         auto tile_size = hpx::util::get<3>(c);
 
-        auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
-        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
+        auto mid = begin[0] + (end[0] - begin[0]) / 2;
+
+        auto left_end = end; left_end[0] = mid;
+        auto right_begin = begin; right_begin[0] = mid;
 
         return allscale::runtime::treeture_parallel(
-            allscale::spawn<transpose_incr>(data, fragments.left.begin(), fragments.left.end(), tile_size),
-            allscale::spawn<transpose_incr>(data, fragments.right.begin(), fragments.right.end(), tile_size)
+            allscale::spawn<transpose_incr>(begin, left_end, data, tile_size),
+            allscale::spawn<transpose_incr>(right_begin, end, data, tile_size)
         );
     }
 
     static constexpr bool valid = true;
 };
 
-struct transpose_incr_can_split
-{
-    template <typename Closure>
-    static bool call(Closure const& c)
-    {
-        auto begin = hpx::util::get<1>(c);
-        auto end = hpx::util::get<2>(c);
-
-        return sumOfSquares(end - begin) > 1;
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 // transpose
@@ -254,7 +244,6 @@ struct transpose_name {
 
 struct transpose_split;
 struct transpose_process;
-struct transpose_can_split;
 
 using transpose = allscale::work_item_description<
     void,
@@ -265,39 +254,26 @@ using transpose = allscale::work_item_description<
     transpose_can_split
 >;
 
-struct transpose_can_split
-{
-    template <typename Closure>
-    static bool call(Closure const& c)
-    {
-        auto begin = hpx::util::get<2>(c);
-        auto end = hpx::util::get<3>(c);
-
-        return sumOfSquares(end - begin) > 1;
-    }
-};
-
 struct transpose_split {
     template <typename Closure>
     static allscale::treeture<void> execute(Closure const& c)
     {
-        auto mat_a = hpx::util::get<0>(c);
-        auto mat_b = hpx::util::get<1>(c);
+        auto begin = hpx::util::get<0>(c);
+        auto end = hpx::util::get<1>(c);
 
+        auto mat_a = hpx::util::get<2>(c);
+        auto mat_b = hpx::util::get<3>(c);
 
-        auto begin = hpx::util::get<2>(c);
-        auto end = hpx::util::get<3>(c);
         std::int64_t tile_size = hpx::util::get<4>(c);
 
-        auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
-        //std::cout<<"about to split range : " << range.begin() << " to " << range.end() << std::endl;
+        auto mid = begin[0] + (end[0] - begin[0]) / 2;
 
-        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
+        auto left_end = end; left_end[0] = mid;
+        auto right_begin = begin; right_begin[0] = mid;
 
-//         std::cout<<"transpose splitted, got left: " << fragments.left.begin() << " " << fragments.left.end() << " right: " << fragments.right.begin() << " " <<fragments.right.end() << std::endl;
         return allscale::runtime::treeture_parallel(
-            allscale::spawn<transpose>(mat_a, mat_b, fragments.left.begin(), fragments.left.end(), tile_size),
-            allscale::spawn<transpose>(mat_a, mat_b,  fragments.right.begin(), fragments.right.end(), tile_size)
+            allscale::spawn<transpose>(begin, left_end, mat_a, mat_b, tile_size),
+            allscale::spawn<transpose>(right_begin, end, mat_a, mat_b, tile_size)
         );
     }
 
@@ -308,20 +284,17 @@ struct transpose_process {
     template <typename Closure>
     static allscale::treeture<void> execute(Closure const& c)
     {
-        auto ref_mat_a = hpx::util::get<0>(c);
+        auto begin = hpx::util::get<0>(c);
+        auto end = hpx::util::get<1>(c);
+
+        auto ref_mat_a = hpx::util::get<2>(c);
         auto data_a = allscale::data_item_manager::get(ref_mat_a);
 
-        auto ref_mat_b = hpx::util::get<1>(c);
+        auto ref_mat_b = hpx::util::get<3>(c);
         auto data_b = allscale::data_item_manager::get(ref_mat_b);
 
-        auto begin = hpx::util::get<2>(c);
-        auto end = hpx::util::get<3>(c);
         std::int64_t tile_size = hpx::util::get<4>(c);
 
-//         std::cout << "transpose from " << begin << " to " << end << "\n";
-
-//         region_type region(begin, end);
-//
 //         region.scan([&](auto pos)
 //         {
 //             data_b[pos] += data_a[{pos.y, pos.x}];
@@ -344,8 +317,8 @@ struct transpose_process {
         }
 
         return allscale::spawn<transpose_incr>(
-            ref_mat_a, coordinate_type({begin[1], begin[0]}),
-            coordinate_type({end[1], end[0]}), tile_size);
+            coordinate_type({begin[1], begin[0]}),
+            coordinate_type({end[1], end[0]}), ref_mat_a, tile_size);
     }
 
     template <typename Closure>
@@ -355,8 +328,8 @@ struct transpose_process {
     >
     get_requirements(Closure const& c)
     {
-        auto begin = hpx::util::get<2>(c);
-        auto end = hpx::util::get<3>(c);
+        auto begin = hpx::util::get<0>(c);
+        auto end = hpx::util::get<1>(c);
         std::int64_t tile_size = hpx::util::get<4>(c);
 
 //         region_type test_src({begin[1], begin[0]}, {end[1], end[0]});
@@ -386,13 +359,13 @@ struct transpose_process {
         //acquire regions now
         return hpx::util::make_tuple(
             allscale::createDataItemRequirement(
-                hpx::util::get<0>(c),
+                hpx::util::get<2>(c),
                 // READ ACCESS REQUIRED TO SRC MATRIX
                 region_type({begin[1], begin[0]}, {end[1], end[0]}),
                 allscale::access_mode::ReadOnly
             ),
             allscale::createDataItemRequirement(
-                hpx::util::get<1>(c),
+                hpx::util::get<3>(c),
                 // WRITE ACCESS REQUIRED TO SRC MATRIX
                 region_type(begin, end),
                 allscale::access_mode::ReadWrite
@@ -409,7 +382,6 @@ struct transpose_check_name {
 
 struct transpose_check_split;
 struct transpose_check_process;
-struct transpose_check_can_split;
 
 using transpose_check = allscale::work_item_description<
     double,
@@ -417,41 +389,29 @@ using transpose_check = allscale::work_item_description<
     allscale::do_serialization,
     transpose_check_split,
     transpose_check_process,
-    transpose_check_can_split
+    transpose_can_split
 >;
-
-struct transpose_check_can_split
-{
-    template <typename Closure>
-    static bool call(Closure const& c)
-    {
-        auto begin = hpx::util::get<1>(c);
-        auto end = hpx::util::get<2>(c);
-
-        return sumOfSquares(end - begin) > 1;
-    }
-};
 
 struct transpose_check_split {
     template <typename Closure>
     static allscale::treeture<double> execute(Closure const& c)
     {
-        auto mat = hpx::util::get<0>(c);
+        auto begin = hpx::util::get<0>(c);
+        auto end = hpx::util::get<1>(c);
 
-        auto begin = hpx::util::get<1>(c);
-        auto end = hpx::util::get<2>(c);
+        auto mat = hpx::util::get<2>(c);
+
         auto iterations = hpx::util::get<3>(c);
         auto N = hpx::util::get<4>(c);
 
-        auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
-        //std::cout<<"about to split range : " << range.begin() << " to " << range.end() << std::endl;
+        auto mid = begin[0] + (end[0] - begin[0]) / 2;
 
-        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
+        auto left_end = end; left_end[0] = mid;
+        auto right_begin = begin; right_begin[0] = mid;
 
-//         std::cout<<"check... splitted, got left: " << fragments.left.begin() << " " << fragments.left.end() << " right: " << fragments.right.begin() << " " <<fragments.right.end() << std::endl;
         return allscale::runtime::treeture_combine(
-            allscale::spawn<transpose_check>(mat, fragments.left.begin(), fragments.left.end(), iterations, N),
-            allscale::spawn<transpose_check>(mat, fragments.right.begin(), fragments.right.end(), iterations, N),
+            allscale::spawn<transpose_check>(begin, left_end, mat, iterations, N),
+            allscale::spawn<transpose_check>(right_begin, end, mat, iterations, N),
             [](double l, double r) { return l + r; }
         );
     }
@@ -463,11 +423,12 @@ struct transpose_check_process {
     template <typename Closure>
     static double execute(Closure const& c)
     {
-        auto ref_mat = hpx::util::get<0>(c);
+        auto begin = hpx::util::get<0>(c);
+        auto end = hpx::util::get<1>(c);
+
+        auto ref_mat = hpx::util::get<2>(c);
         auto data = allscale::data_item_manager::get(ref_mat);
 
-        auto begin = hpx::util::get<1>(c);
-        auto end = hpx::util::get<2>(c);
         auto iterations = hpx::util::get<3>(c);
         auto N = hpx::util::get<4>(c);
 
@@ -495,15 +456,15 @@ struct transpose_check_process {
     get_requirements(Closure const& c)
     {
         // READ ACCESS REQUIRED TO SRC MATRIX
-        auto begin = hpx::util::get<1>(c);
-        auto end = hpx::util::get<2>(c);
+        auto begin = hpx::util::get<0>(c);
+        auto end = hpx::util::get<1>(c);
 
         region_type region(begin, end);
 
         //acquire regions now
         return hpx::util::make_tuple(
             allscale::createDataItemRequirement(
-                hpx::util::get<0>(c),
+                hpx::util::get<2>(c),
                 region,
                 allscale::access_mode::ReadOnly
             )
@@ -566,25 +527,23 @@ struct main_process
         coordinate_type begin(0, 0);
         coordinate_type end(N, N);
 
-
-        allscale::spawn_first<grid_init>(mat_a, begin, end, 0, N).wait();
-
-        allscale::spawn_first<grid_init>(mat_b, begin, end, 1, N).wait();
+        allscale::spawn_first<grid_init>(begin, end, mat_a, 0, N).wait();
+        std::cout << "init A done.\n";
+        allscale::spawn_first<grid_init>(begin, end, mat_b, 1, N).wait();
+        std::cout << "init B done.\n";
 
         region_type whole_region({0,0}, {N, N});
 
         // DO ACTUAL WORK: SPAWN FIRST WORK ITEM
         hpx::util::high_resolution_timer timer;
-        //auto startus = std::chrono::high_resolution_clock::now();
 
         for (std::int64_t i = 0; i <= iterations; ++i)
         {
             if (i == 1)
                 timer.restart();
-            allscale::spawn_first<transpose>(mat_a, mat_b, begin, end, tile_size).wait();
+            allscale::spawn_first<transpose>(begin, end, mat_a, mat_b, tile_size).wait();
             std::cerr << "iteration " << i << " done\n";
         }
-
 
         double elapsed = timer.elapsed();
 
@@ -594,7 +553,7 @@ struct main_process
         std::cout << "Rate (MBs) | avg time (s) | MUP/S: "<<'\n';
         std::cout << mbytes_per_second << "," << elapsed/iterations << "," << mups << '\n';
 
-        double error = allscale::spawn_first<transpose_check>(mat_b, begin, end, iterations, N).get_result();
+        double error = allscale::spawn_first<transpose_check>(begin, end, mat_b, iterations, N).get_result();
 
         if (error < 1.e-8)
         {

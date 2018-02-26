@@ -42,8 +42,7 @@ int32_t main(int argc, char** argv) {
 struct main_process {
     static allscale::treeture<int32_t > execute(hpx::util::tuple< > const&)
     {
-        using allscale::runtime::DataItemReference;
-        using allscale::runtime::DataItemManager;
+        using namespace allscale::runtime;
         using allscale::api::user::data::StaticGrid;
         using allscale::api::user::data::StaticGridRegion;
         using allscale::utils::Vector;
@@ -58,19 +57,23 @@ struct main_process {
 
         hpx::util::high_resolution_timer timer;
 
-        auto lease1 = allscale::data_item_manager::acquire<StaticGrid<double, 200, 200 >>(
+        auto req1 = hpx::util::make_tuple(
             allscale::createDataItemRequirement(
                 var_3,
                 StaticGridRegion<2>({0,0}, {200, 200}),
-                allscale::access_mode::ReadWrite)
-        ).get();
+                allscale::access_mode::ReadWrite));
+        auto lease1 = hpx::util::unwrap(allscale::data_item_manager::acquire(
+            req1, hpx::util::unwrap(allscale::data_item_manager::locate(req1))
+        ));
 
-        auto lease2 = allscale::data_item_manager::acquire<StaticGrid<double, 200, 200 >>(
+        auto req2 = hpx::util::make_tuple(
             allscale::createDataItemRequirement(
                 var_4,
                 StaticGridRegion<2>({0,0}, {200, 200}),
-                allscale::access_mode::ReadWrite)
-        ).get();
+                allscale::access_mode::ReadWrite));
+        auto lease2 = hpx::util::unwrap(allscale::data_item_manager::acquire(
+            req2, hpx::util::unwrap(allscale::data_item_manager::locate(req2))
+        ));
 
         int32_t var_6 = 0;
         auto f_var_5 = DataItemManager::get(var_5);

@@ -5,9 +5,9 @@
 
 #include <memory>
 
-namespace allscale {
-    template <typename DataItemType>
-    struct data_item_manager_impl;
+namespace allscale { namespace data_item_manager {
+    template <typename DataItem>
+    struct data_item_store;
 
     template <typename DataItem>
     struct data_item_view
@@ -34,13 +34,11 @@ namespace allscale {
         void load(Archive& ar, unsigned)
         {
             ar & id_;
-            auto dim = data_item_manager_impl<DataItem>::get_ptr();
-            {
-                std::unique_lock<hpx::lcos::local::spinlock> l(dim->mtx_);
-                auto pos = dim->store.find(id_);
-                HPX_ASSERT(pos != dim->store.end());
-                fragment_ = &pos->second.fragment;
-            }
+            auto & item = data_item_store<DataItem>::lookup(id_);
+            using mutex_type = typename data_item_store<DataItem>::data_item_type::mutex_type;
+            std::unique_lock<mutex_type> l(item.mtx);
+            HPX_ASSERT(item.fragment);
+            fragment_ = item.fragment.get();
             allscale::utils::ArchiveReader reader(ar);
 
             fragment_->insert(reader);
@@ -56,6 +54,6 @@ namespace allscale {
 
         HPX_SERIALIZATION_SPLIT_MEMBER()
     };
-}
+}}
 
 #endif

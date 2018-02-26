@@ -19,15 +19,13 @@ namespace allscale { namespace detail {
     struct work_item_impl_base
       : std::enable_shared_from_this<work_item_impl_base>
     {
-		work_item_impl_base()
+		work_item_impl_base() = default;
+
+        work_item_impl_base(this_work_item::id id)
+          : id_(std::move(id))
         {}
 
-        work_item_impl_base(this_work_item::id const& id)
-          : id_(id)
-        {}
-
-        virtual ~work_item_impl_base()
-        {}
+        virtual ~work_item_impl_base() = default;
 
         work_item_impl_base(work_item_impl_base const&) = delete;
 		work_item_impl_base& operator=(work_item_impl_base const&) = delete;
@@ -48,11 +46,7 @@ namespace allscale { namespace detail {
 
 		virtual bool can_split() const=0;
 		virtual hpx::future<std::size_t> process(executor_type& exec, bool sync)=0;
-		virtual void split(executor_type& exec, bool sync)=0;
-
-//		virtual void requires()=0;
-
-		//virtual std::vector<allscale::fragment> requires()=0;
+		virtual hpx::future<std::size_t> split(executor_type& exec, bool sync)=0;
 
         virtual bool enqueue_remote() const=0;
 

@@ -16,9 +16,7 @@
 
 namespace allscale {
     struct work_item {
-        work_item()
-          : is_first_(false)
-        {}
+        work_item() = default;
 
         template<typename WorkItemDescription, typename Treeture, typename ...Ts>
         work_item(bool is_first, WorkItemDescription, Treeture tre, Ts&&... vs)
@@ -65,30 +63,13 @@ namespace allscale {
         }
 
         explicit work_item(std::shared_ptr<detail::work_item_impl_base> impl)
-          : impl_(std::move(impl)), is_first_(false)
+          : impl_(std::move(impl))
         {}
 
-        work_item(work_item const& other)
-          : impl_(other.impl_), is_first_(other.is_first_)
-        {}
-
-        work_item(work_item && other)
-          : impl_(std::move(other.impl_)), is_first_(other.is_first_)
-        {}
-
-        work_item &operator=(work_item const& other)
-        {
-            impl_ = other.impl_;
-            is_first_ = other.is_first_;
-            return *this;
-        }
-
-        work_item &operator=(work_item && other)
-        {
-            impl_ = std::move(other.impl_);
-            is_first_ = other.is_first_;
-            return *this;
-        }
+        work_item(work_item const& other) = default;
+        work_item(work_item && other) noexcept = default;
+        work_item &operator=(work_item const& other) = default;
+        work_item &operator=(work_item && other) noexcept = default;
 
         bool valid() const
         {
@@ -128,11 +109,11 @@ namespace allscale {
             return impl_->get_treeture();
         }
 
-        void split(executor_type& exec, bool sync)
+        hpx::future<std::size_t> split(executor_type& exec, bool sync)
         {
             HPX_ASSERT(valid());
             HPX_ASSERT(impl_->valid());
-            impl_->split(exec, sync);
+            return impl_->split(exec, sync);
     //         impl_.reset();
         }
 
@@ -187,7 +168,7 @@ namespace allscale {
         HPX_SERIALIZATION_SPLIT_MEMBER()
 
         std::shared_ptr<detail::work_item_impl_base> impl_;
-        bool is_first_;
+        bool is_first_ = false;
 	};
 }
 

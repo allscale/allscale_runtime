@@ -2,7 +2,9 @@ set(tests
   #this_work_item
 #  1d_stencil
   scalar_read_write
+  scalar_read_only
   grid_init
+  grid_stencil
   grid_init_overlap
   overlapping_async.insieme.seq
   #overlapping_pfor.insieme.seq
@@ -21,8 +23,8 @@ foreach(test ${tests})
   if (${test} STREQUAL "overlapping_async.insieme.seq")
     add_test(NAME ${test}_test_exe COMMAND $<TARGET_FILE:${test}_test_exe> --hpx:threads=1)
   else()
-    add_test(NAME ${test}_test_exe COMMAND $<TARGET_FILE:${test}_test_exe>)
+    add_test(NAME ${test}_test_exe COMMAND $<TARGET_FILE:${test}_test_exe> --hpx:threads=4)
   endif()
 endforeach()
 
-add_test(NAME distributed.grid_init_test COMMAND ${HPX_PREFIX}/bin/hpxrun.py --verbose -l2 -t4 $<TARGET_FILE:grid_init_test_exe> -- --hpx:ignore-batch-env)
+add_test(NAME distributed.grid_init_test COMMAND ${HPX_PREFIX}/bin/hpxrun.py --verbose -l2 -t4 $<TARGET_FILE:grid_init_test_exe> -- --hpx:ignore-batch-env --hpx:bind=none)

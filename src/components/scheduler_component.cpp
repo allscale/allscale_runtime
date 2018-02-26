@@ -499,17 +499,13 @@ namespace allscale { namespace components {
                 {
                     std::unique_lock<mutex_type> l(resize_mtx_);
 
-                    //             for (auto & depth : mconfig_.thread_depths)
-                    //             {
-                    //                 std::cout << "using depth " << depth << '\n';
-                    //             }
                     work.set_this_id(mconfig_);
                 }
 
             this_work_item::id parent_id = this_work_item::get_id();
 
             bool sync = parent_id.thread_depth() == 1;// ||
-            //             work.id().numa_domain() == parent_id.numa_domain();
+//          work.id().numa_domain() == parent_id.numa_domain();
 
             std::uint64_t schedule_rank = work.id().rank();
             if(!allscale::resilience::rank_running(schedule_rank))
@@ -521,9 +517,9 @@ namespace allscale { namespace components {
 
             HPX_ASSERT(schedule_rank != std::uint64_t(-1));
 
-            // #ifdef DEBUG_
-            //      std::cout << "Will schedule task " << work.id().name() << " on rank " << schedule_rank << std::endl;
-            // #endif
+#ifdef DEBUG_
+            std::cout << "Will schedule task " << work.id().name() << " on rank " << schedule_rank << std::endl;
+#endif
 
             // schedule locally
             if (schedule_rank == rank_)
@@ -531,9 +527,9 @@ namespace allscale { namespace components {
                     if (work.is_first())
                         {
                             std::size_t current_id = work.id().last();
-                            // #ifdef DEBUG_
-                            //                              std::cout << "current_id: "<< current_id << " (could be " << work.id().name()  << " ), on rank : " << rank_ << "\n" << std::flush;
-                            // #endif
+#ifdef DEBUG_
+                            std::cout << "current_id: "<< current_id << " (could be " << work.id().name()  << " ), on rank : " << rank_ << "\n" << std::flush;
+#endif
 
 
                             //                 const char* wi_name = work.name();
@@ -575,37 +571,57 @@ namespace allscale { namespace components {
                     // FIXME: modulus shouldn't be needed here
                     std::size_t numa_domain = work.id().numa_domain();
                     HPX_ASSERT(numa_domain < executors_.size());
+
+                    auto this_id = this_work_item::get_id();
                     if (do_split(work))
                         {
                             work.split(executors_[numa_domain], sync
-                                       || work.id().numa_domain() == parent_id.numa_domain());
+                                       || work.id().numa_domain() == parent_id.numa_domain()).then(
+                                 [this_id, work, this](hpx::future<std::size_t>&& f) mutable
+                                 {
+                                     std::size_t expected_rank = f.get();
+                                     if(expected_rank == std::size_t(-1))
+                                         {
+                                            std::cerr << "split for " << work.name() << ": write requirements reside on different localities!\n";
+                                            std::abort();
+                                         }
+                                     else if(expected_rank != std::size_t(-2))
+                                         {
+                                             HPX_ASSERT(expected_rank != rank_);
+//                                              std::cout << "Dispatching " << work.name() << " to " << expected_rank << '\n';
+                                             work.update_rank(expected_rank);
+                                             network_.schedule(expected_rank, std::move(work), this_id);
+                                         }
+                                 }
+                            );
                         }
                     else
                         {
-                            auto this_id = this_work_item::get_id();
                             work.process(executors_[numa_domain], sync).then(
-                                                                             [this_id, work, numa_domain, this](hpx::future<std::size_t>&& f) mutable
-                                                                             {
-                                                                                 // the process variant might fail if we try to acquire
-                                                                                 // data item read/write on multiple localities
-                                                                                 // we need to split then.
-                                                                                 std::size_t expected_rank = f.get();
-                                                                                 if(expected_rank == std::size_t(-1))
-                                                                                     {
-                                                                                         // We should move on and split...
-                                                                                         if (!work.can_split())
-                                                                                             {
-                                                                                                 std::cerr << "Requesting split, but can not split further!\n";
-                                                                                                 std::abort();
-                                                                                             }
-                                                                                         work.split(executors_[numa_domain], false);
-                                                                                     }
-                                                                                 else if(expected_rank != std::size_t(-2))
-                                                                                     {
-                                                                                         work.update_rank(expected_rank);
-                                                                                         network_.schedule(expected_rank, std::move(work), this_id);
-                                                                                     }
-                                                                             });
+                                 [this_id, work, numa_domain, this](hpx::future<std::size_t>&& f) mutable
+                                 {
+                                     // the process variant might fail if we try to acquire
+                                     // data item read/write on multiple localities
+                                     // we need to split then.
+                                     std::size_t expected_rank = f.get();
+                                     if(expected_rank == std::size_t(-1))
+                                         {
+                                             // We should move on and split...
+                                             if (!work.can_split())
+                                                 {
+                                                     std::cerr << "Requesting split for " << work.name() << ", but can not split further!\n";
+                                                     std::abort();
+                                                 }
+                                             work.split(executors_[numa_domain], false);
+                                         }
+                                     else if(expected_rank != std::size_t(-2))
+                                         {
+                                             HPX_ASSERT(expected_rank != rank_);
+//                                              std::cout << "Dispatching " << work.name() << " to " << expected_rank << '\n';
+                                             work.update_rank(expected_rank);
+                                             network_.schedule(expected_rank, std::move(work), this_id);
+                                         }
+                                 });
                         }
 
                     return;
@@ -1629,7 +1645,7 @@ namespace allscale { namespace components {
 
             if (power_count)
                 {
-                    std::cout << "Power average usage: " << (power_sum / power_count) << "\n" << std::flush;
+                    std::cerr << "Power average usage: " << (power_sum / power_count) << "\n" << std::flush;
                 }
             stopped_ = true;
             //         work_queue_cv_.notify_all();

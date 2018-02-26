@@ -34,7 +34,7 @@ namespace allscale { namespace detail {
         }
 
         treeture_lco(boost::intrusive_ptr<shared_state_type> shared_state)
-          : shared_state_(shared_state)
+          : shared_state_(std::move(shared_state))
         {
             HPX_ASSERT(shared_state_);
         }
