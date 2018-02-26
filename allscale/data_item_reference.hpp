@@ -71,7 +71,7 @@ namespace allscale {
         {
         }
 
-        data_item_reference(data_item_reference&& other)
+        data_item_reference(data_item_reference&& other) noexcept
           : fragment(nullptr)
           , shared_data_(std::move(other.shared_data_))
           , id_(std::move(other.id_))
@@ -88,7 +88,7 @@ namespace allscale {
         }
 
 
-        data_item_reference& operator=(data_item_reference&& other)
+        data_item_reference& operator=(data_item_reference&& other) noexcept
         {
             fragment = nullptr;
             shared_data_ = std::move(other.shared_data_);

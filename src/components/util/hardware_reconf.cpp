@@ -182,6 +182,7 @@ namespace allscale { namespace components { namespace util {
     unsigned long long hardware_reconf::read_system_energy(const std::string &sysfs_file)
     {
         unsigned long long energy = 0;
+#if defined(__powerpc__)
         std::string line;
         std::ifstream ifile(sysfs_file.c_str());
         std::getline(ifile, line);
@@ -203,6 +204,7 @@ namespace allscale { namespace components { namespace util {
         {
             std::cerr << "Error reading energy sensor, " << line << '\n';
         }
+#endif
 
         return energy;
     }
@@ -210,8 +212,10 @@ namespace allscale { namespace components { namespace util {
     unsigned long long hardware_reconf::read_system_power(const std::string &sysfs_file)
     {
         unsigned long long power = 0;
+#if defined(__powerpc__)
         std::string line;
         std::ifstream ifile(sysfs_file.c_str());
+
         std::getline(ifile, line);
         ifile.close();
 
@@ -231,6 +235,7 @@ namespace allscale { namespace components { namespace util {
         {
             std::cerr << "Error reading power sensor, " << line << '\n';
         }
+#endif
 
         return power;
     }
@@ -297,7 +302,7 @@ namespace allscale { namespace components { namespace util {
 
     void hardware_reconf::make_cpus_offline(unsigned int min_cpu_id, unsigned int max_cpu_id)
     {
-        
+
         std::string sysfs_file = "/sys/devices/system/cpu/cpu%d/online";
         for (unsigned int cpu_id = min_cpu_id; cpu_id < max_cpu_id; cpu_id++)
         {

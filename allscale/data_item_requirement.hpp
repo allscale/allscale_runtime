@@ -17,19 +17,20 @@ namespace allscale{
 
         ref_type ref;
         region_type region;
-        access_mode mode;
+        access_mode mode = access_mode::Invalid;
 
-        data_item_requirement()
-          : mode(access_mode::Invalid)
-        {
-        }
+        data_item_requirement() = default;
 
         data_item_requirement(
-                const data_item_reference<DataItemType>& pref,
-                const typename DataItemType::region_type& pregion,
-                const access_mode& pmode)
-          : ref(pref) , region(pregion) , mode(pmode)
-        {}
+                data_item_reference<DataItemType> pref,
+                typename DataItemType::region_type pregion,
+                access_mode pmode)
+          : ref(std::move(pref)) , region(std::move(pregion)) , mode(pmode)
+        {
+            HPX_ASSERT(ref.id());
+            HPX_ASSERT(!region.empty());
+            HPX_ASSERT(mode != access_mode::Invalid);
+        }
 
         template <typename Archive>
         void serialize(Archive& ar, unsigned)
@@ -43,13 +44,13 @@ namespace allscale{
 
     template<typename DataItemType>
     data_item_requirement<DataItemType> createDataItemRequirement
-    (   const data_item_reference<DataItemType>& ref,
-        const typename DataItemType::region_type& region,
+    (   data_item_reference<DataItemType> ref,
+        typename DataItemType::region_type region,
         access_mode mode
     )
     {
         //instance of a data_item_requirement
-        return { ref, region, mode };
+        return { std::move(ref), std::move(region), mode };
     }
 
     namespace detail
@@ -129,8 +130,29 @@ namespace allscale{
 			static void insert(Tuple&& tuple, Res& res) {
 				const auto& cur = hpx::util::get<pos-1>(tuple);
 				using require_type = typename std::decay<decltype(cur)>::type;
-				hpx::util::get<index_of<vector_of_t<require_type>,Res>::value>(res).push_back(std::move(cur));
-				merge_data_item_reqs_inserter<pos-1>::insert(std::move(tuple),res);
+
+                auto & reqs = hpx::util::get<index_of<vector_of_t<require_type>,Res>::value>(res);
+
+                // First check if the requirement isn't already covered...
+                bool covered = false;
+                for (auto& req: reqs)
+                {
+                    if (req.ref.id() == cur.ref.id())
+                    {
+                        if (req.mode == cur.mode)
+                        {
+                            req.region = require_type::region_type::merge(
+                                req.region, cur.region);
+                            covered = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!covered)
+                    reqs.push_back(std::move(cur));
+
+				merge_data_item_reqs_inserter<pos-1>::insert(std::forward<Tuple>(tuple),res);
 			}
 		};
 
@@ -153,11 +175,17 @@ namespace allscale{
 			result_t res;
 
 			// fill result
-			merge_data_item_reqs_inserter<hpx::util::tuple_size<DIRTuple>::value>::insert(std::move(dir_tuple),res);
+			merge_data_item_reqs_inserter<hpx::util::tuple_size<DIRTuple>::value>
+                ::insert(std::forward<DIRTuple>(dir_tuple),res);
 
 			// done
 			return std::move(res);
 		}
+
+        inline hpx::util::tuple<> merge_data_item_reqs(hpx::util::tuple<> const&)
+        {
+            return hpx::util::tuple<>();
+        }
 
     }
 }

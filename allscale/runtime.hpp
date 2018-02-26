@@ -56,30 +56,32 @@ data_item_requirement<DataItemType> createDataItemRequirement
     return allscale::createDataItemRequirement(ref, region, mode);
 }
 
-using DataItemManager = allscale::data_item_manager;
+namespace DataItemManager {
+    using namespace ::allscale::data_item_manager;
+}
 
 using unused_type = hpx::util::unused_type;
 
 template<typename MainWorkItem>
-inline int spawn_main(int(*main_work)(hpx::util::tuple<int, char**> const&), int argc, char** argv)
+inline int spawn_main(int(*)(hpx::util::tuple<int, char**> const&), int argc, char** argv)
 {
     return MainWorkItem::process_variant::execute(hpx::util::make_tuple(argc, argv));
 }
 
 template<typename MainWorkItem>
-inline int spawn_main(int(*main_work)(hpx::util::tuple<> const&), int argc, char** argv)
+inline int spawn_main(int(*)(hpx::util::tuple<> const&), int argc, char** argv)
 {
     return MainWorkItem::process_variant::execute(hpx::util::make_tuple(argc, argv));
 }
 
 template<typename MainWorkItem>
-inline int spawn_main(treeture<int>(*main_work)(hpx::util::tuple<int, char**> const&), int argc, char** argv)
+inline int spawn_main(treeture<int>(*)(hpx::util::tuple<int, char**> const&), int argc, char** argv)
 {
     return MainWorkItem::process_variant::execute(hpx::util::make_tuple(argc, argv)).get_result();
 }
 
 template<typename MainWorkItem>
-inline int spawn_main(treeture<int>(*main_work)(hpx::util::tuple<> const&), int argc, char** argv)
+inline int spawn_main(treeture<int>(*)(hpx::util::tuple<> const&), int, char**)
 {
     return MainWorkItem::process_variant::execute(hpx::util::make_tuple()).get_result();
 }
@@ -113,16 +115,16 @@ int allscale_main(boost::program_options::variables_map &)
         // Copy all arguments which are not hpx related to a temporary array
         std::vector<char*> argv(args.size()+1);
         std::size_t argcount = 0;
-        for (std::size_t i = 0; i < args.size(); ++i)
+        for (auto & arg : args)
         {
-            if (0 != args[i].find("--hpx:")) {
-                argv[argcount++] = const_cast<char*>(args[i].data());
+            if (0 != arg.find("--hpx:")) {
+                argv[argcount++] = const_cast<char*>(arg.data());
             }
-            else if (6 == args[i].find("positional", 6)) {
-                std::string::size_type p = args[i].find_first_of("=");
+            else if (6 == arg.find("positional", 6)) {
+                std::string::size_type p = arg.find_first_of('=');
                 if (p != std::string::npos) {
-                    args[i] = args[i].substr(p+1);
-                    argv[argcount++] = const_cast<char*>(args[i].data());
+                    arg = arg.substr(p+1);
+                    argv[argcount++] = const_cast<char*>(arg.data());
                 }
             }
         }

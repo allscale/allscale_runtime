@@ -43,7 +43,7 @@ long tile_size = 32;
 
 int stencil_size;
 
-DTYPE weight[2*RADIUS+1][2*RADIUS+1] = {   {-0.125,0,0,0,0}, 
+DTYPE weight[2*RADIUS+1][2*RADIUS+1] = {   {-0.125,0,0,0,0},
                                             {-0.25,0,0,-0.125,-0.25},
                                             {0,0.25,0.125,0,0},
                                             {0.25,0,0,0,0},
@@ -441,14 +441,14 @@ struct stencil_split {
     {
         auto mat_a = hpx::util::get<0>(c);
         auto mat_b = hpx::util::get<1>(c);
-        
-        
+
+
         auto begin = hpx::util::get<2>(c);
         auto end = hpx::util::get<3>(c);
      //   std::cout<<"SPLIT begin: " << begin << " end: " << end << " " << "loc: " << hpx::get_locality_id() << std::endl;
         std::size_t depth = allscale::this_work_item::get_id().depth();
         auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
-        
+
         auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
      //   std::cout<<"spliitting range: " << range <<" fragments in split are " << fragments.left << " and " << fragments.right << std::endl;
         return allscale::runtime::treeture_parallel(
@@ -466,16 +466,16 @@ struct stencil_process {
     {
         auto ref_mat_a = hpx::util::get<0>(c);
         auto data_a = allscale::data_item_manager::get(ref_mat_a);
-     
+
         auto ref_mat_b = hpx::util::get<1>(c);
         auto data_b = allscale::data_item_manager::get(ref_mat_b);
-        
+
         coordinate_type s_src(hpx::util::get<2>(c));
         coordinate_type e_src(hpx::util::get<3>(c));
-       
+
         coordinate_type begin(hpx::util::get<2>(c));
         coordinate_type end(hpx::util::get<3>(c));
-       
+
 
         //std::cout<<"PROCESS begin: " << begin << " end: " << end << " " << "loc: " << hpx::get_locality_id() << std::endl;
        // std::cout<< " s_src: " << s_src << " e_src: " << e_src << "loc: " << hpx::get_locality_id() << std::endl;
@@ -493,26 +493,26 @@ struct stencil_process {
             }
            std::cout<<std::endl;
         }
-        
+
            std::cout<<std::endl;
            std::cout<<std::endl;
            std::cout<<std::endl;
            std::cout<<std::endl;
-      */ 
-        //std::cout<<"process for " << s_src << " to " << e_src << std::endl; 
+      */
+        //std::cout<<"process for " << s_src << " to " << e_src << std::endl;
         int tmp,jt,it;
         int jj,ii;
         int i,j;
-        for(j = s_src[1]; j < e_src[1]; j++){                                             
+        for(j = s_src[1]; j < e_src[1]; j++){
             for(i = s_src[0]; i < e_src[0]; i++){
                         coordinate_type pos_src( allscale::utils::Vector<long,2>( j, i ) );
-                        
+
                         //std::cout<< "" <<  pos_src << std::endl;
                         //data_b[pos_src]  = data_a[pos_src];
                         //data_a[pos_src] += 1.0f;
                         double tmp_res = data_b[pos_src];
-                        for (jj=-RADIUS; jj<=RADIUS; jj++){  
-                            //std::cout<<"A" << WEIGHT(0,jj)*data_a[pos_col_neigb]<<" " ; 
+                        for (jj=-RADIUS; jj<=RADIUS; jj++){
+                            //std::cout<<"A" << WEIGHT(0,jj)*data_a[pos_col_neigb]<<" " ;
                             //data_b[pos_src] += WEIGHT(0,jj)*data_a[pos_col_neigb];
                             //coordinate_type pos_col_neigb( allscale::utils::Vector<long,2>( i, j+jj ) );
                             coordinate_type pos_col_neigb( allscale::utils::Vector<long,2>(  j+jj,i ) );
@@ -526,7 +526,7 @@ struct stencil_process {
                         }
 
                         for (ii=-RADIUS; ii<0; ii++){
-                           // std::cout<<"B" ; 
+                           // std::cout<<"B" ;
                             //coordinate_type pos_row_neigb( allscale::utils::Vector<long,2>( i+ii, j ) );
                             coordinate_type pos_row_neigb( allscale::utils::Vector<long,2>( j,i+ii ) );
                             data_b[pos_src] += WEIGHT(ii,0)*data_a[pos_row_neigb];
@@ -535,7 +535,7 @@ struct stencil_process {
      //                       std::cout<<i+ii<<"|"<<j << " " << pos_row_neigb << " "  << data_a[pos_row_neigb] <<  std::endl;
           //                  std::cout<<data_a[pos_row_neigb]<< " " << WEIGHT(0,jj) <<  std::endl;
                         }
-                        for (ii=1; ii<=RADIUS; ii++){       
+                        for (ii=1; ii<=RADIUS; ii++){
                             //std::cout<<"C" ;
                             coordinate_type pos_row_neigb( allscale::utils::Vector<long,2>( j,i+ii) );
                             data_b[pos_src] += WEIGHT(ii,0)*data_a[pos_row_neigb];
@@ -546,7 +546,7 @@ struct stencil_process {
                         //std::cout<< pos_src << " " << tmp_res << " " << data_b[pos_src] << " loc: " << hpx::get_locality_id() << " ";
                         std::cout<< data_b[pos_src] << " ";
 
-            } 
+            }
             std::cout<<std::endl;
         }
         return hpx::util::unused;
@@ -564,9 +564,9 @@ struct stencil_process {
 
         // READ ACCESS REQUIRED TO SRC MATRIX
         //region_type r_src(begin,end);
-        
+
         //region_type r_src({begin[0]-RADIUS,begin[1]-RADIUS},{end[0]+RADIUS,end[1]+RADIUS});
-       
+
         //reversed:
         region_type r_src({begin[1]-RADIUS,begin[0]-RADIUS},{end[1]+RADIUS,end[0]+RADIUS});
        // std::cout<<"r_src: " << r_src << " for : " << begin << "|"<<end<<std::endl;
@@ -576,13 +576,13 @@ struct stencil_process {
         // READ/WRITE ACCESS REQUIRED TO DST MATRIX
         coordinate_type s_src(hpx::util::get<2>(c));
         coordinate_type e_src(hpx::util::get<3>(c));
-        
+
         coordinate_type s_dst(allscale::utils::Vector<long,2>( s_src[1], s_src[0] ) );
         coordinate_type e_dst(allscale::utils::Vector<long,2>( e_src[1], e_src[0] ) );
-        
+
 
         region_type r_dst(s_dst,e_dst);
-        
+
         //acquire regions now
         return hpx::util::make_tuple(
             allscale::createDataItemRequirement(
@@ -626,12 +626,12 @@ struct main_process
         iterations = std::atoi(argv[1]);
         N = std::atoi(argv[2]);
         tile_size = std::atoi(argv[3]);
-        
+
         f_active_points = (DTYPE) (N-2*RADIUS)*(DTYPE) (N-2*RADIUS);
-     //   DTYPE  weight[2*RADIUS+1][2*RADIUS+1]; 
-        
+     //   DTYPE  weight[2*RADIUS+1][2*RADIUS+1];
+
         int ii,jj;
-        
+
         for (jj=-RADIUS; jj<=RADIUS; jj++) {
             for (ii=-RADIUS; ii<=RADIUS; ii++) {
                 WEIGHT(ii,jj) = (DTYPE) 0.0;
@@ -652,7 +652,7 @@ struct main_process
             }
             std::cout<<std::endl;
         }*/
-   /* 
+   /*
         std::cout<<std::endl;
         for(int h=0; h < 5; h++){
             for(int g=0; g < 5; g++){
@@ -664,7 +664,7 @@ struct main_process
 
         allscale::api::user::data::GridPoint<2> size(N,N);
         data_item_shared_data_type sharedData(size);
-        
+
         allscale::data_item_reference<data_item_type> mat_a
             = allscale::data_item_manager::create<data_item_type>(sharedData);
 
@@ -679,7 +679,7 @@ struct main_process
 
         coordinate_type begin_init(0, 0);
         coordinate_type end_init(N, N);
-        
+
         allscale::spawn_first<grid_init_src>(mat_a, begin_init,end_init, 0).wait();
         allscale::spawn_first<grid_init>(mat_b, begin_init, end_init, 1).wait();
 
@@ -691,7 +691,7 @@ struct main_process
 //                  allscale::access_mode::ReadWrite
 //        )).get();
 //        auto ref_mat_a = allscale::data_item_manager::get(mat_a);
-//        for(int j = 0; j < N; ++j){    
+//        for(int j = 0; j < N; ++j){
 //              for(int i = 0; i < N; ++i){
 //                  coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
 //                   ref_mat_a[tmp] = COEFX*i+COEFY*j;
@@ -712,7 +712,7 @@ struct main_process
 
 
 
-         
+
        // DO ACTUAL WORK: SPAWN FIRST WORK ITEM
        hpx::util::high_resolution_timer timer;
        for(int i = 0 ; i <= iterations; ++i){
@@ -723,10 +723,10 @@ struct main_process
        std::cout<<std::endl;
        std::cout<<std::endl;
        std::cout<<std::endl;
-       std::cout<<std::endl;          
+       std::cout<<std::endl;
 
        //auto startus = std::chrono::high_resolution_clock::now();
-   
+
        //auto endus = std::chrono::high_resolution_clock::now();
        //std::chrono::duration<double> diff = endus-startus;
        //std::cout << "time: " << diff.count() << " s\n";
@@ -737,33 +737,34 @@ struct main_process
        double mbytes_per_second = combined_matrix_size/(elapsed/iterations) * 1.0E-06;
        std::cout << "Rate (MBs) | avg time (s) | MUP/S: "<<'\n';
        std::cout << mbytes_per_second << "," << elapsed/iterations << "," << mups << '\n';
-        
+
        //VALIDATE RESULTS
        allscale::treeture<double> vld = allscale::spawn_first<grid_validate>(mat_b, begin_init, end_init, 1);
-    
+
        double res = vld.get_result();
        res = res / f_active_points;
        std::cout<<std::endl;
        std::cout<<std::endl;
        std::cout<<std::endl;
-       std::cout<<std::endl;   
-       auto lease_result = allscale::data_item_manager::acquire(
-            allscale::createDataItemRequirement(
-                mat_b,
-                whole_region,
-                allscale::access_mode::ReadOnly
-            )).get();
+       std::cout<<std::endl;
+       auto req = hpx::util::make_tuple(
+          allscale::createDataItemRequirement(
+              mat_b,
+              whole_region,
+              allscale::access_mode::ReadOnly));
+       auto lease_result = hpx::util::unwrap(allscale::data_item_manager::acquire(req,
+            hpx::util::unwrap(allscale::data_item_manager::locate(req))));
         auto ref_result = allscale::data_item_manager::get(mat_b);
 
-        for(int j = 0; j < N; ++j){    
+        for(int j = 0; j < N; ++j){
             for(int i = 0; i < N; ++i){
                 coordinate_type tmp(allscale::utils::Vector<long,2>(i,j));
                 //my_norm += std::abs(ref_result[tmp]);
-                std::cout<< ref_result[tmp] << " ";                                                 
+                std::cout<< ref_result[tmp] << " ";
             }
             std::cout<<std::endl;
         }
-   
+
         allscale::data_item_manager::release(lease_result);
         double reference_norm = 0.0;
         allscale::data_item_manager::destroy(mat_a);

@@ -156,12 +156,13 @@ struct main_process
         allscale::spawn<grid_init>(data, begin, end).wait();
 
         {
-            auto lease = allscale::data_item_manager::acquire<data_item_type>(
-                allscale::createDataItemRequirement(
+            auto req = hpx::util::make_tuple(allscale::createDataItemRequirement(
                     data,
                     whole_region,
-                    allscale::access_mode::ReadOnly)
-            ).get();
+                    allscale::access_mode::ReadOnly
+                ));
+            auto lease = hpx::util::unwrap(allscale::data_item_manager::acquire(req,
+                hpx::util::unwrap(allscale::data_item_manager::locate(req))));
             auto ref = allscale::data_item_manager::get(data);
 
             whole_region.scan(
