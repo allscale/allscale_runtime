@@ -362,7 +362,7 @@ struct grid_validate_process {
         for(int j = begin[1]; j < end[1]; ++j){
             for(int i = begin[0]; i < end[0]; ++i){
 
-                coordinate_type pos( allscale::utils::Vector<long,2>( j, i ) );
+                coordinate_type pos( allscale::utils::Vector<long,2>( i, j ) );
                 tmp_res += std::abs(data[pos]);
                 std::cout<< data[pos] << " ";
             }
@@ -739,7 +739,7 @@ struct main_process
        std::cout << mbytes_per_second << "," << elapsed/iterations << "," << mups << '\n';
 
        //VALIDATE RESULTS
-       allscale::treeture<double> vld = allscale::spawn_first<grid_validate>(mat_b, begin_init, end_init, 1);
+       allscale::treeture<double> vld = allscale::spawn_first<grid_validate>(mat_b, begin, end, 1);
 
        double res = vld.get_result();
        res = res / f_active_points;
