@@ -140,7 +140,6 @@ namespace allscale { namespace components {
         bool target_freq_found;
 #endif
         unsigned int resource_step;
-        unsigned int resource_jump;
         bool target_resource_found;
 
         mutable mutex_type throttle_mtx_;

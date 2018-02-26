@@ -43,7 +43,6 @@ namespace allscale { namespace components {
             , target_freq_found(false)
 #endif
             , target_resource_found(false)
-            , resource_jump(os_thread_count/2)
             , resource_step(1)
             , multi_objectives(false)
             , time_requested(false)
@@ -271,7 +270,21 @@ namespace allscale { namespace components {
                     //                             boost::str(boost::format("Sorry not supported yet. Check back soon!")));
                     //     }
                 }
+            
+            std::string input_resource_step_str = hpx::get_config_entry("allscale.resource_step", "");
+            if ( !input_resource_step_str.empty() )
+                {
 
+                    resource_step = std::stod(input_resource_step_str);
+#ifdef DEBUG_
+                    std::cout << "Resource step provided : " << resource_step << "\n" ;
+#endif
+                    
+                    if ( resource_step ==0 || resource_step >= os_thread_count )
+                        {
+                            HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init", "leeways should be within ]0, 1]");
+                        }
+                }
 
             // setup performance counter to use to decide on split/process
             static const char * queue_counter_name = "/threadqueue{locality#%d/total}/length";
@@ -517,9 +530,9 @@ namespace allscale { namespace components {
 
             HPX_ASSERT(schedule_rank != std::uint64_t(-1));
 
-#ifdef DEBUG_
-            std::cout << "Will schedule task " << work.id().name() << " on rank " << schedule_rank << std::endl;
-#endif
+            //#ifdef DEBUG_
+                // std::cout << "Will schedule task " << work.id().name() << " on rank " << schedule_rank << std::endl;
+            //#endif
 
             // schedule locally
             if (schedule_rank == rank_)
@@ -527,9 +540,9 @@ namespace allscale { namespace components {
                     if (work.is_first())
                         {
                             std::size_t current_id = work.id().last();
-#ifdef DEBUG_
-                            std::cout << "current_id: "<< current_id << " (could be " << work.id().name()  << " ), on rank : " << rank_ << "\n" << std::flush;
-#endif
+                            //#ifdef DEBUG_
+                                // std::cout << "current_id: "<< current_id << " (could be " << work.id().name()  << " ), on rank : " << rank_ << "\n" << std::flush;
+                            //#endif
 
 
                             //                 const char* wi_name = work.name();
