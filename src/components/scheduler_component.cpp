@@ -686,6 +686,7 @@ namespace allscale { namespace components {
         
         unsigned int  scheduler::suspend_threads()
         {
+            std::unique_lock<mutex_type> l(resize_mtx_);
 #ifdef DEBUG_
             std::cout << "trying to suspend a thread\n" << std::flush;
 #endif
@@ -813,7 +814,7 @@ namespace allscale { namespace components {
                         }
                 }
             {
-                //hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+                hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                 for(auto& pu: suspend_threads)
                     {
                         //hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
@@ -840,6 +841,7 @@ namespace allscale { namespace components {
         
         unsigned int scheduler::resume_threads()
         {
+            std::unique_lock<mutex_type> l(resize_mtx_);
 #ifdef DEBUG_
             std::cout << "Trying to awake a thread\n" << std::flush;
 #endif
@@ -965,9 +967,10 @@ namespace allscale { namespace components {
                         }
                 }
             {
-                //hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+                hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                 for(auto& pu: resume_threads)
                     {
+                        std::cout << "And now : Resuming PU " << pu << " !\n" << std::flush;
                         //hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                         thread_pools_[pool_idx]->resume_processing_unit(pu).get();
                     }
@@ -1012,7 +1015,7 @@ namespace allscale { namespace components {
 
 
                             {
-                                hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+                                
                                 current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
                                 if (std::isnan(current_avg_iter_time))
                                     {
@@ -1080,10 +1083,12 @@ namespace allscale { namespace components {
 
                             if (disable_flag )
                                 {
+                                    hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
                                     suspend_threads();
                                 }
                             else if (enable_flag )
                                 {
+                                    hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
                                     resume_threads();
                                 }
                         }
