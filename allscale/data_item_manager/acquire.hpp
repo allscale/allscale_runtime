@@ -55,9 +55,21 @@ namespace allscale { namespace data_item_manager {
             {
                 std::unique_lock<mutex_type> l(item.mtx);
                 HPX_ASSERT(item.fragment);
-                region_type new_region =
-                    region_type::merge(item.fragment->getCoveredRegion(),
-                    req.region);
+                region_type new_region;
+                if (req.mode == access_mode::ReadOnly)
+                {
+                    new_region =
+                        region_type::merge(item.fragment->getCoveredRegion(),
+                        req.region);
+                }
+                else
+                {
+                    HPX_ASSERT(req.mode == access_mode::ReadWrite);
+                    new_region =
+                        region_type::merge(item.fragment->getCoveredRegion(),
+                        // clip region to registered region...
+                        region_type::intersect(item.owned_region, req.region));
+                }
                 item.fragment->resize(new_region);
             }
 

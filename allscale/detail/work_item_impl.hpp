@@ -442,7 +442,18 @@ namespace allscale { namespace detail {
                     // Write regions are on different localities, need split
                     if (rank == std::size_t(-1))
                     {
-                        return hpx::make_ready_future(std::size_t(-1));
+                        if (this_->can_split())
+                        {
+//                             std::cerr << "Requesting split for " << this_->name() << ", but can not split further!\n";
+//                             std::abort();
+                            return hpx::make_ready_future(std::size_t(-1));
+                        }
+                        else
+                        {
+                            std::cerr << "Requesting split for " << this_->name() << ", but can not split further!\n";
+                            print_location_info(reqs, infos);
+                            rank = hpx::get_locality_id();
+                        }
                     }
                     // Route to different locality
                     if (rank != std::size_t(-2) && rank != hpx::get_locality_id())

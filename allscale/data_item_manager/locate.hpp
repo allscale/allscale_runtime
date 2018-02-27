@@ -22,7 +22,7 @@ namespace allscale { namespace data_item_manager {
         };
 
         template <typename Requirement, typename Region>
-        void register_child(hpx::naming::gid_type ref, Region region, std::size_t child_rank);
+        std::pair<Region, Region> register_child(hpx::naming::gid_type ref, Region region, std::size_t child_rank);
 
         template <typename Requirement, typename Region>
         struct register_child_action
@@ -33,7 +33,7 @@ namespace allscale { namespace data_item_manager {
         {};
 
         template <typename Requirement, typename Region>
-        void register_child(hpx::naming::gid_type ref, Region region, std::size_t child_rank)
+        std::pair<Region, Region> register_child(hpx::naming::gid_type ref, Region region, std::size_t child_rank)
         {
             using region_type = typename Requirement::region_type;
             using location_info_type = location_info<region_type>;
@@ -45,21 +45,29 @@ namespace allscale { namespace data_item_manager {
             auto& item = data_item_store<data_item_type>::lookup(ref);
             std::unique_lock<mutex_type> l(item.mtx);
 
+            region = region_type::difference(region, item.owned_region);
+            region = region_type::difference(region, item.right_region);
+            region = region_type::difference(region, item.left_region);
+            region = region_type::difference(region, item.parent_region);
+
+            region_type new_parent;
+
             // Check if left child
             if (this_id * 2 + 1 == child_rank)
             {
                 item.left_region = region_type::merge(item.left_region, region);
+                new_parent = region_type::merge(item.owned_region, item.right_region);
             }
 
             // Check if right child
             if (this_id * 2 + 2 == child_rank)
             {
                 item.right_region = region_type::merge(item.right_region, region);
+                new_parent = region_type::merge(item.owned_region, item.left_region);
             }
 
+            if (this_id == 0) return std::make_pair(region, new_parent);
             l.unlock();
-
-            if (this_id == 0) return;
 
             // FIXME: futurize, make resilient
             hpx::id_type target(
@@ -67,7 +75,13 @@ namespace allscale { namespace data_item_manager {
                     (this_id-1)/2
                 )
             );
-            register_child_action<Requirement, Region>()(target, ref, region, this_id);
+
+            // Register with our parent as well...
+            auto res = register_child_action<Requirement, Region>()(
+                    target, ref, region, this_id);
+            return std::make_pair(
+                region_type::intersect(region, res.first),
+                region_type::merge(new_parent, res.second));
         }
 
         template <locate_state state, typename Requirement>
@@ -128,8 +142,9 @@ namespace allscale { namespace data_item_manager {
                 // We got a hit!
                 if (!part.empty())
                 {
-                    // Otherwise, collect the location
-                    info.regions.insert(std::make_pair(cached.first, part));
+                    // Insert location information...
+                    auto & info_part = info.regions[cached.first];
+                    info_part = region_type::merge(info_part, part);
 
                     // Subtract what we got from what we requested
                     remainder = region_type::difference(remainder, part);
@@ -145,7 +160,7 @@ namespace allscale { namespace data_item_manager {
 
             // We couldn't satisfy the request with locally stored information...
             // now branch out to our parent and children...
-            std::array<hpx::future<location_info_type>, 3> remote_infos;
+            std::array<hpx::future<location_info_type>, 6> remote_infos;
 
             // Check parent
             part = region_type::intersect(remainder, item.parent_region);
@@ -167,18 +182,6 @@ namespace allscale { namespace data_item_manager {
                 // Subtract what we got from what we requested
                 remainder = region_type::difference(remainder, part);
             }
-            else if (state != locate_state::up && this_id != 0 && !remainder.empty())
-            {
-                hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                hpx::id_type target(
-                    hpx::naming::get_id_from_locality_id(
-                        (this_id-1)/2
-                    )
-                );
-                // FIXME: make resilient
-                remote_infos[0] = hpx::async<locate_down_action_type>(
-                    target, Requirement(req.ref, remainder, req.mode));
-            }
             // Check left
             part = region_type::intersect(remainder, item.left_region);
             if (!part.empty())
@@ -195,21 +198,6 @@ namespace allscale { namespace data_item_manager {
 
                 // Subtract what we got from what we requested
                 remainder = region_type::difference(remainder, part);
-            }
-            else if (state != locate_state::down && !remainder.empty())
-            {
-                hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                if (this_id * 2 + 1 < hpx::get_num_localities().get())
-                {
-                    hpx::id_type target(
-                        hpx::naming::get_id_from_locality_id(
-                            this_id * 2 + 1
-                        )
-                    );
-                    // FIXME: make resilient
-                    remote_infos[1] = hpx::async<locate_up_action_type>(
-                        target, Requirement(req.ref, remainder, req.mode));
-                }
             }
             // Check right...
             part = region_type::intersect(remainder, item.right_region);
@@ -228,19 +216,47 @@ namespace allscale { namespace data_item_manager {
                 // Subtract what we got from what we requested
                 remainder = region_type::difference(remainder, part);
             }
-            else if (state != locate_state::down && !remainder.empty())
+
+            if (!remainder.empty())
             {
-                hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                if (this_id * 2 + 2 < hpx::get_num_localities().get())
+                if (state != locate_state::up && this_id != 0)
                 {
+                    hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
                     hpx::id_type target(
                         hpx::naming::get_id_from_locality_id(
-                            this_id * 2 + 2
+                            (this_id-1)/2
                         )
                     );
                     // FIXME: make resilient
-                    remote_infos[2] = hpx::async<locate_up_action_type>(
+                    remote_infos[3] = hpx::async<locate_down_action_type>(
                         target, Requirement(req.ref, remainder, req.mode));
+                }
+
+                if (state != locate_state::down)
+                {
+                    hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+                    if (this_id * 2 + 1 < hpx::get_num_localities().get())
+                    {
+                        hpx::id_type target(
+                            hpx::naming::get_id_from_locality_id(
+                                this_id * 2 + 1
+                            )
+                        );
+                        // FIXME: make resilient
+                        remote_infos[4] = hpx::async<locate_up_action_type>(
+                            target, Requirement(req.ref, remainder, req.mode));
+                    }
+                    if (this_id * 2 + 2 < hpx::get_num_localities().get())
+                    {
+                        hpx::id_type target(
+                            hpx::naming::get_id_from_locality_id(
+                                this_id * 2 + 2
+                            )
+                        );
+                        // FIXME: make resilient
+                        remote_infos[5] = hpx::async<locate_up_action_type>(
+                            target, Requirement(req.ref, remainder, req.mode));
+                    }
                 }
             }
 
@@ -254,14 +270,8 @@ namespace allscale { namespace data_item_manager {
                     std::size_t this_id = hpx::get_locality_id();
 
                     std::unique_lock<mutex_type> l(item.mtx);
-//                     if (state == locate_state::init)
-//                     {
-//                         std::cout << "Located " << req.ref.id() << " (" << req.region << ", " <<
-//                             (req.mode == access_mode::ReadOnly? "ro" : "rw") << ") on " << this_id << '\n';
-//                     }
 
                     // Merge infos
-                    std::size_t idx = 0;
                     for (auto& info_parts_fut: remote_infos)
                     {
                         if (info_parts_fut.valid())
@@ -277,52 +287,42 @@ namespace allscale { namespace data_item_manager {
                                 auto & part = info.regions[remote_info.first];
                                 part = region_type::merge(part, remote_info.second);
 
-
                                 remainder = region_type::difference(remainder, part);
-//                                 std::cout << " part " << part << " on " << remote_info.second << " remaining from request: " << remainder << "\n";
-
-                                // update our own info
-                                // TODO: is this needed?
-//                                 if (remote_info.first < this_id)
-//                                 {
-//                                     item.parent_region = region_type::merge(item.parent_region, remote_info.second);
-//                                 }
-//                                 if (idx == 1)
-//                                 {
-//                                     item.left_region = region_type::merge(item.left_region, remote_info.second);
-//                                 }
-//                                 if (idx == 2)
-//                                 {
-//                                     item.right_region = region_type::merge(item.right_region, remote_info.second);
-//                                 }
                             }
                         }
-                        ++idx;
                     }
 
-                    // We have a first touch if we couldn't locate all parts.
+                    // We have a first touch if we couldn't locate all parts and
+                    // the remainder is not part of our own region
                     if (state == locate_state::init && !remainder.empty())
                     {
+#if defined(ALLSCALE_DEBUG_DIM)
+                        region_type orig_remainder = remainder;
+#endif
+                        remainder = region_type::difference(remainder, item.owned_region);
+                        HPX_ASSERT(!remainder.empty());
                         // propagate information up.
                         // FIXME: futurize
-                        if (this_id != 0)
+                        std::pair<region_type, region_type> registered;
                         {
                             hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-
-                            // FIXME: make resilient
-                            hpx::id_type target(
-                                hpx::naming::get_id_from_locality_id(
-                                    (this_id-1)/2
-                                )
-                            );
-                            register_child_action<Requirement, region_type>()(
-                                target, req.ref.id(), remainder, this_id);
+                            registered = register_child<Requirement>(
+                                req.ref.id(), remainder, this_id);
                         }
 
-                        info.regions.insert(std::make_pair(this_id, remainder));
+                        remainder = registered.first;
+
+                        // Merge newly returned parent with our own
+                        item.parent_region = region_type::merge(item.parent_region, registered.second);
+
+                        // Account for over approximation...
+                        remainder = region_type::difference(remainder, item.parent_region);
 
                         // Merge with our own region
-                        item.owned_region = region_type::merge(item.owned_region, remainder);
+                        item.owned_region =
+                            region_type::merge(item.owned_region, remainder);
+
+                        info.regions.insert(std::make_pair(this_id, remainder));
 
                         // And finally, allocate the fragment if it wasn't there already.
                         if (item.fragment == nullptr)
@@ -330,8 +330,16 @@ namespace allscale { namespace data_item_manager {
                             // FIXME: distribute shared data correctly...
                             item.fragment.reset(new fragment_type(req.ref.shared_data()));
                         }
-//                         std::cout << "First touch " << req.ref.id() << " (" << req.region << ", " <<
-//                             (req.mode == access_mode::ReadOnly? "ro" : "rw") << ") on " << this_id << '\n';
+#if defined(ALLSCALE_DEBUG_DIM)
+                        std::stringstream filename;
+                        filename << "data_item_" << req.ref.id() << "." << this_id;
+                        std::ofstream os(filename.str(), std::ios_base::app);
+                        os << remainder << '\n';
+                        std::cout << "First touch " << req.ref.id() << " ("
+                            << remainder << ", requested " << orig_remainder << ", "
+                            << (req.mode == access_mode::ReadOnly? "ro" : "rw") << ") on " << this_id << '\n';
+                        os.close();
+#endif
                     }
 
 //                     HPX_ASSERT(!info.regions.empty());

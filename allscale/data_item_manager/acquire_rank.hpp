@@ -30,7 +30,10 @@ namespace allscale { namespace data_item_manager {
             std::size_t rank(-1);
             HPX_ASSERT(!info.regions.empty());
             // If we have more than one part, we need to split
-            if (info.regions.size() > 1) return std::size_t(-1);
+            if (info.regions.size() > 1)
+            {
+                return std::size_t(-1);
+            }
 
             return info.regions.begin()->first;
         }
@@ -109,6 +112,61 @@ namespace allscale { namespace data_item_manager {
             "requirements and location info sizes do not match");
 
         return detail::acquire_rank(reqs, infos,
+            typename hpx::util::detail::make_index_pack<
+                hpx::util::tuple_size<Requirements>::type::value>::type{});
+    }
+
+    namespace detail
+    {
+        template <typename Requirement, typename LocationInfo>
+        std::size_t print_location_info(Requirement const& req, LocationInfo const& info)
+        {
+            if (info.regions.size() > 1)
+            {
+                std::abort();
+            }
+//             std::cout << "------------------------------\n";
+//             std::cout << "Located " << req.ref.id() << " (" << req.region << ", " <<
+//                 (req.mode == access_mode::ReadOnly? "ro" : "rw") << ") \n";
+//             for (auto const& parts: info.regions)
+//             {
+//                 std::cout << "  located " << parts.second << " at " << parts.first << '\n';
+//             }
+//             std::cout << "------------------------------\n";
+        }
+
+        template <typename Requirement, typename RequirementAllocator,
+            typename LocationInfo, typename LocationInfoAllocator>
+        std::size_t print_location_info(std::vector<Requirement, RequirementAllocator> const& reqs,
+            std::vector<LocationInfo, LocationInfoAllocator> const& infos)
+        {
+            HPX_ASSERT(reqs.size() == infos.size());
+            for (std::size_t i = 0; i != reqs.size(); ++i)
+            {
+                detail::print_location_info(reqs[i], infos[i]);
+            }
+        }
+
+        template <typename Requirements, typename LocationInfos, std::size_t...Is>
+        std::size_t print_location_info(Requirements const& reqs, LocationInfos const& infos,
+            hpx::util::detail::pack_c<std::size_t, Is...>)
+        {
+            int sequencer[] = {
+                (detail::print_location_info(hpx::util::get<Is>(reqs), hpx::util::get<Is>(infos)), 0)...
+            };
+            (void)sequencer;
+        }
+    }
+
+    template <typename Requirements, typename LocationInfos>
+    void print_location_info(Requirements const& reqs, LocationInfos const& infos)
+    {
+        static_assert(
+            hpx::util::tuple_size<Requirements>::type::value ==
+            hpx::util::tuple_size<LocationInfos>::type::value,
+            "requirements and location info sizes do not match");
+
+        detail::print_location_info(reqs, infos,
             typename hpx::util::detail::make_index_pack<
                 hpx::util::tuple_size<Requirements>::type::value>::type{});
     }
