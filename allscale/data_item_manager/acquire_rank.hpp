@@ -123,16 +123,14 @@ namespace allscale { namespace data_item_manager {
         {
             if (info.regions.size() > 1)
             {
+                std::cerr << "Conflicting requirement " << typeid(req).name() << " with region: " << req.region << '\n';
+                std::cerr << "Cannot resolve locations on " << hpx::get_locality_id() << ":\n";
+                for (auto const& parts: info.regions)
+                {
+                    std::cerr << "  " << parts.second << " at " << parts.first << '\n';
+                }
                 std::abort();
             }
-//             std::cout << "------------------------------\n";
-//             std::cout << "Located " << req.ref.id() << " (" << req.region << ", " <<
-//                 (req.mode == access_mode::ReadOnly? "ro" : "rw") << ") \n";
-//             for (auto const& parts: info.regions)
-//             {
-//                 std::cout << "  located " << parts.second << " at " << parts.first << '\n';
-//             }
-//             std::cout << "------------------------------\n";
         }
 
         template <typename Requirement, typename RequirementAllocator,

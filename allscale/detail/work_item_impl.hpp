@@ -451,7 +451,7 @@ namespace allscale { namespace detail {
                         else
                         {
                             std::cerr << "Requesting split for " << this_->name() << ", but can not split further!\n";
-                            print_location_info(reqs, infos);
+                            data_item_manager::print_location_info(reqs, infos);
                             rank = hpx::get_locality_id();
                         }
                     }
