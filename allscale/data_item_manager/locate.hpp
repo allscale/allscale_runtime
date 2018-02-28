@@ -262,7 +262,7 @@ namespace allscale { namespace data_item_manager {
 
             l.unlock();
 
-            return hpx::when_all(remote_infos).then(
+            return hpx::when_all(remote_infos).then(hpx::launch::sync,
                 [info = std::move(info), req, remainder = std::move(remainder)](auto remote_infos_fut) mutable
                 {
                     auto remote_infos = remote_infos_fut.get();

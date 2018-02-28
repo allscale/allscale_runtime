@@ -99,7 +99,7 @@ namespace allscale { namespace data_item_manager {
                     }
                 }
 
-                return hpx::when_all(transfers).then(
+                return hpx::when_all(transfers).then(hpx::launch::sync,
                     [req](hpx::future<void> transfers)
                     {
                         // check for errors...
