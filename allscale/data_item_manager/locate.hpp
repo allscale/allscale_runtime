@@ -2,6 +2,7 @@
 #ifndef ALLSCALE_DATA_ITEM_MANAGER_LOCATE_HPP
 #define ALLSCALE_DATA_ITEM_MANAGER_LOCATE_HPP
 
+#include <allscale/get_num_localities.hpp>
 #include <allscale/data_item_manager/data_item_store.hpp>
 #include <allscale/data_item_manager/location_info.hpp>
 
@@ -236,7 +237,7 @@ namespace allscale { namespace data_item_manager {
                 if (state != locate_state::down)
                 {
                     hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                    if (this_id * 2 + 1 < hpx::get_num_localities().get())
+                    if (this_id * 2 + 1 < allscale::get_num_localities())
                     {
                         hpx::id_type target(
                             hpx::naming::get_id_from_locality_id(
@@ -247,7 +248,7 @@ namespace allscale { namespace data_item_manager {
                         remote_infos[4] = hpx::async<locate_up_action_type>(
                             target, Requirement(req.ref, remainder, req.mode));
                     }
-                    if (this_id * 2 + 2 < hpx::get_num_localities().get())
+                    if (this_id * 2 + 2 < allscale::get_num_localities())
                     {
                         hpx::id_type target(
                             hpx::naming::get_id_from_locality_id(
