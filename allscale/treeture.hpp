@@ -172,7 +172,14 @@ namespace allscale {
         {
             if (shared_state_)
             {
-                shared_state_->set_value(std::forward<U>(u));
+                // Try setting the state, we'll catch any exception in the process
+                // and ignore them for now...
+                try {
+                    shared_state_->set_value(std::forward<U>(u));
+                }
+                catch (...)
+                {
+                }
             }
             else
             {
