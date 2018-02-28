@@ -129,7 +129,6 @@ namespace allscale { namespace data_item_manager {
                 {
                     std::cerr << "  " << parts.second << " at " << parts.first << '\n';
                 }
-                std::abort();
             }
         }
 

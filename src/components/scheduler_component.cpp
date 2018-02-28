@@ -559,11 +559,7 @@ namespace allscale { namespace components {
                                      if(expected_rank == std::size_t(-1))
                                          {
                                              // We should move on and split...
-                                             if (!work.can_split())
-                                                 {
-                                                     std::cerr << "Requesting split for " << work.name() << ", but can not split further!\n";
-                                                     std::abort();
-                                                 }
+                                             HPX_ASSERT(work.can_split());
                                              work.split(executors_[numa_domain], false);
                                          }
                                      else if(expected_rank != std::size_t(-2))
