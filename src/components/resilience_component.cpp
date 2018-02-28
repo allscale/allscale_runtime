@@ -103,10 +103,13 @@ namespace allscale { namespace components {
         start_time = std::chrono::high_resolution_clock::now();
         hpx::get_num_localities().get();
 
-        std::uint64_t right_id = (rank_ + 1) % num_localities;
-        std::uint64_t left_id = (rank_ == 0)?(num_localities-1):(rank_-1);
-        std::uint64_t left_left_id = (left_id == 0)?(num_localities-1):(left_id-1);
+        thread_safe_printer("before logical ring\n");
+        std::size_t right_id = (rank_ + 1) % num_localities;
+        std::size_t left_id = (rank_ == 0)?(num_localities-1):(rank_-1);
+        std::size_t left_left_id = (left_id == 0)?(num_localities-1):(left_id-1);
+        thread_safe_printer("left:"+std::to_string(left_id)+"right:"+std::to_string(right_id)+"left left:"+std::to_string(left_left_id));
         guard_ = hpx::find_from_basename("allscale/resilience", right_id).get();
+        thread_safe_printer("got guard_");
         guard_rank_ = right_id;
         protectee_ = hpx::find_from_basename("allscale/resilience", left_id).get();
         protectee_.make_unmanaged();
@@ -125,12 +128,14 @@ namespace allscale { namespace components {
     void resilience::reschedule_dispatched_to_dead(size_t dead_rank, size_t token) {
         thread_safe_printer("Calling reschedule_dispatched_to_dead...\n");
         std::multimap<size_t, work_item > delegated_items_copy;
-        {
+            thread_safe_printer("before first lock\n");
             std::unique_lock<mutex_type> lock(delegated_items_mutex_);
             std::swap(delegated_items_, delegated_items_copy);
-        }
+            lock.unlock();
+        thread_safe_printer("after first lock\n");
         {
             std::unique_lock<mutex_type> lock(running_ranks_mutex_);
+            thread_safe_printer("rank["+std::to_string(dead_rank)+"]=false");
             rank_running_[dead_rank] = false;
             auto protectee_locality = get_locality_from_id(protectee_);
             auto it = std::find(localities.begin(), localities.end(), protectee_locality);
@@ -144,11 +149,18 @@ namespace allscale { namespace components {
             thread_safe_printer("Reschedule delegated item:"+id.name());
             allscale::scheduler::schedule(std::move(w), id);
         }
+        delegated_items_copy.erase(dead_rank);
+        {
+            std::unique_lock<mutex_type> lock(delegated_items_mutex_);
+            std::swap(delegated_items_, delegated_items_copy);
+        }
 
         token++;
         if (get_running_ranks() > token) {
-            hpx::async<reschedule_dispatched_to_dead_action>(guard_, token, dead_rank);
+            thread_safe_printer("Will call dispatched at rank"+std::to_string(dead_rank));
+            hpx::apply<reschedule_dispatched_to_dead_action>(guard_, dead_rank, token);
         }
+        thread_safe_printer("End reshedule_dispatched_to_dead\n");
     }
 
     void resilience::work_item_dispatched(work_item const& w, size_t schedule_rank) {
@@ -167,12 +179,13 @@ namespace allscale { namespace components {
                             hpx::util::one_shot(
                             [schedule_rank, w, this]()
                             {
-                                //thread_safe_printer("Before erase item"+w.id().name());
                                 std::unique_lock<mutex_type> lock(this->delegated_items_mutex_);
+                                thread_safe_printer("Holding a lock Before erase item"+w.id().name());
 // this deletes all tasks of delegated locality -- potentially wrong
                                 auto it = this->delegated_items_.find(schedule_rank);
                                 if (it != delegated_items_.end()) this->delegated_items_.erase(it);
-                                //thread_safe_printer("After erase item"+w.id().name());
+                                lock.unlock();
+                                thread_safe_printer("Releasing a lock Before erase item"+w.id().name());
                             })));
     }
 
@@ -206,7 +219,12 @@ namespace allscale { namespace components {
         protectees_protectee_rank_ = p.second;
         thread_safe_printer("Finish recovery\n");
 
-        hpx::async<reschedule_dispatched_to_dead_action>(guard_, dead_protectee_rank, 0).get();
+        // start locally to propagate fixing scheduler and rescheduling dispatched tasks
+        // all through the ring ...
+        hpx::apply(&resilience::reschedule_dispatched_to_dead, this, dead_protectee_rank, 0);
+        //hpx::async<reschedule_dispatched_to_dead_action>(hpx::find_here(), dead_protectee_rank, 0).get();
+        //hpx::apply<reschedule_dispatched_to_dead_action>(guard_, dead_protectee_rank, 1);
+    
 
     }
 

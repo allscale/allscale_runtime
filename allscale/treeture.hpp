@@ -27,13 +27,11 @@ namespace allscale {
 
         treeture()
           : shared_state_(nullptr)
-          , fixed_children_(false)
         {}
 
         treeture(parent_arg, treeture<void> const& parent = treeture<void>())
           : shared_state_(new shared_state_type(parent,
                 typename shared_state_type::init_no_addref()))
-          , fixed_children_(false)
         {
         }
 
@@ -45,7 +43,6 @@ namespace allscale {
         explicit treeture(U&& u, treeture<void> const& parent = treeture<void>())
           : shared_state_(new shared_state_type(parent, std::forward<U>(u),
                 typename shared_state_type::init_no_addref()))
-          , fixed_children_(false)
         {
         }
 
@@ -54,7 +51,6 @@ namespace allscale {
             typename std::enable_if<std::is_void<T>::value, U>::type* = nullptr)
           : shared_state_(new shared_state_type(other.parent(),
                 typename shared_state_type::init_no_addref()))
-          , fixed_children_(false)
         {
             hpx::future<void> f = other.get_future();
 
@@ -76,7 +72,6 @@ namespace allscale {
         treeture(hpx::future<U> fut, typename std::enable_if<!std::is_same<T, void>::value, U>::type* = nullptr)
           : shared_state_(new shared_state_type(treeture<void>(),
                 typename shared_state_type::init_no_addref()))
-          , fixed_children_(false)
         {
             HPX_ASSERT(fut.valid());
             typename hpx::traits::detail::shared_state_ptr_for<hpx::future<U>>::type state
@@ -94,7 +89,6 @@ namespace allscale {
         treeture(hpx::future<U> fut, typename std::enable_if<std::is_same<T, void>::value, U>::type* = nullptr)
           : shared_state_(new shared_state_type(treeture<void>(),
                 typename shared_state_type::init_no_addref()))
-          , fixed_children_(false)
         {
             typename hpx::traits::detail::shared_state_ptr_for<hpx::future<U>>::type state
                 = hpx::traits::future_access<hpx::future<U>>::get_shared_state(fut);
@@ -114,7 +108,7 @@ namespace allscale {
         {
         }
 
-        treeture(treeture<T>&& t)
+        treeture(treeture<T>&& t) noexcept
           : shared_state_(std::move(t.shared_state_)),
             id_(std::move(t.id_))
           , fixed_children_(t.fixed_children_)
@@ -130,7 +124,7 @@ namespace allscale {
             return *this;
         }
 
-        treeture& operator=(treeture<T>&& t)
+        treeture& operator=(treeture<T>&& t) noexcept
         {
             shared_state_ = std::move(t.shared_state_);
             id_ = std::move(t.id_);
@@ -178,7 +172,14 @@ namespace allscale {
         {
             if (shared_state_)
             {
-                shared_state_->set_value(std::forward<U>(u));
+                // Try setting the state, we'll catch any exception in the process
+                // and ignore them for now...
+                try {
+                    shared_state_->set_value(std::forward<U>(u));
+                }
+                catch (...)
+                {
+                }
             }
             else
             {
@@ -361,7 +362,7 @@ namespace allscale {
         boost::intrusive_ptr<shared_state_type> shared_state_;
         mutable mutex_type mtx_;
         mutable hpx::shared_future<hpx::id_type> id_;
-        bool fixed_children_;
+        bool fixed_children_ = false;
 
         template <typename U>
         friend struct treeture;

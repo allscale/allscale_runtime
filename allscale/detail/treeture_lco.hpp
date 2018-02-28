@@ -34,7 +34,7 @@ namespace allscale { namespace detail {
         }
 
         treeture_lco(boost::intrusive_ptr<shared_state_type> shared_state)
-          : shared_state_(shared_state)
+          : shared_state_(std::move(shared_state))
         {
             HPX_ASSERT(shared_state_);
         }
@@ -62,7 +62,14 @@ namespace allscale { namespace detail {
         void set_value(remote_result&& result)
         {
             HPX_ASSERT(shared_state_);
-            shared_state_->set_value(std::move(result));
+            // Try setting the state, we'll catch any exception in the process
+            // and ignore them for now...
+            try {
+                shared_state_->set_value(std::move(result));
+            }
+            catch (...)
+            {
+            }
         }
         HPX_DEFINE_COMPONENT_DIRECT_ACTION(treeture_lco, set_value);
 

@@ -14,10 +14,10 @@ namespace allscale { namespace components { namespace util {
 
 
     ////////////////////////////////////////////////////////////////////////////////////
-    ///  ... A class that provides a wrapper for cpufreq APIs and utility functions 
+    ///  ... A class that provides a wrapper for cpufreq APIs and utility functions
     ///      to read sysfs values ...
     ////////////////////////////////////////////////////////////////////////////////////
-    struct hardware_reconf 
+    struct hardware_reconf
     {
         typedef hpx::lcos::local::spinlock mutex_type;
 
@@ -41,7 +41,7 @@ namespace allscale { namespace components { namespace util {
         /// in a vector of strings
         ///
         /// \param cpu          [in] CPU number
-        /// 
+        ///
         /// \returns            Vector of available CPU governors
         static std::vector<std::string> get_governors(unsigned int cpu);
 
@@ -56,16 +56,16 @@ namespace allscale { namespace components { namespace util {
         ///
         /// \note               This function requires a root/sudo access and
         ///                     only works if userspace governor can be used and no external
-        ///                     interference (other calls to this function or to set/modify_policy) 
+        ///                     interference (other calls to this function or to set/modify_policy)
         ///                     occurs. Also does not work on ->range() cpufreq drivers. See
         ///                     /usr/include/cpufreq.h file for more info about cpufreq APIs.
-        ///                     Also, it is a best effort API and it is up to user to query and 
+        ///                     Also, it is a best effort API and it is up to user to query and
         ///                     check if the operation failed for one or more CPUs.
         static int set_frequency(unsigned int min_cpu, unsigned int max_cpu, unsigned long target_frequency);
 
 
         /// \brief This function increases or decreases the frequency of all cpus in the system
-        /// 
+        ///
         /// \param freq_step        [in] freq_step = abs(current_frequency - target_frequency)
         /// \param dec              [in] if true decrease freq to the next available, else increase
         ///
@@ -84,7 +84,7 @@ namespace allscale { namespace components { namespace util {
 
         /// \brief This function returns current CPU frequency seen by the kernel
         ///        It does not require sudo access.
-        /// 
+        ///
         /// \param cpu          [in] CPU number
         ///
         /// \returns            Zero on failure, else frequency in kHz.
@@ -92,7 +92,7 @@ namespace allscale { namespace components { namespace util {
 
         /// \brief This function returns current CPU frequency seen by the hardware.
         ///        It requires sudo access.
-        /// 
+        ///
         /// \param cpu          [in] CPU number
         ///
         /// \returns            Zero on failure, else frequency in kHz.
@@ -106,7 +106,7 @@ namespace allscale { namespace components { namespace util {
         /// \returns            0 on failure, else transition latency in 10^(-9) s = nanoseconds
         static unsigned long get_cpu_transition_latency(unsigned int cpu);
 
-        
+
         /// \brief This function changes frequencies of the given number of cores.
         ///
         /// \param num_cpus           [in] number of cpus that needs to be changed
@@ -127,7 +127,7 @@ namespace allscale { namespace components { namespace util {
         ///                     the given frequency.
         static unsigned int num_cpus_with_frequency(unsigned long frequency);
 
-        /// \brief This function reads system energy from sysfs on POWER8/+ machines and             
+        /// \brief This function reads system energy from sysfs on POWER8/+ machines and
         ///        returns cumulative energy.
         ///
         /// \param sysfs_file   [in] The absolute path of sysfs file that provides energy readings.
@@ -137,8 +137,9 @@ namespace allscale { namespace components { namespace util {
         ///                     or if there is parsing error it will return zero.
         ///
         /// \note               This function may be removed and moved into the monitoring component
-        ///                     in future. 
+        ///                     in future.
         static unsigned long long read_system_energy(const std::string &sysfs_file = "/sys/devices/system/cpu/occ_sensors/system/system-energy");
+        static unsigned long long read_system_power(const std::string &sysfs_file = "/sys/devices/system/cpu/occ_sensors/system/power");
 
 
         /// \brief This function reads number of physical, logical cores, and hardware threads on a node.
@@ -148,22 +149,23 @@ namespace allscale { namespace components { namespace util {
 
 
         /// \brief  This function sets cpus within range of [min_cpu_id, max_cpu_id) offline.
-        /// 
+        ///
         /// \param min_cpu_id   [in] starting cpu id, inclusive
         /// \param max_cpu_id   [in] end cpu id, exclusive
         ///
         static void make_cpus_offline(unsigned int min_cpu_id, unsigned int max_cpu_id);
 
-        
+
         /// \brief  This function sets cpus within range of [min_cpu_id, max_cpu_id) online.
-        /// 
+        ///
         /// \param min_cpu_id   [in] starting cpu id, inclusive
         /// \param max_cpu_id   [in] end cpu id, exclusive
         ///
         static void make_cpus_online(unsigned int min_cpu_id, unsigned int max_cpu_id);
-
+        static void topo_init();
         private:
              static mutex_type freq_mtx_;
+	     static hw_topology initial_topo;
              static void write_to_file(int value, const std::string& file_name);
 
     };

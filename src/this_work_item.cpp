@@ -184,6 +184,12 @@ namespace allscale { namespace this_work_item {
         return config_.locality_depth_ != 1 || config_.numa_depth_ != 1;
     }
 
+    void id::update_rank(std::size_t rank)
+    {
+        HPX_ASSERT(config_.rank_ != std::uint64_t(-1));
+        config_.rank_ = rank;
+    }
+
     std::size_t id::rank() const
     {
         HPX_ASSERT(config_.rank_ != std::uint64_t(-1));

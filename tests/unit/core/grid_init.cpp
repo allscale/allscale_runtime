@@ -6,22 +6,18 @@
 
 #include <iostream>
 
-
 #include <allscale/data_item_reference.hpp>
 #include <allscale/data_item_manager.hpp>
 #include <allscale/data_item_requirement.hpp>
 #include <algorithm>
 
 #include <hpx/config.hpp>
-#include <hpx/include/components.hpp>
 
 
 ALLSCALE_REGISTER_TREETURE_TYPE(int)
 
 #define EXPECT_EQ(X,Y)  X==Y
 #define EXPECT_NE(X,Y)  X!=Y
-
-HPX_REGISTER_COMPONENT_MODULE();
 
 using data_item_type = allscale::api::user::data::StaticGrid<int, 200, 200>;
 using region_type = data_item_type::region_type;
@@ -58,7 +54,9 @@ struct grid_init_can_split
         auto begin = hpx::util::get<1>(c);
         auto end = hpx::util::get<2>(c);
 
-        return sumOfSquares(end - begin) > 1;
+        HPX_ASSERT(end[0] - begin[0] >= 5);
+
+        return end[0] - begin[0] > 10;
     }
 };
 
@@ -70,13 +68,14 @@ struct grid_init_split {
         auto begin = hpx::util::get<1>(c);
         auto end = hpx::util::get<2>(c);
 
-        std::size_t depth = allscale::this_work_item::get_id().depth();
-        auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
-        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
+        auto mid = begin[0] + (end[0] - begin[0]) / 2;
+
+        auto left_end = end; left_end[0] = mid;
+        auto right_begin = begin; right_begin[0] = mid;
 
         return allscale::runtime::treeture_parallel(
-            allscale::spawn<grid_init>(data, fragments.left.begin(), fragments.left.end()),
-            allscale::spawn<grid_init>(data, fragments.right.begin(), fragments.right.end())
+            allscale::spawn<grid_init>(data, begin, left_end),
+            allscale::spawn<grid_init>(data, right_begin, end)
         );
     }
 
@@ -87,7 +86,7 @@ struct grid_init_process {
     template <typename Closure>
     static hpx::util::unused_type execute(Closure const& c)
     {
-        auto ref = hpx::util::get<0>(c);
+        auto const& ref = hpx::util::get<0>(c);
         auto data = allscale::data_item_manager::get(ref);
         auto begin = hpx::util::get<1>(c);
         auto end = hpx::util::get<2>(c);
@@ -113,7 +112,9 @@ struct grid_init_process {
     >
     get_requirements(Closure const& c)
     {
-        region_type r(hpx::util::get<1>(c), hpx::util::get<2>(c));
+        auto begin = hpx::util::get<1>(c);
+        auto end = hpx::util::get<2>(c);
+        region_type r(begin, end);
         return hpx::util::make_tuple(
             allscale::createDataItemRequirement(
                 hpx::util::get<0>(c),
@@ -150,7 +151,9 @@ struct grid_init_test_can_split
         auto begin = hpx::util::get<1>(c);
         auto end = hpx::util::get<2>(c);
 
-        return sumOfSquares(end - begin) > 1;
+        HPX_ASSERT(end[0] - begin[0] >= 5);
+
+        return end[0] - begin[0] > 10;
     }
 };
 
@@ -162,13 +165,14 @@ struct grid_init_test_split {
         auto begin = hpx::util::get<1>(c);
         auto end = hpx::util::get<2>(c);
 
-        std::size_t depth = allscale::this_work_item::get_id().depth();
-        auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
-        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
+        auto mid = begin[0] + (end[0] - begin[0]) / 2;
+
+        auto left_end = end; left_end[0] = mid;
+        auto right_begin = begin; right_begin[0] = mid;
 
         return allscale::runtime::treeture_parallel(
-            allscale::spawn<grid_init_test>(data, fragments.left.begin(), fragments.left.end()),
-            allscale::spawn<grid_init_test>(data, fragments.right.begin(), fragments.right.end())
+            allscale::spawn<grid_init_test>(data, begin, left_end),
+            allscale::spawn<grid_init_test>(data, right_begin, end)
         );
     }
 
@@ -179,7 +183,7 @@ struct grid_init_test_process {
     template <typename Closure>
     static hpx::util::unused_type execute(Closure const& c)
     {
-        auto ref = hpx::util::get<0>(c);
+        auto const& ref = hpx::util::get<0>(c);
         auto data = allscale::data_item_manager::get(ref);
         auto begin = hpx::util::get<1>(c);
         auto end = hpx::util::get<2>(c);
@@ -234,7 +238,7 @@ using main_work = allscale::work_item_description<
 
 struct main_process
 {
-    static allscale::treeture<int> execute(hpx::util::tuple<> const& c)
+    static allscale::treeture<int> execute(hpx::util::tuple<> const&)
     {
         allscale::data_item_reference<data_item_type> data
             = allscale::data_item_manager::create<data_item_type>();
@@ -248,19 +252,27 @@ struct main_process
 
         allscale::spawn_first<grid_init_test>(data, begin, end).wait();
 
-
-        auto lease = allscale::data_item_manager::acquire(
-            allscale::createDataItemRequirement(
+        auto req = hpx::util::make_tuple(allscale::createDataItemRequirement(
                 data,
                 whole_region,
                 allscale::access_mode::ReadOnly
-            )).get();
+            ));
+
+        auto location_infos = hpx::util::unwrap(allscale::data_item_manager::locate(req));
+
+        auto lease = hpx::util::unwrap(allscale::data_item_manager::acquire(req,
+            location_infos));
 
         auto ref = allscale::data_item_manager::get(data);
 
         whole_region.scan(
             [&](auto const& pos)
             {
+                if (ref[pos] != pos.x + pos.y)
+                {
+                    std::cout << pos << '\n';
+                    std::abort();
+                }
                 HPX_TEST_EQ(ref[pos], pos.x + pos.y);
             }
         );
