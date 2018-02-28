@@ -26,10 +26,11 @@ namespace allscale { namespace data_item_manager {
 
         template <typename Requirement, typename Region>
         struct register_child_action
-          : hpx::actions::make_action<
+          : hpx::actions::make_direct_action<
                 decltype(&register_child<Requirement, Region>),
                 &register_child<Requirement, Region>,
-                register_child_action<Requirement, Region>>::type
+                register_child_action<Requirement, Region>
+            >::type
         {};
 
         template <typename Requirement, typename Region>
@@ -90,7 +91,7 @@ namespace allscale { namespace data_item_manager {
 
         template <locate_state state, typename Requirement>
         struct locate_action
-          : hpx::actions::make_action<
+          : hpx::actions::make_direct_action<
                 decltype(&locate<state, Requirement>),
                 &locate<state, Requirement>,
                 locate_action<state, Requirement>>::type

@@ -32,10 +32,11 @@ namespace allscale { namespace data_item_manager {
 
         template <typename DataItemType>
         struct transfer_action
-          : hpx::actions::make_action<
+          : hpx::actions::make_direct_action<
                 decltype(&transfer<DataItemType>),
                 &transfer<DataItemType>,
-                transfer_action<DataItemType>>::type
+                transfer_action<DataItemType>
+            >::type
         {};
 
         template <typename Requirement, typename LocationInfo>
