@@ -126,14 +126,11 @@ namespace allscale { namespace components {
     }
 
     void resilience::reschedule_dispatched_to_dead(size_t dead_rank, size_t token) {
-        thread_safe_printer("Calling reschedule_dispatched_to_dead...\n");
         std::multimap<size_t, work_item > delegated_items_copy;
-            thread_safe_printer("before first lock\n");
-            {
-                std::unique_lock<mutex_type> lock(delegated_items_mutex_);
-                std::swap(delegated_items_, delegated_items_copy);
-            }
-        thread_safe_printer("after first lock\n");
+        {
+            std::unique_lock<mutex_type> lock(delegated_items_mutex_);
+            std::swap(delegated_items_, delegated_items_copy);
+        }
         {
             std::unique_lock<mutex_type> lock(running_ranks_mutex_);
             thread_safe_printer("rank["+std::to_string(dead_rank)+"]=false");
@@ -158,10 +155,9 @@ namespace allscale { namespace components {
 
         token++;
         if (get_running_ranks() > token) {
-            thread_safe_printer("Will call dispatched at rank"+std::to_string(dead_rank));
+            thread_safe_printer("Will remote-call dispatched at rank "+std::to_string(dead_rank));
             hpx::apply<reschedule_dispatched_to_dead_action>(guard_, dead_rank, token);
         }
-        thread_safe_printer("End reshedule_dispatched_to_dead\n");
     }
 
     void resilience::work_item_dispatched(work_item const& w, size_t schedule_rank) {
@@ -170,7 +166,6 @@ namespace allscale { namespace components {
             std::unique_lock<mutex_type> lock(delegated_items_mutex_);
             delegated_items_.insert(p);
         }
-        std::cout << "WOO -> schedule_rank = " << schedule_rank << "!\n";
         auto treeture = w.get_treeture();
         
         // get signal from treeture when finished
@@ -181,12 +176,9 @@ namespace allscale { namespace components {
                             [schedule_rank, w, this]()
                             {
                                 std::unique_lock<mutex_type> lock(this->delegated_items_mutex_);
-                                thread_safe_printer("Holding a lock Before erase item"+w.id().name());
-// this deletes all tasks of delegated locality -- potentially wrong
+                                // this deletes all tasks dispatched by a locality
                                 auto it = this->delegated_items_.find(schedule_rank);
                                 if (it != delegated_items_.end()) this->delegated_items_.erase(it);
-                                lock.unlock();
-                                thread_safe_printer("Releasing a lock Before erase item"+w.id().name());
                             })));
     }
 
@@ -194,21 +186,12 @@ namespace allscale { namespace components {
         int ranks;
         std::unique_lock<mutex_type> lock(running_ranks_mutex_);
         ranks = rank_running_.count();
-        //thread_safe_printer("# Ranks: " + std::to_string(ranks));
         return ranks;
     }
 
     void resilience::protectee_crashed() {
 
-        thread_safe_printer("After rescheduling\n");
-        //remote_backups_.clear();
-        //if (get_running_ranks() > 1)
-            //delegated_items_.clear();
-            //remote_backups_ = hpx::async<get_local_backups_action>(protectee_).get();
-        //lock.unlock();
-
         size_t dead_protectee_rank = protectee_rank_;
-        thread_safe_printer("Done rescheduling ...\n");
         // restore guard / protectee connections
         hpx::util::high_resolution_timer t;
         protectee_ = protectees_protectee_;
@@ -221,11 +204,8 @@ namespace allscale { namespace components {
         thread_safe_printer("Finish recovery\n");
 
         // start locally to propagate fixing scheduler and rescheduling dispatched tasks
-        // all through the ring ...
+        // all through the ring of localities
         hpx::apply(&resilience::reschedule_dispatched_to_dead, this, dead_protectee_rank, 0);
-        //hpx::async<reschedule_dispatched_to_dead_action>(hpx::find_here(), dead_protectee_rank, 0).get();
-        //hpx::apply<reschedule_dispatched_to_dead_action>(guard_, dead_protectee_rank, 1);
-    
 
     }
 
