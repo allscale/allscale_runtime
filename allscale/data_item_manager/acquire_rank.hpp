@@ -119,7 +119,7 @@ namespace allscale { namespace data_item_manager {
     namespace detail
     {
         template <typename Requirement, typename LocationInfo>
-        std::size_t print_location_info(Requirement const& req, LocationInfo const& info)
+        void print_location_info(Requirement const& req, LocationInfo const& info)
         {
             if (info.regions.size() > 1)
             {
@@ -134,7 +134,7 @@ namespace allscale { namespace data_item_manager {
 
         template <typename Requirement, typename RequirementAllocator,
             typename LocationInfo, typename LocationInfoAllocator>
-        std::size_t print_location_info(std::vector<Requirement, RequirementAllocator> const& reqs,
+        void print_location_info(std::vector<Requirement, RequirementAllocator> const& reqs,
             std::vector<LocationInfo, LocationInfoAllocator> const& infos)
         {
             HPX_ASSERT(reqs.size() == infos.size());
@@ -145,7 +145,7 @@ namespace allscale { namespace data_item_manager {
         }
 
         template <typename Requirements, typename LocationInfos, std::size_t...Is>
-        std::size_t print_location_info(Requirements const& reqs, LocationInfos const& infos,
+        void print_location_info(Requirements const& reqs, LocationInfos const& infos,
             hpx::util::detail::pack_c<std::size_t, Is...>)
         {
             int sequencer[] = {
