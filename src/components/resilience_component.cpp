@@ -126,10 +126,12 @@ namespace allscale { namespace components {
     }
 
     void resilience::reschedule_dispatched_to_dead(size_t dead_rank, size_t token) {
-        std::multimap<size_t, work_item > delegated_items_copy;
+        std::multimap<size_t,work_item> rescheduled_items;
         {
             std::unique_lock<mutex_type> lock(delegated_items_mutex_);
-            std::swap(delegated_items_, delegated_items_copy);
+            auto range = delegated_items_.equal_range(dead_rank);
+            rescheduled_items.insert(range.first, range.second);
+            delegated_items_.erase(range.first, range.second);
         }
         {
             std::unique_lock<mutex_type> lock(running_ranks_mutex_);
@@ -137,22 +139,18 @@ namespace allscale { namespace components {
             rank_running_[dead_rank] = false;
             auto protectee_locality = get_locality_from_id(protectee_);
             auto it = std::find(localities.begin(), localities.end(), protectee_locality);
+            // I am actually not actively using
+            // localities and num_localities now, so the
+            // following may be optional
             localities.erase(it);
             num_localities--;
         }
-        auto range = delegated_items_copy.equal_range(dead_rank);
-        for (auto it = range.first; it != range.second; it++) {
-            auto w = it->second;
+        for (auto it : rescheduled_items) {
+            auto w = it.second;
             auto id = w.id();
             thread_safe_printer("Reschedule delegated item:"+id.name());
             allscale::scheduler::schedule(std::move(w), id);
         }
-        delegated_items_copy.erase(dead_rank);
-        {
-            std::unique_lock<mutex_type> lock(delegated_items_mutex_);
-            std::swap(delegated_items_, delegated_items_copy);
-        }
-
         token++;
         if (get_running_ranks() > token) {
             thread_safe_printer("Will remote-call dispatched at rank "+std::to_string(dead_rank));
