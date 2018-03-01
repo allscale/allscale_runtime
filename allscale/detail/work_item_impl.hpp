@@ -318,7 +318,7 @@ namespace allscale { namespace detail {
                 deps = ProcessVariant::deps(closure_);
             }
 
-            typename hpx::traits::detail::shared_state_ptr_for<deps_type>::type const& state
+            typename hpx::traits::detail::shared_state_ptr_for<deps_type>::type state
                 = hpx::traits::future_access<deps_type>::get_shared_state(deps);
 
             auto this_ = shared_this();
@@ -348,7 +348,7 @@ namespace allscale { namespace detail {
             {
                 typedef hpx::shared_future<void> deps_type;
 
-                typename hpx::traits::detail::shared_state_ptr_for<deps_type>::type const& state
+                typename hpx::traits::detail::shared_state_ptr_for<deps_type>::type state
                     = hpx::traits::future_access<deps_type>::get_shared_state(dep_);
                 state->set_on_completed(
                     [&exec, sync, state = std::move(state), this_ = std::move(this_), leases = std::move(leases)]() mutable

@@ -129,9 +129,10 @@ namespace allscale { namespace components {
         thread_safe_printer("Calling reschedule_dispatched_to_dead...\n");
         std::multimap<size_t, work_item > delegated_items_copy;
             thread_safe_printer("before first lock\n");
-            std::unique_lock<mutex_type> lock(delegated_items_mutex_);
-            std::swap(delegated_items_, delegated_items_copy);
-            lock.unlock();
+            {
+                std::unique_lock<mutex_type> lock(delegated_items_mutex_);
+                std::swap(delegated_items_, delegated_items_copy);
+            }
         thread_safe_printer("after first lock\n");
         {
             std::unique_lock<mutex_type> lock(running_ranks_mutex_);
