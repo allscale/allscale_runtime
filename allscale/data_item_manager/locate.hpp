@@ -4,6 +4,7 @@
 
 #include <allscale/get_num_localities.hpp>
 #include <allscale/data_item_manager/data_item_store.hpp>
+#include <allscale/data_item_manager/shared_data.hpp>
 #include <allscale/data_item_manager/location_info.hpp>
 
 #include <hpx/include/actions.hpp>
@@ -11,6 +12,8 @@
 #include <hpx/util/tuple.hpp>
 
 #include <vector>
+
+// #define ALLSCALE_DEBUG_DIM
 
 namespace allscale { namespace data_item_manager {
     namespace detail
@@ -23,7 +26,8 @@ namespace allscale { namespace data_item_manager {
         };
 
         template <typename Requirement, typename Region>
-        std::pair<Region, Region> register_child(hpx::naming::gid_type ref, Region region, std::size_t child_rank);
+        hpx::future<std::pair<Region, Region>>
+        register_child(hpx::naming::gid_type ref, Region region, std::size_t child_rank);
 
         template <typename Requirement, typename Region>
         struct register_child_action
@@ -35,7 +39,8 @@ namespace allscale { namespace data_item_manager {
         {};
 
         template <typename Requirement, typename Region>
-        std::pair<Region, Region> register_child(hpx::naming::gid_type ref, Region region, std::size_t child_rank)
+        hpx::future<std::pair<Region, Region>>
+        register_child(hpx::naming::gid_type ref, Region region, std::size_t child_rank)
         {
             using region_type = typename Requirement::region_type;
             using location_info_type = location_info<region_type>;
@@ -68,7 +73,11 @@ namespace allscale { namespace data_item_manager {
                 new_parent = region_type::merge(item.owned_region, item.left_region);
             }
 
-            if (this_id == 0) return std::make_pair(region, new_parent);
+            if (this_id == 0)
+            {
+                return hpx::make_ready_future(
+                    std::make_pair(region, new_parent));
+            }
             l.unlock();
 
             // FIXME: futurize, make resilient
@@ -79,11 +88,16 @@ namespace allscale { namespace data_item_manager {
             );
 
             // Register with our parent as well...
-            auto res = register_child_action<Requirement, Region>()(
-                    target, ref, region, this_id);
-            return std::make_pair(
-                region_type::intersect(region, res.first),
-                region_type::merge(new_parent, res.second));
+            return hpx::async<register_child_action<Requirement, Region>>(
+                    target, ref, region, this_id).then(
+                [region, new_parent = std::move(new_parent)](hpx::future<std::pair<Region, Region>> res_fut)
+                {
+                    auto res = res_fut.get();
+                    return std::make_pair(
+                        region_type::intersect(region, res.first),
+                        region_type::merge(new_parent, res.second));
+                }
+            );
         }
 
         template <locate_state state, typename Requirement>
@@ -118,6 +132,8 @@ namespace allscale { namespace data_item_manager {
             std::unique_lock<mutex_type> l(item.mtx);
             // FIXME: wait for migration and lock here.
 
+            item.locate_access++;
+
             // Now try to locate ...
             region_type remainder = req.region;
 
@@ -138,6 +154,7 @@ namespace allscale { namespace data_item_manager {
             }
 
             // Lookup in our cache
+            hpx::util::high_resolution_timer timer;
             for (auto const& cached: item.location_cache.regions)
             {
                 part = region_type::intersect(remainder, cached.second);
@@ -154,11 +171,14 @@ namespace allscale { namespace data_item_manager {
                     // If the remainder is empty, we got everything covered...
                     if (remainder.empty())
                     {
+                        item.cache_lookup_time += timer.elapsed();
                         HPX_ASSERT(!info.regions.empty());
                         return hpx::make_ready_future(std::move(info));
                     }
                 }
             }
+            item.cache_lookup_time += timer.elapsed();
+            item.cache_miss++;
 
             // We couldn't satisfy the request with locally stored information...
             // now branch out to our parent and children...
@@ -309,7 +329,7 @@ namespace allscale { namespace data_item_manager {
                         {
                             hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
                             registered = register_child<Requirement>(
-                                req.ref.id(), remainder, this_id);
+                                req.ref.id(), remainder, this_id).get();
                         }
 
                         remainder = registered.first;
@@ -329,8 +349,15 @@ namespace allscale { namespace data_item_manager {
                         // And finally, allocate the fragment if it wasn't there already.
                         if (item.fragment == nullptr)
                         {
-                            // FIXME: distribute shared data correctly...
-                            item.fragment.reset(new fragment_type(req.ref.shared_data()));
+                            typename data_item_type::shared_data_type shared_data_;
+                            {
+                                hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+                                shared_data_ = shared_data(req.ref);
+                            }
+                            if (item.fragment == nullptr)
+                            {
+                                item.fragment.reset(new fragment_type(std::move(shared_data_)));
+                            }
                         }
 #if defined(ALLSCALE_DEBUG_DIM)
                         std::stringstream filename;

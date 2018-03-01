@@ -21,11 +21,30 @@ namespace allscale { namespace data_item_manager {
         using mutex_type = hpx::lcos::local::spinlock;
         using region_type = typename DataItemType::region_type;
         using fragment_type = typename DataItemType::fragment_type;
+        using shared_data_type = typename DataItemType::shared_data_type;
+
+        ~data_item()
+        {
+            std::cerr << this << " Locate access count: " << locate_access << '\n';
+            std::cerr << this << " Cache lookup time: " << cache_lookup_time << '\n';
+            std::cerr << this << " Cache misses: " << cache_miss << '\n';
+            std::cerr << this << " Cache miss ratio: " << double(cache_miss)/double(locate_access) * 100. << "%\n";
+            std::cerr << this << " Fragment extract time: " << extract_time << '\n';
+            std::cerr << this << " Fragment insert time: " << insert_time << '\n';
+            std::cerr << '\n';
+        }
+
+        std::size_t locate_access = 0;
+        std::size_t cache_miss = 0;
+        double cache_lookup_time = 0.0;
+        double extract_time = 0.0;
+        double insert_time = 0.0;
 
         // The mutex which protects this data item from concurrent accesses
         mutex_type mtx;
 
         std::unique_ptr<fragment_type> fragment;
+        std::unique_ptr<shared_data_type> shared_data;
 
         // A simple location info data structure will serve as a cache to
         // accelerate lookups.

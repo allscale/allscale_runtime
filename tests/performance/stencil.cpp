@@ -615,13 +615,19 @@ struct main_process
        hpx::util::high_resolution_timer timer;
        for(int i = 0 ; i <= iterations; ++i){
            allscale::spawn_first<stencil>(mat_a, mat_b, begin, end).wait();
+           std::cout << "Iteration " << i << " done.\n";
+           if (i == 0)
+           {
+               std::cout << "First iteration time: " << timer.elapsed() << '\n';
+               timer.restart();
+           }
        }
 
        double elapsed = timer.elapsed();
 
        double flops = ( 2 * stencil_size + 1 ) * f_active_points;
        double avgtime = elapsed/iterations;
-       
+
        std::cout << "Rate (Flops/s) | avg time (s)"<<'\n';
        std::cout << flops/avgtime * 1.0E-06 << "," << avgtime << '\n';
 
@@ -630,7 +636,7 @@ struct main_process
 
        //double res = vld.get_result();
        double res = 0.0;
-       
+
        auto req = hpx::util::make_tuple(
           allscale::createDataItemRequirement(
               mat_b,

@@ -1,6 +1,7 @@
 #ifndef ALLSCALE_DATA_ITEM_MANAGER
 #define ALLSCALE_DATA_ITEM_MANAGER
 
+#include <allscale/data_item_manager/acquire.hpp>
 #include <allscale/data_item_manager/data_item_store.hpp>
 #include <allscale/data_item_reference.hpp>
 #include <allscale/data_item_requirement.hpp>
@@ -17,15 +18,19 @@ namespace allscale { namespace data_item_manager {
         allscale::data_item_reference<DataItemType>
         create(Args&&...args)
         {
-            return
-                data_item_reference<DataItemType>(
-                    hpx::local_new<detail::id_holder>(
+            typedef typename DataItemType::shared_data_type shared_data_type;
+
+            auto ref = data_item_reference<DataItemType>(
+                    hpx::local_new<allscale::detail::id_holder>(
                         [](hpx::naming::gid_type const& id)
                         {
 //                             data_item_manager_impl<DataItemType>::get_ptr()->destroy(id);
                         }
-                    ), std::forward<Args>(args)...
+                    )
                 );
+            auto &item = data_item_store<DataItemType>::lookup(ref);
+            item.shared_data.reset(new shared_data_type(std::forward<Args>(args)...));
+            return ref;
         }
 
         template<typename DataItemType>
@@ -72,9 +77,15 @@ namespace allscale { namespace data_item_manager {
 }}//end namespace allscale
 
 #define REGISTER_DATAITEMSERVER_DECLARATION(type)                               \
+    HPX_REGISTER_ACTION_DECLARATION(                                            \
+        allscale::data_item_manager::detail::transfer_action<type>,             \
+        HPX_PP_CAT(transfer_action_, type))                                     \
 /**/
 
 #define REGISTER_DATAITEMSERVER(type)                                           \
+    HPX_REGISTER_ACTION(                                                        \
+        allscale::data_item_manager::detail::transfer_action<type>,             \
+        HPX_PP_CAT(transfer_action_, type))                                     \
 /**/
 
 #endif

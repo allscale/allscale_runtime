@@ -2,9 +2,11 @@
 #ifndef ALLSCALE_DATA_ITEM_MANAGER_ACQUIRE_HPP
 #define ALLSCALE_DATA_ITEM_MANAGER_ACQUIRE_HPP
 
+#include <allscale/lease.hpp>
 #include <allscale/data_item_manager/data_item_store.hpp>
 #include <allscale/data_item_manager/data_item_view.hpp>
 #include <allscale/data_item_manager/location_info.hpp>
+#include <hpx/plugins/parcel/coalescing_message_handler_registration.hpp>
 
 #include <hpx/runtime/naming/id_type.hpp>
 #include <hpx/util/tuple.hpp>
@@ -17,17 +19,13 @@ namespace allscale { namespace data_item_manager {
         template <typename DataItemType>
         data_item_view<DataItemType> transfer(hpx::naming::gid_type id, typename DataItemType::region_type region)
         {
-            using region_type = typename DataItemType::region_type;
-            using mutex_type = typename data_item_store<DataItemType>::data_item_type::mutex_type;
             auto& item = data_item_store<DataItemType>::lookup(id);
-
-            std::unique_lock<mutex_type> l(item.mtx);
 
             HPX_ASSERT(item.fragment);
 
             // The data_item_view transparently extracts and inserts the parts
             // into the responsible fragments.
-            return data_item_view<DataItemType>(id, *item.fragment, std::move(region));
+            return data_item_view<DataItemType>(id, std::move(region));
         }
 
         template <typename DataItemType>
@@ -84,7 +82,7 @@ namespace allscale { namespace data_item_manager {
                 HPX_ASSERT(req.mode == access_mode::ReadOnly);
 
                 // collect the parts we need to transfer...
-                std::vector<hpx::future<void>> transfers;
+                std::vector<hpx::future<data_item_view<data_item_type>>> transfers;
                 transfers.reserve(info.regions.size());
                 for(auto const& part: info.regions)
                 {
@@ -94,20 +92,26 @@ namespace allscale { namespace data_item_manager {
                             hpx::naming::get_id_from_locality_id(part.first));
                         transfers.push_back(
                             hpx::async<transfer_action_type>(target,
-                                req.ref.id(), part.second
+                                req.ref.id(), std::move(part.second)
                             )
                         );
                     }
                 }
 
-                return hpx::when_all(transfers).then(hpx::launch::sync,
-                    [req](hpx::future<void> transfers)
+                if (transfers.empty())
+                {
+                    return hpx::make_ready_future(lease_type(req));
+                }
+
+                return hpx::dataflow(
+                    [req = std::move(req)](
+                        std::vector<hpx::future<data_item_view<data_item_type>>> transfers) mutable
                     {
                         // check for errors...
-                        transfers.get();
-                        return lease_type(req);
-                    }
-                );
+                        for (auto & transfer: transfers) transfer.get();
+                        return lease_type(std::move(req));
+                    },
+                    std::move(transfers));
             }
         }
 
@@ -157,5 +161,24 @@ namespace allscale { namespace data_item_manager {
                 hpx::util::tuple_size<Requirements>::type::value>::type{});
     }
 }}
+
+// #if defined(HPX_HAVE_PARCEL_COALESCING) && !defined(HPX_PARCEL_COALESCING_MODULE_EXPORTS)
+//
+// namespace hpx { namespace traits {
+//     template <typename DataItemType>
+//     struct action_message_handler<allscale::data_item_manager::detail::transfer_action<DataItemType>>
+//     {
+//         static parcelset::policies::message_handler* call(
+//             parcelset::parcelhandler* ph, parcelset::locality const& loc,
+//             parcelset::parcel const& /*p*/)
+//         {
+//             error_code ec(lightweight);
+//             return parcelset::get_message_handler(ph, "allscale_transfer_action",
+//                 "coalescing_message_handler", std::size_t(-1), std::size_t(-1), loc, ec);
+//         }
+//     };
+// }}
+//
+// #endif
 
 #endif

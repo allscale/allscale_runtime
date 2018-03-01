@@ -565,7 +565,6 @@ namespace allscale { namespace components {
                                      else if(expected_rank != std::size_t(-2))
                                          {
                                              HPX_ASSERT(expected_rank != rank_);
-//                                              std::cout << "Dispatching " << work.name() << " to " << expected_rank << '\n';
                                              work.update_rank(expected_rank);
                                              network_.schedule(expected_rank, std::move(work), this_id);
                                          }

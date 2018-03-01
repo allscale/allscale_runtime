@@ -34,6 +34,7 @@ namespace allscale {
     class data_item_reference
     {
     public:
+        typedef DataItemType data_item_type;
         typedef typename DataItemType::shared_data_type shared_data_type;
         typedef typename DataItemType::fragment_type fragment_type;
 
@@ -56,32 +57,28 @@ namespace allscale {
         {}
 
         template <typename...Args>
-        explicit data_item_reference(hpx::future<hpx::id_type> id, Args&&...args)
+        explicit data_item_reference(hpx::future<hpx::id_type> id)
           : fragment(nullptr)
-          , shared_data_(std::forward<Args>(args)...)
           , id_(id.get())
         {
             HPX_ASSERT(id_.get_management_type() == hpx::id_type::managed);
         }
 
         data_item_reference(data_item_reference const& other)
-          : fragment(nullptr)
-          , shared_data_(other.shared_data_)
+          : fragment(other.fragment)
           , id_(other.id_)
         {
         }
 
         data_item_reference(data_item_reference&& other) noexcept
-          : fragment(nullptr)
-          , shared_data_(std::move(other.shared_data_))
+          : fragment(other.fragment)
           , id_(std::move(other.id_))
         {
         }
 
         data_item_reference& operator=(data_item_reference const& other)
         {
-            fragment = nullptr;
-            shared_data_ = other.shared_data_;
+            fragment = other.fragment;
             id_ = other.id_;
 
             return *this;
@@ -90,8 +87,7 @@ namespace allscale {
 
         data_item_reference& operator=(data_item_reference&& other) noexcept
         {
-            fragment = nullptr;
-            shared_data_ = std::move(other.shared_data_);
+            fragment = other.fragment;
             id_ = std::move(other.id_);
 
             return *this;
@@ -100,16 +96,15 @@ namespace allscale {
         template <typename Archive>
         void load(Archive & ar, unsigned)
         {
-            ar & shared_data_;
-            ar & id_;
+            hpx::naming::gid_type id;
+            ar & id;
+            id_ = hpx::id_type(id, hpx::id_type::unmanaged);
         }
 
         template <typename Archive>
         void save(Archive & ar, unsigned) const
         {
-            ar & shared_data_;
-            hpx::naming::id_type id = id_;
-            id.make_unmanaged();
+            hpx::naming::gid_type id = id_.get_gid();
             ar & id;
         }
         HPX_SERIALIZATION_SPLIT_MEMBER()
@@ -119,15 +114,9 @@ namespace allscale {
             return id_.get_gid();
         }
 
-        shared_data_type const& shared_data() const
-        {
-            return shared_data_;
-        }
-
         mutable fragment_type *__restrict__ fragment;
 
     private:
-        shared_data_type shared_data_;
         hpx::id_type id_;
     };
 }
