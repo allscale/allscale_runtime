@@ -1,6 +1,7 @@
 #ifndef ALLSCALE_DATA_ITEM_MANAGER
 #define ALLSCALE_DATA_ITEM_MANAGER
 
+#include <allscale/config.hpp>
 #include <allscale/data_item_manager/acquire.hpp>
 #include <allscale/data_item_manager/data_item_store.hpp>
 #include <allscale/data_item_manager/shared_data.hpp>

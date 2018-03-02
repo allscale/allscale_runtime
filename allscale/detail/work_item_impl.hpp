@@ -434,6 +434,14 @@ namespace allscale { namespace detail {
             auto reqs = detail::merge_data_item_reqs(
                 get_requirements<typename WorkItemDescription::process_variant>(nullptr)
             );
+
+#if defined(ALLSCALE_DEBUG_DIM)
+            std::string s = this->name();
+            s += '(';
+            s += id_.name();
+            s += ").process";
+            data_item_manager::log_req(s, reqs);
+#endif
             return hpx::dataflow(hpx::launch::sync,
                 [reqs, this_ = std::move(this_), &exec, sync](auto locate_future)
                 {
@@ -462,7 +470,11 @@ namespace allscale { namespace detail {
                     HPX_ASSERT(rank == std::size_t(-2) || rank == hpx::get_locality_id());
                     return this_->process(exec, sync, data_item_manager::acquire(reqs, infos));
                 },
+#if defined(ALLSCALE_DEBUG_DIM)
+                data_item_manager::locate(std::move(s), reqs)
+#else
                 data_item_manager::locate(reqs)
+#endif
             );
         }
 
@@ -523,6 +535,20 @@ namespace allscale { namespace detail {
             auto reqs = detail::merge_data_item_reqs(
                 get_requirements<typename WorkItemDescription::split_variant>(nullptr)
             );
+#if defined(ALLSCALE_DEBUG_DIM)
+            std::string s = this->name();
+            s += '(';
+            s += id_.name();
+            s += ").split";
+            data_item_manager::log_req(s,
+                detail::merge_data_item_reqs(
+                    hpx::util::tuple_cat(
+                        get_requirements<typename WorkItemDescription::split_variant>(nullptr),
+                        get_requirements<typename WorkItemDescription::process_variant>(nullptr)
+                    )
+                )
+            );
+#endif
             return hpx::dataflow(hpx::launch::sync,
                 [reqs, this_ = std::move(this_), &exec, sync](auto locate_future)
                 {
@@ -542,7 +568,11 @@ namespace allscale { namespace detail {
                     this_->split_impl(exec, sync, data_item_manager::acquire(reqs, infos));
                     return std::size_t(-2);
                 },
+#if defined(ALLSCALE_DEBUG_DIM)
+                data_item_manager::locate(std::move(s), reqs)
+#else
                 data_item_manager::locate(reqs)
+#endif
             );
         }
 

@@ -2,6 +2,7 @@
 #ifndef ALLSCALE_DATA_ITEM_MANAGER_LOCATE_HPP
 #define ALLSCALE_DATA_ITEM_MANAGER_LOCATE_HPP
 
+#include <allscale/config.hpp>
 #include <allscale/get_num_localities.hpp>
 #include <allscale/data_item_manager/data_item_store.hpp>
 #include <allscale/data_item_manager/shared_data.hpp>
@@ -12,8 +13,6 @@
 #include <hpx/util/tuple.hpp>
 
 #include <vector>
-
-// #define ALLSCALE_DEBUG_DIM
 
 namespace allscale { namespace data_item_manager {
     namespace detail
@@ -102,7 +101,11 @@ namespace allscale { namespace data_item_manager {
 
         template <locate_state state, typename Requirement>
         hpx::future<location_info<typename Requirement::region_type>>
+#if defined(ALLSCALE_DEBUG_DIM)
+        locate(std::string name, Requirement req);
+#else
         locate(Requirement req);
+#endif
 
         template <locate_state state, typename Requirement>
         struct locate_action
@@ -114,7 +117,11 @@ namespace allscale { namespace data_item_manager {
 
         template <locate_state state, typename Requirement>
         hpx::future<location_info<typename Requirement::region_type>>
+#if defined(ALLSCALE_DEBUG_DIM)
+        locate(std::string name, Requirement req)
+#else
         locate(Requirement req)
+#endif
         {
             using region_type = typename Requirement::region_type;
             using location_info_type = location_info<region_type>;
@@ -199,7 +206,12 @@ namespace allscale { namespace data_item_manager {
                 );
                 // FIXME: make resilient
                 remote_infos[0] = hpx::async<locate_down_action_type>(
-                    target, Requirement(req.ref, part, req.mode));
+#if defined(ALLSCALE_DEBUG_DIM)
+                    target, std::string(), Requirement(req.ref, part, req.mode)
+#else
+                    target, Requirement(req.ref, part, req.mode)
+#endif
+                );
 
                 // Subtract what we got from what we requested
                 remainder = region_type::difference(remainder, part);
@@ -216,7 +228,12 @@ namespace allscale { namespace data_item_manager {
                 );
                 // FIXME: make resilient
                 remote_infos[1] = hpx::async<locate_up_action_type>(
-                    target, Requirement(req.ref, part, req.mode));
+#if defined(ALLSCALE_DEBUG_DIM)
+                    target, std::string(), Requirement(req.ref, part, req.mode)
+#else
+                    target, Requirement(req.ref, part, req.mode)
+#endif
+                );
 
                 // Subtract what we got from what we requested
                 remainder = region_type::difference(remainder, part);
@@ -233,7 +250,12 @@ namespace allscale { namespace data_item_manager {
                 );
                 // FIXME: make resilient
                 remote_infos[2] = hpx::async<locate_up_action_type>(
-                    target, Requirement(req.ref, part, req.mode));
+#if defined(ALLSCALE_DEBUG_DIM)
+                    target, std::string(), Requirement(req.ref, part, req.mode)
+#else
+                    target, Requirement(req.ref, part, req.mode)
+#endif
+                );
 
                 // Subtract what we got from what we requested
                 remainder = region_type::difference(remainder, part);
@@ -251,7 +273,12 @@ namespace allscale { namespace data_item_manager {
                     );
                     // FIXME: make resilient
                     remote_infos[3] = hpx::async<locate_down_action_type>(
-                        target, Requirement(req.ref, remainder, req.mode));
+#if defined(ALLSCALE_DEBUG_DIM)
+                        target, std::string(), Requirement(req.ref, part, req.mode)
+#else
+                        target, Requirement(req.ref, part, req.mode)
+#endif
+                    );
                 }
 
                 if (state != locate_state::down)
@@ -266,7 +293,12 @@ namespace allscale { namespace data_item_manager {
                         );
                         // FIXME: make resilient
                         remote_infos[4] = hpx::async<locate_up_action_type>(
-                            target, Requirement(req.ref, remainder, req.mode));
+#if defined(ALLSCALE_DEBUG_DIM)
+                            target, std::string(), Requirement(req.ref, part, req.mode)
+#else
+                            target, Requirement(req.ref, part, req.mode)
+#endif
+                        );
                     }
                     if (this_id * 2 + 2 < allscale::get_num_localities())
                     {
@@ -277,7 +309,12 @@ namespace allscale { namespace data_item_manager {
                         );
                         // FIXME: make resilient
                         remote_infos[5] = hpx::async<locate_up_action_type>(
-                            target, Requirement(req.ref, remainder, req.mode));
+#if defined(ALLSCALE_DEBUG_DIM)
+                            target, std::string(), Requirement(req.ref, part, req.mode)
+#else
+                            target, Requirement(req.ref, part, req.mode)
+#endif
+                        );
                     }
                 }
             }
@@ -285,7 +322,11 @@ namespace allscale { namespace data_item_manager {
             l.unlock();
 
             return hpx::when_all(remote_infos).then(hpx::launch::sync,
+#if defined(ALLSCALE_DEBUG_DIM)
+                [name = std::move(name), info = std::move(info), req, remainder = std::move(remainder)](auto remote_infos_fut) mutable
+#else
                 [info = std::move(info), req, remainder = std::move(remainder)](auto remote_infos_fut) mutable
+#endif
                 {
                     auto remote_infos = remote_infos_fut.get();
                     auto& item = data_item_store<data_item_type>::lookup(req.ref);
@@ -318,9 +359,6 @@ namespace allscale { namespace data_item_manager {
                     // the remainder is not part of our own region
                     if (state == locate_state::init && !remainder.empty())
                     {
-#if defined(ALLSCALE_DEBUG_DIM)
-                        region_type orig_remainder = remainder;
-#endif
                         remainder = region_type::difference(remainder, item.owned_region);
                         HPX_ASSERT(!remainder.empty());
                         // propagate information up.
@@ -361,12 +399,16 @@ namespace allscale { namespace data_item_manager {
                         }
 #if defined(ALLSCALE_DEBUG_DIM)
                         std::stringstream filename;
-                        filename << "data_item_" << req.ref.id() << "." << this_id;
+                        filename << "data_item." << this_id << ".log";
                         std::ofstream os(filename.str(), std::ios_base::app);
-                        os << remainder << '\n';
-                        std::cout << "First touch " << req.ref.id() << " ("
-                            << remainder << ", requested " << orig_remainder << ", "
-                            << (req.mode == access_mode::ReadOnly? "ro" : "rw") << ") on " << this_id << '\n';
+                        os
+                            << "create("
+                            << (req.mode == access_mode::ReadOnly? "ro" : "rw")
+                            << "), "
+                            << name
+                            << ", "
+                            << std::hex << req.ref.id().get_lsb() << std::dec
+                            << ": " << remainder << '\n';
                         os.close();
 #endif
                     }
@@ -380,25 +422,54 @@ namespace allscale { namespace data_item_manager {
 
         template <locate_state state, typename Requirement, typename Allocator>
         std::vector<hpx::future<location_info<typename Requirement::region_type>>>
+#if defined(ALLSCALE_DEBUG_DIM)
+        locate(std::string name, std::vector<Requirement, Allocator> const& reqs)
+#else
         locate(std::vector<Requirement, Allocator> const& reqs)
+#endif
         {
             std::vector<hpx::future<location_info<typename Requirement::region_type>>> res;
             res.reserve(reqs.size());
             for (auto const& req: reqs)
             {
+#if defined(ALLSCALE_DEBUG_DIM)
+                res.push_back(locate<state>(name, req));
+#else
                 res.push_back(locate<state>(req));
+#endif
             }
             return res;
         }
 
+#if defined(ALLSCALE_DEBUG_DIM)
+        template <locate_state state, typename Requirements, std::size_t...Is>
+        auto locate(std::string name, Requirements const& reqs, hpx::util::detail::pack_c<std::size_t, Is...>)
+         -> hpx::util::tuple<decltype(locate<state>(name, hpx::util::get<Is>(reqs)))...>
+        {
+            return hpx::util::make_tuple(locate<state>(name, hpx::util::get<Is>(reqs))...);
+        }
+#else
         template <locate_state state, typename Requirements, std::size_t...Is>
         auto locate(Requirements const& reqs, hpx::util::detail::pack_c<std::size_t, Is...>)
          -> hpx::util::tuple<decltype(locate<state>(hpx::util::get<Is>(reqs)))...>
         {
             return hpx::util::make_tuple(locate<state>(hpx::util::get<Is>(reqs))...);
         }
+#endif
     }
 
+#if defined(ALLSCALE_DEBUG_DIM)
+    template <typename Requirements>
+    auto locate(std::string name, Requirements const& reqs)
+     -> decltype(detail::locate<detail::locate_state::init>(name, reqs,
+            std::declval<typename hpx::util::detail::make_index_pack<
+                hpx::util::tuple_size<Requirements>::type::value>::type>()))
+    {
+        return detail::locate<detail::locate_state::init>(name, reqs,
+            typename hpx::util::detail::make_index_pack<
+                hpx::util::tuple_size<Requirements>::type::value>::type{});
+    }
+#else
     template <typename Requirements>
     auto locate(Requirements const& reqs)
      -> decltype(detail::locate<detail::locate_state::init>(reqs,
@@ -409,7 +480,59 @@ namespace allscale { namespace data_item_manager {
             typename hpx::util::detail::make_index_pack<
                 hpx::util::tuple_size<Requirements>::type::value>::type{});
     }
+#endif
 
+#if defined(ALLSCALE_DEBUG_DIM)
+    namespace detail
+    {
+        template <typename Requirement>
+        void log_req(std::string const& name, Requirement const& req)
+        {
+#if defined(ALLSCALE_DEBUG_DIM)
+            std::stringstream filename;
+            filename << "data_item." << hpx::get_locality_id() << ".log";
+            std::ofstream os(filename.str(), std::ios_base::app);
+            os
+                << "require("
+                << (req.mode == access_mode::ReadOnly? "ro" : "rw")
+                << "), "
+                << name
+                << ", "
+                << std::hex << req.ref.id().get_lsb() << std::dec
+                << ": "
+                << req.region << '\n';
+            os.close();
+#endif
+        }
+
+        template <typename Requirement, typename Allocator>
+        void log_req(std::string const& name, std::vector<Requirement, Allocator> const& reqs)
+        {
+            for (std::size_t i = 0; i != reqs.size(); ++i)
+            {
+                detail::log_req(name, reqs[i]);
+            }
+        }
+
+        template <typename Requirements, std::size_t...Is>
+        void log_req(std::string const& name, Requirements const& reqs,
+            hpx::util::detail::pack_c<std::size_t, Is...>)
+        {
+            int sequencer[] = {
+                (detail::log_req(name, hpx::util::get<Is>(reqs)), 0)...
+            };
+            (void)sequencer;
+        }
+    }
+
+    template <typename Requirements>
+    void log_req(std::string const& name, Requirements const& reqs)
+    {
+        detail::log_req(name, reqs,
+            typename hpx::util::detail::make_index_pack<
+                hpx::util::tuple_size<Requirements>::type::value>::type{});
+    }
+#endif
 }}
 
 #endif
