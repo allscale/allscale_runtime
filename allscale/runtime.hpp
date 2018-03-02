@@ -9,6 +9,7 @@
  */
 
 
+#include <allscale/config.hpp>
 #include <allscale/no_split.hpp>
 #include <allscale/spawn.hpp>
 #include <allscale/work_item_description.hpp>
@@ -99,6 +100,13 @@ int allscale_main(boost::program_options::variables_map &)
     auto resi = allscale::resilience::run(hpx::get_locality_id());
     // start allscale scheduler ...
     auto sched = allscale::scheduler::run(hpx::get_locality_id());
+
+#if defined(ALLSCALE_DEBUG_DIM)
+            std::stringstream filename;
+            filename << "data_item." << hpx::get_locality_id() << ".log";
+            std::ofstream os(filename.str(), std::ios_base::trunc);
+            os.close();
+#endif
 
     // trigger first work item on first node
     int res = EXIT_SUCCESS;

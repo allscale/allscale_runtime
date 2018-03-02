@@ -176,12 +176,6 @@ namespace allscale
 
     scheduler::scheduler(std::size_t rank)
     {
-#if defined(ALLSCALE_DEBUG_DIM)
-            std::stringstream filename;
-            filename << "data_item." << hpx::get_locality_id() << ".log";
-            std::ofstream os(filename.str(), std::ios_base::trunc);
-            os.close();
-#endif
         std::unique_lock<mutex_type> l(mtx_);
         hpx::util::ignore_while_checking<std::unique_lock<mutex_type>> il(&l);
 
