@@ -274,9 +274,9 @@ namespace allscale { namespace data_item_manager {
                     // FIXME: make resilient
                     remote_infos[3] = hpx::async<locate_down_action_type>(
 #if defined(ALLSCALE_DEBUG_DIM)
-                        target, std::string(), Requirement(req.ref, part, req.mode)
+                        target, std::string(), Requirement(req.ref, remainder, req.mode)
 #else
-                        target, Requirement(req.ref, part, req.mode)
+                        target, Requirement(req.ref, remainder, req.mode)
 #endif
                     );
                 }
@@ -294,9 +294,9 @@ namespace allscale { namespace data_item_manager {
                         // FIXME: make resilient
                         remote_infos[4] = hpx::async<locate_up_action_type>(
 #if defined(ALLSCALE_DEBUG_DIM)
-                            target, std::string(), Requirement(req.ref, part, req.mode)
+                            target, std::string(), Requirement(req.ref, remainder, req.mode)
 #else
-                            target, Requirement(req.ref, part, req.mode)
+                            target, Requirement(req.ref, remainder, req.mode)
 #endif
                         );
                     }
@@ -310,9 +310,9 @@ namespace allscale { namespace data_item_manager {
                         // FIXME: make resilient
                         remote_infos[5] = hpx::async<locate_up_action_type>(
 #if defined(ALLSCALE_DEBUG_DIM)
-                            target, std::string(), Requirement(req.ref, part, req.mode)
+                            target, std::string(), Requirement(req.ref, remainder, req.mode)
 #else
-                            target, Requirement(req.ref, part, req.mode)
+                            target, Requirement(req.ref, remainder, req.mode)
 #endif
                         );
                     }
