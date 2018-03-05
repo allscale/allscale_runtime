@@ -25,7 +25,8 @@ namespace allscale {
             work_item_execution_finished = 3,
             work_item_result_propagated = 4,
             work_item_first = 5,
-            last_ = 6
+            work_item_dispatched = 6,
+            last_ = 7
         };
 
         typedef

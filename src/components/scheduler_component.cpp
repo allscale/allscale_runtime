@@ -574,6 +574,8 @@ namespace allscale { namespace components {
                     return;
                 }
             //task not meant to be local: move task to remote nodes
+            
+            allscale::resilience::global_wi_dispatched(work, schedule_rank);
             network_.schedule(schedule_rank, std::move(work), this_work_item::get_id());
         }
 
