@@ -1,0 +1,11 @@
+0	CPU User %
+1	CPU Nice %
+2	CPU System %
+3	CPU Idle %
+4	CPU I/O Wait %
+5	CPU IRQ %
+6	CPU soft IRQ %
+7	CPU Steal %
+8	CPU Guest %
+9	Package-0 Energy
+10	DRAM Energy
