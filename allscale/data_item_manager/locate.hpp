@@ -360,57 +360,61 @@ namespace allscale { namespace data_item_manager {
                     if (state == locate_state::init && !remainder.empty())
                     {
                         remainder = region_type::difference(remainder, item.owned_region);
-                        HPX_ASSERT(!remainder.empty());
-                        // propagate information up.
-                        // FIXME: futurize
-                        std::pair<region_type, region_type> registered;
+                        if (!remainder.empty());
                         {
-                            hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                            registered = register_child<Requirement>(
-                                req.ref.id(), remainder, this_id).get();
-                        }
-
-                        remainder = registered.first;
-
-                        // Merge newly returned parent with our own
-                        item.parent_region = region_type::merge(item.parent_region, registered.second);
-
-                        // Account for over approximation...
-                        remainder = region_type::difference(remainder, item.parent_region);
-
-                        // Merge with our own region
-                        item.owned_region =
-                            region_type::merge(item.owned_region, remainder);
-
-                        info.regions.insert(std::make_pair(this_id, remainder));
-
-                        // And finally, allocate the fragment if it wasn't there already.
-                        if (item.fragment == nullptr)
-                        {
-                            typename data_item_type::shared_data_type shared_data_;
+                            // propagate information up.
+                            // FIXME: futurize
+                            std::pair<region_type, region_type> registered;
                             {
                                 hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                                shared_data_ = shared_data(req.ref);
+                                registered = register_child<Requirement>(
+                                    req.ref.id(), remainder, this_id).get();
                             }
+
+                            remainder = registered.first;
+
+                            // Merge newly returned parent with our own
+                            item.parent_region = region_type::merge(item.parent_region, registered.second);
+
+                            // Account for over approximation...
+                            remainder = region_type::difference(remainder, item.parent_region);
+
+                            // Merge with our own region
+                            item.owned_region =
+                                region_type::merge(item.owned_region, remainder);
+
+                            info.regions.insert(std::make_pair(this_id, remainder));
+
+                            // And finally, allocate the fragment if it wasn't there already.
                             if (item.fragment == nullptr)
                             {
-                                item.fragment.reset(new fragment_type(std::move(shared_data_)));
+                                typename data_item_type::shared_data_type shared_data_;
+                                {
+                                    hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+                                    shared_data_ = shared_data(req.ref);
+                                }
+                                if (item.fragment == nullptr)
+                                {
+                                    item.fragment.reset(new fragment_type(std::move(shared_data_)));
+                                }
                             }
-                        }
 #if defined(ALLSCALE_DEBUG_DIM)
-                        std::stringstream filename;
-                        filename << "data_item." << this_id << ".log";
-                        std::ofstream os(filename.str(), std::ios_base::app);
-                        os
-                            << "create("
-                            << (req.mode == access_mode::ReadOnly? "ro" : "rw")
-                            << "), "
-                            << name
-                            << ", "
-                            << std::hex << req.ref.id().get_lsb() << std::dec
-                            << ": " << remainder << '\n';
-                        os.close();
+                            std::stringstream filename;
+                            filename << "data_item." << this_id << ".log";
+                            std::ofstream os(filename.str(), std::ios_base::app);
+                            os
+                                << "create("
+                                << (req.mode == access_mode::ReadOnly? "ro" : "rw")
+                                << "), "
+                                << name
+                                << ", "
+                                << std::hex << req.ref.id().get_lsb() << std::dec
+                                << ": "
+                                << region_type::intersect(item.fragment->getTotalSize(), remainder)
+                                << '\n';
+                            os.close();
 #endif
+                        }
                     }
 
 //                     HPX_ASSERT(!info.regions.empty());
@@ -488,7 +492,27 @@ namespace allscale { namespace data_item_manager {
         template <typename Requirement>
         void log_req(std::string const& name, Requirement const& req)
         {
-#if defined(ALLSCALE_DEBUG_DIM)
+            using region_type = typename Requirement::region_type;
+            using location_info_type = location_info<region_type>;
+            using data_item_type = typename Requirement::data_item_type;
+            using fragment_type = typename data_item_store<data_item_type>::data_item_type::fragment_type;
+            using mutex_type = typename data_item_store<data_item_type>::data_item_type::mutex_type;
+
+            auto& item = data_item_store<data_item_type>::lookup(req.ref);
+            std::unique_lock<mutex_type> l(item.mtx);
+            // Allocate the fragment if it wasn't there already.
+            if (item.fragment == nullptr)
+            {
+                typename data_item_type::shared_data_type shared_data_;
+                {
+                    hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+                    shared_data_ = shared_data(req.ref);
+                }
+                if (item.fragment == nullptr)
+                {
+                    item.fragment.reset(new fragment_type(std::move(shared_data_)));
+                }
+            }
             std::stringstream filename;
             filename << "data_item." << hpx::get_locality_id() << ".log";
             std::ofstream os(filename.str(), std::ios_base::app);
@@ -500,9 +524,8 @@ namespace allscale { namespace data_item_manager {
                 << ", "
                 << std::hex << req.ref.id().get_lsb() << std::dec
                 << ": "
-                << req.region << '\n';
+                << region_type::intersect(item.fragment->getTotalSize(), req.region) << '\n';
             os.close();
-#endif
         }
 
         template <typename Requirement, typename Allocator>

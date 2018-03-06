@@ -16,18 +16,8 @@ namespace allscale { namespace data_item_manager {
         template <typename Requirement, typename LocationInfo>
         std::size_t acquire_rank(Requirement const& req, LocationInfo const& info)
         {
-//             std::cout << "------------------------------\n";
-//             std::cout << "Located " << req.ref.id() << " (" << req.region << ", " <<
-//                 (req.mode == access_mode::ReadOnly? "ro" : "rw") << ") \n";
-//             for (auto const& parts: info.regions)
-//             {
-//                 std::cout << "  located " << parts.second << " at " << parts.first << '\n';
-//             }
-//             std::cout << "------------------------------\n";
-
             // If it's a read only access, return -2
             if (req.mode == access_mode::ReadOnly) return std::size_t(-2);
-            std::size_t rank(-1);
             HPX_ASSERT(!info.regions.empty());
             // If we have more than one part, we need to split
             if (info.regions.size() > 1)
