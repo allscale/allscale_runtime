@@ -10,7 +10,7 @@
 #include <allscale/lease.hpp>
 #include "allscale/utils/serializer.h"
 
-#include <hpx/include/components.hpp>
+#include <hpx/runtime/components/new.hpp>
 #include <hpx/util/detail/yield_k.hpp>
 
 #include <type_traits>

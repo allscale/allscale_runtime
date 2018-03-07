@@ -1,8 +1,9 @@
 #ifndef ALLSCALE_DATA_ITEM_REFERENCE_HPP
 #define ALLSCALE_DATA_ITEM_REFERENCE_HPP
 
-#include <hpx/include/components.hpp>
-#include <hpx/include/actions.hpp>
+#include <hpx/runtime/components/server/component_base.hpp>
+#include <hpx/runtime/naming/id_type.hpp>
+#include <hpx/lcos/future.hpp>
 #include <hpx/include/serialization.hpp>
 
 ///////////////////////////////////////////////////////////////////////////

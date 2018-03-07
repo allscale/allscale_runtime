@@ -13,8 +13,7 @@
 #include <allscale/no_split.hpp>
 #include <allscale/spawn.hpp>
 #include <allscale/work_item_description.hpp>
-#include <allscale/components/monitor.hpp>
-#include <allscale/components/resilience.hpp>
+#include <allscale/monitor.hpp>
 #include <allscale/resilience.hpp>
 #include <allscale/do_serialization.hpp>
 #include <allscale/no_serialization.hpp>
