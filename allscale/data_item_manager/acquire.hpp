@@ -83,8 +83,10 @@ namespace allscale { namespace data_item_manager {
 
                 // collect the parts we need to transfer...
                 std::vector<hpx::future<data_item_view<data_item_type>>> transfers;
-                transfers.reserve(info.regions.size());
-                for(auto const& part: info.regions)
+                
+		transfers.reserve(info.regions.size());
+                
+		for(auto const& part: info.regions)
                 {
                     if (part.first != hpx::get_locality_id())
                     {
@@ -97,7 +99,6 @@ namespace allscale { namespace data_item_manager {
                         );
                     }
                 }
-
                 if (transfers.empty())
                 {
                     return hpx::make_ready_future(lease_type(req));

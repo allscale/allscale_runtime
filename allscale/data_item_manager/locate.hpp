@@ -13,7 +13,7 @@
 #include <hpx/util/tuple.hpp>
 
 #include <vector>
-
+#include <boost/thread.hpp>
 namespace allscale { namespace data_item_manager {
     namespace detail
     {
@@ -136,8 +136,10 @@ namespace allscale { namespace data_item_manager {
             location_info_type info;
 
             auto& item = data_item_store<data_item_type>::lookup(req.ref);
-            std::unique_lock<mutex_type> l(item.mtx);
-            // FIXME: wait for migration and lock here.
+
+	    //item.mtx.lock_shared(); 
+	    boost::shared_lock<mutex_type> l(item.mtx);
+	               // FIXME: wait for migration and lock here.
 
             item.locate_access++;
 
@@ -162,20 +164,31 @@ namespace allscale { namespace data_item_manager {
 
             // Lookup in our cache
             hpx::util::high_resolution_timer timer;
-            for (auto const& cached: item.location_cache.regions)
+            hpx::util::high_resolution_timer intersect_timer;
+            hpx::util::high_resolution_timer merge_timer;
+            hpx::util::high_resolution_timer difference_timer;
+            
+	    for (auto const& cached: item.location_cache.regions)
             {
+		intersect_timer.restart();
                 part = region_type::intersect(remainder, cached.second);
+		item.intersect_time += intersect_timer.elapsed();
                 // We got a hit!
                 if (!part.empty())
                 {
                     // Insert location information...
                     auto & info_part = info.regions[cached.first];
-                    info_part = region_type::merge(info_part, part);
-
-                    // Subtract what we got from what we requested
+                
+	  	    merge_timer.restart();
+		    info_part = region_type::merge(info_part, part);
+		    item.merge_time += merge_timer.elapsed();
+                    
+	  	    difference_timer.restart();
+		    // Subtract what we got from what we requested
                     remainder = region_type::difference(remainder, part);
-
-                    // If the remainder is empty, we got everything covered...
+		    item.difference_time += difference_timer.elapsed();
+                    
+		    // If the remainder is empty, we got everything covered...
                     if (remainder.empty())
                     {
                         item.cache_lookup_time += timer.elapsed();
@@ -197,7 +210,7 @@ namespace allscale { namespace data_item_manager {
             using locate_up_action_type = locate_action<locate_state::up, Requirement>;
             if (!part.empty())
             {
-                hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+                hpx::util::unlock_guard<boost::shared_lock<mutex_type>> ul(l);
                 HPX_ASSERT(this_id != 0);
                 hpx::id_type target(
                     hpx::naming::get_id_from_locality_id(
@@ -220,7 +233,7 @@ namespace allscale { namespace data_item_manager {
             part = region_type::intersect(remainder, item.left_region);
             if (!part.empty())
             {
-                hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+                hpx::util::unlock_guard<boost::shared_lock<mutex_type>> ul(l);
                 hpx::id_type target(
                     hpx::naming::get_id_from_locality_id(
                         this_id * 2 + 1
@@ -242,7 +255,7 @@ namespace allscale { namespace data_item_manager {
             part = region_type::intersect(remainder, item.right_region);
             if (!part.empty())
             {
-                hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+                hpx::util::unlock_guard<boost::shared_lock<mutex_type>> ul(l);
                 hpx::id_type target(
                     hpx::naming::get_id_from_locality_id(
                         this_id * 2 + 2
@@ -265,7 +278,7 @@ namespace allscale { namespace data_item_manager {
             {
                 if (state != locate_state::up && this_id != 0)
                 {
-                    hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+                    hpx::util::unlock_guard<boost::shared_lock<mutex_type>> ul(l);
                     hpx::id_type target(
                         hpx::naming::get_id_from_locality_id(
                             (this_id-1)/2
@@ -283,7 +296,7 @@ namespace allscale { namespace data_item_manager {
 
                 if (state != locate_state::down)
                 {
-                    hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+                    hpx::util::unlock_guard<boost::shared_lock<mutex_type>> ul(l);
                     if (this_id * 2 + 1 < allscale::get_num_localities())
                     {
                         hpx::id_type target(
@@ -332,14 +345,15 @@ namespace allscale { namespace data_item_manager {
                     auto& item = data_item_store<data_item_type>::lookup(req.ref);
                     std::size_t this_id = hpx::get_locality_id();
 
-                    std::unique_lock<mutex_type> l(item.mtx);
 
                     // Merge infos
                     for (auto& info_parts_fut: remote_infos)
                     {
                         if (info_parts_fut.valid())
                         {
-                            auto info_parts = info_parts_fut.get();
+
+			    auto info_parts = info_parts_fut.get();
+			    std::unique_lock<mutex_type> l(item.mtx);
                             for (auto const& remote_info: info_parts.regions)
                             {
                                 // update cache.
@@ -359,7 +373,9 @@ namespace allscale { namespace data_item_manager {
                     // the remainder is not part of our own region
                     if (state == locate_state::init && !remainder.empty())
                     {
-                        remainder = region_type::difference(remainder, item.owned_region);
+                        
+			std::unique_lock<mutex_type> l(item.mtx);
+			remainder = region_type::difference(remainder, item.owned_region);
                         HPX_ASSERT(!remainder.empty());
                         // propagate information up.
                         // FIXME: futurize
