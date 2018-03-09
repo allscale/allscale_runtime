@@ -1,6 +1,7 @@
 
+#define ALLSCALE_DEBUG_DIM
+
 #include <allscale/runtime.hpp>
-//#include <allscale/api/user/data/static_grid.h>
 #include <allscale/api/user/data/grid.h>
 #include <hpx/util/assert.hpp>
 
@@ -93,14 +94,13 @@ struct grid_init_split {
         auto data_b = hpx::util::get<1>(c);
         auto begin = hpx::util::get<2>(c);
         auto end = hpx::util::get<3>(c);
-        auto mid = begin[0] + (end[0] - begin[0]) / 2;
 
-        auto left_end = end; left_end[0] = mid;
-        auto right_begin = begin; right_begin[0] = mid;
+        auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
+        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
 
         return allscale::runtime::treeture_parallel(
-            allscale::spawn<grid_init>(data_a, data_b, begin, left_end),
-            allscale::spawn<grid_init>(data_a, data_b, right_begin, end)
+            allscale::spawn<grid_init>(data_a, data_b, fragments.left.begin(), fragments.left.end()),
+            allscale::spawn<grid_init>(data_a, data_b, fragments.right.begin(), fragments.right.end())
         );
     }
 
@@ -194,19 +194,18 @@ struct grid_validate_split {
         auto data = hpx::util::get<0>(c);
         auto begin = hpx::util::get<1>(c);
         auto end = hpx::util::get<2>(c);
+        auto N = hpx::util::get<3>(c);
 
-        auto mid = begin[0] + (end[0] - begin[0]) / 2;
-
-        auto left_end = end; left_end[0] = mid;
-        auto right_begin = begin; right_begin[0] = mid;
+        auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
+        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
 
         return hpx::dataflow(
             [](hpx::future<double> a, hpx::future<double> b)
             {
                 return a.get() + b.get();
             },
-            allscale::spawn<grid_validate>(data, begin, left_end).get_future(),
-            allscale::spawn<grid_validate>(data, right_begin, end).get_future()
+            allscale::spawn<grid_validate>(data, fragments.left.begin(), fragments.left.end(), N).get_future(),
+            allscale::spawn<grid_validate>(data, fragments.right.begin(), fragments.right.end(), N).get_future()
         );
 
     }
@@ -222,6 +221,13 @@ struct grid_validate_process {
         auto data = allscale::data_item_manager::get(ref);
         auto begin = hpx::util::get<1>(c);
         auto end = hpx::util::get<2>(c);
+        auto N = hpx::util::get<3>(c);
+
+        // Clip region
+        if (begin[0] < RADIUS) begin[0] = RADIUS;
+        if (begin[1] < RADIUS) begin[1] = RADIUS;
+        if (end[0] > N - RADIUS) end[0] = N - RADIUS;
+        if (end[1] > N - RADIUS) end[1] = N - RADIUS;
 
         region_type region(begin, end);
         double tmp_res = 0;
@@ -238,10 +244,21 @@ struct grid_validate_process {
     >
     get_requirements(Closure const& c)
     {
+        auto begin = hpx::util::get<1>(c);
+        auto end = hpx::util::get<2>(c);
+
+        auto N = hpx::util::get<3>(c);
+
+        // Clip region
+        if (begin[0] < RADIUS) begin[0] = RADIUS;
+        if (begin[1] < RADIUS) begin[1] = RADIUS;
+        if (end[0] > N - RADIUS) end[0] = N - RADIUS;
+        if (end[1] > N - RADIUS) end[1] = N - RADIUS;
+
         return hpx::util::make_tuple(
             allscale::createDataItemRequirement(
                 hpx::util::get<0>(c),
-                region_type(hpx::util::get<1>(c), hpx::util::get<2>(c)),
+                region_type(begin, end),
                 allscale::access_mode::ReadOnly
             )
         );
@@ -292,15 +309,14 @@ struct stencil_split {
 
         auto begin = hpx::util::get<2>(c);
         auto end = hpx::util::get<3>(c);
+        auto N = hpx::util::get<4>(c);
 
-        auto mid = begin[0] + (end[0] - begin[0]) / 2;
-
-        auto left_end = end; left_end[0] = mid;
-        auto right_begin = begin; right_begin[0] = mid;
+        auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
+        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
 
         return allscale::runtime::treeture_parallel(
-            allscale::spawn<stencil>(mat_a, mat_b, begin, left_end),
-            allscale::spawn<stencil>(mat_a, mat_b, right_begin, end)
+            allscale::spawn<stencil>(mat_a, mat_b, fragments.left.begin(), fragments.left.end(), N),
+            allscale::spawn<stencil>(mat_a, mat_b, fragments.right.begin(), fragments.right.end(), N)
         );
     }
 
@@ -319,6 +335,14 @@ struct stencil_process {
 
         coordinate_type begin(hpx::util::get<2>(c));
         coordinate_type end(hpx::util::get<3>(c));
+
+        auto N = hpx::util::get<4>(c);
+
+        // Clip region
+        if (begin[0] < RADIUS) begin[0] = RADIUS;
+        if (begin[1] < RADIUS) begin[1] = RADIUS;
+        if (end[0] > N - RADIUS) end[0] = N - RADIUS;
+        if (end[1] > N - RADIUS) end[1] = N - RADIUS;
 
         region_type region(begin, end);
         region.scan([&](coordinate_type const& out_pos)
@@ -346,6 +370,14 @@ struct stencil_process {
     {
         auto begin = hpx::util::get<2>(c);
         auto end = hpx::util::get<3>(c);
+
+        auto N = hpx::util::get<4>(c);
+
+        // Clip region
+        if (begin[0] < RADIUS) begin[0] = RADIUS;
+        if (begin[1] < RADIUS) begin[1] = RADIUS;
+        if (end[0] > N - RADIUS) end[0] = N - RADIUS;
+        if (end[1] > N - RADIUS) end[1] = N - RADIUS;
 
         //acquire regions now
         return hpx::util::make_tuple(
@@ -430,23 +462,17 @@ struct main_process
         allscale::data_item_reference<data_item_type> mat_b
             = allscale::data_item_manager::create<data_item_type>(sharedData);
 
+        coordinate_type begin(0, 0);
+        coordinate_type end(N, N);
 
-        coordinate_type begin(RADIUS, RADIUS);
-        coordinate_type end(N-RADIUS, N-RADIUS);
-        region_type whole_region({0,0}, {N, N});
-
-
-        coordinate_type begin_init(0, 0);
-        coordinate_type end_init(N, N);
-
-        allscale::spawn_first<grid_init>(mat_a, mat_b, begin_init,end_init, 0).wait();
+        allscale::spawn_first<grid_init>(mat_a, mat_b, begin,end).wait();
 
         std::cout << "Starting iterations\n";
 
         // DO ACTUAL WORK: SPAWN FIRST WORK ITEM
         hpx::util::high_resolution_timer timer;
         for(int i = 0 ; i <= iterations; ++i){
-            allscale::spawn_first<stencil>(mat_a, mat_b, begin, end).wait();
+            allscale::spawn_first<stencil>(mat_a, mat_b, begin, end, N).wait();
             std::cout << "Iteration " << i << " done.\n";
             if (i == 0)
             {
@@ -464,7 +490,7 @@ struct main_process
         std::cout << flops/avgtime * 1.0E-06 << "," << avgtime << '\n';
 
         //VALIDATE RESULTS
-        allscale::treeture<double> vld = allscale::spawn_first<grid_validate>(mat_b, begin, end, 1);
+        allscale::treeture<double> vld = allscale::spawn_first<grid_validate>(mat_b, begin, end, N);
 
         double res = vld.get_result();
 
