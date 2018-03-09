@@ -1,5 +1,5 @@
 
-#define ALLSCALE_DEBUG_DIM
+//#define ALLSCALE_DEBUG_DIM
 
 #include <allscale/runtime.hpp>
 #include <allscale/api/user/data/grid.h>
@@ -96,7 +96,10 @@ struct grid_init_split {
         auto end = hpx::util::get<3>(c);
 
         auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
-        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
+        auto diff = end - begin;
+        int dim = 1;
+        if (diff[0] > diff[1]) dim = 0;
+        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(dim, range);
 
         return allscale::runtime::treeture_parallel(
             allscale::spawn<grid_init>(data_a, data_b, fragments.left.begin(), fragments.left.end()),
@@ -197,7 +200,10 @@ struct grid_validate_split {
         auto N = hpx::util::get<3>(c);
 
         auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
-        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
+        auto diff = end - begin;
+        int dim = 1;
+        if (diff[0] > diff[1]) dim = 0;
+        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(dim, range);
 
         return hpx::dataflow(
             [](hpx::future<double> a, hpx::future<double> b)
@@ -312,7 +318,10 @@ struct stencil_split {
         auto N = hpx::util::get<4>(c);
 
         auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
-        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(0, range);
+        auto diff = end - begin;
+        int dim = 1;
+        if (diff[0] > diff[1]) dim = 0;
+        auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(dim, range);
 
         return allscale::runtime::treeture_parallel(
             allscale::spawn<stencil>(mat_a, mat_b, fragments.left.begin(), fragments.left.end(), N),
