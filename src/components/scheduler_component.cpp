@@ -265,7 +265,7 @@ namespace allscale { namespace components {
                     pool_name = "allscale-numa-" + std::to_string(domain);
 
                     thread_pools_.push_back( &hpx::resource::get_thread_pool(pool_name));
-                    std::cerr << "Attached to " << pool_name << " (" << thread_pools_.back() << '\n';
+//                     std::cerr << "Attached to " << pool_name << " (" << thread_pools_.back() << '\n';
                     initial_masks_.push_back(thread_pools_.back()->get_used_processing_units());
                     suspending_masks_.push_back(thread_pools_.back()->get_used_processing_units());
                     hpx::threads::reset((suspending_masks_.back()));
@@ -445,8 +445,8 @@ namespace allscale { namespace components {
                     }
             }
 
-            std::cerr
-                << "Scheduler with rank " << rank_ << " created!\n";
+//             std::cerr
+//                 << "Scheduler with rank " << rank_ << " created!\n";
         }
 
         void scheduler::enqueue(work_item work, this_work_item::id const& id)
@@ -574,7 +574,7 @@ namespace allscale { namespace components {
                     return;
                 }
             //task not meant to be local: move task to remote nodes
-            
+
             allscale::resilience::global_wi_dispatched(work, schedule_rank);
             network_.schedule(schedule_rank, std::move(work), this_work_item::get_id());
         }

@@ -13,7 +13,7 @@
 #include <hpx/util/tuple.hpp>
 
 #include <vector>
-
+#include <boost/thread.hpp>
 namespace allscale { namespace data_item_manager {
     namespace detail
     {
@@ -136,13 +136,14 @@ namespace allscale { namespace data_item_manager {
             location_info_type info;
 
             auto& item = data_item_store<data_item_type>::lookup(req.ref);
+
             std::unique_lock<mutex_type> l(item.mtx);
             // FIXME: wait for migration and lock here.
 
-            item.locate_access++;
+//             item.locate_access++;
 
             // Now try to locate ...
-            region_type remainder = req.region;
+            region_type remainder = std::move(req.region);
 
             // First check the intersection of our own region
             region_type part = region_type::intersect(remainder, item.owned_region);
@@ -161,31 +162,42 @@ namespace allscale { namespace data_item_manager {
             }
 
             // Lookup in our cache
-            hpx::util::high_resolution_timer timer;
+//             hpx::util::high_resolution_timer timer;
+//             hpx::util::high_resolution_timer intersect_timer;
+//             hpx::util::high_resolution_timer merge_timer;
+//             hpx::util::high_resolution_timer difference_timer;
+
             for (auto const& cached: item.location_cache.regions)
             {
+//                 intersect_timer.restart();
                 part = region_type::intersect(remainder, cached.second);
+//                 item.intersect_time += intersect_timer.elapsed();
                 // We got a hit!
                 if (!part.empty())
                 {
                     // Insert location information...
                     auto & info_part = info.regions[cached.first];
-                    info_part = region_type::merge(info_part, part);
 
+//                     merge_timer.restart();
+                    info_part = region_type::merge(info_part, part);
+//                     item.merge_time += merge_timer.elapsed();
+
+//                     difference_timer.restart();
                     // Subtract what we got from what we requested
                     remainder = region_type::difference(remainder, part);
+//                     item.difference_time += difference_timer.elapsed();
 
                     // If the remainder is empty, we got everything covered...
                     if (remainder.empty())
                     {
-                        item.cache_lookup_time += timer.elapsed();
+//                         item.cache_lookup_time += timer.elapsed();
                         HPX_ASSERT(!info.regions.empty());
                         return hpx::make_ready_future(std::move(info));
                     }
                 }
             }
-            item.cache_lookup_time += timer.elapsed();
-            item.cache_miss++;
+//             item.cache_lookup_time += timer.elapsed();
+//             item.cache_miss++;
 
             // We couldn't satisfy the request with locally stored information...
             // now branch out to our parent and children...
@@ -195,9 +207,9 @@ namespace allscale { namespace data_item_manager {
             part = region_type::intersect(remainder, item.parent_region);
             using locate_down_action_type = locate_action<locate_state::down, Requirement>;
             using locate_up_action_type = locate_action<locate_state::up, Requirement>;
+            std::size_t num_remote = 0;
             if (!part.empty())
             {
-                hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
                 HPX_ASSERT(this_id != 0);
                 hpx::id_type target(
                     hpx::naming::get_id_from_locality_id(
@@ -215,12 +227,12 @@ namespace allscale { namespace data_item_manager {
 
                 // Subtract what we got from what we requested
                 remainder = region_type::difference(remainder, part);
+                ++num_remote;
             }
             // Check left
             part = region_type::intersect(remainder, item.left_region);
             if (!part.empty())
             {
-                hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
                 hpx::id_type target(
                     hpx::naming::get_id_from_locality_id(
                         this_id * 2 + 1
@@ -237,12 +249,12 @@ namespace allscale { namespace data_item_manager {
 
                 // Subtract what we got from what we requested
                 remainder = region_type::difference(remainder, part);
+                ++num_remote;
             }
             // Check right...
             part = region_type::intersect(remainder, item.right_region);
             if (!part.empty())
             {
-                hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
                 hpx::id_type target(
                     hpx::naming::get_id_from_locality_id(
                         this_id * 2 + 2
@@ -259,13 +271,14 @@ namespace allscale { namespace data_item_manager {
 
                 // Subtract what we got from what we requested
                 remainder = region_type::difference(remainder, part);
+                ++num_remote;
             }
+            l.unlock();
 
             if (!remainder.empty())
             {
                 if (state != locate_state::up && this_id != 0)
                 {
-                    hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
                     hpx::id_type target(
                         hpx::naming::get_id_from_locality_id(
                             (this_id-1)/2
@@ -279,11 +292,11 @@ namespace allscale { namespace data_item_manager {
                         target, Requirement(req.ref, remainder, req.mode)
 #endif
                     );
+                    ++num_remote;
                 }
 
                 if (state != locate_state::down)
                 {
-                    hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
                     if (this_id * 2 + 1 < allscale::get_num_localities())
                     {
                         hpx::id_type target(
@@ -299,6 +312,7 @@ namespace allscale { namespace data_item_manager {
                             target, Requirement(req.ref, remainder, req.mode)
 #endif
                         );
+                        ++num_remote;
                     }
                     if (this_id * 2 + 2 < allscale::get_num_localities())
                     {
@@ -315,42 +329,43 @@ namespace allscale { namespace data_item_manager {
                             target, Requirement(req.ref, remainder, req.mode)
 #endif
                         );
+                        ++num_remote;
                     }
                 }
             }
-
-            l.unlock();
 
             return hpx::when_all(remote_infos).then(hpx::launch::sync,
 #if defined(ALLSCALE_DEBUG_DIM)
                 [name = std::move(name), info = std::move(info), req, remainder = std::move(remainder)](auto remote_infos_fut) mutable
 #else
-                [info = std::move(info), req, remainder = std::move(remainder)](auto remote_infos_fut) mutable
+                [info = std::move(info), req, remainder = std::move(remainder), num_remote](auto remote_infos_fut) mutable
 #endif
                 {
                     auto remote_infos = remote_infos_fut.get();
                     auto& item = data_item_store<data_item_type>::lookup(req.ref);
                     std::size_t this_id = hpx::get_locality_id();
 
-                    std::unique_lock<mutex_type> l(item.mtx);
-
                     // Merge infos
-                    for (auto& info_parts_fut: remote_infos)
+                    if (num_remote > 0)
                     {
-                        if (info_parts_fut.valid())
+                        std::unique_lock<mutex_type> l(item.mtx);
+                        for (auto& info_parts_fut: remote_infos)
                         {
-                            auto info_parts = info_parts_fut.get();
-                            for (auto const& remote_info: info_parts.regions)
+                            if (info_parts_fut.valid())
                             {
-                                // update cache.
-                                auto & cached_part = item.location_cache.regions[remote_info.first];
-                                cached_part = region_type::merge(cached_part, remote_info.second);
+                                auto info_parts = info_parts_fut.get();
+                                for (auto const& remote_info: info_parts.regions)
+                                {
+                                    // update cache.
+                                    auto & cached_part = item.location_cache.regions[remote_info.first];
+                                    cached_part = region_type::merge(cached_part, remote_info.second);
 
-                                // Insert location information...
-                                auto & part = info.regions[remote_info.first];
-                                part = region_type::merge(part, remote_info.second);
+                                    // Insert location information...
+                                    auto & part = info.regions[remote_info.first];
+                                    part = region_type::merge(part, remote_info.second);
 
-                                remainder = region_type::difference(remainder, part);
+                                    remainder = region_type::difference(remainder, remote_info.second);
+                                }
                             }
                         }
                     }
@@ -359,8 +374,9 @@ namespace allscale { namespace data_item_manager {
                     // the remainder is not part of our own region
                     if (state == locate_state::init && !remainder.empty())
                     {
+                        std::unique_lock<mutex_type> l(item.mtx);
                         remainder = region_type::difference(remainder, item.owned_region);
-                        if (!remainder.empty());
+                        if (!remainder.empty())
                         {
                             // propagate information up.
                             // FIXME: futurize

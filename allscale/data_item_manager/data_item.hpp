@@ -3,7 +3,7 @@
 #define ALLSCALE_DATA_ITEM_MANAGER_DATA_ITEM_HPP
 
 #include <allscale/data_item_manager/location_info.hpp>
-
+#include <allscale/util/readers_writers_mutex.hpp>
 #include <hpx/lcos/local/spinlock.hpp>
 #include <hpx/runtime/naming/id_type.hpp>
 
@@ -18,25 +18,31 @@ namespace allscale { namespace data_item_manager {
     template <typename DataItemType>
     struct data_item
     {
-        using mutex_type = hpx::lcos::local::spinlock;
+        using mutex_type = allscale::util::readers_writers_mutex;
         using region_type = typename DataItemType::region_type;
         using fragment_type = typename DataItemType::fragment_type;
         using shared_data_type = typename DataItemType::shared_data_type;
 
         ~data_item()
         {
-            std::cerr << this << " Locate access count: " << locate_access << '\n';
-            std::cerr << this << " Cache lookup time: " << cache_lookup_time << '\n';
-            std::cerr << this << " Cache misses: " << cache_miss << '\n';
-            std::cerr << this << " Cache miss ratio: " << double(cache_miss)/double(locate_access) * 100. << "%\n";
-            std::cerr << this << " Fragment extract time: " << extract_time << '\n';
-            std::cerr << this << " Fragment insert time: " << insert_time << '\n';
-            std::cerr << '\n';
+//             std::cerr << this << " Locate access count: " << locate_access << '\n';
+//             std::cerr << this << " Cache lookup time: " << cache_lookup_time << '\n';
+//             std::cerr << this << " Cache misses: " << cache_miss << '\n';
+//             std::cerr << this << " Cache miss ratio: " << double(cache_miss)/double(locate_access) * 100. << "%\n";
+//             std::cerr << this << " Fragment extract time: " << extract_time << '\n';
+//             std::cerr << this << " Fragment insert time: " << insert_time << '\n';
+//             std::cerr << this << " Intersect time: " << intersect_time << '\n';
+//             std::cerr << this << " Merge time: " << merge_time << '\n';
+//             std::cerr << this << " Difference time: " << difference_time << '\n';
+//             std::cerr << '\n';
         }
 
         std::size_t locate_access = 0;
         std::size_t cache_miss = 0;
         double cache_lookup_time = 0.0;
+        double intersect_time = 0.0;
+        double merge_time = 0.0;
+        double difference_time = 0.0;
         double extract_time = 0.0;
         double insert_time = 0.0;
 

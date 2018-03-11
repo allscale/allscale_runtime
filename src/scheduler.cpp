@@ -24,11 +24,11 @@ namespace allscale
     {
         auto const& numa_domains = rp.numa_domains();
 //         rp.create_thread_pool("default");
-        std::cerr << "===============================================================================\n";
-        std::cerr << "Setting up Scheduler\n";
+//         std::cerr << "===============================================================================\n";
+//         std::cerr << "Setting up Scheduler\n";
 
         std::string input_objective_str = hpx::get_config_entry("allscale.objective", "none");
-        std::cerr << "  Scheduler objective is " << input_objective_str << "\n";
+//         std::cerr << "  Scheduler objective is " << input_objective_str << "\n";
         bool enable_elasticity = false;
         if ( !input_objective_str.empty() )
         {
@@ -60,7 +60,7 @@ namespace allscale
             }
         }
 
-        std::cerr << "  Scheduling is using " << numa_domains.size() << " NUMA Domains\n";
+//         std::cerr << "  Scheduling is using " << numa_domains.size() << " NUMA Domains\n";
         rp.set_default_pool_name("allscale-numa-0");
 
         std::size_t domain = 0;
@@ -68,7 +68,7 @@ namespace allscale
         for (auto& numa: numa_domains)
         {
             std::string pool_name = "allscale-numa-" + std::to_string(domain);
-            std::cerr << "  Creating \"" << pool_name << "\" thread pool:\n";
+//             std::cerr << "  Creating \"" << pool_name << "\" thread pool:\n";
 
             rp.create_thread_pool(pool_name,
                 [domain, enable_elasticity](hpx::threads::policies::callback_notifier& notifier,
@@ -118,7 +118,7 @@ namespace allscale
 //                     }
 //                     else
 //                     {
-                        std::cerr << "    Adding PU " << pu.id() << '\n';
+//                         std::cerr << "    Adding PU " << pu.id() << '\n';
                         rp.add_resource(pu, pool_name);
 //                     }
                 }
@@ -127,7 +127,7 @@ namespace allscale
             ++domain;
         }
 
-        std::cerr << "===============================================================================\n";
+//         std::cerr << "===============================================================================\n";
     }
 
     void scheduler::schedule(work_item work)
