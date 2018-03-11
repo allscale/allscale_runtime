@@ -88,7 +88,7 @@ struct grid_init_can_split
 
 struct grid_init_split {
     template <typename Closure>
-    static allscale::treeture<void> execute(Closure const& c)
+    static hpx::future<void> execute(Closure const& c)
     {
         auto data_a = hpx::util::get<0>(c);
         auto data_b = hpx::util::get<1>(c);
@@ -101,9 +101,9 @@ struct grid_init_split {
         if (diff[0] > diff[1]) dim = 0;
         auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(dim, range);
 
-        return allscale::runtime::treeture_parallel(
-            allscale::spawn<grid_init>(data_a, data_b, fragments.left.begin(), fragments.left.end()),
-            allscale::spawn<grid_init>(data_a, data_b, fragments.right.begin(), fragments.right.end())
+        return hpx::when_all(
+            allscale::spawn<grid_init>(data_a, data_b, fragments.left.begin(), fragments.left.end()).get_future(),
+            allscale::spawn<grid_init>(data_a, data_b, fragments.right.begin(), fragments.right.end()).get_future()
         );
     }
 
@@ -308,7 +308,7 @@ struct stencil_can_split
 
 struct stencil_split {
     template <typename Closure>
-    static allscale::treeture<void> execute(Closure const& c)
+    static hpx::future<void> execute(Closure const& c)
     {
         auto mat_a = hpx::util::get<0>(c);
         auto mat_b = hpx::util::get<1>(c);
@@ -323,9 +323,9 @@ struct stencil_split {
         if (diff[0] > diff[1]) dim = 0;
         auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(dim, range);
 
-        return allscale::runtime::treeture_parallel(
-            allscale::spawn<stencil>(mat_a, mat_b, fragments.left.begin(), fragments.left.end(), N),
-            allscale::spawn<stencil>(mat_a, mat_b, fragments.right.begin(), fragments.right.end(), N)
+        return hpx::when_all(
+            allscale::spawn<stencil>(mat_a, mat_b, fragments.left.begin(), fragments.left.end(), N).get_future(),
+            allscale::spawn<stencil>(mat_a, mat_b, fragments.right.begin(), fragments.right.end(), N).get_future()
         );
     }
 
