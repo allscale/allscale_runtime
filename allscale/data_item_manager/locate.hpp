@@ -137,7 +137,7 @@ namespace allscale { namespace data_item_manager {
 
             auto& item = data_item_store<data_item_type>::lookup(req.ref);
 
-            std::unique_lock<mutex_type> l(item.mtx);
+            boost::shared_lock<mutex_type> l(item.mtx);
             // FIXME: wait for migration and lock here.
 
 //             item.locate_access++;
@@ -210,6 +210,7 @@ namespace allscale { namespace data_item_manager {
             std::size_t num_remote = 0;
             if (!part.empty())
             {
+                hpx::util::unlock_guard<boost::shared_lock<mutex_type>> ul(l);
                 HPX_ASSERT(this_id != 0);
                 hpx::id_type target(
                     hpx::naming::get_id_from_locality_id(
@@ -233,6 +234,7 @@ namespace allscale { namespace data_item_manager {
             part = region_type::intersect(remainder, item.left_region);
             if (!part.empty())
             {
+                hpx::util::unlock_guard<boost::shared_lock<mutex_type>> ul(l);
                 hpx::id_type target(
                     hpx::naming::get_id_from_locality_id(
                         this_id * 2 + 1
@@ -255,6 +257,7 @@ namespace allscale { namespace data_item_manager {
             part = region_type::intersect(remainder, item.right_region);
             if (!part.empty())
             {
+                hpx::util::unlock_guard<boost::shared_lock<mutex_type>> ul(l);
                 hpx::id_type target(
                     hpx::naming::get_id_from_locality_id(
                         this_id * 2 + 2

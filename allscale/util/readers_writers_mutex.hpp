@@ -24,7 +24,7 @@ namespace util {
             hpx::util::yield_while(
                 [this]()
                 {
-                    return try_lock();
+                    return !try_lock();
                 },
                 "readers_writers_mutex::lock"
             );
@@ -34,14 +34,30 @@ namespace util {
         bool try_lock()
         {
             std::int64_t readers = 0;
-            return readers_count_.compare_exchange_weak(readers, writer_mark_);
+            bool res = readers_count_.compare_exchange_weak(readers, writer_mark_,
+                std::memory_order_acq_rel);
+#if !defined(NDEBUG)
+            if (res)
+            {
+                HPX_ASSERT(readers == 0);
+            }
+            else
+            {
+                HPX_ASSERT(readers >= 0 || readers == writer_mark_);
+            }
+#endif
+            return res;
         }
 
         // unlock writer
         void unlock()
         {
-            int64_t prev = readers_count_.exchange(0);
+#if !defined(NDEBUG)
+            int64_t prev = readers_count_.exchange(0, std::memory_order_release);
             HPX_ASSERT(prev == writer_mark_);
+#else
+            readers_count_.store(0, std::memory_order_release);
+#endif
         }
 
         // obtain a reader lock, many readers may have the lock simultaneously
@@ -50,7 +66,7 @@ namespace util {
             hpx::util::yield_while(
                 [this]()
                 {
-                    return try_lock_shared();
+                    return !try_lock_shared();
                 },
                 "readers_writers_mutex::lock_shared"
             );
@@ -59,10 +75,19 @@ namespace util {
         // try to obtain a reader lock
         bool try_lock_shared()
         {
-            std::int64_t readers = readers_count_.load();
+            std::int64_t readers = readers_count_.load(std::memory_order_release);
             if (readers != writer_mark_)
             {
-                return readers_count_.compare_exchange_weak(readers, readers + 1);
+                bool res = readers_count_.compare_exchange_weak(readers, readers + 1,
+                    std::memory_order_acq_rel);
+#if !defined(NDEBUG)
+                if (res)
+                {
+                    HPX_ASSERT(readers >= 0);
+                    HPX_ASSERT(readers != writer_mark_);
+                }
+#endif
+                return res;
             }
             return false;
         }
@@ -73,8 +98,16 @@ namespace util {
             hpx::util::yield_while(
                 [this]()
                 {
-                    std::int64_t readers = readers_count_.load();
-                    return readers_count_.compare_exchange_weak(readers, readers - 1);
+                    std::int64_t readers = readers_count_.load(std::memory_order_release);
+                    bool res = readers_count_.compare_exchange_weak(readers, readers - 1,
+                        std::memory_order_release);
+#if !defined(NDEBUG)
+                    if (res)
+                    {
+                        HPX_ASSERT(readers > 0);
+                    }
+#endif
+                    return !res;
                 },
                 "readers_writers_mutex::unlock_shared()"
             );
@@ -83,7 +116,7 @@ namespace util {
         // return true if a reader or writer has the lock
         bool owns_lock()
         {
-            std::int64_t readers = readers_count_.load();
+            std::int64_t readers = readers_count_.load(std::memory_order_release);
             return readers > 0 || readers == writer_mark_;
         }
     };
