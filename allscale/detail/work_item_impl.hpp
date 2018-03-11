@@ -468,7 +468,7 @@ namespace allscale { namespace detail {
                         return hpx::make_ready_future(rank);
                     }
                     HPX_ASSERT(rank == std::size_t(-2) || rank == hpx::get_locality_id());
-                    return this_->process(exec, sync, data_item_manager::acquire(reqs, infos));
+                    return this_->process(exec, sync, data_item_manager::acquire(exec, reqs, infos));
                 },
 #if defined(ALLSCALE_DEBUG_DIM)
                 data_item_manager::locate(std::move(s), reqs)
@@ -565,7 +565,7 @@ namespace allscale { namespace detail {
                         return rank;
                     }
                     HPX_ASSERT(rank == std::size_t(-2) || rank == hpx::get_locality_id());
-                    this_->split_impl(exec, sync, data_item_manager::acquire(reqs, infos));
+                    this_->split_impl(exec, sync, data_item_manager::acquire(exec, reqs, infos));
                     return std::size_t(-2);
                 },
 #if defined(ALLSCALE_DEBUG_DIM)
