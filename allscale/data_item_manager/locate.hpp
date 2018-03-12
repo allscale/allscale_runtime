@@ -116,8 +116,8 @@ namespace allscale { namespace data_item_manager {
         {};
 
         template <locate_state state, typename Item, typename Region, typename Requirement, typename LocationInfo>
-        void first_touch(Item& item, Region remainder, Requirement const& req, std::size_t this_id,
-            LocationInfo &info
+        hpx::future<LocationInfo> first_touch(Item& item, Region remainder, Requirement req, std::size_t this_id,
+            LocationInfo info
 #if defined(ALLSCALE_DEBUG_DIM)
           , std::string const& name
 #endif
@@ -132,64 +132,72 @@ namespace allscale { namespace data_item_manager {
             // the remainder is not part of our own region
             if (state == locate_state::init && !remainder.empty())
             {
-                std::unique_lock<mutex_type> l(item.mtx);
+                boost::shared_lock<mutex_type> l(item.mtx);
                 remainder = region_type::difference(remainder, item.owned_region);
                 if (!remainder.empty())
                 {
+                    l.unlock();
+                    hpx::naming::gid_type id = req.ref.id();
                     // propagate information up.
-                    // FIXME: futurize
-                    std::pair<region_type, region_type> registered;
-                    {
-                        hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                        registered = register_child<Requirement>(
-                            req.ref.id(), remainder, this_id).get();
-                    }
-
-                    remainder = registered.first;
-
-                    // Merge newly returned parent with our own
-                    item.parent_region = region_type::merge(item.parent_region, registered.second);
-
-                    // Account for over approximation...
-                    remainder = region_type::difference(remainder, item.parent_region);
-
-                    // Merge with our own region
-                    item.owned_region =
-                        region_type::merge(item.owned_region, remainder);
-
-                    info.regions.insert(std::make_pair(this_id, remainder));
-
-                    // And finally, allocate the fragment if it wasn't there already.
-                    if (item.fragment == nullptr)
-                    {
-                        typename data_item_type::shared_data_type shared_data_;
-                        {
-                            hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                            shared_data_ = shared_data(req.ref);
-                        }
-                        if (item.fragment == nullptr)
-                        {
-                            item.fragment.reset(new fragment_type(std::move(shared_data_)));
-                        }
-                    }
+                    return hpx::dataflow(hpx::launch::sync,
 #if defined(ALLSCALE_DEBUG_DIM)
-                    std::stringstream filename;
-                    filename << "data_item." << this_id << ".log";
-                    std::ofstream os(filename.str(), std::ios_base::app);
-                    os
-                        << "create("
-                        << (req.mode == access_mode::ReadOnly? "ro" : "rw")
-                        << "), "
-                        << name
-                        << ", "
-                        << std::hex << req.ref.id().get_lsb() << std::dec
-                        << ": "
-                        << region_type::intersect(item.fragment->getTotalSize(), remainder)
-                        << '\n';
-                    os.close();
+                        [this_id, req = std::move(req), &item, info = std::move(info), name]
+#else
+                        [this_id, req = std::move(req), &item, info = std::move(info)]
 #endif
+                        (hpx::future<std::pair<region_type, region_type>> fregistered) mutable
+                        {
+                            auto registered = fregistered.get();
+                            std::unique_lock<mutex_type> l(item.mtx);
+
+                            // Merge newly returned parent with our own
+                            item.parent_region = region_type::merge(item.parent_region, registered.second);
+
+                            // Account for over approximation...
+                            auto remainder = region_type::difference(registered.first, item.parent_region);
+
+                            // Merge with our own region
+                            item.owned_region =
+                                region_type::merge(item.owned_region, remainder);
+
+                            info.regions.insert(std::make_pair(this_id, remainder));
+
+                            // And finally, allocate the fragment if it wasn't there already.
+                            if (item.fragment == nullptr)
+                            {
+                                typename data_item_type::shared_data_type shared_data_;
+                                {
+                                    hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+                                    shared_data_ = shared_data(req.ref);
+                                }
+                                if (item.fragment == nullptr)
+                                {
+                                    item.fragment.reset(new fragment_type(std::move(shared_data_)));
+                                }
+                            }
+#if defined(ALLSCALE_DEBUG_DIM)
+                            std::stringstream filename;
+                            filename << "data_item." << this_id << ".log";
+                            std::ofstream os(filename.str(), std::ios_base::app);
+                            os
+                                << "create("
+                                << (req.mode == access_mode::ReadOnly? "ro" : "rw")
+                                << "), "
+                                << name
+                                << ", "
+                                << std::hex << req.ref.id().get_lsb() << std::dec
+                                << ": "
+                                << region_type::intersect(item.fragment->getTotalSize(), remainder)
+                                << '\n';
+                            os.close();
+#endif
+                            return info;
+                        },
+                        register_child<Requirement>(id, remainder, this_id)
+                    );
                 }
             }
+            return hpx::make_ready_future(std::move(info));
         }
 
         template <locate_state state, typename Requirement>
@@ -450,13 +458,11 @@ namespace allscale { namespace data_item_manager {
                         }
                     }
 
-                    first_touch<state>(item, std::move(remainder), req, this_id, info
+                    return first_touch<state>(item, std::move(remainder), std::move(req), this_id, std::move(info)
 #if defined(ALLSCALE_DEBUG_DIM)
                       , name
 #endif
                     );
-
-                    return info;
                 }, std::move(remote_infos)
             );
         }
