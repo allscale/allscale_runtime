@@ -5,16 +5,14 @@
 #include <allscale/resilience.hpp>
 #include <allscale/components/scheduler.hpp>
 
-#include <hpx/include/components.hpp>
 #include <hpx/util/detail/yield_k.hpp>
 #include <hpx/util/register_locks.hpp>
 #include <hpx/runtime/threads/policies/local_priority_queue_scheduler.hpp>
 #include <hpx/runtime/threads/detail/scheduled_thread_pool.hpp>
 
-HPX_REGISTER_COMPONENT_MODULE()
+#include <hpx/runtime/components/component_factory_base.hpp>
 
-typedef hpx::components::component<allscale::components::scheduler> scheduler_component;
-HPX_REGISTER_COMPONENT(scheduler_component)
+HPX_REGISTER_COMPONENT_MODULE()
 
 namespace allscale
 {
@@ -132,14 +130,12 @@ namespace allscale
 
     void scheduler::schedule(work_item work)
     {
-//    	std::cerr<<"schedulign work item on loc " << hpx::get_locality_id()<<std::endl;
         get().enqueue(work, this_work_item::id());
     }
 
-    void scheduler::schedule(work_item work, this_work_item::id const& id)
+    void scheduler::schedule(work_item work, this_work_item::id id)
     {
-//    	std::cerr<<"schedulign work item on loc " << hpx::get_locality_id()<<std::endl;
-        get().enqueue(work, id);
+        get().enqueue(work, std::move(id));
     }
 
     components::scheduler* scheduler::run(std::size_t rank)
@@ -165,26 +161,11 @@ namespace allscale
     components::scheduler* scheduler::get_ptr()
     {
         static scheduler s(rank_);
-        components::scheduler* res = s.component_.get();
-        for (std::size_t k = 0; !res; ++k)
-        {
-            hpx::util::detail::yield_k(k, "scheduler::get_ptr");
-            res = s.component_.get();
-        }
-        return res;
+        return s.component_.get();
     }
 
     scheduler::scheduler(std::size_t rank)
     {
-        std::unique_lock<mutex_type> l(mtx_);
-        hpx::util::ignore_while_checking<std::unique_lock<mutex_type>> il(&l);
-
-        hpx::id_type gid =
-            hpx::local_new<components::scheduler>(rank).get();
-
-        auto component = hpx::get_ptr<components::scheduler>(gid).get();
-        component->init();
-        hpx::register_with_basename("allscale/scheduler", gid, rank).get();
-        component_ = component;
+        component_.reset(new components::scheduler(rank));
     }
 }

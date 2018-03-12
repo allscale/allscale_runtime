@@ -76,6 +76,7 @@ namespace allscale { namespace components {
         {
             allscale_monitor = &allscale::monitor::get();
             thread_times.resize(hpx::get_os_thread_count());
+            init();
         }
 
         std::size_t scheduler::get_num_numa_nodes()
@@ -449,7 +450,7 @@ namespace allscale { namespace components {
 //                 << "Scheduler with rank " << rank_ << " created!\n";
         }
 
-        void scheduler::enqueue(work_item work, this_work_item::id const& id)
+        void scheduler::enqueue(work_item work, this_work_item::id id)
         {
             static thread_local unsigned int current_period = 0;
             if (id)
@@ -529,7 +530,7 @@ namespace allscale { namespace components {
                         {
                             work.split(executors_[numa_domain], /*sync
                                        || work.id().numa_domain() == parent_id.numa_domain()*/false).then(hpx::launch::sync,
-                                 [this_id, work, this](hpx::future<std::size_t>&& f) mutable
+                                 [this_id = std::move(this_id), work, this](hpx::future<std::size_t>&& f) mutable
                                  {
                                      std::size_t expected_rank = f.get();
                                      if(expected_rank == std::size_t(-1))
@@ -542,7 +543,7 @@ namespace allscale { namespace components {
                                              HPX_ASSERT(expected_rank != rank_);
 //                                              std::cout << "Dispatching " << work.name() << " to " << expected_rank << '\n';
                                              work.update_rank(expected_rank);
-                                             network_.schedule(expected_rank, std::move(work), this_id);
+                                             network_.schedule(expected_rank, std::move(work), std::move(this_id));
                                          }
                                  }
                             );
@@ -550,7 +551,7 @@ namespace allscale { namespace components {
                     else
                         {
                             work.process(executors_[numa_domain], /*sync*/false).then(hpx::launch::sync,
-                                 [this_id, work, numa_domain, this](hpx::future<std::size_t>&& f) mutable
+                                 [this_id = std::move(this_id), work, numa_domain, this](hpx::future<std::size_t>&& f) mutable
                                  {
                                      // the process variant might fail if we try to acquire
                                      // data item read/write on multiple localities
@@ -566,7 +567,7 @@ namespace allscale { namespace components {
                                          {
                                              HPX_ASSERT(expected_rank != rank_);
                                              work.update_rank(expected_rank);
-                                             network_.schedule(expected_rank, std::move(work), this_id);
+                                             network_.schedule(expected_rank, std::move(work), std::move(this_id));
                                          }
                                  });
                         }

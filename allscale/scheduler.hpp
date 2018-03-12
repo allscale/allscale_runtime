@@ -36,17 +36,32 @@ namespace allscale
         scheduler(std::size_t rank);
 
         static void schedule(work_item work);
-        static void schedule(work_item work, this_work_item::id const&);
+        static void schedule(work_item work, this_work_item::id);
         static components::scheduler* run(std::size_t rank);
         static void stop();
         static components::scheduler* get_ptr();
+
+        struct schedule_action
+          : hpx::actions::make_direct_action<
+               void(*)(work_item, this_work_item::id),
+               &scheduler::schedule,
+               schedule_action
+            >::type
+        {};
+
+        struct stop_action
+          : hpx::actions::make_action<
+               void(*)(),
+               &scheduler::stop,
+               stop_action
+            >::type
+        {};
 
     private:
         static std::size_t rank_;
         static components::scheduler & get();
 
         typedef hpx::lcos::local::spinlock mutex_type;
-        mutex_type mtx_;
         static void partition_resources(hpx::resource::partitioner& rp);
 
         std::shared_ptr<components::scheduler> component_;
