@@ -24,6 +24,7 @@ namespace allscale {
             {
                 HPX_ASSERT(release_function_);
                 HPX_ASSERT(this->get_id());
+                std::cout << "Release DI " << this->get_id() << "\n";
                 release_function_(this->get_id().get_gid());
             }
 
@@ -54,72 +55,42 @@ namespace allscale {
         // make_unmanaged call in the save function needs to be removed.
 
         data_item_reference()
-          : fragment(nullptr)
         {}
 
         template <typename...Args>
-        explicit data_item_reference(hpx::future<hpx::id_type> id)
-          : fragment(nullptr)
-          , id_(id.get())
+        explicit data_item_reference(hpx::future<hpx::id_type> fid)
         {
-            HPX_ASSERT(id_.get_management_type() == hpx::id_type::managed);
+            hpx::id_type id(fid.get());
+            id.make_unmanaged();
+            id_ = id.get_gid();
         }
 
-        data_item_reference(data_item_reference const& other)
-          : fragment(other.fragment)
-          , id_(other.id_)
-        {
-        }
-
-        data_item_reference(data_item_reference&& other) noexcept
-          : fragment(other.fragment)
-          , id_(std::move(other.id_))
-        {
-        }
-
-        data_item_reference& operator=(data_item_reference const& other)
-        {
-            fragment = other.fragment;
-            id_ = other.id_;
-
-            return *this;
-        }
-
-
-        data_item_reference& operator=(data_item_reference&& other) noexcept
-        {
-            fragment = other.fragment;
-            id_ = std::move(other.id_);
-
-            return *this;
-        }
+        data_item_reference(data_item_reference const& other) = default;
+        data_item_reference(data_item_reference&& other) noexcept = default;
+        data_item_reference& operator=(data_item_reference const& other) = default;
+        data_item_reference& operator=(data_item_reference&& other) noexcept = default;
 
         template <typename Archive>
-        void load(Archive & ar, unsigned)
+        void serialize(Archive & ar, unsigned) const
         {
-            hpx::naming::gid_type id;
-            ar & id;
-            id_ = hpx::id_type(id, hpx::id_type::unmanaged);
+            ar & id_;
         }
 
-        template <typename Archive>
-        void save(Archive & ar, unsigned) const
+        hpx::naming::gid_type const& id() const
         {
-            hpx::naming::gid_type id = id_.get_gid();
-            ar & id;
+            return id_;
         }
-        HPX_SERIALIZATION_SPLIT_MEMBER()
-
-        hpx::naming::gid_type id() const
-        {
-            return id_.get_gid();
-        }
-
-        mutable fragment_type *__restrict__ fragment;
 
     private:
-        hpx::id_type id_;
+        hpx::naming::gid_type id_;
     };
 }
+
+namespace hpx { namespace traits {
+    template <typename DataItem>
+    struct is_bitwise_serializable<allscale::data_item_reference<DataItem>>
+      : std::true_type
+    {};
+}}
 
 #endif

@@ -53,7 +53,7 @@ namespace util {
         void unlock()
         {
 #if !defined(NDEBUG)
-            int64_t prev = readers_count_.exchange(0, std::memory_order_release);
+            int64_t prev = readers_count_.exchange(0, std::memory_order_acq_rel);
             HPX_ASSERT(prev == writer_mark_);
 #else
             readers_count_.store(0, std::memory_order_release);
@@ -100,7 +100,7 @@ namespace util {
                 {
                     std::int64_t readers = readers_count_.load(std::memory_order_release);
                     bool res = readers_count_.compare_exchange_weak(readers, readers - 1,
-                        std::memory_order_release);
+                        std::memory_order_acq_rel);
 #if !defined(NDEBUG)
                     if (res)
                     {

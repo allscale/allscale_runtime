@@ -39,31 +39,26 @@ namespace allscale { namespace data_item_manager {
         typename DataItem::facade_type
         get(const allscale::data_item_reference<DataItem>& ref)
         {
-            if (ref.fragment == nullptr)
+            using mutex_type = typename data_item_store<DataItem>::data_item_type::mutex_type;
+            auto &item = data_item_store<DataItem>::lookup(ref);
             {
-                using mutex_type = typename data_item_store<DataItem>::data_item_type::mutex_type;
-                auto &item = data_item_store<DataItem>::lookup(ref);
+                std::unique_lock<mutex_type> l(item.mtx);
+                if (item.fragment == nullptr)
                 {
-                    std::unique_lock<mutex_type> l(item.mtx);
+                    typename DataItem::shared_data_type shared_data_;
+                    {
+                        hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+                        shared_data_ = shared_data(ref);
+                    }
                     if (item.fragment == nullptr)
                     {
-                        typename DataItem::shared_data_type shared_data_;
-                        {
-                            hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                            shared_data_ = shared_data(ref);
-                        }
-                        if (item.fragment == nullptr)
-                        {
-                            using fragment_type = typename DataItem::fragment_type;
-                            item.fragment.reset(new fragment_type(std::move(shared_data_)));
-                        }
+                        using fragment_type = typename DataItem::fragment_type;
+                        item.fragment.reset(new fragment_type(std::move(shared_data_)));
                     }
-                    HPX_ASSERT(item.fragment);
                 }
-                ref.fragment = item.fragment.get();
+                HPX_ASSERT(item.fragment);
             }
-
-            return ref.fragment->mask();
+            return item.fragment->mask();
 		}
 
         template <typename T>

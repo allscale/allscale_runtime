@@ -4,8 +4,11 @@
 
 #include <allscale/data_item_reference.hpp>
 #include <allscale/data_item_manager/data_item.hpp>
+#include <allscale/util/readers_writers_mutex.hpp>
 
 #include <hpx/runtime/naming/id_type.hpp>
+
+#include <boost/thread.hpp>
 
 #include <map>
 
@@ -34,11 +37,20 @@ struct data_item_store
 
     static data_item_type& lookup(id_type const& id)
     {
-        static hpx::lcos::local::spinlock mtx;
+        using mutex_type = allscale::util::readers_writers_mutex;
+        static mutex_type mtx;
         static std::unordered_map<id_type, data_item_type> store_;
-        std::unique_lock<hpx::lcos::local::spinlock> l(mtx);
+        boost::shared_lock<mutex_type> l(mtx);
 
-        return store_[id];
+        auto it = store_.find(id);
+        if (it == store_.end())
+        {
+            l.unlock();
+            std::unique_lock<mutex_type> ll(mtx);
+            return store_[id];
+        }
+
+        return it->second;
     }
 
     static data_item_type& lookup(data_item_reference const& ref)

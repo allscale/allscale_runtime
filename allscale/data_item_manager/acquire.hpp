@@ -104,12 +104,12 @@ namespace allscale { namespace data_item_manager {
                     return hpx::make_ready_future(lease_type(req));
                 }
 
-                return hpx::dataflow(exec,
+                return hpx::dataflow(hpx::launch::sync,//exec,
                     [req = std::move(req)](
                         std::vector<hpx::future<data_item_view<data_item_type>>> transfers) mutable
                     {
                         // check for errors...
-                        for (auto & transfer: transfers) transfer.get();
+//                         for (auto & transfer: transfers) transfer.get();
                         return lease_type(std::move(req));
                     },
                     std::move(transfers));

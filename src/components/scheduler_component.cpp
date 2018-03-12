@@ -527,8 +527,8 @@ namespace allscale { namespace components {
                     auto this_id = this_work_item::get_id();
                     if (do_split(work))
                         {
-                            work.split(executors_[numa_domain], sync
-                                       || work.id().numa_domain() == parent_id.numa_domain()).then(
+                            work.split(executors_[numa_domain], /*sync
+                                       || work.id().numa_domain() == parent_id.numa_domain()*/false).then(hpx::launch::sync,
                                  [this_id, work, this](hpx::future<std::size_t>&& f) mutable
                                  {
                                      std::size_t expected_rank = f.get();
@@ -549,7 +549,7 @@ namespace allscale { namespace components {
                         }
                     else
                         {
-                            work.process(executors_[numa_domain], sync).then(
+                            work.process(executors_[numa_domain], /*sync*/false).then(hpx::launch::sync,
                                  [this_id, work, numa_domain, this](hpx::future<std::size_t>&& f) mutable
                                  {
                                      // the process variant might fail if we try to acquire
