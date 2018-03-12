@@ -495,8 +495,7 @@ struct main_process
         double flops = ( 2 * stencil_size + 1 ) * f_active_points;
         double avgtime = elapsed/iterations;
 
-        std::cout << "Rate (Flops/s) | avg time (s)"<<'\n';
-        std::cout << flops/avgtime * 1.0E-06 << "," << avgtime << '\n';
+        std::cout << "Rate (MFlops/s): " << flops/avgtime * 1.0E-06 << " Avg time (s): " << avgtime << '\n';
 
         //VALIDATE RESULTS
         allscale::treeture<double> vld = allscale::spawn_first<grid_validate>(mat_b, begin, end, N);
