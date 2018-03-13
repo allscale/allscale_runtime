@@ -4,7 +4,8 @@
 #include <allscale/monitor.hpp>
 #include <allscale/resilience.hpp>
 
-#include <hpx/util/scoped_unlock.hpp>
+//#include <hpx/util/scoped_unlock.hpp>
+#include <hpx/util/unlock_guard.hpp>
 #include <hpx/traits/executor_traits.hpp>
 
 #include <sstream>
@@ -93,8 +94,8 @@ namespace allscale { namespace components {
                                )
         {
             allscale_monitor = &allscale::monitor::get();
-            thread_times.resize(hpx::get_os_thread_count());
-            init();
+            //thread_times.resize(hpx::get_os_thread_count());
+            //init();
 
         }
 
@@ -497,11 +498,10 @@ namespace allscale { namespace components {
                                         "Requesting energy objective without having compiled with cpufreq");
 #endif
 
-                    }
-            }
+                }
+        
 
-//             std::cerr
-//                 << "Scheduler with rank " << rank_ << " created!\n";
+//             std::cerr  << "Scheduler with rank " << rank_ << " created!\n";
 
         }
 
