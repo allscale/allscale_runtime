@@ -1,8 +1,9 @@
 #ifndef ALLSCALE_DATA_ITEM_REFERENCE_HPP
 #define ALLSCALE_DATA_ITEM_REFERENCE_HPP
 
-#include <hpx/include/components.hpp>
-#include <hpx/include/actions.hpp>
+#include <hpx/runtime/components/server/component_base.hpp>
+#include <hpx/runtime/naming/id_type.hpp>
+#include <hpx/lcos/future.hpp>
 #include <hpx/include/serialization.hpp>
 
 ///////////////////////////////////////////////////////////////////////////
@@ -23,6 +24,7 @@ namespace allscale {
             {
                 HPX_ASSERT(release_function_);
                 HPX_ASSERT(this->get_id());
+                std::cout << "Release DI " << this->get_id() << "\n";
                 release_function_(this->get_id().get_gid());
             }
 
@@ -34,6 +36,7 @@ namespace allscale {
     class data_item_reference
     {
     public:
+        typedef DataItemType data_item_type;
         typedef typename DataItemType::shared_data_type shared_data_type;
         typedef typename DataItemType::fragment_type fragment_type;
 
@@ -52,84 +55,42 @@ namespace allscale {
         // make_unmanaged call in the save function needs to be removed.
 
         data_item_reference()
-          : fragment(nullptr)
         {}
 
         template <typename...Args>
-        explicit data_item_reference(hpx::future<hpx::id_type> id, Args&&...args)
-          : fragment(nullptr)
-          , shared_data_(std::forward<Args>(args)...)
-          , id_(id.get())
+        explicit data_item_reference(hpx::future<hpx::id_type> fid)
         {
-            HPX_ASSERT(id_.get_management_type() == hpx::id_type::managed);
+            hpx::id_type id(fid.get());
+            id.make_unmanaged();
+            id_ = id.get_gid();
         }
 
-        data_item_reference(data_item_reference const& other)
-          : fragment(nullptr)
-          , shared_data_(other.shared_data_)
-          , id_(other.id_)
-        {
-        }
-
-        data_item_reference(data_item_reference&& other) noexcept
-          : fragment(nullptr)
-          , shared_data_(std::move(other.shared_data_))
-          , id_(std::move(other.id_))
-        {
-        }
-
-        data_item_reference& operator=(data_item_reference const& other)
-        {
-            fragment = nullptr;
-            shared_data_ = other.shared_data_;
-            id_ = other.id_;
-
-            return *this;
-        }
-
-
-        data_item_reference& operator=(data_item_reference&& other) noexcept
-        {
-            fragment = nullptr;
-            shared_data_ = std::move(other.shared_data_);
-            id_ = std::move(other.id_);
-
-            return *this;
-        }
+        data_item_reference(data_item_reference const& other) = default;
+        data_item_reference(data_item_reference&& other) noexcept = default;
+        data_item_reference& operator=(data_item_reference const& other) = default;
+        data_item_reference& operator=(data_item_reference&& other) noexcept = default;
 
         template <typename Archive>
-        void load(Archive & ar, unsigned)
+        void serialize(Archive & ar, unsigned) const
         {
-            ar & shared_data_;
             ar & id_;
         }
 
-        template <typename Archive>
-        void save(Archive & ar, unsigned) const
+        hpx::naming::gid_type const& id() const
         {
-            ar & shared_data_;
-            hpx::naming::id_type id = id_;
-            id.make_unmanaged();
-            ar & id;
+            return id_;
         }
-        HPX_SERIALIZATION_SPLIT_MEMBER()
-
-        hpx::naming::gid_type id() const
-        {
-            return id_.get_gid();
-        }
-
-        shared_data_type const& shared_data() const
-        {
-            return shared_data_;
-        }
-
-        mutable fragment_type *__restrict__ fragment;
 
     private:
-        shared_data_type shared_data_;
-        hpx::id_type id_;
+        hpx::naming::gid_type id_;
     };
 }
+
+namespace hpx { namespace traits {
+    template <typename DataItem>
+    struct is_bitwise_serializable<allscale::data_item_reference<DataItem>>
+      : std::true_type
+    {};
+}}
 
 #endif

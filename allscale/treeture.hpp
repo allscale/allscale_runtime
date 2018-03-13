@@ -3,11 +3,12 @@
 #define ALLSCALE_TREETURE_HPP
 
 #include <allscale/treeture_fwd.hpp>
-
-#include <hpx/lcos/base_lco_with_value.hpp>
+#include <hpx/runtime/components/server/managed_component_base.hpp>
 #include <hpx/runtime/components/new.hpp>
-#include <hpx/include/components.hpp>
+#include <hpx/lcos/base_lco_with_value.hpp>
 #include <hpx/lcos/async.hpp>
+#include <hpx/lcos/future.hpp>
+#include <hpx/lcos/local/spinlock.hpp>
 #include <hpx/async.hpp>
 #include <hpx/apply.hpp>
 
@@ -172,7 +173,14 @@ namespace allscale {
         {
             if (shared_state_)
             {
-                shared_state_->set_value(std::forward<U>(u));
+                // Try setting the state, we'll catch any exception in the process
+                // and ignore them for now...
+                try {
+                    shared_state_->set_value(std::forward<U>(u));
+                }
+                catch (...)
+                {
+                }
             }
             else
             {
@@ -402,21 +410,22 @@ namespace hpx { namespace traits {
 
 #include <allscale/detail/treeture_lco.hpp>
 #include <allscale/detail/treeture_task.hpp>
+#include <hpx/runtime/components/derived_component_factory.hpp>
 
 #define ALLSCALE_REGISTER_TREETURE_TYPE_(T, NAME)                               \
-    using BOOST_PP_CAT(NAME, _treeture) = ::allscale::detail::treeture_lco< T >;\
+    using HPX_PP_CAT(NAME, _treeture) = ::allscale::detail::treeture_lco< T >;\
     using NAME =                                                                \
         ::hpx::components::managed_component<                                   \
-            BOOST_PP_CAT(NAME, _treeture)                                       \
+            HPX_PP_CAT(NAME, _treeture)                                       \
         >;                                                                      \
-    HPX_REGISTER_DERIVED_COMPONENT_FACTORY(NAME, BOOST_PP_CAT(NAME, _treeture), \
-        BOOST_PP_STRINGIZE(BOOST_PP_CAT(NAME, treeture_base_lco)))              \
+    HPX_REGISTER_DERIVED_COMPONENT_FACTORY(NAME, HPX_PP_CAT(NAME, _treeture), \
+        HPX_PP_STRINGIZE(HPX_PP_CAT(NAME, treeture_base_lco)))              \
 /**/
 
 #define ALLSCALE_REGISTER_TREETURE_TYPE(T)                                      \
     ALLSCALE_REGISTER_TREETURE_TYPE_(                                           \
         T,                                                                      \
-        BOOST_PP_CAT(BOOST_PP_CAT(treeture, T), _component_type)                \
+        HPX_PP_CAT(HPX_PP_CAT(treeture, T), _component_type)                \
     )                                                                           \
 /**/
 

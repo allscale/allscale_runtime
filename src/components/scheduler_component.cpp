@@ -93,7 +93,9 @@ namespace allscale { namespace components {
                                )
         {
             allscale_monitor = &allscale::monitor::get();
-            
+            thread_times.resize(hpx::get_os_thread_count());
+            init();
+
         }
 
         std::size_t scheduler::get_num_numa_nodes()
@@ -310,7 +312,7 @@ namespace allscale { namespace components {
                     pool_name = "allscale-numa-" + std::to_string(domain);
 
                     thread_pools_.push_back( &hpx::resource::get_thread_pool(pool_name));
-                    std::cerr << "Attached to " << pool_name << " (" << thread_pools_.back() << '\n';
+//                     std::cerr << "Attached to " << pool_name << " (" << thread_pools_.back() << '\n';
                     initial_masks_.push_back(thread_pools_.back()->get_used_processing_units());
                     suspending_masks_.push_back(thread_pools_.back()->get_used_processing_units());
                     hpx::threads::reset((suspending_masks_.back()));
@@ -494,14 +496,16 @@ namespace allscale { namespace components {
                     HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
                                         "Requesting energy objective without having compiled with cpufreq");
 #endif
-                }
-                    // }
-            
-            std::cerr
-                << "Scheduler with rank " << rank_ << " created!\n";
+
+                    }
+            }
+
+//             std::cerr
+//                 << "Scheduler with rank " << rank_ << " created!\n";
+
         }
 
-        void scheduler::enqueue(work_item work, this_work_item::id const& id)
+        void scheduler::enqueue(work_item work, this_work_item::id id)
         {
             static thread_local unsigned int current_period = 0;
             if (id)
@@ -588,9 +592,9 @@ namespace allscale { namespace components {
                     auto this_id = this_work_item::get_id();
                     if (do_split(work))
                         {
-                            work.split(executors_[numa_domain], sync
-                                       || work.id().numa_domain() == parent_id.numa_domain()).then(
-                                 [this_id, work, this](hpx::future<std::size_t>&& f) mutable
+                            work.split(executors_[numa_domain], /*sync
+                                       || work.id().numa_domain() == parent_id.numa_domain()*/false).then(hpx::launch::sync,
+                                 [this_id = std::move(this_id), work, this](hpx::future<std::size_t>&& f) mutable
                                  {
                                      std::size_t expected_rank = f.get();
                                      if(expected_rank == std::size_t(-1))
@@ -603,15 +607,15 @@ namespace allscale { namespace components {
                                              HPX_ASSERT(expected_rank != rank_);
 //                                              std::cout << "Dispatching " << work.name() << " to " << expected_rank << '\n';
                                              work.update_rank(expected_rank);
-                                             network_.schedule(expected_rank, std::move(work), this_id);
+                                             network_.schedule(expected_rank, std::move(work), std::move(this_id));
                                          }
                                  }
                             );
                         }
                     else
                         {
-                            work.process(executors_[numa_domain], sync).then(
-                                 [this_id, work, numa_domain, this](hpx::future<std::size_t>&& f) mutable
+                            work.process(executors_[numa_domain], /*sync*/false).then(hpx::launch::sync,
+                                 [this_id = std::move(this_id), work, numa_domain, this](hpx::future<std::size_t>&& f) mutable
                                  {
                                      // the process variant might fail if we try to acquire
                                      // data item read/write on multiple localities
@@ -620,19 +624,14 @@ namespace allscale { namespace components {
                                      if(expected_rank == std::size_t(-1))
                                          {
                                              // We should move on and split...
-                                             if (!work.can_split())
-                                                 {
-                                                     std::cerr << "Requesting split for " << work.name() << ", but can not split further!\n";
-                                                     std::abort();
-                                                 }
+                                             HPX_ASSERT(work.can_split());
                                              work.split(executors_[numa_domain], false);
                                          }
                                      else if(expected_rank != std::size_t(-2))
                                          {
                                              HPX_ASSERT(expected_rank != rank_);
-//                                              std::cout << "Dispatching " << work.name() << " to " << expected_rank << '\n';
                                              work.update_rank(expected_rank);
-                                             network_.schedule(expected_rank, std::move(work), this_id);
+                                             network_.schedule(expected_rank, std::move(work), std::move(this_id));
                                          }
                                  });
                         }
@@ -640,6 +639,8 @@ namespace allscale { namespace components {
                     return;
                 }
             //task not meant to be local: move task to remote nodes
+
+            allscale::resilience::global_wi_dispatched(work, schedule_rank);
             network_.schedule(schedule_rank, std::move(work), this_work_item::get_id());
         }
 

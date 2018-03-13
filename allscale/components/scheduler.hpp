@@ -30,7 +30,6 @@
 namespace allscale { namespace components {
 
     struct scheduler
-      : hpx::components::component_base<scheduler>
     {
         typedef hpx::lcos::local::spinlock mutex_type;
 #if defined(ALLSCALE_HAVE_CPUFREQ)
@@ -45,11 +44,8 @@ namespace allscale { namespace components {
         scheduler(std::uint64_t rank);
         void init();
 
-        void enqueue(work_item work, this_work_item::id const&);
-        HPX_DEFINE_COMPONENT_ACTION(scheduler, enqueue);
-
+        void enqueue(work_item work, this_work_item::id);
         void stop();
-        HPX_DEFINE_COMPONENT_ACTION(scheduler, stop);
 
     private:
         std::size_t get_num_numa_nodes();
@@ -77,9 +73,13 @@ namespace allscale { namespace components {
         bool periodic_throttle();
         bool periodic_frequency_scale();
 	bool power_periodic_frequency_scale();
+<<<<<<< HEAD
         bool multi_objectives_adjust(std::size_t current_id);
 	bool multi_objectives_adjust_timed();
         
+=======
+
+>>>>>>> origin
         hpx::util::interval_timer timer_;
         hpx::util::interval_timer throttle_timer_;
         hpx::util::interval_timer frequency_timer_;

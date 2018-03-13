@@ -318,12 +318,12 @@ namespace allscale { namespace detail {
                 deps = ProcessVariant::deps(closure_);
             }
 
-            typename hpx::traits::detail::shared_state_ptr_for<deps_type>::type const& state
+            typename hpx::traits::detail::shared_state_ptr_for<deps_type>::type state
                 = hpx::traits::future_access<deps_type>::get_shared_state(deps);
 
             auto this_ = shared_this();
             state->set_on_completed(
-                [exec, sync, state, this_, leases]() mutable
+                [&exec, sync, state = std::move(state), this_ = std::move(this_), leases = std::move(leases)]() mutable
                 {
 //                     state->get_result();
                     if (sync)
@@ -348,10 +348,10 @@ namespace allscale { namespace detail {
             {
                 typedef hpx::shared_future<void> deps_type;
 
-                typename hpx::traits::detail::shared_state_ptr_for<deps_type>::type const& state
+                typename hpx::traits::detail::shared_state_ptr_for<deps_type>::type state
                     = hpx::traits::future_access<deps_type>::get_shared_state(dep_);
                 state->set_on_completed(
-                    [exec, sync, state, this_, leases]() mutable
+                    [&exec, sync, state = std::move(state), this_ = std::move(this_), leases = std::move(leases)]() mutable
                     {
                         if (sync)
                             this_->template do_process<Closure>(std::move(leases));
@@ -385,7 +385,7 @@ namespace allscale { namespace detail {
             {
                 auto this_ = shared_this();
                 return hpx::parallel::execution::async_execute(exec,
-                    [this_, exec]() mutable
+                    [this_ = std::move(this_), &exec]() mutable
                     {
                         HPX_ASSERT(this_->valid());
                         this_->template get_deps<typename WorkItemDescription::process_variant>(
@@ -405,7 +405,7 @@ namespace allscale { namespace detail {
             if (sync)
             {
                 return hpx::dataflow(hpx::launch::sync,
-                    hpx::util::unwrapping([this_, exec](reqs_type reqs) mutable
+                    hpx::util::unwrapping([this_ = std::move(this_), &exec](reqs_type reqs) mutable
                     {
                         this_->template get_deps<typename WorkItemDescription::process_variant>(
                             exec, true, std::move(reqs), nullptr);
@@ -416,7 +416,7 @@ namespace allscale { namespace detail {
             else
             {
                 return hpx::dataflow(exec,
-                    hpx::util::unwrapping([this_, exec](reqs_type reqs) mutable
+                    hpx::util::unwrapping([this_ = std::move(this_), &exec](reqs_type reqs) mutable
                     {
                         this_->template get_deps<typename WorkItemDescription::process_variant>(
                             exec, false, std::move(reqs), nullptr);
@@ -434,15 +434,33 @@ namespace allscale { namespace detail {
             auto reqs = detail::merge_data_item_reqs(
                 get_requirements<typename WorkItemDescription::process_variant>(nullptr)
             );
-            return hpx::dataflow(
-                [reqs, this_, &exec, sync](auto locate_future)
+
+#if defined(ALLSCALE_DEBUG_DIM)
+            std::string s = this->name();
+            s += '(';
+            s += id_.name();
+            s += ").process";
+            data_item_manager::log_req(s, reqs);
+#endif
+            return hpx::dataflow(hpx::launch::sync,
+                [reqs, this_ = std::move(this_), &exec, sync](auto locate_future)
                 {
                     auto infos = hpx::util::unwrap(locate_future);
                     std::size_t rank = data_item_manager::acquire_rank(reqs, infos);
                     // Write regions are on different localities, need split
                     if (rank == std::size_t(-1))
                     {
-                        return hpx::make_ready_future(std::size_t(-1));
+                        if (this_->can_split())
+                        {
+                            return hpx::make_ready_future(std::size_t(-1));
+                        }
+                        else
+                        {
+                            std::cerr << "Requesting split for " << this_->name()
+                                << ", but can not split further!\n";
+                            data_item_manager::print_location_info(reqs, infos);
+                            std::abort();
+                        }
                     }
                     // Route to different locality
                     if (rank != std::size_t(-2) && rank != hpx::get_locality_id())
@@ -450,9 +468,13 @@ namespace allscale { namespace detail {
                         return hpx::make_ready_future(rank);
                     }
                     HPX_ASSERT(rank == std::size_t(-2) || rank == hpx::get_locality_id());
-                    return this_->process(exec, sync, data_item_manager::acquire(reqs, infos));
+                    return this_->process(exec, sync, data_item_manager::acquire(exec, reqs, infos));
                 },
+#if defined(ALLSCALE_DEBUG_DIM)
+                data_item_manager::locate(std::move(s), reqs)
+#else
                 data_item_manager::locate(reqs)
+#endif
             );
         }
 
@@ -466,7 +488,7 @@ namespace allscale { namespace detail {
             {
                 auto this_ = shared_this();
                 hpx::parallel::execution::post(exec,
-                    [this_]() mutable
+                    [this_ = std::move(this_)]() mutable
                     {
                         HPX_ASSERT(this_->valid());
                         this_->do_split(std::move(hpx::util::tuple<>()));
@@ -484,7 +506,7 @@ namespace allscale { namespace detail {
             if (sync)
             {
                 hpx::dataflow(hpx::launch::sync,
-                    hpx::util::unwrapping([this_](reqs_type reqs) mutable
+                    hpx::util::unwrapping([this_ = std::move(this_)](reqs_type reqs) mutable
                     {
                         HPX_ASSERT(this_->valid());
                         this_->do_split(std::move(reqs));
@@ -494,7 +516,7 @@ namespace allscale { namespace detail {
             else
             {
                 hpx::dataflow(exec,
-                    hpx::util::unwrapping([this_](reqs_type reqs) mutable
+                    hpx::util::unwrapping([this_ = std::move(this_)](reqs_type reqs) mutable
                     {
                         HPX_ASSERT(this_->valid());
                         this_->do_split(std::move(reqs));
@@ -513,8 +535,22 @@ namespace allscale { namespace detail {
             auto reqs = detail::merge_data_item_reqs(
                 get_requirements<typename WorkItemDescription::split_variant>(nullptr)
             );
-            return hpx::dataflow(
-                [reqs, this_, &exec, sync](auto locate_future)
+#if defined(ALLSCALE_DEBUG_DIM)
+            std::string s = this->name();
+            s += '(';
+            s += id_.name();
+            s += ").split";
+            data_item_manager::log_req(s,
+                detail::merge_data_item_reqs(
+                    hpx::util::tuple_cat(
+                        get_requirements<typename WorkItemDescription::split_variant>(nullptr),
+                        get_requirements<typename WorkItemDescription::process_variant>(nullptr)
+                    )
+                )
+            );
+#endif
+            return hpx::dataflow(hpx::launch::sync,
+                [reqs, this_ = std::move(this_), &exec, sync](auto locate_future)
                 {
                     auto infos = hpx::util::unwrap(locate_future);
                     std::size_t rank = data_item_manager::acquire_rank(reqs, infos);
@@ -529,10 +565,14 @@ namespace allscale { namespace detail {
                         return rank;
                     }
                     HPX_ASSERT(rank == std::size_t(-2) || rank == hpx::get_locality_id());
-                    this_->split_impl(exec, sync, data_item_manager::acquire(reqs, infos));
+                    this_->split_impl(exec, sync, data_item_manager::acquire(exec, reqs, infos));
                     return std::size_t(-2);
                 },
+#if defined(ALLSCALE_DEBUG_DIM)
+                data_item_manager::locate(std::move(s), reqs)
+#else
                 data_item_manager::locate(reqs)
+#endif
             );
         }
 

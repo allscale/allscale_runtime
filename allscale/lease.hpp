@@ -9,16 +9,15 @@ namespace allscale{
     struct lease : public data_item_requirement<DataItemType> {
         lease () = default;
 
-        lease(std::size_t rank)
-          : rank_(rank)
-        {}
-
-        lease(const data_item_requirement<DataItemType>& requirement)
+        explicit lease(const data_item_requirement<DataItemType>& requirement)
           : data_item_requirement<DataItemType>(requirement)
         {
         }
 
-        std::size_t rank_ = std::size_t(-1);
+        explicit lease(data_item_requirement<DataItemType>&& requirement)
+          : data_item_requirement<DataItemType>(std::move(requirement))
+        {
+        }
     };
 }
 

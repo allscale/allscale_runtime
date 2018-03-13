@@ -1182,9 +1182,9 @@ namespace allscale { namespace components {
       history = std::make_shared<allscale::historical_data>();
 
 
-      std::cerr
-         << "Monitor component with rank "
-         << rank_ << " created!\n";
+//       std::cerr
+//          << "Monitor component with rank "
+//          << rank_ << " created!\n";
 
    }
 

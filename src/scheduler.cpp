@@ -1,19 +1,18 @@
 
+#include <allscale/config.hpp>
 #include <allscale/scheduler.hpp>
 #include <allscale/monitor.hpp>
 #include <allscale/resilience.hpp>
 #include <allscale/components/scheduler.hpp>
 
-#include <hpx/include/components.hpp>
 #include <hpx/util/detail/yield_k.hpp>
 #include <hpx/util/register_locks.hpp>
 #include <hpx/runtime/threads/policies/local_priority_queue_scheduler.hpp>
 #include <hpx/runtime/threads/detail/scheduled_thread_pool.hpp>
 
-HPX_REGISTER_COMPONENT_MODULE()
+#include <hpx/runtime/components/component_factory_base.hpp>
 
-typedef hpx::components::component<allscale::components::scheduler> scheduler_component;
-HPX_REGISTER_COMPONENT(scheduler_component)
+HPX_REGISTER_COMPONENT_MODULE()
 
 namespace allscale
 {
@@ -23,11 +22,11 @@ namespace allscale
     {
         auto const& numa_domains = rp.numa_domains();
 //         rp.create_thread_pool("default");
-        std::cerr << "===============================================================================\n";
-        std::cerr << "Setting up Scheduler\n";
+//         std::cerr << "===============================================================================\n";
+//         std::cerr << "Setting up Scheduler\n";
 
         std::string input_objective_str = hpx::get_config_entry("allscale.objective", "none");
-        std::cerr << "  Scheduler objective is " << input_objective_str << "\n";
+//         std::cerr << "  Scheduler objective is " << input_objective_str << "\n";
         bool enable_elasticity = false;
         if ( !input_objective_str.empty() )
         {
@@ -59,7 +58,7 @@ namespace allscale
             }
         }
 
-        std::cerr << "  Scheduling is using " << numa_domains.size() << " NUMA Domains\n";
+//         std::cerr << "  Scheduling is using " << numa_domains.size() << " NUMA Domains\n";
         rp.set_default_pool_name("allscale-numa-0");
 
         std::size_t domain = 0;
@@ -67,7 +66,7 @@ namespace allscale
         for (auto& numa: numa_domains)
         {
             std::string pool_name = "allscale-numa-" + std::to_string(domain);
-            std::cerr << "  Creating \"" << pool_name << "\" thread pool:\n";
+//             std::cerr << "  Creating \"" << pool_name << "\" thread pool:\n";
 
             rp.create_thread_pool(pool_name,
                 [domain, enable_elasticity](hpx::threads::policies::callback_notifier& notifier,
@@ -117,7 +116,7 @@ namespace allscale
 //                     }
 //                     else
 //                     {
-                        std::cerr << "    Adding PU " << pu.id() << '\n';
+//                         std::cerr << "    Adding PU " << pu.id() << '\n';
                         rp.add_resource(pu, pool_name);
 //                     }
                 }
@@ -126,19 +125,17 @@ namespace allscale
             ++domain;
         }
 
-        std::cerr << "===============================================================================\n";
+//         std::cerr << "===============================================================================\n";
     }
 
     void scheduler::schedule(work_item work)
     {
-//    	std::cerr<<"schedulign work item on loc " << hpx::get_locality_id()<<std::endl;
         get().enqueue(work, this_work_item::id());
     }
 
-    void scheduler::schedule(work_item work, this_work_item::id const& id)
+    void scheduler::schedule(work_item work, this_work_item::id id)
     {
-//    	std::cerr<<"schedulign work item on loc " << hpx::get_locality_id()<<std::endl;
-        get().enqueue(work, id);
+        get().enqueue(work, std::move(id));
     }
 
     components::scheduler* scheduler::run(std::size_t rank)
@@ -164,26 +161,11 @@ namespace allscale
     components::scheduler* scheduler::get_ptr()
     {
         static scheduler s(rank_);
-        components::scheduler* res = s.component_.get();
-        for (std::size_t k = 0; !res; ++k)
-        {
-            hpx::util::detail::yield_k(k, "scheduler::get_ptr");
-            res = s.component_.get();
-        }
-        return res;
+        return s.component_.get();
     }
 
     scheduler::scheduler(std::size_t rank)
     {
-        std::unique_lock<mutex_type> l(mtx_);
-        hpx::util::ignore_while_checking<std::unique_lock<mutex_type>> il(&l);
-
-        hpx::id_type gid =
-            hpx::local_new<components::scheduler>(rank).get();
-
-        auto component = hpx::get_ptr<components::scheduler>(gid).get();
-        component->init();
-        hpx::register_with_basename("allscale/scheduler", gid, rank).get();
-        component_ = component;
+        component_.reset(new components::scheduler(rank));
     }
 }
