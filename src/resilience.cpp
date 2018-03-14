@@ -21,7 +21,6 @@ namespace allscale {
 
     resilience::resilience(std::size_t rank)
     {
-
         hpx::id_type gid =
             hpx::new_<components::resilience>(hpx::find_here(), rank).get();
 

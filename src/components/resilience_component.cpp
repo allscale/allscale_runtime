@@ -67,6 +67,8 @@ namespace allscale { namespace components {
     }
 
     bool resilience::rank_running(uint64_t rank) {
+        if (env_resilience_disabled) return true;
+
         bool rank_running;
         {
             std::unique_lock<mutex_type> lock(running_ranks_mutex_);
@@ -82,17 +84,22 @@ namespace allscale { namespace components {
     void resilience::init() {
         char *env = std::getenv("ALLSCALE_RESILIENCE");
         env_resilience_disabled = (env && env[0] == '0');
+        if (env_resilience_disabled) return;
 
-        num_localities = hpx::get_num_localities().get();
         localities = hpx::find_all_localities();
+        if (localities.size() < 2)
         {
-            std::unique_lock<mutex_type> lock(running_ranks_mutex_);
-            rank_running_.resize(num_localities, true);
+            env_resilience_disabled = true;
         }
 
-        if (get_running_ranks() < 2 || env_resilience_disabled) {
+        if (env_resilience_disabled) {
             thread_safe_printer("Resilience disabled for single locality or env. variable ALLSCALE_RESILIENCE=0 set\n");
             return;
+        }
+
+        {
+            std::unique_lock<mutex_type> lock(running_ranks_mutex_);
+            rank_running_.resize(localities.size(), true);
         }
 
         my_state = TRUST;
@@ -159,15 +166,17 @@ namespace allscale { namespace components {
     }
 
     void resilience::work_item_dispatched(work_item const& w, size_t schedule_rank) {
+        if (env_resilience_disabled) return;
+
         auto p = std::make_pair(schedule_rank,w);
         {
             std::unique_lock<mutex_type> lock(delegated_items_mutex_);
             delegated_items_.insert(p);
         }
         auto treeture = w.get_treeture();
-        
+
         // get signal from treeture when finished
-        // and continuation 
+        // and continuation
         treeture.get_future().then(
                         hpx::util::bind(
                             hpx::util::one_shot(
