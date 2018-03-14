@@ -8,6 +8,7 @@
  * targeting the AllScale runtime.
  */
 
+#include <hpx/config.hpp>
 
 #include <allscale/config.hpp>
 #include <allscale/no_split.hpp>
@@ -22,7 +23,6 @@
 #include <allscale/data_item_manager.hpp>
 #include <allscale/data_requirements_check.hpp>
 
-#include <hpx/config.hpp>
 #include <hpx/hpx_init.hpp>
 #include <hpx/runtime/config_entry.hpp>
 #include <hpx/util/find_prefix.hpp>
@@ -169,7 +169,7 @@ template<typename MainWorkItem>
 int main_wrapper(int argc = 0, char **argv = nullptr) {
     typedef int(*hpx_main_type)(boost::program_options::variables_map &);
     hpx_main_type f = &allscale_main<MainWorkItem>;
-    boost::program_options::options_description desc;
+    boost::program_options::options_description desc("Usage: [options]");
     hpx::util::set_hpx_prefix(HPX_PREFIX);
     allscale::scheduler::setup_resources(f, desc, argc, argv);
     return hpx::init();

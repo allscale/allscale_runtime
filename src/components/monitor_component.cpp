@@ -1010,6 +1010,11 @@ namespace allscale { namespace components {
 
 
    void monitor::stop() {
+      if(const char* env_p = std::getenv("ALLSCALE_MONITOR"))
+      {
+          if(atoi(env_p) == 0)
+              return;
+      }
 
       execution_end = std::chrono::steady_clock::now();
 
@@ -1068,16 +1073,13 @@ namespace allscale { namespace components {
       if(const char* env_p = std::getenv("ALLSCALE_MONITOR"))
       {
           if(atoi(env_p) == 0)
-              enable_signals = false;
+              return;
       }
 
-      if(enable_signals)
-      {
-          allscale::monitor::connect(allscale::monitor::work_item_execution_started, monitor::global_w_exec_start_wrapper);
-          allscale::monitor::connect(allscale::monitor::work_item_execution_finished, monitor::global_w_exec_finish_wrapper);
-          allscale::monitor::connect(allscale::monitor::work_item_result_propagated, monitor::global_w_result_propagated_wrapper);
-          allscale::monitor::connect(allscale::monitor::work_item_first, monitor::global_w_app_iteration);
-      }
+      allscale::monitor::connect(allscale::monitor::work_item_execution_started, monitor::global_w_exec_start_wrapper);
+      allscale::monitor::connect(allscale::monitor::work_item_execution_finished, monitor::global_w_exec_finish_wrapper);
+      allscale::monitor::connect(allscale::monitor::work_item_result_propagated, monitor::global_w_result_propagated_wrapper);
+      allscale::monitor::connect(allscale::monitor::work_item_first, monitor::global_w_app_iteration);
 
 //      const int result = std::atexit(global_finalize);
 //      if(result != 0) std::cerr << "Registration of monitor_finalize function failed!" << std::endl;

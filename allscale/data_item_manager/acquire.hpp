@@ -6,6 +6,9 @@
 #include <allscale/data_item_manager/data_item_store.hpp>
 #include <allscale/data_item_manager/data_item_view.hpp>
 #include <allscale/data_item_manager/location_info.hpp>
+
+#include <hpx/util/annotated_function.hpp>
+
 #include <hpx/plugins/parcel/coalescing_message_handler_registration.hpp>
 
 #include <hpx/runtime/naming/id_type.hpp>
@@ -37,9 +40,9 @@ namespace allscale { namespace data_item_manager {
             >::type
         {};
 
-        template <typename Executor, typename Requirement, typename LocationInfo>
+        template <typename Requirement, typename LocationInfo>
         hpx::future<allscale::lease<typename Requirement::data_item_type>>
-        acquire(Executor exec, Requirement const& req, LocationInfo const& info)
+        acquire(Requirement const& req, LocationInfo const& info)
         {
             using data_item_type = typename Requirement::data_item_type;
             using lease_type = allscale::lease<data_item_type>;
@@ -105,21 +108,21 @@ namespace allscale { namespace data_item_manager {
                 }
 
                 return hpx::dataflow(hpx::launch::sync,//exec,
-                    [req = std::move(req)](
+                    hpx::util::annotated_function([req = std::move(req)](
                         std::vector<hpx::future<data_item_view<data_item_type>>> transfers) mutable
                     {
                         // check for errors...
 //                         for (auto & transfer: transfers) transfer.get();
                         return lease_type(std::move(req));
-                    },
+                    }, "allscale::data_item_manager::transfers_cont"),
                     std::move(transfers));
             }
         }
 
-        template <typename Executor, typename Requirement, typename RequirementAllocator,
+        template <typename Requirement, typename RequirementAllocator,
             typename LocationInfo, typename LocationInfoAllocator>
         std::vector<hpx::future<allscale::lease<typename Requirement::data_item_type>>>
-        acquire(Executor& exec, std::vector<Requirement, RequirementAllocator> const& reqs,
+        acquire(std::vector<Requirement, RequirementAllocator> const& reqs,
             std::vector<LocationInfo, LocationInfoAllocator> const& infos)
         {
             HPX_ASSERT(reqs.size() == infos.size());
@@ -127,28 +130,28 @@ namespace allscale { namespace data_item_manager {
             leases.reserve(reqs.size());
             for (std::size_t i = 0; i != reqs.size(); ++i)
             {
-                leases.push_back(detail::acquire(exec, reqs[i], infos[i]));
+                leases.push_back(detail::acquire(reqs[i], infos[i]));
             }
             return leases;
         }
 
-        template <typename Executor, typename Requirements, typename LocationInfos, std::size_t...Is>
+        template <typename Requirements, typename LocationInfos, std::size_t...Is>
         auto
-        acquire(Executor& exec, Requirements const& reqs, LocationInfos const& infos,
+        acquire(Requirements const& reqs, LocationInfos const& infos,
             hpx::util::detail::pack_c<std::size_t, Is...>)
-         -> hpx::util::tuple<decltype(detail::acquire(exec, hpx::util::get<Is>(reqs), hpx::util::get<Is>(infos)))...>
+         -> hpx::util::tuple<decltype(detail::acquire(hpx::util::get<Is>(reqs), hpx::util::get<Is>(infos)))...>
         {
             return hpx::util::make_tuple(
-                detail::acquire(exec, hpx::util::get<Is>(reqs), hpx::util::get<Is>(infos))...
+                detail::acquire(hpx::util::get<Is>(reqs), hpx::util::get<Is>(infos))...
             );
         }
     }
 
-    template <typename Executor, typename Requirements, typename LocationInfos>
+    template <typename Requirements, typename LocationInfos>
     auto
-    acquire(Executor& exec, Requirements const& reqs, LocationInfos const& infos)
+    acquire(Requirements const& reqs, LocationInfos const& infos)
      -> decltype(
-        detail::acquire(exec, reqs, infos,
+        detail::acquire(reqs, infos,
             typename hpx::util::detail::make_index_pack<
                 hpx::util::tuple_size<Requirements>::type::value>::type{}))
     {
@@ -157,7 +160,7 @@ namespace allscale { namespace data_item_manager {
             hpx::util::tuple_size<LocationInfos>::value,
             "requirements and location info sizes do not match");
 
-        return detail::acquire(exec, reqs, infos,
+        return detail::acquire(reqs, infos,
             typename hpx::util::detail::make_index_pack<
                 hpx::util::tuple_size<Requirements>::type::value>::type{});
     }

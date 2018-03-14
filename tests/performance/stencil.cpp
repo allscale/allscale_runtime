@@ -26,7 +26,7 @@ ALLSCALE_REGISTER_TREETURE_TYPE(int)
 ALLSCALE_REGISTER_TREETURE_TYPE(double)
 
 using DTYPE = double;
-#define WEIGHT(ii,jj) weight[ii+RADIUS][jj]
+#define WEIGHT(ii,jj) weight[ii + RADIUS][jj + RADIUS]
 
 constexpr double EPSILON = 1.e-8;
 constexpr double COEFX = 1.0;
@@ -35,13 +35,13 @@ constexpr double COEFY = 1.0;
 HPX_REGISTER_COMPONENT_MODULE();
 
 constexpr int RADIUS = 2;
-DTYPE weight[2*RADIUS+1][2*RADIUS+1] =
+constexpr DTYPE weight[2*RADIUS+1][2*RADIUS+1] =
     {
-        {-0.125, 0.00, 0.000,  0.000,  0.00},
-        {-0.250, 0.00, 0.000, -0.125, -0.25},
-        { 0.000, 0.25, 0.125,  0.000,  0.00},
-        { 0.250, 0.00, 0.000,  0.000,  0.00},
-        { 0.125, 0.00, 0.000,  0.000,  0.00}
+        {  0.000,  0.000, -0.125, 0.000, 0.000},
+        {  0.000,  0.000, -0.250, 0.000, 0.000},
+        { -0.125, -0.250,  0.000, 0.250, 0.125},
+        {  0.000,  0.000,  0.250, 0.000, 0.000},
+        {  0.000,  0.000,  0.125, 0.000, 0.000}
     };
 
 
@@ -356,16 +356,18 @@ struct stencil_process {
         region_type region(begin, end);
         region.scan([&](coordinate_type const& out_pos)
         {
+            DTYPE res = 0.0;
             for (int j = -RADIUS; j <= RADIUS; ++j)
             {
                 coordinate_type in_pos(out_pos[0], out_pos[1] + j);
-                data_b[out_pos] += WEIGHT(0, j) * data_a[in_pos];
+                res += WEIGHT(0, j) * data_a[in_pos];
             }
             for (int i = -RADIUS; i <= RADIUS; ++i)
             {
                 coordinate_type in_pos(out_pos[0] + i, out_pos[1]);
-                data_b[out_pos] += WEIGHT(i, 0) * data_a[in_pos];
+                res += WEIGHT(i, 0) * data_a[in_pos];
             }
+            data_b[out_pos] += res;
         });
         return hpx::util::unused;
     }
@@ -438,18 +440,6 @@ struct main_process
         N = std::atoi(argv[2]);
 
         DTYPE f_active_points = (DTYPE) (N-2*RADIUS)*(DTYPE) (N-2*RADIUS);
-
-        int ii,jj;
-
-        for (jj=-RADIUS; jj<=RADIUS; jj++) {
-            for (ii=-RADIUS; ii<=RADIUS; ii++) {
-                WEIGHT(ii,jj) = (DTYPE) 0.0;
-            }
-        }
-        for (ii=1; ii<=RADIUS; ii++) {
-            WEIGHT(0, ii) = WEIGHT( ii,0) =  (DTYPE) (1.0/(2.0*ii*RADIUS));
-            WEIGHT(0,-ii) = WEIGHT(-ii,0) = -(DTYPE) (1.0/(2.0*ii*RADIUS));
-        }
 
         int stencil_size = 4*RADIUS+1;
 

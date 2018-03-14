@@ -161,6 +161,7 @@ namespace allscale
     components::scheduler* scheduler::get_ptr()
     {
         static scheduler s(rank_);
+        s.component_->init();
         return s.component_.get();
     }
 

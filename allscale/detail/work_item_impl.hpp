@@ -14,6 +14,7 @@
 #include <hpx/include/serialization.hpp>
 #include <hpx/include/parallel_execution.hpp>
 #include <hpx/util/assert.hpp>
+#include <hpx/util/annotated_function.hpp>
 #include <hpx/util/tuple.hpp>
 #include <hpx/lcos/when_all.hpp>
 
@@ -327,7 +328,10 @@ namespace allscale { namespace detail {
                 {
 //                     state->get_result();
                     if (sync)
+                    {
+                        hpx::util::annotate_function("allscale::work_item::do_process_sync");
                         this_->template do_process<Closure>(std::move(leases));
+                    }
                     else
                     {
                         void (work_item_impl::*f)(
@@ -335,7 +339,7 @@ namespace allscale { namespace detail {
                         ) = &work_item_impl::do_process<Closure>;
 
                         hpx::parallel::execution::post(
-                            exec, f, std::move(this_), std::move(leases));
+                            exec, hpx::util::annotated_function(hpx::util::deferred_call(f, std::move(this_), std::move(leases)), "allscale::work_item::do_process"));
                     }
                 });
         }
@@ -354,7 +358,10 @@ namespace allscale { namespace detail {
                     [&exec, sync, state = std::move(state), this_ = std::move(this_), leases = std::move(leases)]() mutable
                     {
                         if (sync)
+                        {
+                            hpx::util::annotate_function("allscale::work_item::do_process_sync");
                             this_->template do_process<Closure>(std::move(leases));
+                        }
                         else
                         {
                             void (work_item_impl::*f)(
@@ -362,13 +369,14 @@ namespace allscale { namespace detail {
                             ) = &work_item_impl::do_process<Closure>;
 
                             hpx::parallel::execution::post(
-                                exec, f, std::move(this_), std::move(leases));
+                                exec, hpx::util::annotated_function(hpx::util::deferred_call(f, std::move(this_), std::move(leases)), "allscale::work_item::do_process"));
                         }
                     }
                 );
             }
             else
             {
+                hpx::util::annotate_function("allscale::work_item::do_process_sync");
                 do_process<Closure>(std::move(leases));
             }
         }
@@ -377,6 +385,7 @@ namespace allscale { namespace detail {
         {
             if (sync)
             {
+                hpx::util::annotate_function("allscale::work_item::process_sync");
                 get_deps<typename WorkItemDescription::process_variant>(
                     exec, true, hpx::util::tuple<>(), nullptr);
                 return hpx::make_ready_future(std::size_t(-2));
@@ -385,13 +394,13 @@ namespace allscale { namespace detail {
             {
                 auto this_ = shared_this();
                 return hpx::parallel::execution::async_execute(exec,
-                    [this_ = std::move(this_), &exec]() mutable
+                    hpx::util::annotated_function([this_ = std::move(this_), &exec]() mutable
                     {
                         HPX_ASSERT(this_->valid());
                         this_->template get_deps<typename WorkItemDescription::process_variant>(
                             exec, false, hpx::util::tuple<>(), nullptr);
                         return std::size_t(-2);
-                    });
+                    }, "allscale::work_item::process"));
             }
         }
 
@@ -405,23 +414,23 @@ namespace allscale { namespace detail {
             if (sync)
             {
                 return hpx::dataflow(hpx::launch::sync,
-                    hpx::util::unwrapping([this_ = std::move(this_), &exec](reqs_type reqs) mutable
+                    hpx::util::annotated_function(hpx::util::unwrapping([this_ = std::move(this_), &exec](reqs_type reqs) mutable
                     {
                         this_->template get_deps<typename WorkItemDescription::process_variant>(
                             exec, true, std::move(reqs), nullptr);
                         return std::size_t(-2);
-                    })
+                    }), "allscale::work_item::process::reqs_cont_sync")
                   , std::forward<Reqs>(reqs));
             }
             else
             {
                 return hpx::dataflow(exec,
-                    hpx::util::unwrapping([this_ = std::move(this_), &exec](reqs_type reqs) mutable
+                    hpx::util::annotated_function(hpx::util::unwrapping([this_ = std::move(this_), &exec](reqs_type reqs) mutable
                     {
                         this_->template get_deps<typename WorkItemDescription::process_variant>(
                             exec, false, std::move(reqs), nullptr);
                         return std::size_t(-2);
-                    })
+                    }), "allscale::work_item::process::reqs_cont")
                   , std::forward<Reqs>(reqs));
             }
         }
@@ -443,7 +452,7 @@ namespace allscale { namespace detail {
             data_item_manager::log_req(s, reqs);
 #endif
             return hpx::dataflow(hpx::launch::sync,
-                [reqs, this_ = std::move(this_), &exec, sync](auto locate_future)
+                hpx::util::annotated_function([reqs, this_ = std::move(this_), &exec, sync](auto locate_future)
                 {
                     auto infos = hpx::util::unwrap(locate_future);
                     std::size_t rank = data_item_manager::acquire_rank(reqs, infos);
@@ -468,8 +477,8 @@ namespace allscale { namespace detail {
                         return hpx::make_ready_future(rank);
                     }
                     HPX_ASSERT(rank == std::size_t(-2) || rank == hpx::get_locality_id());
-                    return this_->process(exec, sync, data_item_manager::acquire(exec, reqs, infos));
-                },
+                    return this_->process(exec, sync, data_item_manager::acquire(reqs, infos));
+                }, "allscale::work_item::process::locate_continuation"),
 #if defined(ALLSCALE_DEBUG_DIM)
                 data_item_manager::locate(std::move(s), reqs)
 #else
@@ -482,17 +491,18 @@ namespace allscale { namespace detail {
         {
             if (sync)
             {
+                hpx::util::annotate_function("allscale::work_item::do_split_sync");
                 do_split(std::move(reqs));
             }
             else
             {
                 auto this_ = shared_this();
                 hpx::parallel::execution::post(exec,
-                    [this_ = std::move(this_)]() mutable
+                    hpx::util::annotated_function([this_ = std::move(this_)]() mutable
                     {
                         HPX_ASSERT(this_->valid());
                         this_->do_split(std::move(hpx::util::tuple<>()));
-                    });
+                    }, "allscale::work_item::do_split"));
             }
         }
 
@@ -506,21 +516,21 @@ namespace allscale { namespace detail {
             if (sync)
             {
                 hpx::dataflow(hpx::launch::sync,
-                    hpx::util::unwrapping([this_ = std::move(this_)](reqs_type reqs) mutable
+                    hpx::util::annotated_function(hpx::util::unwrapping([this_ = std::move(this_)](reqs_type reqs) mutable
                     {
                         HPX_ASSERT(this_->valid());
                         this_->do_split(std::move(reqs));
-                    })
+                    }), "allscale::work_item::reqs_cont_sync")
                   , std::move(reqs));
             }
             else
             {
                 hpx::dataflow(exec,
-                    hpx::util::unwrapping([this_ = std::move(this_)](reqs_type reqs) mutable
+                    hpx::util::annotated_function(hpx::util::unwrapping([this_ = std::move(this_)](reqs_type reqs) mutable
                     {
                         HPX_ASSERT(this_->valid());
                         this_->do_split(std::move(reqs));
-                    })
+                    }), "allscale::work_item::reqs_cont")
                   , std::move(reqs));
             }
         }
@@ -550,7 +560,7 @@ namespace allscale { namespace detail {
             );
 #endif
             return hpx::dataflow(hpx::launch::sync,
-                [reqs, this_ = std::move(this_), &exec, sync](auto locate_future)
+                hpx::util::annotated_function([reqs, this_ = std::move(this_), &exec, sync](auto locate_future)
                 {
                     auto infos = hpx::util::unwrap(locate_future);
                     std::size_t rank = data_item_manager::acquire_rank(reqs, infos);
@@ -565,9 +575,9 @@ namespace allscale { namespace detail {
                         return rank;
                     }
                     HPX_ASSERT(rank == std::size_t(-2) || rank == hpx::get_locality_id());
-                    this_->split_impl(exec, sync, data_item_manager::acquire(exec, reqs, infos));
+                    this_->split_impl(exec, sync, data_item_manager::acquire(reqs, infos));
                     return std::size_t(-2);
-                },
+                }, "allscale::work_item::split_impl::locate_cont"),
 #if defined(ALLSCALE_DEBUG_DIM)
                 data_item_manager::locate(std::move(s), reqs)
 #else
