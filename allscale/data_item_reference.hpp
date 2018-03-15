@@ -66,9 +66,9 @@ namespace allscale {
         }
 
         data_item_reference(data_item_reference const& other) = default;
-        data_item_reference(data_item_reference&& other) noexcept = default;
+        data_item_reference(data_item_reference&& other) = default;
         data_item_reference& operator=(data_item_reference const& other) = default;
-        data_item_reference& operator=(data_item_reference&& other) noexcept = default;
+        data_item_reference& operator=(data_item_reference&& other) = default;
 
         template <typename Archive>
         void serialize(Archive & ar, unsigned) const

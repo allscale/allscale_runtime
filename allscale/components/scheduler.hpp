@@ -50,12 +50,12 @@ namespace allscale { namespace components {
     private:
         std::size_t get_num_numa_nodes();
         std::size_t get_num_numa_cores(std::size_t domain);
+
         hpx::resource::detail::partitioner *rp_;
         const hpx::threads::topology *topo_;
         machine_config mconfig_;
-        std::uint64_t num_localities_;
-        std::uint64_t num_threads_;
         std::uint64_t rank_;
+        bool initialized_;
         std::atomic<bool> stopped_;
 
         scheduler_network network_;
@@ -76,29 +76,16 @@ namespace allscale { namespace components {
         bool multi_objectives_adjust(std::size_t current_id);
 	bool multi_objectives_adjust_timed();
         
-
-        hpx::util::interval_timer timer_;
         hpx::util::interval_timer throttle_timer_;
         hpx::util::interval_timer frequency_timer_;
         hpx::util::interval_timer multi_objectives_timer_;
 
-        mutex_type counters_mtx_;
-        hpx::id_type idle_rate_counter_;
-        double idle_rate_;
-
-        hpx::id_type queue_length_counter_;
-        std::size_t queue_length_;
-
-        hpx::id_type threads_total_counter_id;
-        double total_threads_time;
-
-        hpx::id_type allscale_app_counter_id;
-
         //extra masks to better handle suspending/resuming threads
+
         std::vector<hpx::threads::thread_pool_base*> thread_pools_;
         std::vector<hpx::threads::mask_type> initial_masks_;
-	std::vector<hpx::threads::mask_type> suspending_masks_;
-	std::vector<hpx::threads::mask_type> resuming_masks_;
+        std::vector<hpx::threads::mask_type> suspending_masks_;
+        std::vector<hpx::threads::mask_type> resuming_masks_;
         std::vector<executor_type> executors_;
         std::atomic<std::size_t> current_;
 
@@ -110,6 +97,11 @@ namespace allscale { namespace components {
         double disable_factor;
         bool   growing;
         unsigned int min_threads;
+        // Indices show number of threads, which hold pair of
+        // execution times and number of times that particular thread used
+        // due to suspend and resume
+        std::vector<std::pair<double, unsigned int>> thread_times;
+        
 
         unsigned long min_freq;
         unsigned long max_freq;
@@ -120,10 +112,10 @@ namespace allscale { namespace components {
         unsigned long long last_energy_usage;
         unsigned long long last_actual_energy_usage;
         unsigned long long actual_energy_usage;
-	unsigned long long current_power_usage;
-	unsigned long long last_power_usage;
-	unsigned long long power_sum;
-	unsigned long long power_count;
+        unsigned long long current_power_usage;
+        unsigned long long last_power_usage;
+        unsigned long long power_sum;
+        unsigned long long power_count;
 #if defined(ALLSCALE_HAVE_CPUFREQ)
         cpufreq_policy policy;
         hardware_reconf::hw_topology topo;
@@ -152,7 +144,7 @@ namespace allscale { namespace components {
             "time",
             "resource",
             "energy",
-    	};
+        };
 
         bool multi_objectives;
         bool time_requested;

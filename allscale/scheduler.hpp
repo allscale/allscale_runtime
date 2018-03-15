@@ -100,7 +100,7 @@ namespace allscale
             argv = const_cast<char **>(argv_);
             argc = 1;
         }
-        hpx::resource::partitioner rp(hpx_main, desc, argc, argv, cfg);
+        hpx::resource::partitioner rp(hpx_main, desc, argc, argv, std::move(cfg));
         partition_resources(rp);
     }
 }

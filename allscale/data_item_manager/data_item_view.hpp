@@ -3,6 +3,8 @@
 
 #include "allscale/utils/serializer.h"
 
+#include <hpx/util/annotated_function.hpp>
+
 #include <memory>
 
 namespace allscale { namespace data_item_manager {
@@ -29,6 +31,7 @@ namespace allscale { namespace data_item_manager {
         template <typename Archive>
         void load(Archive& ar, unsigned)
         {
+            hpx::util::annotate_function("allscale::data_item_manager::data_item_view::load");
             ar & id_;
 //             hpx::util::high_resolution_timer timer;
             auto & item = data_item_store<DataItem>::lookup(id_);
@@ -46,6 +49,7 @@ namespace allscale { namespace data_item_manager {
         template <typename Archive>
         void save(Archive& ar, unsigned) const
         {
+            hpx::util::annotate_function("allscale::data_item_manager::data_item_view::save");
             ar & id_;
 //             hpx::util::high_resolution_timer timer;
             allscale::utils::ArchiveWriter writer(ar);

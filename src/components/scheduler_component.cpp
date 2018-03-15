@@ -4,7 +4,6 @@
 #include <allscale/monitor.hpp>
 #include <allscale/resilience.hpp>
 
-//#include <hpx/util/scoped_unlock.hpp>
 #include <hpx/util/unlock_guard.hpp>
 #include <hpx/traits/executor_traits.hpp>
 
@@ -18,9 +17,8 @@
 namespace allscale { namespace components {
 
         scheduler::scheduler(std::uint64_t rank)
-            : num_localities_(hpx::get_num_localities().get())
-            , num_threads_(hpx::get_num_worker_threads())
-            , rank_(rank)
+            : rank_(rank)
+            , initialized_(false)
             , stopped_(false)
             , os_thread_count(hpx::get_os_thread_count())
             , active_threads(os_thread_count)
@@ -55,16 +53,6 @@ namespace allscale { namespace components {
             , period_for_time(10)
             , period_for_resource(10)
             , period_for_power(20)
-            , timer_(
-                     hpx::util::bind(
-                                     &scheduler::collect_counters,
-                                     this
-                                     ),
-                     700,
-                     "scheduler::collect_counters",
-                     true
-                     )
-
             , throttle_timer_(
                               hpx::util::bind(
                                               &scheduler::periodic_throttle,
@@ -94,9 +82,7 @@ namespace allscale { namespace components {
                                )
         {
             allscale_monitor = &allscale::monitor::get();
-            //thread_times.resize(hpx::get_os_thread_count());
-            //init();
-
+            thread_times.resize(hpx::get_os_thread_count());
         }
 
         std::size_t scheduler::get_num_numa_nodes()
@@ -171,10 +157,14 @@ namespace allscale { namespace components {
 
         void scheduler::init()
         {
+            std::unique_lock<mutex_type> l(resize_mtx_);
+            hpx::util::ignore_while_checking<std::unique_lock<mutex_type>> il(&l);
+            if (initialized_) return;
+
             rp_ = &hpx::resource::get_partitioner();
             topo_ = &hpx::threads::get_topology();
 
-            mconfig_.num_localities = hpx::get_num_localities(hpx::launch::sync);
+            mconfig_.num_localities = allscale::get_num_localities();
             mconfig_.thread_depths.resize(get_num_numa_nodes());
             // Setting the default thread depths for each NUMA domain.
             for (std::size_t i = 0; i < mconfig_.thread_depths.size(); i++)
@@ -205,7 +195,7 @@ namespace allscale { namespace components {
                             if (idx != std::string::npos)
                                 {
 #ifdef DEBUG_
-                                    std::cout << "found a leeway, triggering multi-objectives policies\n" <<std::flush ;
+                                    std::cout << "Found a leeway, triggering multi-objectives policies\n" <<std::flush ;
 #endif
 
                                     multi_objectives = true;
@@ -290,18 +280,18 @@ namespace allscale { namespace components {
                 }
 
             // setup performance counter to use to decide on split/process
-            static const char * queue_counter_name = "/threadqueue{locality#%d/total}/length";
-
-            const std::uint32_t prefix = hpx::get_locality_id();
-
-            queue_length_counter_ = hpx::performance_counters::get_counter(
-                                                                           boost::str(boost::format(queue_counter_name) % prefix));
-
-            hpx::performance_counters::stubs::performance_counter::start(
-                                                                         hpx::launch::sync, queue_length_counter_);
-
-
-            collect_counters();
+//             static const char * queue_counter_name = "/threadqueue{locality#%d/total}/length";
+//
+//             const std::uint32_t prefix = hpx::get_locality_id();
+//
+//             queue_length_counter_ = hpx::performance_counters::get_counter(
+//                                                                            boost::str(boost::format(queue_counter_name) % prefix));
+//
+//             hpx::performance_counters::stubs::performance_counter::start(
+//                                                                          hpx::launch::sync, queue_length_counter_);
+//
+//
+//             collect_counters();
 
             auto const& numa_domains = rp_->numa_domains();
             executors_.reserve(numa_domains.size());
@@ -497,32 +487,34 @@ namespace allscale { namespace components {
                     HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
                                         "Requesting energy objective without having compiled with cpufreq");
 #endif
-
+                    
                 }
-        
-
-//             std::cerr  << "Scheduler with rank " << rank_ << " created!\n";
-
+            
+            
+            //             std::cerr  << "Scheduler with rank " << rank_ << " created!\n";
+            
+            initialized_ = true;
+            //             std::cerr
+            //                 << "Scheduler with rank " << rank_ << " created!\n";
         }
 
         void scheduler::enqueue(work_item work, this_work_item::id id)
         {
-            static thread_local unsigned int current_period = 0;
+            this_work_item::id parent_id;
             if (id)
                 {
                     this_work_item::set_id(id);
+                    parent_id = std::move(id);
                 }
             else
                 {
                     std::unique_lock<mutex_type> l(resize_mtx_);
 
                     work.set_this_id(mconfig_);
+                    l.unlock();
+                    parent_id = this_work_item::get_id();
                 }
 
-            this_work_item::id parent_id = this_work_item::get_id();
-
-            bool sync = parent_id.thread_depth() == 1;// ||
-//          work.id().numa_domain() == parent_id.numa_domain();
 
             std::uint64_t schedule_rank = work.id().rank();
             if(!allscale::resilience::rank_running(schedule_rank))
@@ -556,7 +548,7 @@ namespace allscale { namespace components {
                             // //                           //                     if (it == spawn_throttle_.end())
                             // //                           //                     {
                             // //                           //                         auto em_res = spawn_throttle_.emplace(wi_name,
-                            // //                           //                             treeture_buffer(6));//num_threads_));
+                            // //                           //                             treeture_buffer(6));//os_thread_count));
                             // //                           //                         it = em_res.first;
                             // //                           //                     }
                             // //                           //                     it->second.add(std::move(lk), work.get_treeture());
@@ -589,12 +581,10 @@ namespace allscale { namespace components {
                     std::size_t numa_domain = work.id().numa_domain();
                     HPX_ASSERT(numa_domain < executors_.size());
 
-                    auto this_id = this_work_item::get_id();
                     if (do_split(work))
                         {
-                            work.split(executors_[numa_domain], /*sync
-                                       || work.id().numa_domain() == parent_id.numa_domain()*/false).then(hpx::launch::sync,
-                                 [this_id = std::move(this_id), work, this](hpx::future<std::size_t>&& f) mutable
+                            hpx::dataflow(hpx::launch::sync,
+                                 [this_id = std::move(parent_id), work, this](hpx::future<std::size_t>&& f) mutable
                                  {
                                      std::size_t expected_rank = f.get();
                                      if(expected_rank == std::size_t(-1))
@@ -609,13 +599,14 @@ namespace allscale { namespace components {
                                              work.update_rank(expected_rank);
                                              network_.schedule(expected_rank, std::move(work), std::move(this_id));
                                          }
-                                 }
+                                 },
+                                 work.split()
                             );
                         }
                     else
                         {
-                            work.process(executors_[numa_domain], /*sync*/false).then(hpx::launch::sync,
-                                 [this_id = std::move(this_id), work, numa_domain, this](hpx::future<std::size_t>&& f) mutable
+                            hpx::dataflow(hpx::launch::sync,
+                                 [this_id = std::move(parent_id), work, numa_domain, this](hpx::future<std::size_t>&& f) mutable
                                  {
                                      // the process variant might fail if we try to acquire
                                      // data item read/write on multiple localities
@@ -625,7 +616,7 @@ namespace allscale { namespace components {
                                          {
                                              // We should move on and split...
                                              HPX_ASSERT(work.can_split());
-                                             work.split(executors_[numa_domain], false);
+                                             work.split();
                                          }
                                      else if(expected_rank != std::size_t(-2))
                                          {
@@ -633,7 +624,9 @@ namespace allscale { namespace components {
                                              work.update_rank(expected_rank);
                                              network_.schedule(expected_rank, std::move(work), std::move(this_id));
                                          }
-                                 });
+                                 },
+                                 work.process(executors_[numa_domain])
+                            );
                         }
 
                     return;
@@ -641,7 +634,7 @@ namespace allscale { namespace components {
             //task not meant to be local: move task to remote nodes
 
             allscale::resilience::global_wi_dispatched(work, schedule_rank);
-            network_.schedule(schedule_rank, std::move(work), this_work_item::get_id());
+            network_.schedule(schedule_rank, std::move(work), parent_id);
         }
 
         bool scheduler::do_split(work_item const& w)
@@ -663,27 +656,28 @@ namespace allscale { namespace components {
 
         }
 
-        bool scheduler::collect_counters()
-        {
-            //         hpx::performance_counters::counter_value idle_value;
-            hpx::performance_counters::counter_value length_value;
-            //         idle_value = hpx::performance_counters::stubs::performance_counter::get_value(
-            //                 hpx::launch::sync, idle_rate_counter_);
-            length_value = hpx::performance_counters::stubs::performance_counter::get_value(
-                                                                                            hpx::launch::sync, queue_length_counter_);
 
-            //         double idle_rate = idle_value.get_value<double>() * 0.01;
-            std::size_t queue_length = length_value.get_value<std::size_t>();
+        // bool scheduler::collect_counters()
+        // {
+        //     //         hpx::performance_counters::counter_value idle_value;
+        //     hpx::performance_counters::counter_value length_value;
+        //     //         idle_value = hpx::performance_counters::stubs::performance_counter::get_value(
+        //     //                 hpx::launch::sync, idle_rate_counter_);
+        //     length_value = hpx::performance_counters::stubs::performance_counter::get_value(
+        //                                                                                     hpx::launch::sync, queue_length_counter_);
 
-            {
-                std::unique_lock<mutex_type> l(counters_mtx_);
+        //     //         double idle_rate = idle_value.get_value<double>() * 0.01;
+        //     std::size_t queue_length = length_value.get_value<std::size_t>();
 
-                //             idle_rate_ = idle_rate;
-                queue_length_ = queue_length;
-            }
+        //     {
+        //         std::unique_lock<mutex_type> l(counters_mtx_);
 
-            return true;
-        }
+        //         //             idle_rate_ = idle_rate;
+        //         queue_length_ = queue_length;
+        //     }
+
+        //     return true;
+        // }
         
         unsigned int  scheduler::suspend_threads()
         {
@@ -993,12 +987,13 @@ namespace allscale { namespace components {
         bool scheduler::periodic_throttle()
         {
             //will have some work to do only if we started with more than one thread, and if scheduling policy allows it
-            if ( num_threads_ > 1 &&  ( time_requested || resource_requested ) )
+
+            if ( os_thread_count > 1 && ( time_requested || resource_requested ) )
                 {
                     //early stage of the execution don't provide correct intelligence on sampling, so we skip them
                     std::unique_lock<mutex_type> l(resize_mtx_);
 #ifdef DEBUG_
-                    std::cout << "Entering periodic_throttle(), num_threads_: "<< num_threads_ << ", time_requested: " << time_requested << ", resource_requested: " << resource_requested <<  "\n";
+                    std::cout << "Entering periodic_throttle(), os_thread_count: "<< os_thread_count << ", time_requested: " << time_requested << ", resource_requested: " << resource_requested <<  "\n";
 #endif
 
                     if ( current_avg_iter_time == 0.0 || allscale_monitor->get_number_of_iterations() < sampling_interval)
@@ -1380,7 +1375,7 @@ namespace allscale { namespace components {
 
             std::unique_lock<mutex_type> l(resize_mtx_);
 #ifdef DEBUG_
-            std::cout << "Entering multi_objectives_adjust(), num_threads_: "<< num_threads_ << ", time_requested\
+            std::cout << "Entering multi_objectives_adjust(), num_threads_: "<< active_threads << ", time_requested\
 : " << time_requested << ", resource_requested: " << resource_requested <<  "\n";
 #endif
             

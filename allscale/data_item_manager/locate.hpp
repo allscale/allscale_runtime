@@ -8,6 +8,8 @@
 #include <allscale/data_item_manager/shared_data.hpp>
 #include <allscale/data_item_manager/location_info.hpp>
 
+#include <hpx/util/annotated_function.hpp>
+
 #include <hpx/include/actions.hpp>
 #include <hpx/runtime/naming/id_type.hpp>
 #include <hpx/util/tuple.hpp>
@@ -30,7 +32,7 @@ namespace allscale { namespace data_item_manager {
 
         template <typename Requirement, typename Region>
         struct register_child_action
-          : hpx::actions::make_direct_action<
+          : hpx::actions::make_action<
                 decltype(&register_child<Requirement, Region>),
                 &register_child<Requirement, Region>,
                 register_child_action<Requirement, Region>
@@ -41,6 +43,7 @@ namespace allscale { namespace data_item_manager {
         hpx::future<std::pair<Region, Region>>
         register_child(hpx::naming::gid_type ref, Region region, std::size_t child_rank)
         {
+            hpx::util::annotate_function("allscale::data_item_manager::register_child");
             using region_type = typename Requirement::region_type;
             using location_info_type = location_info<region_type>;
             using data_item_type = typename Requirement::data_item_type;
@@ -87,15 +90,16 @@ namespace allscale { namespace data_item_manager {
             );
 
             // Register with our parent as well...
-            return hpx::async<register_child_action<Requirement, Region>>(
-                    target, ref, region, this_id).then(
-                [region, new_parent = std::move(new_parent)](hpx::future<std::pair<Region, Region>> res_fut)
+            return hpx::dataflow(hpx::launch::sync,
+                hpx::util::annotated_function([region, new_parent = std::move(new_parent)](hpx::future<std::pair<Region, Region>> res_fut)
                 {
                     auto res = res_fut.get();
                     return std::make_pair(
                         region_type::intersect(region, res.first),
                         region_type::merge(new_parent, res.second));
-                }
+                }, "allscale::data_item_manager::register_child_cont"),
+                hpx::async<register_child_action<Requirement, Region>>(
+                    target, ref, region, this_id)
             );
         }
 
@@ -109,7 +113,7 @@ namespace allscale { namespace data_item_manager {
 
         template <locate_state state, typename Requirement>
         struct locate_action
-          : hpx::actions::make_direct_action<
+          : hpx::actions::make_action<
                 decltype(&locate<state, Requirement>),
                 &locate<state, Requirement>,
                 locate_action<state, Requirement>>::type
@@ -123,6 +127,7 @@ namespace allscale { namespace data_item_manager {
 #endif
         )
         {
+            hpx::util::annotate_function("allscale::data_item_manager::locate");
             using region_type = typename Requirement::region_type;
             using location_info_type = location_info<region_type>;
             using data_item_type = typename Requirement::data_item_type;
@@ -139,7 +144,7 @@ namespace allscale { namespace data_item_manager {
                     l.unlock();
                     hpx::naming::gid_type id = req.ref.id();
                     // propagate information up.
-                    return hpx::dataflow(hpx::launch::sync,
+                    return hpx::dataflow(hpx::launch::sync, hpx::util::annotated_function(
 #if defined(ALLSCALE_DEBUG_DIM)
                         [this_id, req = std::move(req), &item, info = std::move(info), name]
 #else
@@ -192,7 +197,7 @@ namespace allscale { namespace data_item_manager {
                             os.close();
 #endif
                             return info;
-                        },
+                        }, "allscale::data_item_manager::first_touch::register_child_cont"),
                         register_child<Requirement>(id, remainder, this_id)
                     );
                 }
@@ -382,47 +387,14 @@ namespace allscale { namespace data_item_manager {
                     );
                     ++num_remote;
                 }
-
-                if (state != locate_state::down)
-                {
-                    if (this_id * 2 + 1 < allscale::get_num_localities())
-                    {
-                        hpx::id_type target(
-                            hpx::naming::get_id_from_locality_id(
-                                this_id * 2 + 1
-                            )
-                        );
-                        // FIXME: make resilient
-                        remote_infos[4] = hpx::async<locate_up_action_type>(
-#if defined(ALLSCALE_DEBUG_DIM)
-                            target, std::string(), Requirement(req.ref, remainder, req.mode)
-#else
-                            target, Requirement(req.ref, remainder, req.mode)
-#endif
-                        );
-                        ++num_remote;
-                    }
-                    if (this_id * 2 + 2 < allscale::get_num_localities())
-                    {
-                        hpx::id_type target(
-                            hpx::naming::get_id_from_locality_id(
-                                this_id * 2 + 2
-                            )
-                        );
-                        // FIXME: make resilient
-                        remote_infos[5] = hpx::async<locate_up_action_type>(
-#if defined(ALLSCALE_DEBUG_DIM)
-                            target, std::string(), Requirement(req.ref, remainder, req.mode)
-#else
-                            target, Requirement(req.ref, remainder, req.mode)
-#endif
-                        );
-                        ++num_remote;
-                    }
-                }
             }
 
-            return hpx::dataflow(hpx::launch::sync,
+            if (num_remote == 0 && remainder.empty())
+            {
+                return hpx::make_ready_future(std::move(info));
+            }
+
+            return hpx::dataflow(hpx::launch::sync, hpx::util::annotated_function(
 #if defined(ALLSCALE_DEBUG_DIM)
                 [name = std::move(name), info = std::move(info), req, remainder = std::move(remainder)]
 #else
@@ -463,7 +435,7 @@ namespace allscale { namespace data_item_manager {
                       , name
 #endif
                     );
-                }, std::move(remote_infos)
+                }, "allscale::data_item_manager::locate::remote_cont"), std::move(remote_infos)
             );
         }
 
