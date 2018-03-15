@@ -109,11 +109,11 @@ namespace allscale {
             return impl_->get_treeture();
         }
 
-        hpx::future<std::size_t> split(executor_type& exec, bool sync)
+        hpx::future<std::size_t> split()
         {
             HPX_ASSERT(valid());
             HPX_ASSERT(impl_->valid());
-            return impl_->split(exec, sync);
+            return impl_->split();
     //         impl_.reset();
         }
 
@@ -122,10 +122,10 @@ namespace allscale {
             impl_->on_ready(std::move(f));
         }
 
-        hpx::future<std::size_t> process(executor_type& exec, bool sync) {
+        hpx::future<std::size_t> process(executor_type& exec) {
             HPX_ASSERT(valid());
             HPX_ASSERT(impl_->valid());
-            return impl_->process(exec, sync);
+            return impl_->process(exec);
     //         impl_.reset();
         }
 

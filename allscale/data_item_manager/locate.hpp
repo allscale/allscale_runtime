@@ -32,7 +32,7 @@ namespace allscale { namespace data_item_manager {
 
         template <typename Requirement, typename Region>
         struct register_child_action
-          : hpx::actions::make_direct_action<
+          : hpx::actions::make_action<
                 decltype(&register_child<Requirement, Region>),
                 &register_child<Requirement, Region>,
                 register_child_action<Requirement, Region>
@@ -113,7 +113,7 @@ namespace allscale { namespace data_item_manager {
 
         template <locate_state state, typename Requirement>
         struct locate_action
-          : hpx::actions::make_direct_action<
+          : hpx::actions::make_action<
                 decltype(&locate<state, Requirement>),
                 &locate<state, Requirement>,
                 locate_action<state, Requirement>>::type
@@ -387,44 +387,11 @@ namespace allscale { namespace data_item_manager {
                     );
                     ++num_remote;
                 }
+            }
 
-//                 if (state != locate_state::down)
-//                 {
-//                     if (this_id * 2 + 1 < allscale::get_num_localities())
-//                     {
-//                         hpx::id_type target(
-//                             hpx::naming::get_id_from_locality_id(
-//                                 this_id * 2 + 1
-//                             )
-//                         );
-//                         // FIXME: make resilient
-//                         remote_infos[4] = hpx::async<locate_up_action_type>(
-// #if defined(ALLSCALE_DEBUG_DIM)
-//                             target, std::string(), Requirement(req.ref, remainder, req.mode)
-// #else
-//                             target, Requirement(req.ref, remainder, req.mode)
-// #endif
-//                         );
-//                         ++num_remote;
-//                     }
-//                     if (this_id * 2 + 2 < allscale::get_num_localities())
-//                     {
-//                         hpx::id_type target(
-//                             hpx::naming::get_id_from_locality_id(
-//                                 this_id * 2 + 2
-//                             )
-//                         );
-//                         // FIXME: make resilient
-//                         remote_infos[5] = hpx::async<locate_up_action_type>(
-// #if defined(ALLSCALE_DEBUG_DIM)
-//                             target, std::string(), Requirement(req.ref, remainder, req.mode)
-// #else
-//                             target, Requirement(req.ref, remainder, req.mode)
-// #endif
-//                         );
-//                         ++num_remote;
-//                     }
-//                 }
+            if (num_remote == 0 && remainder.empty())
+            {
+                return hpx::make_ready_future(std::move(info));
             }
 
             return hpx::dataflow(hpx::launch::sync, hpx::util::annotated_function(

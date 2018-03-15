@@ -460,9 +460,6 @@ namespace allscale { namespace components {
                 }
 
 
-            bool sync = parent_id.thread_depth() == 1;// ||
-//          work.id().numa_domain() == parent_id.numa_domain();
-
             std::uint64_t schedule_rank = work.id().rank();
             if(!allscale::resilience::rank_running(schedule_rank))
                 {
@@ -538,9 +535,7 @@ namespace allscale { namespace components {
                                              network_.schedule(expected_rank, std::move(work), std::move(this_id));
                                          }
                                  },
-                                 work.split(executors_[numa_domain], false)//sync &&
-//                                      work.id().numa_domain() == parent_id.numa_domain() &&
-//                                      work.id().rank() == parent_id.rank())
+                                 work.split()
                             );
                         }
                     else
@@ -556,7 +551,7 @@ namespace allscale { namespace components {
                                          {
                                              // We should move on and split...
                                              HPX_ASSERT(work.can_split());
-                                             work.split(executors_[numa_domain], false);//true);
+                                             work.split();
                                          }
                                      else if(expected_rank != std::size_t(-2))
                                          {
@@ -565,7 +560,7 @@ namespace allscale { namespace components {
                                              network_.schedule(expected_rank, std::move(work), std::move(this_id));
                                          }
                                  },
-                                 work.process(executors_[numa_domain], sync)
+                                 work.process(executors_[numa_domain])
                             );
                         }
 
