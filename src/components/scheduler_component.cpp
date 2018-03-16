@@ -24,8 +24,8 @@ namespace allscale { namespace components {
             , active_threads(os_thread_count)
             , current_avg_iter_time(0.0)
             , sampling_interval(10)
-            , enable_factor(1.05)
-            , disable_factor(1.05)
+            , enable_factor(1.01)
+            , disable_factor(1.01)
             , growing(true)
             , min_threads(1)
             , max_resource(0)
@@ -256,42 +256,23 @@ namespace allscale { namespace components {
 
                             //                objectives_with_leeways.push_back(std::make_pair(obj, leeway));
                         }
-
-                    // if ( resource_requested && energy_requested )
-                    //     {
-                    //         HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
-                    //                             boost::str(boost::format("Sorry not supported yet. Check back soon!")));
-                    //     }
                 }
             
             std::string input_resource_step_str = hpx::get_config_entry("allscale.resource_step", "");
             if ( !input_resource_step_str.empty() )
                 {
 
-                    resource_step = std::stod(input_resource_step_str);
+                    resource_step = std::stoul(input_resource_step_str);
 #ifdef DEBUG_
                     std::cout << "Resource step provided : " << resource_step << "\n" ;
 #endif
                     
                     if ( resource_step ==0 || resource_step >= os_thread_count )
                         {
-                            HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init", "leeways should be within ]0, 1]");
+                            HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init", "resource step should be within ]0, total nb threads[");
                         }
                 }
 
-            // setup performance counter to use to decide on split/process
-//             static const char * queue_counter_name = "/threadqueue{locality#%d/total}/length";
-//
-//             const std::uint32_t prefix = hpx::get_locality_id();
-//
-//             queue_length_counter_ = hpx::performance_counters::get_counter(
-//                                                                            boost::str(boost::format(queue_counter_name) % prefix));
-//
-//             hpx::performance_counters::stubs::performance_counter::start(
-//                                                                          hpx::launch::sync, queue_length_counter_);
-//
-//
-//             collect_counters();
 
             auto const& numa_domains = rp_->numa_domains();
             executors_.reserve(numa_domains.size());
@@ -320,13 +301,14 @@ namespace allscale { namespace components {
                         {
                             objectives_status[i].resize(3);
                         }
+                    std::cout << "multi-objectives policy set with time=" << time_leeway 
+                              << ", resource=" << resource_leeway
+                              << ", energy=" << energy_leeway << "\n" << std::flush; 
                 }
 
             // if energy is to be taken into account, need to prep for it
             if ( energy_requested )
                 {
-                    
-
 #if defined(ALLSCALE_HAVE_CPUFREQ)
                     using hardware_reconf = allscale::components::util::hardware_reconf;
                     cpu_freqs = hardware_reconf::get_frequencies(0);
@@ -341,7 +323,6 @@ namespace allscale { namespace components {
                         }
                     std::cout << "\n" << std::flush;
 #endif
-                            
                             
                     auto min_max_freqs = std::minmax_element(cpu_freqs.begin(), cpu_freqs.end());
                     min_freq = *min_max_freqs.first;
@@ -540,19 +521,6 @@ namespace allscale { namespace components {
                                 // std::cout << "current_id: "<< current_id << " (could be " << work.id().name()  << " ), on rank : " << rank_ << "\n" << std::flush;
                             //#endif
 
-
-                            //                 const char* wi_name = work.name();
-                            //                 {
-                            //                     std::unique_lock<mutex_type> lk(spawn_throttle_mtx_);
-                            // //                           //                     auto it = spawn_throttle_.find(wi_name);
-                            // //                           //                     if (it == spawn_throttle_.end())
-                            // //                           //                     {
-                            // //                           //                         auto em_res = spawn_throttle_.emplace(wi_name,
-                            // //                           //                             treeture_buffer(6));//os_thread_count));
-                            // //                           //                         it = em_res.first;
-                            // //                           //                     }
-                            // //                           //                     it->second.add(std::move(lk), work.get_treeture());
-                            // //                           //                 }
                             allscale::monitor::signal(allscale::monitor::work_item_first, work);
                             //this is the place where we take policy specific actions
                             if (multi_objectives)
@@ -656,28 +624,6 @@ namespace allscale { namespace components {
 
         }
 
-
-        // bool scheduler::collect_counters()
-        // {
-        //     //         hpx::performance_counters::counter_value idle_value;
-        //     hpx::performance_counters::counter_value length_value;
-        //     //         idle_value = hpx::performance_counters::stubs::performance_counter::get_value(
-        //     //                 hpx::launch::sync, idle_rate_counter_);
-        //     length_value = hpx::performance_counters::stubs::performance_counter::get_value(
-        //                                                                                     hpx::launch::sync, queue_length_counter_);
-
-        //     //         double idle_rate = idle_value.get_value<double>() * 0.01;
-        //     std::size_t queue_length = length_value.get_value<std::size_t>();
-
-        //     {
-        //         std::unique_lock<mutex_type> l(counters_mtx_);
-
-        //         //             idle_rate_ = idle_rate;
-        //         queue_length_ = queue_length;
-        //     }
-
-        //     return true;
-        // }
         
         unsigned int  scheduler::suspend_threads()
         {
@@ -1016,7 +962,7 @@ namespace allscale { namespace components {
                                 if (std::isnan(current_avg_iter_time))
                                     {
 #ifdef DEBUG_
-                                        std::cout << "current_avg_iter_time get nan from allscale_monitor->get_avg_time_last_iterations()\n ";
+                                        std::cout << "monitoring returns NaN, setting current average time to 0\n ";
 #endif
                                         current_avg_iter_time = 0.0;
                                     }
@@ -1043,10 +989,6 @@ namespace allscale { namespace components {
 #endif
 
 
-
-                            std::size_t suspend_cap = 1; //active_threads < SMALL_SYSTEM  ? SMALL_SUSPEND_CAP : LARGE_SUSPEND_CAP;
-                            std::size_t resume_cap = 1;  //active_threads < SMALL_SYSTEM  ? LARGE_RESUME_CAP : SMALL_RESUME_CAP;
-
                             double time_threshold = current_avg_iter_time;
 
                             //check if we need to suspend or resume some threads
@@ -1068,7 +1010,7 @@ namespace allscale { namespace components {
 #endif
 
                                     // If we have a sublinear speedup then prefer resources over time and throttle
-                                    time_threshold = current_avg_iter_time * (active_threads - suspend_cap ) / active_threads;
+                                    time_threshold = current_avg_iter_time * (active_threads - resource_step ) / active_threads;
                                     disable_flag = last_avg_iter_time > time_threshold;
                                     enable_flag = last_avg_iter_time < time_threshold;
                                     min_threads = 1;
@@ -1440,13 +1382,17 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
                             std::cout << "Looking for best time: suspending thread \n" << std::flush;
 #endif
-
+                            hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                             suspend_threads();
                             return true;
                         }
                     else // the time is degrading, let's get back to previous state and claim we found optimal number of threads
                         {
-                            unsigned int res = resume_threads();
+                            unsigned int res;
+                            {
+                                hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
+                                res = resume_threads();
+                            }
                             target_resource_found = true;
                             max_time = last_avg_iter_time;
                             max_resource = active_threads + res;
@@ -1478,7 +1424,7 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
                                     std::cout << "suspending threads\n" << std::flush;
 #endif
-
+                                    hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                                     suspend_threads();
                                     return true;
                                     
@@ -1517,6 +1463,7 @@ namespace allscale { namespace components {
 #endif
 
                                             //increase resource
+                                            hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                                             resume_threads();
                                             return true;
                                         }
@@ -1552,7 +1499,7 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
                                     std::cout << "Resuming threads\n" << std::flush;
 #endif
-
+                                    hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                                     resume_threads();
                                     return true;
                                     //increase nb resources
@@ -1583,6 +1530,7 @@ namespace allscale { namespace components {
 #endif
                                                             
                                     //increase nb_resource
+                                    hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                                     resume_threads();
                                     return true;
                                 }

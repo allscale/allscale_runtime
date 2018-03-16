@@ -139,7 +139,7 @@ namespace allscale { namespace components {
         double current_avg_iter_time;
         monitor *allscale_monitor;
 
-        std::vector<std::pair<std::string, double>> objectives_with_leeways;
+        //        std::vector<std::pair<std::string, double>> objectives_with_leeways;
         const std::vector<std::string> objectives = {
             "time",
             "resource",
