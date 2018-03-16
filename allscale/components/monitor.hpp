@@ -23,24 +23,19 @@
 #include <allscale/util/graph_colouring.hpp>
 #include <allscale/historical_data.hpp>
 
+
 #include <hpx/include/components.hpp>
 
 #include <hpx/include/lcos.hpp>
-
-#include <hpx/include/performance_counters.hpp>
-
-#ifdef REALTIME_VIZ
 #include <hpx/util/interval_timer.hpp>
-//#include <iostream>
-//#include <fstream>
-#endif
+
 #ifdef HAVE_PAPI
 #include <hpx/include/performance_counters.hpp>
 
 #define MAX_PAPI_COUNTERS 4
 #endif
 
-#define MIN_QUEUE_ELEMS 50 
+#define MIN_QUEUE_ELEMS 500 
 
 typedef std::unordered_map<std::string, allscale::work_item_stats> profile_map;
 typedef std::unordered_map<std::string, std::vector<std::string>> dependency_graph;
@@ -59,6 +54,7 @@ namespace allscale { namespace components {
 	   monitor(std::uint64_t rank);
            void init();
            void stop();
+           HPX_DEFINE_COMPONENT_ACTION(monitor, stop);
 
            std::uint64_t get_my_rank() { return rank_; }
 //         HPX_DEFINE_COMPONENT_ACTION(monitor, get_rank);
@@ -222,28 +218,15 @@ namespace allscale { namespace components {
            /// \returns             average iteration time
            double get_avg_time_last_iterations(std::uint32_t num_iters);
 
-
-           // Remote calls for the historical data introspection
-           HPX_DEFINE_COMPONENT_ACTION(monitor, get_iteration_time);
-           HPX_DEFINE_COMPONENT_ACTION(monitor, get_last_iteration_time);
-           HPX_DEFINE_COMPONENT_ACTION(monitor, get_number_of_iterations);
-           HPX_DEFINE_COMPONENT_ACTION(monitor, get_avg_time_last_iterations);
-
-           double get_iteration_time_remote(hpx::id_type locality, int i);
-           double get_last_iteration_time_remote(hpx::id_type locality);
-           long get_number_of_iterations_remote(hpx::id_type locality);
-           double get_avg_time_last_iterations_remote(hpx::id_type locality, std::uint32_t num_iters);
-
-
            uint64_t get_timestamp( void );
 
 
            /// \brief This function returns the idle rate 
-           ///        for the current locality.
+           ///        for the last measuring interval in the current locality.
            ///
            /// \returns             idle rate
            double get_idle_rate();
- 
+
 
            /// \brief This function returns the average idle rate 
            ///        of the current locality.
@@ -252,10 +235,11 @@ namespace allscale { namespace components {
            double get_avg_idle_rate();
 
            HPX_DEFINE_COMPONENT_ACTION(monitor, get_idle_rate);
-           HPX_DEFINE_COMPONENT_ACTION(monitor, get_avg_idle_rate);
+//           HPX_DEFINE_COMPONENT_ACTION(monitor, get_avg_idle_rate);
 
            double get_idle_rate_remote(hpx::id_type locality);
            double get_avg_idle_rate_remote(hpx::id_type locality);
+
 
            // Wrapping functions to signals from the runtime
            static void global_w_exec_split_start_wrapper(work_item const& w);
@@ -285,7 +269,20 @@ namespace allscale { namespace components {
            static void global_finalize();
            void monitor_component_finalize();
 
+          
+           // Functions related to the sampled metrics per locality
 
+           /// \brief This function changes the sampling frequency 
+           ///
+           /// \param new_interval     [in] new interval time in milliseconds 
+//           void change_sampling_interval(long long new_interval);
+
+           /// \brief This function returns the task throughput in task/ms  
+	   /// \returns		WorkItem throughput for the locality
+           double get_throughput();
+
+           HPX_DEFINE_COMPONENT_ACTION(monitor, get_throughput);
+           double get_throughput_remote(hpx::id_type locality);
 
            private:
 
@@ -322,7 +319,7 @@ namespace allscale { namespace components {
 //             std::list <std::shared_ptr<allscale::work_item_dependency>> w_graph;
 
              // For graph creation from a specific node
-             std::unordered_map<std::string, std::vector <std::string>> w_dependencies;
+             std::unordered_map<std::string, std::vector <std::string>> wi_dependencies;
 
              // Update work item stats. Can be called from the start or the finish wrapper
              void update_work_item_stats(work_item const& w, std::shared_ptr<allscale::profile> p);
@@ -336,12 +333,31 @@ namespace allscale { namespace components {
              bool ready;
              bool done;
              void process_profiles();
-//#ifdef WI_STATS
+
+	     // WorkItem stats, not used right now
              double total_split_time, total_process_time;
              long long num_split_tasks, num_process_tasks;
              double min_split_task, max_split_task;
 	     double min_process_task, max_process_task;
-//#endif
+
+	     // Sampled metrics
+	     std::mutex sampling_mutex;
+             hpx::util::interval_timer metric_sampler_;
+	     long long finished_tasks;
+             long long sampling_interval_ms;
+             double task_throughput;
+             std::vector<double> throughput_history;
+
+	     bool sample_node();
+
+             hpx::id_type idle_rate_counter_;
+             double idle_rate_;
+	     std::vector<double> idle_rate_history;
+
+             void print_heatmap(char *file_name, std::vector<std::vector<double>> &buffer);
+
+//             hpx::id_type idle_rate_avg_counter_;
+//             double idle_rate_avg_;
 
 #ifdef REALTIME_VIZ
              // REALTIME VIZ
@@ -371,20 +387,14 @@ namespace allscale { namespace components {
              std::string match_previous_treeture(std::string const& w_ID);
 
              // PRINTING TREES
-             void print_node(std::ofstream& myfile, std::string node, double total_tree_time, 
-				profile_map& global_stats, dependency_graph& g);
+             void print_node(std::ofstream& myfile, std::string node, double total_tree_time,
+                                profile_map& global_stats, dependency_graph& g);
              void print_edges(std::ofstream& myfile, std::string node, profile_map& global_stats, dependency_graph& g);
-             void print_treeture(std::string filename, std::string root, double total_tree_time, 
+             void print_treeture(std::string filename, std::string root, double total_tree_time,
                                 profile_map& global_stats, dependency_graph& g);
              void print_trees_per_iteration();
              void monitor_component_output(std::unordered_map<std::string, allscale::work_item_stats>& s);
-              
-
-             // Counters for idle-rate
-             hpx::id_type idle_rate_counter_;
-             double idle_rate_;
-             hpx::id_type idle_rate_avg_counter_;
-             double idle_rate_avg_;
+             
 
 #ifdef HAVE_PAPI
              // PAPI counters per thread
@@ -399,11 +409,13 @@ namespace allscale { namespace components {
 	     int output_iteration_trees_;
              int collect_papi_;
              long cutoff_level_;
-
+	     int print_throughput_hm_;
+             int print_idle_hm_;
        };
 
 }}
 //HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_my_rank_action, get_my_rank_action);
+//HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::stop_action, stop_action);
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_exclusive_time_action, get_exclusive_time_action);
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_inclusive_time_action, get_inclusive_time_action);
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_average_exclusive_time_action, get_average_exclusive_time_action);
@@ -411,10 +423,7 @@ HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_minimum_exclu
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_maximum_exclusive_time_action, get_maximum_exclusive_time_action);
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_children_mean_time_action, get_children_mean_time_action);
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_children_SD_time_action, get_children_SD_time_action);
-HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_iteration_time_action, get_iteration_time_action);
-HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_last_iteration_time_action, get_last_iteration_time_action);
-HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_number_of_iterations_action, get_number_of_iterations_action);
-HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_avg_time_last_iterations_action, get_avg_time_last_iterations_action);
 HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_idle_rate_action, get_idle_rate_action);
-HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_avg_idle_rate_action, get_avg_idle_rate_action);
+//HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_avg_idle_rate_action, get_avg_idle_rate_action);
+HPX_REGISTER_ACTION_DECLARATION(allscale::components::monitor::get_throughput_action, get_throughput_action);
 #endif

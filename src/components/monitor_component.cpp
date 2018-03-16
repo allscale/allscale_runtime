@@ -14,6 +14,8 @@
 #include <hpx/runtime/serialization/vector.hpp>
 #include <hpx/runtime/serialization/unordered_map.hpp>
 #include <hpx/runtime/shutdown_function.hpp>
+#include <hpx/runtime/get_num_localities.hpp>
+#include <hpx/runtime/find_here.hpp>
 
 #include <hpx/lcos/gather.hpp>
 
@@ -22,14 +24,20 @@
 #include <string.h>
 #endif
 
-char const* gather_basename1 = "allscale/monitor/gather1";
+#ifdef HAVE_EXTRAE
+#include "extrae.h"
+#endif
 
+char const* gather_basename1 = "allscale/monitor/gather1";
 HPX_REGISTER_GATHER(profile_map, profile_gatherer);
 
 char const* gather_basename2 = "allscale/monitor/gather2";
 HPX_REGISTER_GATHER(dependency_graph, dependency_gatherer);
 
-//HPX_REGISTER_GATHER(std::vector<allscale::work_item_stats>, profile_gatherer);
+char const* gather_basename3 = "allscale/monitor/gather3";
+HPX_REGISTER_GATHER(std::vector<double>, heatmap_gatherer);
+
+char const* gather_basename4 = "allscale/monitor/gather4";
 
 using namespace std::chrono;
 
@@ -43,11 +51,25 @@ namespace allscale { namespace components {
      , output_profile_table_(0)
      , output_treeture_(0)
      , output_iteration_trees_(0)
+     , print_throughput_hm_(0)
+     , print_idle_hm_(0)
      , collect_papi_(0)
      , cutoff_level_(0)
      , done(false)
      , current_read_queue(0)
      , current_write_queue(0)
+     , sampling_interval_ms(2000)
+     , metric_sampler_(
+          hpx::util::bind(
+		&monitor::sample_node,
+		this
+	  ),
+          2000000,
+          "monitor::sample_node",
+          false 
+       )
+     , task_throughput(0)
+     , finished_tasks(0)
 //#ifdef WI_STATS
      , total_split_time(0)
      , total_process_time(0)
@@ -119,13 +141,81 @@ namespace allscale { namespace components {
    }
 
 
+
+   void monitor::change_sampling_interval(long long new_interval)
+   {
+      std::unique_lock<std::mutex> lock(sampling_mutex);
+      sampling_interval_ms = new_interval;  
+   }
+
+
+   double monitor::get_throughput()
+   {
+      std::unique_lock<std::mutex> lock(sampling_mutex);
+      return task_throughput;
+   }
+
+
+   double monitor::get_throughput_remote(hpx::id_type locality)
+   {
+      get_throughput_action act;
+      hpx::future<double> f = hpx::async(act, locality);
+
+      return f.get();
+   }
+
+
+   double monitor::get_idle_rate()
+   {
+      std::unique_lock<std::mutex> lock(sampling_mutex);
+      return idle_rate_;
+   }
+
+
+   double monitor::get_idle_rate_remote(hpx::id_type locality)
+   {
+      get_idle_rate_action act;
+      hpx::future<double> f = hpx::async(act, locality);
+
+      return f.get();
+   }
+
+
+   // Additional sampler thread
+   bool monitor::sample_node()
+   {
+       hpx::performance_counters::counter_value idle_value;
+       double rate_value;
+
+       idle_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                hpx::launch::sync, idle_rate_counter_);
+
+       rate_value = idle_value.get_value<double>() * 0.01;
+
+       std::unique_lock<std::mutex> lock(sampling_mutex);
+
+       task_throughput = (double)finished_tasks/((double)sampling_interval_ms/2000);
+       idle_rate_ = rate_value;
+
+//       std::cerr << "NODE " << rank_ << " THROUGHPUT " << task_throughput << " tasks/s "
+//                 << "IDLE RATE " << idle_rate_ << std::endl;
+
+       if(print_throughput_hm_) throughput_history.push_back(task_throughput);
+       if(print_idle_hm_) idle_rate_history.push_back(idle_rate_);
+
+       finished_tasks = 0;
+
+       lock.unlock();
+
+       return true;
+   }
+
+ 
    // Additional OS-thread process profiles in here
    void monitor::process_profiles()
    {
        std::shared_ptr<allscale::profile> profile;
        std::string id, parent_id;
-
-       std::cout << "Starting additional monitoring OS-thread\n";
  
        // Wait until there's some work to do
        std::unique_lock<std::mutex> lk(m_queue);
@@ -135,7 +225,6 @@ namespace allscale { namespace components {
           current_write_queue++;
           current_write_queue = current_write_queue%2;
           lk.unlock();
-
 
           while(!queues[current_read_queue].empty()) {
 
@@ -151,12 +240,11 @@ namespace allscale { namespace components {
 
              // Need to lock in case there's another thread accessing the the perf stats
              std::unique_lock<mutex_type> lock(work_map_mutex);
-
 //             w_graph.push_back(wd);
 
-       	     auto it = w_dependencies.find(parent_id);
-             if( it == w_dependencies.end() ) {
-                   w_dependencies.insert(std::make_pair(parent_id,
+       	     auto it = wi_dependencies.find(parent_id);
+             if( it == wi_dependencies.end() ) {
+                   wi_dependencies.insert(std::make_pair(parent_id,
                          std::vector<std::string>(1, id)));
              }
              else it->second.push_back(id);
@@ -166,6 +254,7 @@ namespace allscale { namespace components {
 
 	     // Save work item time in the times vector to compute stats on-the-fly if need be for the last X work items
              work_item_times.push_back(profile->get_exclusive_time());
+
              lock.unlock();
              queues[current_read_queue].pop(); 
           }
@@ -173,7 +262,6 @@ namespace allscale { namespace components {
           current_read_queue++;
           current_read_queue = current_read_queue%2;
        }
-
 
        // Check if there are remaining profiles in the queue
        while(!queues[current_read_queue].empty())
@@ -187,12 +275,13 @@ namespace allscale { namespace components {
 //             std::shared_ptr<allscale::work_item_dependency> wd(
 //                 new allscale::work_item_dependency(parent_id, id));
 
+             // Need to lock in case there's another thread accessing the the perf stats
              std::unique_lock<mutex_type> lock(work_map_mutex);
 //             w_graph.push_back(wd);
 
-             auto it = w_dependencies.find(parent_id);
-             if( it == w_dependencies.end() ) {
-                   w_dependencies.insert(std::make_pair(parent_id,
+             auto it = wi_dependencies.find(parent_id);
+             if( it == wi_dependencies.end() ) {
+                   wi_dependencies.insert(std::make_pair(parent_id,
                          std::vector<std::string>(1, id)));
              }
              else it->second.push_back(id);
@@ -211,8 +300,6 @@ namespace allscale { namespace components {
        }
        lk.unlock();
    }
-
-
 
 
    void monitor::update_work_item_stats(work_item const& w, std::shared_ptr<allscale::profile> p)
@@ -320,12 +407,13 @@ namespace allscale { namespace components {
 
    void monitor::w_exec_split_start_wrapper(work_item const& w)
    {
-
+#ifdef HAVE_EXTRAE
+      Extrae_event(6000019, 1);
+#endif
       allscale::this_work_item::id& my_wid = const_cast<allscale::this_work_item::id&>(const_cast<work_item&>(w).id());
       std::shared_ptr<allscale::profile> p;
       bool notify_consumer = false;
 
-//std::cerr << hpx::get_worker_thread_num() << " Start split wrapper " << my_wid.name() << "\n";
 
       if(( p = my_wid.get_profile()) == nullptr) {
          // Profile does not exist yet, we create it
@@ -345,7 +433,13 @@ namespace allscale { namespace components {
 		notify_consumer = true;
          }
          if(notify_consumer) cv.notify_one();
+
+         // Update number of finished tasks for throughput calculation
+         std::unique_lock<std::mutex> lock(sampling_mutex);
+         finished_tasks++;
+         lock.unlock();
       }
+
 
 /*
       std::cout
@@ -357,6 +451,10 @@ namespace allscale { namespace components {
           << my_wid.parent().name()
           << std::endl;
 */
+#ifdef HAVE_EXTRAE
+      Extrae_event(6000019, 0);
+#endif
+
    }
 
 
@@ -373,8 +471,9 @@ namespace allscale { namespace components {
       allscale::this_work_item::id& my_wid = const_cast<allscale::this_work_item::id&>(const_cast<work_item&>(w).id());
       std::shared_ptr<allscale::profile> p;
       bool notify_consumer = false;
-
-//std::cerr << "Start process wrapper " << my_wid.name() << "\n";
+#ifdef HAVE_EXTRAE
+      Extrae_event(6000019, 1);
+#endif
 
       if(( p = my_wid.get_profile()) == nullptr) {
          // Profile does not exist yet, we create it
@@ -394,7 +493,17 @@ namespace allscale { namespace components {
                 notify_consumer = true;
          }
          if(notify_consumer) cv.notify_one();
+
+         // Update number of finished tasks for throughput calculation
+         std::unique_lock<std::mutex> lock(sampling_mutex);
+         finished_tasks++;
+         lock.unlock();
       }
+
+#ifdef HAVE_EXTRAE
+      Extrae_event(6000019, 0);
+#endif
+
    }
 
 
@@ -406,11 +515,11 @@ namespace allscale { namespace components {
 
    void monitor::w_exec_split_finish_wrapper(work_item const& w)
    {
-
+#ifdef HAVE_EXTRAE
+      Extrae_event(6000019, 2);
+#endif
       allscale::this_work_item::id& my_wid = const_cast<allscale::this_work_item::id&>(const_cast<work_item&>(w).id());
-//      allscale::this_work_item::id my_wid = w.id();
       std::shared_ptr<allscale::profile> p;
-//      std::shared_ptr<allscale::work_item_stats> stats;
       bool notify_consumer = false;
 
 
@@ -429,6 +538,7 @@ namespace allscale { namespace components {
            queues[current_write_queue].push(p);
            if(queues[current_write_queue].size() >= MIN_QUEUE_ELEMS)
 		notify_consumer = true;
+/*
            num_split_tasks++; 
            double task_time = p->get_exclusive_time();
            total_split_time += task_time;
@@ -437,10 +547,15 @@ namespace allscale { namespace components {
 
            if(max_split_task <= task_time)
                max_split_task = task_time;
+*/
          }
          if(notify_consumer) cv.notify_one();
-     }
 
+         // Update number of finished tasks for throughput calculation
+	 std::unique_lock<std::mutex> lock(sampling_mutex);
+	 finished_tasks++;
+         lock.unlock();
+     }
 
 /*
       std::cout
@@ -449,6 +564,10 @@ namespace allscale { namespace components {
           << " " << my_wid.name()
           << std::endl;
 */
+
+#ifdef HAVE_EXTRAE
+      Extrae_event(6000019, 0);
+#endif
 
    }
 
@@ -461,11 +580,12 @@ namespace allscale { namespace components {
 
    void monitor::w_exec_process_finish_wrapper(work_item const& w)
    {
+#ifdef HAVE_EXTRAE
+      Extrae_event(6000019, 2);
+#endif
 
       allscale::this_work_item::id& my_wid = const_cast<allscale::this_work_item::id&>(const_cast<work_item&>(w).id());
-//      allscale::this_work_item::id my_wid = w.id();
       std::shared_ptr<allscale::profile> p;
-//      std::shared_ptr<allscale::work_item_stats> stats;
       bool notify_consumer = false;
 
 
@@ -484,6 +604,7 @@ namespace allscale { namespace components {
            queues[current_write_queue].push(p);
            if(queues[current_write_queue].size() >= MIN_QUEUE_ELEMS)
                 notify_consumer = true;
+/*
            num_process_tasks++;
            double task_time = p->get_exclusive_time();
            total_process_time += task_time;
@@ -492,11 +613,18 @@ namespace allscale { namespace components {
 
            if(max_process_task <= task_time)
                max_process_task = task_time;
-
+*/
          }
          if(notify_consumer) cv.notify_one();
+
+         // Update number of finished tasks for throughput calculation
+         std::unique_lock<std::mutex> lock(sampling_mutex);
+         finished_tasks++;
+	 lock.unlock();
      }
- 
+#ifdef HAVE_EXTRAE
+      Extrae_event(6000019, 0);
+#endif
    }
    
 
@@ -508,7 +636,6 @@ namespace allscale { namespace components {
 
    void monitor::w_result_propagated_wrapper(allscale::work_item const& w)
    {
-/*
       allscale::this_work_item::id my_wid = w.id();
       std::shared_ptr<allscale::profile> p;
 
@@ -524,13 +651,6 @@ namespace allscale { namespace components {
          p = it_profiles->second;
          p->result_ready = std::chrono::steady_clock::now();
       }
-
-      std::cout
-          << "Result propagated work item "
-          << w.name()
-          << " " << my_wid.name()
-          << std::endl;
-*/
    }
 
 
@@ -579,7 +699,6 @@ namespace allscale { namespace components {
       std::lock_guard<mutex_type> lock(work_map_mutex);
       std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it = profiles.find(w_id);
 
-
       if( it == profiles.end() )
          return 0.0;
       else
@@ -611,9 +730,9 @@ namespace allscale { namespace components {
       start_time = max_time = (it->second)->start;
 
       // Inclusive time computed as the difference between work item start time and maximum children finish time
-      auto it_g = w_dependencies.find(w_id);
+      auto it_g = wi_dependencies.find(w_id);
 
-      if(it_g == w_dependencies.end()) return 0.0;
+      if(it_g == wi_dependencies.end()) return 0.0;
 
       for(auto it2 = (it_g->second).begin(); it2 != (it_g->second).end(); ++it2)
       {
@@ -653,6 +772,7 @@ namespace allscale { namespace components {
                 num_wi++;
          }
 
+
 /*
       for(auto it = w_names.begin(); it != w_names.end(); ++it)
          if(it->second == w_name) {
@@ -686,6 +806,7 @@ namespace allscale { namespace components {
       long long num_wi = 0;
 //      std::shared_ptr<allscale::profile> p;
 
+
       for(auto it = profiles.begin(); it != profiles.end(); ++it)
          if((it->second)->get_wname() == w_name) {
                 double time = (it->second)->get_exclusive_time();
@@ -705,6 +826,7 @@ namespace allscale { namespace components {
             }
          }
 */
+
       if(num_wi > 0) return min;
       else return 0.0;
    }
@@ -743,6 +865,7 @@ namespace allscale { namespace components {
             }
          }
 */
+
       return max;
    }
 
@@ -764,9 +887,9 @@ namespace allscale { namespace components {
       std::shared_ptr<allscale::profile> p;
 
       std::lock_guard<mutex_type> lock(work_map_mutex);
-      auto it = w_dependencies.find(w_id);
+      auto it = wi_dependencies.find(w_id);
 
-      if(it == w_dependencies.end()) return 0.0;
+      if(it == wi_dependencies.end()) return 0.0;
 
       num_children = (it->second).size();
 
@@ -803,9 +926,9 @@ namespace allscale { namespace components {
       std::shared_ptr<allscale::profile> p;
 
       std::lock_guard<mutex_type> lock(work_map_mutex);
-      auto it = w_dependencies.find(w_id);
+      auto it = wi_dependencies.find(w_id);
 
-      if(it == w_dependencies.end()) return 0.0;
+      if(it == wi_dependencies.end()) return 0.0;
 
       for(auto it2 = (it->second).begin(); it2 != (it->second).end(); ++it2)
       {
@@ -886,48 +1009,26 @@ namespace allscale { namespace components {
    }
 
 
-  double monitor::get_idle_rate()
-  {
-     hpx::performance_counters::counter_value idle_value;
-
-     idle_value = hpx::performance_counters::stubs::performance_counter::get_value(
-                          hpx::launch::sync, idle_rate_counter_);
-
-
-     return idle_value.get_value<double>() * 0.01;
-
-  }
-
-
-  double monitor::get_idle_rate_remote(hpx::id_type locality)
-  {
-      get_idle_rate_action act;
-      hpx::future<double> f = hpx::async(act, locality);
-
-      return f.get();
-  }
-
-
   double monitor::get_avg_idle_rate()
   {
-     hpx::performance_counters::counter_value idle_avg_value;
+/*     hpx::performance_counters::counter_value idle_avg_value;
 
      idle_avg_value = hpx::performance_counters::stubs::performance_counter::get_value(
                           hpx::launch::sync, idle_rate_avg_counter_);
 
 
      return idle_avg_value.get_value<double>() * 0.01;
+*/
   }
-
 
   double monitor::get_avg_idle_rate_remote(hpx::id_type locality)
   {
-      get_avg_idle_rate_action act;
+/*      get_avg_idle_rate_action act;
       hpx::future<double> f = hpx::async(act, locality);
 
       return f.get();
+*/
   }
-
 
 #ifdef HAVE_PAPI
    // Returns PAPI counters for a work item with ID w_id
@@ -969,15 +1070,6 @@ namespace allscale { namespace components {
    }
 
 
-   double monitor::get_iteration_time_remote(hpx::id_type locality, int i)
-   {
-      get_iteration_time_action act;
-      hpx::future<double> f = hpx::async(act, locality, i);
-
-      return f.get();
-   }
-
-
    double monitor::get_last_iteration_time()
    {
       std::lock_guard<mutex_type> lock(history_mutex);
@@ -986,16 +1078,6 @@ namespace allscale { namespace components {
       else return history->iteration_time.back();
    }
 
-
-   double monitor::get_last_iteration_time_remote(hpx::id_type locality)
-   {
-      get_last_iteration_time_action act;
-      hpx::future<double> f = hpx::async(act, locality);
-
-      return f.get();
-   }
-
-
    long monitor::get_number_of_iterations()
    {
       std::lock_guard<mutex_type> lock(history_mutex);
@@ -1003,14 +1085,6 @@ namespace allscale { namespace components {
       return history->current_iteration;
    }
 
-
-   long monitor::get_number_of_iterations_remote(hpx::id_type locality)
-   {
-      get_number_of_iterations_action act;
-      hpx::future<long> f = hpx::async(act, locality);
-
-      return f.get();
-   }
 
    double monitor::get_avg_time_last_iterations(std::uint32_t num_iters)
    {
@@ -1034,14 +1108,6 @@ namespace allscale { namespace components {
           return avg_time/(double)history->iteration_time.size();
    }
 
-   double monitor::get_avg_time_last_iterations_remote(hpx::id_type locality, std::uint32_t num_iters)
-   {
-      get_avg_time_last_iterations_action act;
-      hpx::future<double> f = hpx::async(act, locality, num_iters);
-
-      return f.get();
-   }
-
 
    // Translates a work ID changing it prefix with the last iteration root
    // Returns the same label for work items of the first iteration
@@ -1062,8 +1128,8 @@ namespace allscale { namespace components {
    }
 
 
-   void monitor::print_node(std::ofstream& myfile, std::string node, double total_tree_time, 
-				profile_map& global_stats, dependency_graph& g)
+   void monitor::print_node(std::ofstream& myfile, std::string node, double total_tree_time,
+                                profile_map& global_stats, dependency_graph& g)
    {
       std::string label;
       double excl_elapsed, incl_elapsed;
@@ -1091,16 +1157,17 @@ namespace allscale { namespace components {
 
       // Traverse children recursively
       auto dep_it = g.find(node);
-      if(dep_it != g.end()) 
+      if(dep_it != g.end())
          for( auto children = (dep_it->second).begin(); children != (dep_it->second).end(); ++children )
-     	     print_node(myfile, *children, total_tree_time, global_stats, g);
+             print_node(myfile, *children, total_tree_time, global_stats, g);
 
       return;
 
    }
 
-   void monitor::print_edges(std::ofstream& myfile, std::string node, 
-				profile_map& global_stats, dependency_graph& g)
+
+   void monitor::print_edges(std::ofstream& myfile, std::string node,
+                                profile_map& global_stats, dependency_graph& g)
    {
       double excl_elapsed, incl_elapsed;
       std::string label1, label2;
@@ -1149,8 +1216,8 @@ namespace allscale { namespace components {
    }
 
 
-   void monitor::print_treeture(std::string filename, std::string root, double total_tree_time, 
-					profile_map& global_stats, dependency_graph& g)
+   void monitor::print_treeture(std::string filename, std::string root, double total_tree_time,
+                                        profile_map& global_stats, dependency_graph& g)
    {
       double excl_elapsed, incl_elapsed;
       std::ofstream myfile;
@@ -1183,6 +1250,7 @@ namespace allscale { namespace components {
       myfile.close();
    }
 
+
    void monitor::print_trees_per_iteration()
    {
       std::string filename;
@@ -1205,6 +1273,7 @@ namespace allscale { namespace components {
    }
 
 
+
    void monitor::monitor_component_output(profile_map &global_stats) {
 //      std::lock_guard<mutex_type> lock(work_map_mutex);
 
@@ -1212,10 +1281,6 @@ namespace allscale { namespace components {
       std::cerr << "\nWall-clock time: " << wall_clock << std::endl;
       std::cerr << "\nWork Item		Exclusive time  |  % Total  |  Inclusive time  |  % Total   |   Mean (child.)  |   SD (child.)  "
                 << "\n------------------------------------------------------------------------------------------------------------------\n";
-
-
-      // Sort work items by id
-//      std::sort(global_stats.begin(), global_stats.end());
 
       std::vector<std::string> w_ids;
       w_ids.reserve(global_stats.size());
@@ -1248,6 +1313,7 @@ namespace allscale { namespace components {
             std::cerr << std::fixed << (it->second).get_children_mean() << "       " << (it->second).get_children_SD() << std::endl;
 //            std::cerr << std::fixed << p->Mean() << "       " << p->StandardDeviation() << std::endl;
       }
+
     }
 
 
@@ -1295,9 +1361,49 @@ namespace allscale { namespace components {
 #endif
 
 
+   void monitor::print_heatmap(char *file_name, std::vector<std::vector<double>> &buffer)
+   {
+       std::uint64_t max_sample = 0;
+       std::ofstream heatmap;
+
+       heatmap.open(file_name);
+
+       // Get the highest number of samples collected among localitites
+       for(const auto &row: buffer)
+            if(row.size() >= max_sample) max_sample = row.size();
+
+       // Iterate over the vectors and print the samples
+       std::uint64_t locality = 0;
+
+       for(const auto &row: buffer) {
+           for(std::uint64_t i = 0; i < max_sample; i++) {
+
+               if( i < row.size() ) heatmap << locality
+                                            << "   "
+                                            << i
+                                            << "   "
+                                            << row[i] << "\n";
+               else heatmap << locality << "   " << i << "   0.0\n";
+
+           }
+
+           heatmap << "\n"; locality++;
+       }
+
+       heatmap.close();
+   }
+
 
    void monitor::stop() {
 
+      std::vector<hpx::future<void>> stop_futures;
+
+      std::size_t const os_threads = hpx::get_os_thread_count();
+
+      std::size_t self = hpx::get_worker_thread_num();
+
+
+      if(!enable_monitor) return;
 
       execution_end = std::chrono::steady_clock::now();
 
@@ -1305,10 +1411,27 @@ namespace allscale { namespace components {
           std::chrono::duration_cast<std::chrono::duration<double>>(execution_end - execution_start);
       wall_clock = total_time_elapsed.count();
 
+      std::cerr << "Stopping monitor with rank " << rank_ << std::endl;
+
 #ifdef REALTIME_VIZ
       timer_.stop();
       data_file.close();
 #endif
+
+      if(rank_ == 0) 
+      {
+        std::vector<hpx::future<void>> stop_futures;
+        typedef allscale::components::monitor::stop_action stop_action;
+
+	std::vector< std::size_t> ids;
+        for(int i = 1; i < hpx::get_num_localities().get(); i++)
+        {
+           hpx::future<hpx::id_type> locality_future =
+               hpx::find_from_basename("allscale/monitor", i);
+
+	   stop_futures.push_back(hpx::async<stop_action>(locality_future.get()));
+        }
+      }
 
       // Finish time for "main" work item
 //      std::lock_guard<mutex_type> lock(work_map_mutex);
@@ -1325,14 +1448,15 @@ namespace allscale { namespace components {
       if(enable_monitor) {
 	cv.notify_one();
         worker_thread.join();
- 
-     }
 
-
+        metric_sampler_.stop();
+      }
 
       // Stop performance counter
       hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, idle_rate_counter_);
-      hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, idle_rate_avg_counter_);
+//      hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, idle_rate_avg_counter_);
+
+
 /*
       {
          std::lock_guard<std::mutex> lk(m_queue);
@@ -1366,24 +1490,24 @@ namespace allscale { namespace components {
 
         for ( auto it = profiles.begin(); it != profiles.end(); ++it ) {
 
-	   	allscale::work_item_stats stats(it->first, (it->second)->get_wname(), get_exclusive_time(it->first), 
+                allscale::work_item_stats stats(it->first, (it->second)->get_wname(), get_exclusive_time(it->first), 
                     get_inclusive_time(it->first), get_children_mean_time(it->first), 
-	            get_children_SD_time(it->first));
+                    get_children_SD_time(it->first));
 
-		my_local_stats.insert(std::make_pair(it->first, stats));
+                my_local_stats.insert(std::make_pair(it->first, stats));
         }
 
         // Collect info from all localities
         if(rank_ == 0) {
            hpx::future<std::vector<profile_map>> f =
-		hpx::lcos::gather_here(gather_basename1, hpx::make_ready_future(my_local_stats));
+                hpx::lcos::gather_here(gather_basename1, hpx::make_ready_future(my_local_stats));
 
            std::vector<profile_map> rcv_buffer = f.get();
 
 
            for ( auto it = rcv_buffer.begin(); it != rcv_buffer.end(); ++it ) 
            {
-		global_stats.insert((*it).begin(), (*it).end());
+                global_stats.insert((*it).begin(), (*it).end());
            }
         }
         else hpx::lcos::gather_there(gather_basename1, hpx::make_ready_future(my_local_stats)).wait(); 
@@ -1392,7 +1516,7 @@ namespace allscale { namespace components {
         // Collect work item dependencies from all localities
         if(rank_ == 0) {
            hpx::future<std::vector<dependency_graph>> f =
-                hpx::lcos::gather_here(gather_basename2, hpx::make_ready_future(w_dependencies));
+                hpx::lcos::gather_here(gather_basename2, hpx::make_ready_future(wi_dependencies));
 
            std::vector<dependency_graph> rcv_buffer = f.get();
 
@@ -1403,7 +1527,7 @@ namespace allscale { namespace components {
            }
 
         }
-        else hpx::lcos::gather_there(gather_basename2, hpx::make_ready_future(w_dependencies)).wait();
+        else hpx::lcos::gather_there(gather_basename2, hpx::make_ready_future(wi_dependencies)).wait();
 
         if(rank_ == 0 && output_profile_table_) {
             monitor_component_output(global_stats);
@@ -1419,20 +1543,61 @@ namespace allscale { namespace components {
             history->new_iteration(std::string("foo"));
             print_trees_per_iteration();
         }
+
       }
+
+
+
+      if(print_idle_hm_)
+      {
+         if(rank_ == 0) {
+            hpx::future<std::vector<std::vector<double>>> f =
+                hpx::lcos::gather_here(gather_basename3, hpx::make_ready_future(idle_rate_history));
+
+            std::vector<std::vector<double>> rcv_buffer = f.get();
+
+            print_heatmap("idle_rates_hm.dat", rcv_buffer);
+         }
+         else hpx::lcos::gather_there(gather_basename3, hpx::make_ready_future(idle_rate_history)).wait();
+      }
+
+      if(print_throughput_hm_)
+      {
+         if(rank_ == 0) {
+            hpx::future<std::vector<std::vector<double>>> f =
+                hpx::lcos::gather_here(gather_basename4, hpx::make_ready_future(throughput_history));
+
+            std::vector<std::vector<double>> rcv_buffer = f.get();
+
+            print_heatmap("throughput_hm.dat", rcv_buffer);
+         }
+         else hpx::lcos::gather_there(gather_basename4, hpx::make_ready_future(throughput_history)).wait();
+      }
+
+
+      // Wait for all the other localitites
+      if(rank_ == 0)
+	  hpx::when_all(stop_futures).get();
    }
+
 
    void monitor::global_finalize() {
 //      (allscale::monitor::get_ptr().get())->monitor_component_finalize();
+//     allscale::monitor::get().stop();
    }
 
-
    void monitor::init() {
-
+//      bool enable_signals = true;
       if(const char* env_p = std::getenv("ALLSCALE_MONITOR"))
       {
           if(atoi(env_p) == 0)
               enable_monitor = false;
+      }
+
+      if(!enable_monitor)
+      {
+	 std::cout << "Monitor component disabled!\n";
+	 return;
       }
 
       if(enable_monitor)
@@ -1443,10 +1608,11 @@ namespace allscale { namespace components {
           allscale::monitor::connect(allscale::monitor::work_item_process_execution_finished, monitor::global_w_exec_process_finish_wrapper);
 //          allscale::monitor::connect(allscale::monitor::work_item_result_propagated, monitor::global_w_result_propagated_wrapper);
           allscale::monitor::connect(allscale::monitor::work_item_first, monitor::global_w_app_iteration);
+
+          // Registering shutdown function
+//          hpx::register_shutdown_function(global_finalize);
       }
 
-//      const int result = std::atexit(global_finalize);
-//      if(result != 0) std::cerr << "Registration of monitor_finalize function failed!" << std::endl;
 
 
       std::uint64_t left_id =
@@ -1454,25 +1620,24 @@ namespace allscale { namespace components {
       std::uint64_t right_id =
          rank_ == num_localities_ - 1 ? 0 : rank_ + 1;
 
- 
+
       hpx::future<hpx::id_type> right_future =
           hpx::find_from_basename("allscale/monitor", right_id);
-                                                                  
+
       if(left_id != right_id)
       {
            hpx::future<hpx::id_type> left_future =
                hpx::find_from_basename("allscale/monitor", left_id);
-                                                                                                                
+
            left_ = left_future.get();
       }
-                                                                                                                        
+
       if(num_localities_ > 1)
           right_ = right_future.get();
- 
+
 
       // Check environment variables
-/*
-      if(const char* env_p = std::getenv("MONITOR_CUTOFF")) {
+/*      if(const char* env_p = std::getenv("MONITOR_CUTOFF")) {
          char *p;
          cutoff_level_ = strtol(env_p, &p, 10);
          if(*p) {
@@ -1489,6 +1654,12 @@ namespace allscale { namespace components {
 
       if(const char* env_p = std::getenv("PRINT_TREETURE"))
          if(atoi(env_p) == 1) output_treeture_ = 1;
+
+      if(const char* env_p = std::getenv("PRINT_THROUGHPUT_HM"))
+         if(atoi(env_p) == 1) print_throughput_hm_ = 1;
+
+      if(const char* env_p = std::getenv("PRINT_IDLE_HM"))
+         if(atoi(env_p) == 1) print_idle_hm_ = 1;
 
       if(const char* env_p = std::getenv("REALTIME_VIZ"))
          if(atoi(env_p) == 1) {
@@ -1569,12 +1740,9 @@ namespace allscale { namespace components {
       execution_init = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
 
 
-      // Create specialised OS-thread to proces profiles
-      if(enable_monitor) worker_thread = std::thread(&allscale::components::monitor::process_profiles, this);
-
       // Create idle rate counters per locality
       static const char * idle_counter_name = "/threads{locality#%d/total}/idle-rate";
-      static const char * idle_counter_avg_name = "/statistics{/threads{locality#%d/total}/idle-rate}/average@500";
+//      static const char * idle_counter_avg_name = "/statistics{/threads{locality#%d/total}/idle-rate}/average@500";
 
       const std::uint32_t prefix = hpx::get_locality_id();
 
@@ -1582,14 +1750,21 @@ namespace allscale { namespace components {
       idle_rate_counter_ = hpx::performance_counters::get_counter(
               boost::str(boost::format(idle_counter_name) % prefix));
 
-      std::cerr << "Registering counter " << boost::str(boost::format(idle_counter_avg_name) % prefix) << std::endl;
-      idle_rate_avg_counter_ = hpx::performance_counters::get_counter(
-              boost::str(boost::format(idle_counter_avg_name) % prefix));
+//      std::cerr << "Registering counter " << boost::str(boost::format(idle_counter_avg_name) % prefix) << std::endl;
+//      idle_rate_avg_counter_ = hpx::performance_counters::get_counter(
+//              boost::str(boost::format(idle_counter_avg_name) % prefix));
 
       hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_rate_counter_);
-      hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_rate_avg_counter_);
+//      hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_rate_avg_counter_);
 
- 
+
+      // Create specialised OS-thread to proces profiles and sampler timer
+      if(enable_monitor) {
+           worker_thread = std::thread(&allscale::components::monitor::process_profiles, this);
+
+           metric_sampler_.start();
+      }
+
       // Create the profile for the "Main"
       std::shared_ptr<allscale::profile> p(new profile("0", "Main", " "));
       std::string mystring("0");
@@ -1598,7 +1773,7 @@ namespace allscale { namespace components {
 //      w_names.insert(std::make_pair(mystring, std::string("Main")));
 
       // Insert the root "0" in the graph
-      w_dependencies.insert(std::make_pair(std::string("0"), std::vector<std::string>()));
+      wi_dependencies.insert(std::make_pair(std::string("0"), std::vector<std::string>()));
 
       // Init historical data
       history = std::make_shared<allscale::historical_data>();
@@ -1615,8 +1790,8 @@ namespace allscale { namespace components {
 
 }}
 
-
 //HPX_REGISTER_ACTION(allscale::components::monitor::get_my_rank_action, get_my_rank_action);
+//HPX_REGISTER_ACTION(allscale::components::monitor::stop_action, stop_action);
 HPX_REGISTER_ACTION(allscale::components::monitor::get_exclusive_time_action, get_exclusive_time_action);
 HPX_REGISTER_ACTION(allscale::components::monitor::get_inclusive_time_action, get_inclusive_time_action);
 HPX_REGISTER_ACTION(allscale::components::monitor::get_average_exclusive_time_action, get_average_exclusive_time_action);
@@ -1624,9 +1799,6 @@ HPX_REGISTER_ACTION(allscale::components::monitor::get_minimum_exclusive_time_ac
 HPX_REGISTER_ACTION(allscale::components::monitor::get_maximum_exclusive_time_action, get_maximum_exclusive_time_action);
 HPX_REGISTER_ACTION(allscale::components::monitor::get_children_mean_time_action, get_children_mean_time_action);
 HPX_REGISTER_ACTION(allscale::components::monitor::get_children_SD_time_action, get_children_SD_time_action);
-HPX_REGISTER_ACTION(allscale::components::monitor::get_iteration_time_action, get_iteration_time_action);
-HPX_REGISTER_ACTION(allscale::components::monitor::get_last_iteration_time_action, get_last_iteration_time_action);
-HPX_REGISTER_ACTION(allscale::components::monitor::get_number_of_iterations_action, get_number_of_iterations_action);
-HPX_REGISTER_ACTION(allscale::components::monitor::get_avg_time_last_iterations_action, get_avg_time_last_iterations_action);
 HPX_REGISTER_ACTION(allscale::components::monitor::get_idle_rate_action, get_idle_rate_action);
-HPX_REGISTER_ACTION(allscale::components::monitor::get_avg_idle_rate_action, get_avg_idle_rate_action);
+//HPX_REGISTER_ACTION(allscale::components::monitor::get_avg_idle_rate_action, get_avg_idle_rate_action);
+HPX_REGISTER_ACTION(allscale::components::monitor::get_throughput_action, get_throughput_action);

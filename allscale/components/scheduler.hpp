@@ -51,6 +51,7 @@ namespace allscale { namespace components {
         void stop();
         HPX_DEFINE_COMPONENT_ACTION(scheduler, stop);
 
+
     private:
         std::size_t get_num_numa_nodes();
         std::size_t get_num_numa_cores(std::size_t domain);

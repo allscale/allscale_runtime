@@ -13,6 +13,7 @@
 #include <allscale/spawn.hpp>
 #include <allscale/work_item_description.hpp>
 #include <allscale/components/monitor.hpp>
+#include <allscale/monitor.hpp>
 #include <allscale/components/resilience.hpp>
 #include <allscale/resilience.hpp>
 #include <allscale/do_serialization.hpp>
@@ -135,7 +136,21 @@ int allscale_main(boost::program_options::variables_map &)
         allscale::scheduler::stop();
         allscale::resilience::stop();
         allscale::monitor::stop();
+/*	// Get a list of all available localities.
+     	std::vector<hpx::id_type> localities =
+             hpx::find_all_localities();
 
+        std::vector<hpx::future<void>> stop_futures;
+
+        typedef allscale::components::monitor::stop_action stop_action;
+ 
+	// Iterate over them calling stop
+	for (hpx::id_type const& node : localities) {
+            std::cerr << "CALLING STOP IN LOCALITY " << node << std::endl;
+            stop_futures.push_back(hpx::async<stop_action>(node));
+        }
+        hpx::when_all(stop_futures).get();
+*/
         hpx::finalize();
     }
 

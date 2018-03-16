@@ -41,8 +41,8 @@ namespace allscale
         static components::scheduler* get_ptr();
 
     private:
-        static std::size_t rank_;
         static components::scheduler & get();
+        static std::size_t rank_;
 
         typedef hpx::lcos::local::spinlock mutex_type;
         mutex_type mtx_;
