@@ -141,13 +141,13 @@ namespace allscale { namespace components {
    }
 
 
-
+/*
    void monitor::change_sampling_interval(long long new_interval)
    {
       std::unique_lock<std::mutex> lock(sampling_mutex);
       sampling_interval_ms = new_interval;  
    }
-
+*/
 
    double monitor::get_throughput()
    {
@@ -194,7 +194,7 @@ namespace allscale { namespace components {
 
        std::unique_lock<std::mutex> lock(sampling_mutex);
 
-       task_throughput = (double)finished_tasks/((double)sampling_interval_ms/2000);
+       task_throughput = (double)finished_tasks/((double)sampling_interval_ms/1000);
        idle_rate_ = rate_value;
 
 //       std::cerr << "NODE " << rank_ << " THROUGHPUT " << task_throughput << " tasks/s "
@@ -1660,6 +1660,11 @@ namespace allscale { namespace components {
 
       if(const char* env_p = std::getenv("PRINT_IDLE_HM"))
          if(atoi(env_p) == 1) print_idle_hm_ = 1;
+
+/*
+      if(const char* env_p = std::getenv("SAMPLE_RATE"))
+         if(atoll(env_p) > 0)  sampling_interval_ms = atoll(env_p);
+*/
 
       if(const char* env_p = std::getenv("REALTIME_VIZ"))
          if(atoi(env_p) == 1) {
