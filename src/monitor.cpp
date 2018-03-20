@@ -79,10 +79,17 @@ namespace allscale {
         hpx::id_type gid =
             hpx::new_<components::monitor>(hpx::find_here(), rank).get();
 
-        hpx::register_with_basename("allscale/monitor", gid, rank).get();
 
         component_ = hpx::get_ptr<components::monitor>(gid).get();
         component_->init();
+
+        char *env = std::getenv("ALLSCALE_MONITOR");
+        if(env && env[0] == '0')
+        {
+            return;
+        }
+
+        hpx::register_with_basename("allscale/monitor", gid, rank).get();
     }
 
 }

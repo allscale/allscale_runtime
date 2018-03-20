@@ -1395,6 +1395,11 @@ namespace allscale { namespace components {
 
 
    void monitor::stop() {
+      if(const char* env_p = std::getenv("ALLSCALE_MONITOR"))
+      {
+          if(atoi(env_p) == 0)
+              return;
+      }
 
       std::vector<hpx::future<void>> stop_futures;
 
@@ -1600,19 +1605,15 @@ namespace allscale { namespace components {
 	 return;
       }
 
-      if(enable_monitor)
-      {
-          allscale::monitor::connect(allscale::monitor::work_item_split_execution_started, monitor::global_w_exec_split_start_wrapper);
-          allscale::monitor::connect(allscale::monitor::work_item_process_execution_started, monitor::global_w_exec_process_start_wrapper);
-          allscale::monitor::connect(allscale::monitor::work_item_split_execution_finished, monitor::global_w_exec_split_finish_wrapper);
-          allscale::monitor::connect(allscale::monitor::work_item_process_execution_finished, monitor::global_w_exec_process_finish_wrapper);
+      allscale::monitor::connect(allscale::monitor::work_item_split_execution_started, monitor::global_w_exec_split_start_wrapper);
+      allscale::monitor::connect(allscale::monitor::work_item_process_execution_started, monitor::global_w_exec_process_start_wrapper);
+      allscale::monitor::connect(allscale::monitor::work_item_split_execution_finished, monitor::global_w_exec_split_finish_wrapper);
+      allscale::monitor::connect(allscale::monitor::work_item_process_execution_finished, monitor::global_w_exec_process_finish_wrapper);
 //          allscale::monitor::connect(allscale::monitor::work_item_result_propagated, monitor::global_w_result_propagated_wrapper);
-          allscale::monitor::connect(allscale::monitor::work_item_first, monitor::global_w_app_iteration);
+      allscale::monitor::connect(allscale::monitor::work_item_first, monitor::global_w_app_iteration);
 
-          // Registering shutdown function
+      // Registering shutdown function
 //          hpx::register_shutdown_function(global_finalize);
-      }
-
 
 
       std::uint64_t left_id =
@@ -1764,14 +1765,14 @@ namespace allscale { namespace components {
 
 
       // Create specialised OS-thread to proces profiles and sampler timer
-      if(enable_monitor) {
-           worker_thread = std::thread(&allscale::components::monitor::process_profiles, this);
+      worker_thread = std::thread(&allscale::components::monitor::process_profiles, this);
 
-           if(sampling_interval_ms != 2000) 
-		metric_sampler_.change_interval(sampling_interval_ms*1000);
+      // Start sampling timer
+      if(sampling_interval_ms != 2000) 
+	   metric_sampler_.change_interval(sampling_interval_ms*1000);
 
-           metric_sampler_.start();
-      }
+      metric_sampler_.start();
+
 
       // Create the profile for the "Main"
       std::shared_ptr<allscale::profile> p(new profile("0", "Main", " "));
@@ -1787,9 +1788,9 @@ namespace allscale { namespace components {
       history = std::make_shared<allscale::historical_data>();
 
 
-      std::cerr
-         << "Monitor component with rank "
-         << rank_ << " created!\n";
+//       std::cerr
+//          << "Monitor component with rank "
+//          << rank_ << " created!\n";
 
    }
 

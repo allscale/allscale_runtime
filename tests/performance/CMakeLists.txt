@@ -11,6 +11,7 @@ set(tests
   data_item_get_invariant
   stream
   transpose
+  stencil
 )
 
 foreach(test ${tests})

@@ -30,7 +30,6 @@
 namespace allscale { namespace components {
 
     struct scheduler
-      : hpx::components::component_base<scheduler>
     {
         typedef hpx::lcos::local::spinlock mutex_type;
 #if defined(ALLSCALE_HAVE_CPUFREQ)
@@ -45,22 +44,19 @@ namespace allscale { namespace components {
         scheduler(std::uint64_t rank);
         void init();
 
-        void enqueue(work_item work, this_work_item::id const&);
-        HPX_DEFINE_COMPONENT_ACTION(scheduler, enqueue);
-
+        void enqueue(work_item work, this_work_item::id);
         void stop();
-        HPX_DEFINE_COMPONENT_ACTION(scheduler, stop);
 
 
     private:
         std::size_t get_num_numa_nodes();
         std::size_t get_num_numa_cores(std::size_t domain);
+
         hpx::resource::detail::partitioner *rp_;
         const hpx::threads::topology *topo_;
         machine_config mconfig_;
-        std::uint64_t num_localities_;
-        std::uint64_t num_threads_;
         std::uint64_t rank_;
+        bool initialized_;
         std::atomic<bool> stopped_;
 
         scheduler_network network_;
@@ -74,25 +70,15 @@ namespace allscale { namespace components {
 
         bool periodic_throttle();
         bool periodic_frequency_scale();
+        bool power_periodic_frequency_scale();
 
-        hpx::util::interval_timer timer_;
         hpx::util::interval_timer throttle_timer_;
         hpx::util::interval_timer frequency_timer_;
 
-        mutex_type counters_mtx_;
-        hpx::id_type idle_rate_counter_;
-        double idle_rate_;
-
-        hpx::id_type queue_length_counter_;
-        std::size_t queue_length_;
-
-        hpx::id_type threads_total_counter_id;
-        double total_threads_time;
-
-        hpx::id_type allscale_app_counter_id;
-
-        std::vector<hpx::threads::detail::thread_pool_base*> thread_pools_;
+        std::vector<hpx::threads::thread_pool_base*> thread_pools_;
         std::vector<hpx::threads::mask_type> initial_masks_;
+        std::vector<hpx::threads::mask_type> suspending_masks_;
+        std::vector<hpx::threads::mask_type> resuming_masks_;
         std::vector<executor_type> executors_;
         std::atomic<std::size_t> current_;
 
@@ -114,6 +100,10 @@ namespace allscale { namespace components {
         unsigned long long last_energy_usage;
         unsigned long long last_actual_energy_usage;
         unsigned long long actual_energy_usage;
+        unsigned long long current_power_usage;
+        unsigned long long last_power_usage;
+        unsigned long long power_sum;
+        unsigned long long power_count;
 #if defined(ALLSCALE_HAVE_CPUFREQ)
         cpufreq_policy policy;
         hardware_reconf::hw_topology topo;
@@ -138,7 +128,7 @@ namespace allscale { namespace components {
             "time",
             "resource",
             "energy",
-    	};
+        };
 
         bool time_requested;
         bool resource_requested;

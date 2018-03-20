@@ -30,7 +30,7 @@ namespace allscale
 
             treeture_task(treeture<void> parent, init_no_addref no_addref)
               : base_type(no_addref)
-              , parent_(parent)
+              , parent_(std::move(parent))
             {
                 children_[0] = treeture<void>();
                 children_[1] = treeture<void>();
@@ -39,7 +39,7 @@ namespace allscale
             template <typename Target>
             treeture_task(treeture<void> parent, Target&& data, init_no_addref no_addref)
               : base_type(std::forward<Target>(data), no_addref)
-              , parent_(parent)
+              , parent_(std::move(parent))
             {
                 children_[0] = treeture<void>();
                 children_[1] = treeture<void>();
@@ -236,7 +236,8 @@ namespace allscale
             }
         }
 
-        inline void serialize(hpx::serialization::output_archive& ar, boost::intrusive_ptr<treeture_task<void>> treeture_task_, int)
+        inline void serialize(hpx::serialization::output_archive& ar,
+            boost::intrusive_ptr<treeture_task<void>> treeture_task_, int)
         {
             HPX_ASSERT(treeture_task_);
             ar << treeture_task_->parent_;
@@ -306,7 +307,7 @@ namespace hpx { namespace traits {
     template <typename T>
     struct get_remote_result<T, boost::intrusive_ptr<allscale::detail::treeture_task<T>>>
     {
-        static T call(boost::intrusive_ptr<allscale::detail::treeture_task<T>> ptr)
+        static T call(boost::intrusive_ptr<allscale::detail::treeture_task<T>> const& ptr)
         {
             HPX_ASSERT(ptr->has_value());
             return *ptr->get_result();
@@ -316,7 +317,7 @@ namespace hpx { namespace traits {
     template <>
     struct get_remote_result<void, boost::intrusive_ptr<allscale::detail::treeture_task<void>>>
     {
-        static void call(boost::intrusive_ptr<allscale::detail::treeture_task<void>> ptr)
+        static void call(boost::intrusive_ptr<allscale::detail::treeture_task<void>> const& ptr)
         {
             HPX_ASSERT(ptr->has_value());
             hpx::util::unused = *ptr->get_result();

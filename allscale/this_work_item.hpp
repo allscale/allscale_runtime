@@ -59,6 +59,8 @@ namespace allscale {
         std::size_t numa_domain() const;
         std::size_t thread_depth() const;
 
+        void update_rank(std::size_t rank);
+
         treeture<void> get_treeture() const;
 
         explicit operator bool() const

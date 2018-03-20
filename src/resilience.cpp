@@ -24,18 +24,21 @@ namespace allscale {
         hpx::id_type gid =
             hpx::new_<components::resilience>(hpx::find_here(), rank).get();
 
-        hpx::register_with_basename("allscale/resilience", gid, rank).get();
 
         component_ = hpx::get_ptr<components::resilience>(gid).get();
         component_->init();
+
+        char *env = std::getenv("ALLSCALE_RESILIENCE");
+        if(env && env[0] == '0')
+        {
+            return;
+        }
+
+        hpx::register_with_basename("allscale/resilience", gid, rank).get();
     }
 
     void resilience::stop() {
-        get_ptr()->shutdown();
-    }
-
-    void resilience::global_w_exec_start_wrapper(const work_item &work) {
-        get().w_exec_start_wrapper(work);
+        get_ptr()->shutdown(1);
     }
 
     components::resilience *resilience::get_ptr()
@@ -60,6 +63,10 @@ namespace allscale {
         return get_ptr()->get_protectee();
     }
 
+    void resilience::global_wi_dispatched(work_item const& w, size_t schedule_rank) {
+        get_ptr()->work_item_dispatched(w, schedule_rank);
+    }
+
     bool resilience::rank_running(uint64_t rank) {
         if (rank_ == std::size_t(-1) || rank == rank_)
             return true;
@@ -68,9 +75,9 @@ namespace allscale {
     }
 
     // ignore signum here ...
-    void resilience::handle_my_crash(int signum)
-    {
-        HPX_ASSERT(get_ptr());
-        get_ptr()->handle_my_crash();
-    }
+//    void resilience::handle_my_crash(int signum)
+//    {
+//        HPX_ASSERT(get_ptr());
+//        get_ptr()->handle_my_crash();
+//    }
 }

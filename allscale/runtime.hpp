@@ -8,13 +8,14 @@
  * targeting the AllScale runtime.
  */
 
+#include <hpx/config.hpp>
 
+#include <allscale/config.hpp>
 #include <allscale/no_split.hpp>
 #include <allscale/spawn.hpp>
 #include <allscale/work_item_description.hpp>
-#include <allscale/components/monitor.hpp>
+
 #include <allscale/monitor.hpp>
-#include <allscale/components/resilience.hpp>
 #include <allscale/resilience.hpp>
 #include <allscale/do_serialization.hpp>
 #include <allscale/no_serialization.hpp>
@@ -23,7 +24,6 @@
 #include <allscale/data_item_manager.hpp>
 #include <allscale/data_requirements_check.hpp>
 
-#include <hpx/config.hpp>
 #include <hpx/hpx_init.hpp>
 #include <hpx/runtime/config_entry.hpp>
 #include <hpx/util/find_prefix.hpp>
@@ -57,30 +57,32 @@ data_item_requirement<DataItemType> createDataItemRequirement
     return allscale::createDataItemRequirement(ref, region, mode);
 }
 
-using DataItemManager = allscale::data_item_manager;
+namespace DataItemManager {
+    using namespace ::allscale::data_item_manager;
+}
 
 using unused_type = hpx::util::unused_type;
 
 template<typename MainWorkItem>
-inline int spawn_main(int(*main_work)(hpx::util::tuple<int, char**> const&), int argc, char** argv)
+inline int spawn_main(int(*)(hpx::util::tuple<int, char**> const&), int argc, char** argv)
 {
     return MainWorkItem::process_variant::execute(hpx::util::make_tuple(argc, argv));
 }
 
 template<typename MainWorkItem>
-inline int spawn_main(int(*main_work)(hpx::util::tuple<> const&), int argc, char** argv)
+inline int spawn_main(int(*)(hpx::util::tuple<> const&), int argc, char** argv)
 {
     return MainWorkItem::process_variant::execute(hpx::util::make_tuple(argc, argv));
 }
 
 template<typename MainWorkItem>
-inline int spawn_main(treeture<int>(*main_work)(hpx::util::tuple<int, char**> const&), int argc, char** argv)
+inline int spawn_main(treeture<int>(*)(hpx::util::tuple<int, char**> const&), int argc, char** argv)
 {
     return MainWorkItem::process_variant::execute(hpx::util::make_tuple(argc, argv)).get_result();
 }
 
 template<typename MainWorkItem>
-inline int spawn_main(treeture<int>(*main_work)(hpx::util::tuple<> const&), int argc, char** argv)
+inline int spawn_main(treeture<int>(*)(hpx::util::tuple<> const&), int, char**)
 {
     return MainWorkItem::process_variant::execute(hpx::util::make_tuple()).get_result();
 }
@@ -99,6 +101,13 @@ int allscale_main(boost::program_options::variables_map &)
     // start allscale scheduler ...
     auto sched = allscale::scheduler::run(hpx::get_locality_id());
 
+#if defined(ALLSCALE_DEBUG_DIM)
+            std::stringstream filename;
+            filename << "data_item." << hpx::get_locality_id() << ".log";
+            std::ofstream os(filename.str(), std::ios_base::trunc);
+            os.close();
+#endif
+
     // trigger first work item on first node
     int res = EXIT_SUCCESS;
     if (hpx::get_locality_id() == 0) {
@@ -114,16 +123,16 @@ int allscale_main(boost::program_options::variables_map &)
         // Copy all arguments which are not hpx related to a temporary array
         std::vector<char*> argv(args.size()+1);
         std::size_t argcount = 0;
-        for (std::size_t i = 0; i < args.size(); ++i)
+        for (auto & arg : args)
         {
-            if (0 != args[i].find("--hpx:")) {
-                argv[argcount++] = const_cast<char*>(args[i].data());
+            if (0 != arg.find("--hpx:")) {
+                argv[argcount++] = const_cast<char*>(arg.data());
             }
-            else if (6 == args[i].find("positional", 6)) {
-                std::string::size_type p = args[i].find_first_of("=");
+            else if (6 == arg.find("positional", 6)) {
+                std::string::size_type p = arg.find_first_of('=');
                 if (p != std::string::npos) {
-                    args[i] = args[i].substr(p+1);
-                    argv[argcount++] = const_cast<char*>(args[i].data());
+                    arg = arg.substr(p+1);
+                    argv[argcount++] = const_cast<char*>(arg.data());
                 }
             }
         }
@@ -136,21 +145,7 @@ int allscale_main(boost::program_options::variables_map &)
         allscale::scheduler::stop();
         allscale::resilience::stop();
         allscale::monitor::stop();
-/*	// Get a list of all available localities.
-     	std::vector<hpx::id_type> localities =
-             hpx::find_all_localities();
 
-        std::vector<hpx::future<void>> stop_futures;
-
-        typedef allscale::components::monitor::stop_action stop_action;
- 
-	// Iterate over them calling stop
-	for (hpx::id_type const& node : localities) {
-            std::cerr << "CALLING STOP IN LOCALITY " << node << std::endl;
-            stop_futures.push_back(hpx::async<stop_action>(node));
-        }
-        hpx::when_all(stop_futures).get();
-*/
         hpx::finalize();
     }
 
@@ -175,7 +170,7 @@ template<typename MainWorkItem>
 int main_wrapper(int argc = 0, char **argv = nullptr) {
     typedef int(*hpx_main_type)(boost::program_options::variables_map &);
     hpx_main_type f = &allscale_main<MainWorkItem>;
-    boost::program_options::options_description desc;
+    boost::program_options::options_description desc("Usage: [options]");
     hpx::util::set_hpx_prefix(HPX_PREFIX);
     allscale::scheduler::setup_resources(f, desc, argc, argv);
     return hpx::init();

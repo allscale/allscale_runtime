@@ -1,98 +1,105 @@
 #ifndef ALLSCALE_DATA_ITEM_MANAGER
 #define ALLSCALE_DATA_ITEM_MANAGER
 
-#include <allscale/data_item_manager_impl.hpp>
+#include <allscale/config.hpp>
+#include <allscale/data_item_manager/acquire.hpp>
+#include <allscale/data_item_manager/data_item_store.hpp>
+#include <allscale/data_item_manager/shared_data.hpp>
 #include <allscale/data_item_reference.hpp>
-#include <allscale/components/data_item.hpp>
 #include <allscale/data_item_requirement.hpp>
 #include <allscale/lease.hpp>
 #include "allscale/utils/serializer.h"
 
-#include <hpx/include/components.hpp>
+#include <hpx/runtime/components/new.hpp>
 #include <hpx/util/detail/yield_k.hpp>
 
 #include <type_traits>
 
-namespace allscale
-{
-    struct data_item_manager
-    {
-        template <typename DataItemType, typename...Args>
-        static allscale::data_item_reference<DataItemType>
+namespace allscale { namespace data_item_manager {
+        template <typename DataItem, typename...Args>
+        allscale::data_item_reference<DataItem>
         create(Args&&...args)
         {
-            auto dm = data_item_manager_impl<DataItemType>::get_ptr();
-            return
-                data_item_reference<DataItemType>(
-                    hpx::local_new<detail::id_holder>(
+            typedef typename DataItem::shared_data_type shared_data_type;
+
+            auto ref = data_item_reference<DataItem>(
+                    hpx::local_new<allscale::detail::id_holder>(
                         [](hpx::naming::gid_type const& id)
                         {
-                            data_item_manager_impl<DataItemType>::get_ptr()->destroy(id);
+//                             data_item_manager_impl<DataItem>::get_ptr()->destroy(id);
                         }
-                    ), std::forward<Args>(args)...
+                    )
                 );
+            auto &item = data_item_store<DataItem>::lookup(ref);
+            item.shared_data.reset(new shared_data_type(std::forward<Args>(args)...));
+            return ref;
         }
 
-        template<typename DataItemType>
-        static typename DataItemType::facade_type
-        get(const allscale::data_item_reference<DataItemType>& ref)
+        template<typename DataItem>
+        typename DataItem::facade_type
+        get(const allscale::data_item_reference<DataItem>& ref)
         {
-            return data_item_manager_impl<DataItemType>::get(ref);
+            using mutex_type = typename data_item_store<DataItem>::data_item_type::mutex_type;
+            auto &item = data_item_store<DataItem>::lookup(ref);
+            {
+                std::unique_lock<mutex_type> l(item.mtx);
+                if (item.fragment == nullptr)
+                {
+                    typename DataItem::shared_data_type shared_data_;
+                    {
+                        hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+                        shared_data_ = shared_data(ref);
+                    }
+                    if (item.fragment == nullptr)
+                    {
+                        using fragment_type = typename DataItem::fragment_type;
+                        item.fragment.reset(new fragment_type(std::move(shared_data_)));
+                    }
+                }
+                HPX_ASSERT(item.fragment);
+            }
+            return item.fragment->mask();
 		}
 
-        template<typename DataItemType>
-		static hpx::future<allscale::lease<DataItemType>>
-        acquire(const allscale::data_item_requirement<DataItemType>& requirement)
+        template <typename T>
+        void release(T&&)
         {
-            return data_item_manager_impl<DataItemType>::acquire(requirement);
-		}
-
-        template<typename DataItemType>
-		static void release(const allscale::lease<DataItemType>& lease)
-        {
-            return data_item_manager_impl<DataItemType>::release(lease);
         }
 
-        template<typename DataItemType>
-		static std::vector<hpx::future<allscale::lease<DataItemType>>>
-        acquire(std::vector<allscale::data_item_requirement<DataItemType>> const & requirement)
-        {
-            return data_item_manager_impl<DataItemType>::acquire(requirement);
-		}
+//         template<typename DataItem>
+// 		void release(const allscale::lease<DataItem>& lease)
+//         {
+// //             if (lease.mode == access_mode::Invalid)
+// //                 return;
+// //             data_item_manager_impl<DataItem>::release(lease);
+//         }
+//
+//         template<typename DataItem>
+// 		void release(const std::vector<allscale::lease<DataItem>>& lease)
+//         {
+// //             for(auto const& l: lease)
+// //                 if (l.mode == access_mode::Invalid) return;
+// //
+// //             data_item_manager_impl<DataItem>::release(lease);
+//         }
 
-        template<typename DataItemType>
-		static void release(const std::vector<allscale::lease<DataItemType>>& lease)
+        template<typename DataItem>
+		void destroy(const data_item_reference<DataItem>& ref)
         {
-            return data_item_manager_impl<DataItemType>::release(lease);
+//             data_item_manager_impl<DataItem>::destroy(ref);
         }
-
-        template<typename DataItemType>
-		static void destroy(const data_item_reference<DataItemType>& ref)
-        {
-            data_item_manager_impl<DataItemType>::destroy(ref);
-        }
-    };
-}//end namespace allscale
+}}//end namespace allscale
 
 #define REGISTER_DATAITEMSERVER_DECLARATION(type)                               \
-    namespace allscale{                                                         \
-        template<>                                                              \
-        struct data_item_server_name<type>                                      \
-        {                                                                       \
-            static const char* name()                                           \
-            {                                                                   \
-                return BOOST_PP_STRINGIZE(                                      \
-                    BOOST_PP_CAT(allscale/data_item_, type));                   \
-            }                                                                   \
-        };                                                                      \
-    }                                                                           \
+    HPX_REGISTER_ACTION_DECLARATION(                                            \
+        allscale::data_item_manager::detail::transfer_action<type>,             \
+        HPX_PP_CAT(transfer_action_, type))                                     \
+/**/
 
 #define REGISTER_DATAITEMSERVER(type)                                           \
-    typedef ::hpx::components::component<                                       \
-        allscale::components::data_item<type>                                   \
-    > BOOST_PP_CAT(__data_item_server_, type);                                  \
-    HPX_REGISTER_COMPONENT(BOOST_PP_CAT(__data_item_server_, type))             \
-    template struct allscale::data_item_registry<type>;                         \
-    template struct allscale::data_item_manager_impl<type>;                     \
+    HPX_REGISTER_ACTION(                                                        \
+        allscale::data_item_manager::detail::transfer_action<type>,             \
+        HPX_PP_CAT(transfer_action_, type))                                     \
 /**/
+
 #endif
