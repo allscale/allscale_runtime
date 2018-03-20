@@ -189,11 +189,13 @@ int hpx_main(int argc, char **argv)
            fib_elapsed = t.elapsed_microseconds();
            std::cout << "fib(" << n << ") = " << res << " taking " << fib_elapsed << " microseconds. Iter: " << i << "\n";
         }
+
+        allscale::monitor::stop();
         allscale::scheduler::stop();
         allscale::resilience::stop();
-    }
+  
+   }
 
-    allscale::monitor::stop();
 
     if(hpx::get_locality_id() == 0) return hpx::finalize();
 
