@@ -1661,10 +1661,10 @@ namespace allscale { namespace components {
       if(const char* env_p = std::getenv("PRINT_IDLE_HM"))
          if(atoi(env_p) == 1) print_idle_hm_ = 1;
 
-/*
+
       if(const char* env_p = std::getenv("SAMPLE_RATE"))
          if(atoll(env_p) > 0)  sampling_interval_ms = atoll(env_p);
-*/
+
 
       if(const char* env_p = std::getenv("REALTIME_VIZ"))
          if(atoi(env_p) == 1) {
@@ -1766,6 +1766,9 @@ namespace allscale { namespace components {
       // Create specialised OS-thread to proces profiles and sampler timer
       if(enable_monitor) {
            worker_thread = std::thread(&allscale::components::monitor::process_profiles, this);
+
+           if(sampling_interval_ms != 2000) 
+		metric_sampler_.change_interval(sampling_interval_ms*1000);
 
            metric_sampler_.start();
       }
