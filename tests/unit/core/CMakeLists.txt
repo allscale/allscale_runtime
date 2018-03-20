@@ -6,8 +6,6 @@ set(tests
   grid_init
   grid_stencil
   grid_init_overlap
-  overlapping_async.insieme.seq
-  #overlapping_pfor.insieme.seq
   serialization
   treeture
   work_item)
