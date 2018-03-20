@@ -54,7 +54,7 @@ bool test_work_item(){
     auto test_item = allscale::work_item(true,ultra_simple_work_item_descr(),trs);
 
     allscale::executor_type exec("default");
-    hpx::apply([test_item, &exec]() mutable {allscale::this_work_item::set_id(main_id); test_item.process(exec, false);});
+    hpx::apply([test_item, &exec]() mutable {allscale::this_work_item::set_id(main_id); test_item.process(exec);});
     HPX_ASSERT(trs.valid());
     auto res = trs.get_future().get();
 
@@ -81,7 +81,7 @@ bool test_work_items_all_localities(){
             allscale::treeture<result_type> trs(allscale::parent_arg{});
             auto test_item = allscale::work_item(true,ultra_simple_work_item_descr(),trs);
 
-            hpx::apply([test_item, &exec]()mutable{allscale::this_work_item::set_id(main_id); test_item.process(exec, false);});
+            hpx::apply([test_item, &exec]()mutable{allscale::this_work_item::set_id(main_id); test_item.process(exec);});
             HPX_ASSERT(trs.valid());
             auto res = trs.get_future().get();
         }
