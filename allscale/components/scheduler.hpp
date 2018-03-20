@@ -17,7 +17,7 @@
 #include <hpx/compute/host.hpp>
 #include <hpx/compute/host/target.hpp>
 #include <hpx/runtime/threads/executors/pool_executor.hpp>
-#include <hpx/runtime/threads/policies/throttling_scheduler.hpp>
+//#include <hpx/runtime/threads/policies/throttling_scheduler.hpp>
 #include <hpx/runtime/threads/threadmanager.hpp>
 
 #include <atomic>
