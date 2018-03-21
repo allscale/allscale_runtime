@@ -60,8 +60,8 @@ namespace allscale { namespace components {
 //         HPX_DEFINE_COMPONENT_ACTION(monitor, get_rank);
 //           std::uint64_t get_rank_remote(hpx::id_type locality);
 
-           hpx::id_type get_left_neighbour() { return left_; }
-           hpx::id_type get_right_neighbour() { return right_; }
+//           hpx::id_type get_left_neighbour() { return left_; }
+//           hpx::id_type get_right_neighbour() { return right_; }
 
 
            /////////////////////////////////////////////////////////////////////////////////////    
@@ -297,8 +297,8 @@ namespace allscale { namespace components {
              bool enable_monitor;
 
              // Monitor neighbours
-             hpx::id_type left_;
-             hpx::id_type right_;
+//             hpx::id_type left_;
+//             hpx::id_type right_;
 
              typedef hpx::lcos::local::spinlock mutex_type;
              mutex_type work_map_mutex;

@@ -1608,6 +1608,7 @@ namespace allscale { namespace components {
 //          hpx::register_shutdown_function(global_finalize);
 
 
+/*
       std::uint64_t left_id =
          rank_ == 0 ? num_localities_ - 1 : rank_ - 1;
       std::uint64_t right_id =
@@ -1627,8 +1628,7 @@ namespace allscale { namespace components {
 
       if(num_localities_ > 1)
           right_ = right_future.get();
-
-
+*/
       // Check environment variables
 /*      if(const char* env_p = std::getenv("MONITOR_CUTOFF")) {
          char *p;
@@ -1764,7 +1764,9 @@ namespace allscale { namespace components {
 
 	 metric_sampler_ = std::make_unique<hpx::util::interval_timer>(
 					hpx::util::bind(&monitor::sample_node, this),
-					sampling_interval_ms*1000);  
+					sampling_interval_ms*1000,
+					"node_sampler",
+					false);  
 //         metric_sampler_.change_interval(sampling_interval_ms*1000);
          metric_sampler_->start();
       }
