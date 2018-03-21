@@ -342,7 +342,7 @@ namespace allscale { namespace components {
 
 	     // Sampled metrics
 	     std::mutex sampling_mutex;
-             hpx::util::interval_timer metric_sampler_;
+             std::unique_ptr<hpx::util::interval_timer> metric_sampler_;
 	     long long finished_tasks;
              long long sampling_interval_ms;
              double task_throughput;

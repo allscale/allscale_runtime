@@ -58,16 +58,16 @@ namespace allscale { namespace components {
      , done(false)
      , current_read_queue(0)
      , current_write_queue(0)
-     , sampling_interval_ms(2000)
-     , metric_sampler_(
-          hpx::util::bind(
-		&monitor::sample_node,
-		this
-	  ),
-          2000000,
-          "monitor::sample_node",
-          false 
-       )
+     , sampling_interval_ms(4000)
+//     , metric_sampler_(
+//          hpx::util::bind(
+//		&monitor::sample_node,
+//		this
+//	  ),
+//          2000000,
+//          "monitor::sample_node",
+//          false 
+//       )
      , task_throughput(0)
      , finished_tasks(0)
 //#ifdef WI_STATS
@@ -1395,19 +1395,12 @@ namespace allscale { namespace components {
 
 
    void monitor::stop() {
-      if(const char* env_p = std::getenv("ALLSCALE_MONITOR"))
-      {
-          if(atoi(env_p) == 0)
-              return;
-      }
 
       std::vector<hpx::future<void>> stop_futures;
-
       std::size_t const os_threads = hpx::get_os_thread_count();
-
       std::size_t self = hpx::get_worker_thread_num();
 
-
+      
       if(!enable_monitor) return;
 
       execution_end = std::chrono::steady_clock::now();
@@ -1450,12 +1443,11 @@ namespace allscale { namespace components {
          std::lock_guard<std::mutex> lk(m_queue);
          done = true;
       }
-      if(enable_monitor) {
-	cv.notify_one();
-        worker_thread.join();
 
-        metric_sampler_.stop();
-      }
+      cv.notify_one();
+      worker_thread.join();
+
+      metric_sampler_->stop();
 
       // Stop performance counter
       hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, idle_rate_counter_);
@@ -1663,8 +1655,8 @@ namespace allscale { namespace components {
          if(atoi(env_p) == 1) print_idle_hm_ = 1;
 
 
-      if(const char* env_p = std::getenv("SAMPLE_RATE"))
-         if(atoll(env_p) > 0)  sampling_interval_ms = atoll(env_p);
+      if(const char* env_p = std::getenv("SAMPLING_INTERVAL"))
+         sampling_interval_ms = atoll(env_p);
 
 
       if(const char* env_p = std::getenv("REALTIME_VIZ"))
@@ -1768,10 +1760,14 @@ namespace allscale { namespace components {
       worker_thread = std::thread(&allscale::components::monitor::process_profiles, this);
 
       // Start sampling timer
-      if(sampling_interval_ms != 2000) 
-	   metric_sampler_.change_interval(sampling_interval_ms*1000);
+      if(sampling_interval_ms > 0) { 
 
-      metric_sampler_.start();
+	 metric_sampler_ = std::make_unique<hpx::util::interval_timer>(
+					hpx::util::bind(&monitor::sample_node, this),
+					sampling_interval_ms*1000);  
+//         metric_sampler_.change_interval(sampling_interval_ms*1000);
+         metric_sampler_->start();
+      }
 
 
       // Create the profile for the "Main"
