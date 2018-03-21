@@ -3,6 +3,7 @@
 #define ALLSCALE_DATA_ITEM_MANAGER_ACQUIRE_HPP
 
 #include <allscale/lease.hpp>
+#include <allscale/api/core/data.h>
 #include <allscale/data_item_manager/data_item_store.hpp>
 #include <allscale/data_item_manager/data_item_view.hpp>
 #include <allscale/data_item_manager/location_info.hpp>
@@ -57,22 +58,30 @@ namespace allscale { namespace data_item_manager {
             {
                 std::unique_lock<mutex_type> l(item.mtx);
                 HPX_ASSERT(item.fragment);
-                region_type new_region;
+
+
+                region_type req_region;
                 if (req.mode == access_mode::ReadOnly)
                 {
-                    new_region =
-                        region_type::merge(item.fragment->getCoveredRegion(),
-                        req.region);
+                    req_region = std::move(req.region);
+//                         region_type::merge(item.fragment->getCoveredRegion(),
+//                         req.region);
                 }
                 else
                 {
                     HPX_ASSERT(req.mode == access_mode::ReadWrite);
-                    new_region =
-                        region_type::merge(item.fragment->getCoveredRegion(),
+                    req_region =
+//                         region_type::merge(item.fragment->getCoveredRegion(),
                         // clip region to registered region...
-                        region_type::intersect(item.owned_region, req.region));
+                        region_type::intersect(item.owned_region, req.region);
                 }
-                item.fragment->resize(new_region);
+
+                if (!allscale::api::core::isSubRegion(req.region, item.fragment->getCoveredRegion()))
+                {
+                    item.fragment->resize(
+                            region_type::merge(req_region, item.fragment->getCoveredRegion())
+                    );
+                }
             }
 
 

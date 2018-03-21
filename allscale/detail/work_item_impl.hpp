@@ -449,34 +449,77 @@ namespace allscale { namespace detail {
             );
         }
 
-        void split_impl(hpx::util::tuple<>&& reqs)
+        template <typename WorkItemDescription_>
+        typename std::enable_if<
+            WorkItemDescription_::split_variant::valid,
+            hpx::future<std::size_t>
+        >::type split(bool sync, hpx::util::tuple<> && reqs)
         {
-            do_split(std::move(reqs));
+            if (sync && id().last() % 2 == 1)
+            {
+                do_split(std::move(reqs));
+                return hpx::make_ready_future(std::size_t(-2));
+            }
+            else
+            {
+                auto this_ = shared_this();
+                return hpx::async([this_ = std::move(this_)]()
+                {
+                    this_->do_split(hpx::util::tuple<>());
+                    return std::size_t(-2);
+                });
+            }
         }
 
-        template <typename...Ts>
-        void split_impl(hpx::util::tuple<Ts...>&& reqs)
+        template <typename WorkItemDescription_, typename Reqs>
+        typename std::enable_if<
+            WorkItemDescription_::split_variant::valid,
+            hpx::future<std::size_t>
+        >::type split(bool sync, Reqs && reqs)
         {
-            typedef
-                typename hpx::util::decay<decltype(hpx::util::unwrap(std::move(reqs)))>::type
-                reqs_type;
             auto this_ = shared_this();
-            hpx::dataflow(//hpx::launch::sync,
-                hpx::util::annotated_function(hpx::util::unwrapping([this_ = std::move(this_)](reqs_type reqs) mutable
+            return hpx::dataflow(//sync ? hpx::launch::sync : hpx::launch::async,
+                hpx::util::annotated_function([reqs, this_ = std::move(this_)](auto locate_future)
                 {
-                    HPX_ASSERT(this_->valid());
-                    this_->do_split(std::move(reqs));
-                }), "allscale::work_item::reqs_cont_sync")
-              , std::move(reqs));
+                    auto infos = hpx::util::unwrap(locate_future);
+                    std::size_t rank = data_item_manager::acquire_rank(reqs, infos);
+                    // Write regions are on different localities, need split
+                    if (rank == std::size_t(-1))
+                    {
+                        return hpx::make_ready_future(std::size_t(-1));
+                    }
+                    // Route to different locality
+                    if (rank != std::size_t(-2) && rank != hpx::get_locality_id())
+                    {
+                        return hpx::make_ready_future(rank);
+                    }
+                    HPX_ASSERT(rank == std::size_t(-2) || rank == hpx::get_locality_id());
+                    typedef
+                        typename hpx::util::decay<decltype(hpx::util::unwrap(std::move(reqs)))>::type
+                        reqs_type;
+                    return hpx::dataflow(hpx::launch::sync,
+                        hpx::util::annotated_function(hpx::util::unwrapping([this_ = std::move(this_)](reqs_type reqs) mutable
+                        {
+                            HPX_ASSERT(this_->valid());
+                            this_->do_split(std::move(reqs));
+                            return std::size_t(-2);
+                        }), "allscale::work_item::reqs_cont_sync")
+                      , std::move(reqs));
+                }, "allscale::work_item::spli::locate_cont"),
+#if defined(ALLSCALE_DEBUG_DIM)
+                data_item_manager::locate(std::move(s), std::forward<Reqs>(reqs))
+#else
+                data_item_manager::locate(std::forward<Reqs>(reqs))
+#endif
+            );
         }
 
         template <typename WorkItemDescription_>
         typename std::enable_if<
             WorkItemDescription_::split_variant::valid,
             hpx::future<std::size_t>
-        >::type split_impl()
+        >::type split(bool sync)
         {
-            auto this_ = shared_this();
             auto reqs = detail::merge_data_item_reqs(
                 get_requirements<typename WorkItemDescription::split_variant>(nullptr)
             );
@@ -494,47 +537,23 @@ namespace allscale { namespace detail {
                 )
             );
 #endif
-            return hpx::dataflow(hpx::launch::sync,
-                hpx::util::annotated_function([reqs, this_ = std::move(this_)](auto locate_future)
-                {
-                    auto infos = hpx::util::unwrap(locate_future);
-                    std::size_t rank = data_item_manager::acquire_rank(reqs, infos);
-                    // Write regions are on different localities, need split
-                    if (rank == std::size_t(-1))
-                    {
-                        return std::size_t(-1);
-                    }
-                    // Route to different locality
-                    if (rank != std::size_t(-2) && rank != hpx::get_locality_id())
-                    {
-                        return rank;
-                    }
-                    HPX_ASSERT(rank == std::size_t(-2) || rank == hpx::get_locality_id());
-                    this_->split_impl(data_item_manager::acquire(reqs, infos));
-                    return std::size_t(-2);
-                }, "allscale::work_item::split_impl::locate_cont"),
-#if defined(ALLSCALE_DEBUG_DIM)
-                data_item_manager::locate(std::move(s), reqs)
-#else
-                data_item_manager::locate(reqs)
-#endif
-            );
+            return split<WorkItemDescription>(sync, std::move(reqs));
         }
 
         template <typename WorkItemDescription_>
         typename std::enable_if<
             !WorkItemDescription_::split_variant::valid,
             hpx::future<std::size_t>
-        >::type split_impl()
+        >::type split(bool)
         {
             throw std::logic_error(
                 "Calling split on a work item without valid split variant");
             return hpx::make_ready_future(std::size_t(-1));
         }
 
-        hpx::future<std::size_t> split() final
+        hpx::future<std::size_t> split(bool sync) final
         {
-            return split_impl<WorkItemDescription>();
+            return split<WorkItemDescription>(sync);
         }
 
         bool enqueue_remote() const final

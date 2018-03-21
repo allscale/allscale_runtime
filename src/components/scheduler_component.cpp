@@ -139,6 +139,8 @@ namespace allscale { namespace components {
 
         void scheduler::init()
         {
+            std::size_t num_localities = allscale::get_num_localities();
+
             std::unique_lock<mutex_type> l(resize_mtx_);
             hpx::util::ignore_while_checking<std::unique_lock<mutex_type>> il(&l);
             if (initialized_) return;
@@ -146,7 +148,7 @@ namespace allscale { namespace components {
             rp_ = &hpx::resource::get_partitioner();
             topo_ = &hpx::threads::get_topology();
 
-            mconfig_.num_localities = allscale::get_num_localities();
+            mconfig_.num_localities = num_localities;
             mconfig_.thread_depths.resize(get_num_numa_nodes());
             // Setting the default thread depths for each NUMA domain.
             for (std::size_t i = 0; i < mconfig_.thread_depths.size(); i++)
@@ -445,10 +447,12 @@ namespace allscale { namespace components {
         void scheduler::enqueue(work_item work, this_work_item::id id)
         {
             this_work_item::id parent_id;
+            bool sync = true;
             if (id)
                 {
                     this_work_item::set_id(id);
                     parent_id = std::move(id);
+                    sync = false;
                 }
             else
                 {
@@ -535,7 +539,7 @@ namespace allscale { namespace components {
                                              network_.schedule(expected_rank, std::move(work), std::move(this_id));
                                          }
                                  },
-                                 work.split()
+                                 work.split(sync)
                             );
                         }
                     else
@@ -551,7 +555,7 @@ namespace allscale { namespace components {
                                          {
                                              // We should move on and split...
                                              HPX_ASSERT(work.can_split());
-                                             work.split();
+                                             work.split(true);
                                          }
                                      else if(expected_rank != std::size_t(-2))
                                          {
