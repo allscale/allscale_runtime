@@ -45,8 +45,8 @@ namespace allscale { namespace detail {
         virtual void on_ready(hpx::util::unique_function_nonser<void()> f)=0;
 
 		virtual bool can_split() const=0;
-		virtual hpx::future<std::size_t> process(executor_type& exec)=0;
-		virtual hpx::future<std::size_t> split(bool sync)=0;
+		virtual hpx::future<std::size_t> process(executor_type& exec, std::size_t)=0;
+		virtual hpx::future<std::size_t> split(bool sync, std::size_t)=0;
 
         virtual bool enqueue_remote() const=0;
 

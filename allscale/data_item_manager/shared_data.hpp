@@ -24,26 +24,26 @@ namespace allscale { namespace data_item_manager {
 
         auto& item = data_item_store<data_item_type>::lookup(ref.id());
 
-        std::unique_lock<mutex_type> l(item.mtx);
+        boost::shared_lock<mutex_type> l(item.fragment_mtx);
 
         if (item.shared_data == nullptr)
         {
-            shared_data_type res;
+            l.unlock();
+            std::size_t this_id = hpx::get_locality_id();
+            HPX_ASSERT(this_id != 0);
+            // FIXME: make resilient
+            hpx::id_type target(
+                hpx::naming::get_id_from_locality_id(
+                    (this_id-1)/2
+                )
+            );
+            shared_data_type res = shared_data_action<DataItemReference>()(target, ref);
             {
-                hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                std::size_t this_id = hpx::get_locality_id();
-                HPX_ASSERT(this_id != 0);
-                // FIXME: make resilient
-                hpx::id_type target(
-                    hpx::naming::get_id_from_locality_id(
-                        (this_id-1)/2
-                    )
-                );
-                res = shared_data_action<DataItemReference>()(target, ref);
-            }
-            if (item.shared_data == nullptr)
-            {
-                item.shared_data.reset(new shared_data_type(std::move(res)));
+                std::unique_lock<mutex_type> ll(item.fragment_mtx);
+                if (item.shared_data == nullptr)
+                {
+                    item.shared_data.reset(new shared_data_type(std::move(res)));
+                }
             }
         }
 

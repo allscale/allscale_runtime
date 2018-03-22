@@ -47,7 +47,8 @@ namespace allscale { namespace data_item_manager {
         double insert_time = 0.0;
 
         // The mutex which protects this data item from concurrent accesses
-        mutex_type mtx;
+        mutex_type region_mtx;
+        mutex_type fragment_mtx;
 
         std::unique_ptr<fragment_type> fragment;
         std::unique_ptr<shared_data_type> shared_data;

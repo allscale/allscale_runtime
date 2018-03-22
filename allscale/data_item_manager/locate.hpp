@@ -5,6 +5,7 @@
 #include <allscale/config.hpp>
 #include <allscale/get_num_localities.hpp>
 #include <allscale/data_item_manager/data_item_store.hpp>
+#include <allscale/data_item_manager/fragment.hpp>
 #include <allscale/data_item_manager/shared_data.hpp>
 #include <allscale/data_item_manager/location_info.hpp>
 
@@ -52,18 +53,21 @@ namespace allscale { namespace data_item_manager {
 
             std::size_t this_id = hpx::get_locality_id();
             auto& item = data_item_store<data_item_type>::lookup(ref);
-            std::unique_lock<mutex_type> l(item.mtx);
+            {
+                boost::shared_lock<mutex_type> l(item.region_mtx);
 
-            region = region_type::difference(region, item.owned_region);
-            region = region_type::difference(region, item.right_region);
-            region = region_type::difference(region, item.left_region);
-            region = region_type::difference(region, item.parent_region);
+                region = region_type::difference(region, item.owned_region);
+                region = region_type::difference(region, item.right_region);
+                region = region_type::difference(region, item.left_region);
+                region = region_type::difference(region, item.parent_region);
+            }
 
             region_type new_parent;
 
             // Check if left child
             if (this_id * 2 + 1 == child_rank)
             {
+                std::unique_lock<mutex_type> l(item.region_mtx);
                 item.left_region = region_type::merge(item.left_region, region);
                 new_parent = region_type::merge(item.owned_region, item.right_region);
             }
@@ -71,6 +75,7 @@ namespace allscale { namespace data_item_manager {
             // Check if right child
             if (this_id * 2 + 2 == child_rank)
             {
+                std::unique_lock<mutex_type> l(item.region_mtx);
                 item.right_region = region_type::merge(item.right_region, region);
                 new_parent = region_type::merge(item.owned_region, item.left_region);
             }
@@ -80,7 +85,6 @@ namespace allscale { namespace data_item_manager {
                 return hpx::make_ready_future(
                     std::make_pair(region, new_parent));
             }
-            l.unlock();
 
             // FIXME: futurize, make resilient
             hpx::id_type target(
@@ -147,33 +151,23 @@ namespace allscale { namespace data_item_manager {
                     (hpx::future<std::pair<region_type, region_type>> fregistered) mutable
                     {
                         auto registered = fregistered.get();
-                        std::unique_lock<mutex_type> l(item.mtx);
+                        region_type remainder;
+                        {
+                        std::unique_lock<mutex_type> l(item.region_mtx);
 
-                        // Merge newly returned parent with our own
-                        item.parent_region = region_type::merge(item.parent_region, registered.second);
+                            // Merge newly returned parent with our own
+                            item.parent_region = region_type::merge(item.parent_region, registered.second);
 
-                        // Account for over approximation...
-                        auto remainder = region_type::difference(registered.first, item.parent_region);
+                            // Account for over approximation...
+                            remainder = region_type::difference(registered.first, item.parent_region);
 
-                        // Merge with our own region
-                        item.owned_region =
-                            region_type::merge(item.owned_region, remainder);
+                            // Merge with our own region
+                            item.owned_region =
+                                region_type::merge(item.owned_region, remainder);
+                        }
 
                         info.regions.insert(std::make_pair(this_id, remainder));
 
-                        // And finally, allocate the fragment if it wasn't there already.
-                        if (item.fragment == nullptr)
-                        {
-                            typename data_item_type::shared_data_type shared_data_;
-                            {
-                                hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                                shared_data_ = shared_data(req.ref);
-                            }
-                            if (item.fragment == nullptr)
-                            {
-                                item.fragment.reset(new fragment_type(std::move(shared_data_)));
-                            }
-                        }
 #if defined(ALLSCALE_DEBUG_DIM)
                         std::stringstream filename;
                         filename << "data_item." << this_id << ".log";
@@ -186,7 +180,7 @@ namespace allscale { namespace data_item_manager {
                             << ", "
                             << std::hex << req.ref.id().get_lsb() << std::dec
                             << ": "
-                            << region_type::intersect(item.fragment->getTotalSize(), remainder)
+                            << region_type::intersect(fragment(item).getTotalSize(), remainder)
                             << '\n';
                         os.close();
 #endif
@@ -220,7 +214,7 @@ namespace allscale { namespace data_item_manager {
 
             auto& item = data_item_store<data_item_type>::lookup(req.ref);
 
-            boost::shared_lock<mutex_type> l(item.mtx);
+            boost::shared_lock<mutex_type> l(item.region_mtx);
             // FIXME: wait for migration and lock here.
 
 //             item.locate_access++;
@@ -397,8 +391,9 @@ namespace allscale { namespace data_item_manager {
                     std::size_t this_id = hpx::get_locality_id();
 
                     // Merge infos
+                    if (num_remote > 0)
                     {
-                        std::unique_lock<mutex_type> l(item.mtx);
+                        std::unique_lock<mutex_type> l(item.region_mtx);
                         for (auto& info_parts_fut: remote_infos)
                         {
                             if (info_parts_fut.valid())
@@ -505,20 +500,6 @@ namespace allscale { namespace data_item_manager {
             using mutex_type = typename data_item_store<data_item_type>::data_item_type::mutex_type;
 
             auto& item = data_item_store<data_item_type>::lookup(req.ref);
-            std::unique_lock<mutex_type> l(item.mtx);
-            // Allocate the fragment if it wasn't there already.
-            if (item.fragment == nullptr)
-            {
-                typename data_item_type::shared_data_type shared_data_;
-                {
-                    hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                    shared_data_ = shared_data(req.ref);
-                }
-                if (item.fragment == nullptr)
-                {
-                    item.fragment.reset(new fragment_type(std::move(shared_data_)));
-                }
-            }
             std::stringstream filename;
             filename << "data_item." << hpx::get_locality_id() << ".log";
             std::ofstream os(filename.str(), std::ios_base::app);
@@ -530,7 +511,7 @@ namespace allscale { namespace data_item_manager {
                 << ", "
                 << std::hex << req.ref.id().get_lsb() << std::dec
                 << ": "
-                << region_type::intersect(item.fragment->getTotalSize(), req.region) << '\n';
+                << region_type::intersect(fragment(req.ref, item).getTotalSize(), req.region) << '\n';
             os.close();
         }
 
