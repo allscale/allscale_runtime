@@ -5,7 +5,7 @@
 #include <vector>
 
 namespace allscale { namespace components {
-    void scheduler_network::schedule(std::size_t rank, work_item work, this_work_item::id id, std::vector<hpx::util::function<void()>> register_owned)
+    void scheduler_network::schedule(std::size_t rank, work_item work, this_work_item::id id)
     {
         hpx::id_type scheduler_id;
 
@@ -40,7 +40,7 @@ namespace allscale { namespace components {
         }
 
         HPX_ASSERT(scheduler_id);
-        hpx::apply<enqueue_action>(scheduler_id, std::move(work), std::move(id), std::move(register_owned));
+        hpx::apply<enqueue_action>(scheduler_id, std::move(work), std::move(id));
     }
 
     void scheduler_network::stop()

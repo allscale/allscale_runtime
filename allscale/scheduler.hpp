@@ -36,15 +36,14 @@ namespace allscale
         scheduler(std::size_t rank);
 
         static void schedule(work_item work);
-        static void schedule(work_item work, this_work_item::id,
-            std::vector<hpx::util::function<void()>> register_owned = std::vector<hpx::util::function<void()>>());
+        static void schedule(work_item work, this_work_item::id);
         static components::scheduler* run(std::size_t rank);
         static void stop();
         static components::scheduler* get_ptr();
 
         struct schedule_action
           : hpx::actions::make_direct_action<
-               void(*)(work_item, this_work_item::id, std::vector<hpx::util::function<void()>>),
+               void(*)(work_item, this_work_item::id),
                &scheduler::schedule,
                schedule_action
             >::type

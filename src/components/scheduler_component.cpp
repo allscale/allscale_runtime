@@ -444,7 +444,7 @@ namespace allscale { namespace components {
 //                 << "Scheduler with rank " << rank_ << " created!\n";
         }
 
-        void scheduler::enqueue(work_item work, this_work_item::id id, std::vector<hpx::util::function<void()>> register_owned)
+        void scheduler::enqueue(work_item work, this_work_item::id id)
         {
             this_work_item::id parent_id;
             bool sync = true;
@@ -462,11 +462,6 @@ namespace allscale { namespace components {
                     l.unlock();
                     parent_id = this_work_item::get_id();
                 }
-
-            for (auto& register_: register_owned)
-            {
-                register_();
-            }
 
 
             std::uint64_t schedule_rank = work.id().rank();
@@ -538,8 +533,6 @@ namespace allscale { namespace components {
                                          }
                                      else if(expected_rank != std::size_t(-2))
                                          {
-                                            std::cerr << "split for " << work.name() << ": write requirements reside on different localities!\n";
-                                            std::abort();
                                              HPX_ASSERT(expected_rank != rank_);
 //                                              std::cout << "Dispatching " << work.name() << " to " << expected_rank << '\n';
                                              work.update_rank(expected_rank);
@@ -560,16 +553,12 @@ namespace allscale { namespace components {
                                      std::size_t expected_rank = f.get();
                                      if(expected_rank == std::size_t(-1))
                                          {
-                                            std::cerr << "split for " << work.name() << ": write requirements reside on different localities!\n";
-                                            std::abort();
                                              // We should move on and split...
                                              HPX_ASSERT(work.can_split());
                                              work.split(true, rank_);
                                          }
                                      else if(expected_rank != std::size_t(-2))
                                          {
-                                            std::cerr << "split for " << work.name() << ": write requirements reside on different localities!\n";
-                                            std::abort();
                                              HPX_ASSERT(expected_rank != rank_);
                                              work.update_rank(expected_rank);
                                              network_.schedule(expected_rank, std::move(work), std::move(this_id));
@@ -582,11 +571,10 @@ namespace allscale { namespace components {
                     return;
                 }
             //task not meant to be local: move task to remote nodes
-            register_owned.clear();
-            work.mark_child_requirements(schedule_rank, register_owned);
+            work.mark_child_requirements(schedule_rank);
 
             allscale::resilience::global_wi_dispatched(work, schedule_rank);
-            network_.schedule(schedule_rank, std::move(work), parent_id, std::move(register_owned));
+            network_.schedule(schedule_rank, std::move(work), parent_id);
         }
 
         bool scheduler::do_split(work_item const& w)

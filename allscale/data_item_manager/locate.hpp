@@ -27,20 +27,6 @@ namespace allscale { namespace data_item_manager {
             down
         };
 
-        inline std::size_t get_parent_id(std::size_t this_id)
-        {
-            std::size_t level = 0;
-            std::size_t res = (this_id >> level) << level;
-            while (res > 0)
-            {
-                ++level;
-                std::size_t tmp_res = (this_id >> level) << level;
-                if (tmp_res != res) return tmp_res;
-            }
-
-            return res;
-        }
-
         template <locate_state state, typename Requirement>
         hpx::future<location_info<typename Requirement::region_type>>
 #if defined(ALLSCALE_DEBUG_DIM)
@@ -194,7 +180,7 @@ namespace allscale { namespace data_item_manager {
                 {
                     hpx::id_type target(
                         hpx::naming::get_id_from_locality_id(
-                            get_parent_id(this_id)
+                            (this_id-1)/2
                         )
                     );
                     remote_infos.push_back(
@@ -240,7 +226,7 @@ namespace allscale { namespace data_item_manager {
                                     // region
                                     if (src_id == this_id && remote_info.first == src_id)
                                     {
-//                                         remainder = region_type::difference(remainder, remote_info.second);
+                                        remainder = region_type::intersect(remainder, remote_info.second);
                                     }
                                     else
                                     {
@@ -257,7 +243,7 @@ namespace allscale { namespace data_item_manager {
                                 }
                             }
                         }
-//                         remainder = region_type::difference(remainder, item.owned_region);
+                        remainder = region_type::difference(remainder, item.owned_region);
                     }
 
                     if (src_id == this_id && !remainder.empty())
