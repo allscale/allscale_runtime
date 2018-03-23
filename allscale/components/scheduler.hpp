@@ -44,7 +44,7 @@ namespace allscale { namespace components {
         scheduler(std::uint64_t rank);
         void init();
 
-        void enqueue(work_item work, this_work_item::id);
+        void enqueue(work_item work, this_work_item::id, std::vector<hpx::util::function<void()>>);
         void stop();
 
     private:

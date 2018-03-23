@@ -14,7 +14,8 @@
 namespace allscale { namespace components {
     struct scheduler_network
     {
-        void schedule(std::size_t rank, work_item work, this_work_item::id);
+        void schedule(std::size_t rank, work_item work, this_work_item::id,
+            std::vector<hpx::util::function<void()>> register_owned = std::vector<hpx::util::function<void()>>());
         void stop();
 
     private:

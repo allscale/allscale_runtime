@@ -117,7 +117,7 @@ namespace allscale {
         template <typename Archive>
         void serialize(Archive& ar, unsigned)
         {
-            ar & parent_;
+            //ar & parent_;
             ar & config_;
             ar & id_;
             ar & next_id_;

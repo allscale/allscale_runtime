@@ -6,6 +6,7 @@
 #include <allscale/components/scheduler.hpp>
 
 #include <hpx/util/detail/yield_k.hpp>
+#include <hpx/util/function.hpp>
 #include <hpx/util/register_locks.hpp>
 #include <hpx/runtime/threads/policies/local_priority_queue_scheduler.hpp>
 #include <hpx/runtime/threads/detail/scheduled_thread_pool.hpp>
@@ -130,12 +131,12 @@ namespace allscale
 
     void scheduler::schedule(work_item work)
     {
-        get().enqueue(work, this_work_item::id());
+        get().enqueue(work, this_work_item::id(), std::vector<hpx::util::function<void()>>());
     }
 
-    void scheduler::schedule(work_item work, this_work_item::id id)
+    void scheduler::schedule(work_item work, this_work_item::id id, std::vector<hpx::util::function<void()>> register_owned)
     {
-        get().enqueue(work, std::move(id));
+        get().enqueue(work, std::move(id), std::move(register_owned));
     }
 
     components::scheduler* scheduler::run(std::size_t rank)

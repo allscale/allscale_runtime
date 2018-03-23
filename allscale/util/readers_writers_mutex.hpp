@@ -3,6 +3,7 @@
 
 #include <hpx/config.hpp>
 #include <hpx/util/yield_while.hpp>
+#include <hpx/util/register_locks.hpp>
 
 #include <atomic>
 
@@ -34,13 +35,19 @@ namespace util {
         bool try_lock()
         {
             std::int64_t readers = 0;
-            return readers_count_.compare_exchange_weak(readers, writer_mark_);
+            bool res = readers_count_.compare_exchange_weak(readers, writer_mark_);
+            if (res)
+            {
+                hpx::util::register_lock(this);
+            }
+            return res;
         }
 
         // unlock writer
         void unlock()
         {
             readers_count_.store(0);
+            hpx::util::unregister_lock(this);
         }
 
         // obtain a reader lock, many readers may have the lock simultaneously
@@ -59,13 +66,20 @@ namespace util {
         bool try_lock_shared()
         {
             std::int64_t readers = readers_count_;
+            // Don't lock if we have too many readers...
             if (readers == std::numeric_limits<std::int64_t>::max()-1)
             {
                 return false;
             }
+            // Don't lock if there is a write active
             if (readers != writer_mark_)
             {
-                return readers_count_.compare_exchange_weak(readers, readers + 1);
+                bool res = readers_count_.compare_exchange_weak(readers, readers + 1);
+                if (res)
+                {
+                    hpx::util::register_lock(this);
+                }
+                return res;
             }
             return false;
         }
@@ -73,6 +87,7 @@ namespace util {
         // unlock one reader
         void unlock_shared()
         {
+            hpx::util::ignore_lock(this);
             hpx::util::yield_while(
                 [this]()
                 {
@@ -81,6 +96,7 @@ namespace util {
                 },
                 "readers_writers_mutex::unlock_shared()"
             );
+            hpx::util::unregister_lock(this);
         }
 
         // return true if a reader or writer has the lock

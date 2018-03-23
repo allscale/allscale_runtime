@@ -129,11 +129,11 @@ namespace allscale {
     //         impl_.reset();
         }
 
-        void mark_child_requirements(std::size_t dest_id)
+        void mark_child_requirements(std::size_t dest_id, std::vector<hpx::util::function<void()>>& register_owned)
         {
             HPX_ASSERT(valid());
             HPX_ASSERT(impl_->valid());
-            impl_->mark_child_requirements(dest_id);
+            impl_->mark_child_requirements(dest_id, register_owned);
         }
 
         bool enqueue_remote() const

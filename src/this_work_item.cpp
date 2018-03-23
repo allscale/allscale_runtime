@@ -179,7 +179,7 @@ namespace allscale { namespace this_work_item {
     {
         if (config_.locality_depth_ == 1 && config_.numa_depth_ == 1)
         {
-            return config_.thread_depth_ != 1;
+            return config_.thread_depth_ > 1;
         }
         return config_.locality_depth_ != 1 || config_.numa_depth_ != 1;
     }

@@ -557,7 +557,7 @@ namespace allscale { namespace detail {
         typename std::enable_if<
             WorkItemDescription_::split_variant::valid
         >::type
-        mark_child_requirements(std::size_t dest_id)
+        mark_child_requirements(std::size_t dest_id, std::vector<hpx::util::function<void()>>& register_owned)
         {
             data_item_manager::mark_child_requirements(
                 detail::merge_data_item_reqs(
@@ -565,7 +565,7 @@ namespace allscale { namespace detail {
                         get_requirements<typename WorkItemDescription::split_variant>(nullptr),
                         get_requirements<typename WorkItemDescription::process_variant>(nullptr)
                     )
-                ), dest_id
+                ), dest_id, register_owned
             );
         }
 
@@ -573,18 +573,19 @@ namespace allscale { namespace detail {
         typename std::enable_if<
             !WorkItemDescription_::split_variant::valid
         >::type
-        mark_child_requirements(std::size_t dest_id)
+        mark_child_requirements(std::size_t dest_id, std::vector<hpx::util::function<void()>>& register_owned)
         {
+
             data_item_manager::mark_child_requirements(
                 detail::merge_data_item_reqs(
                     get_requirements<typename WorkItemDescription::process_variant>(nullptr)
-                ), dest_id
+                ), dest_id, register_owned
             );
         }
 
-        void mark_child_requirements(std::size_t dest_id)
+        void mark_child_requirements(std::size_t dest_id, std::vector<hpx::util::function<void()>>& register_owned)
         {
-            mark_child_requirements<WorkItemDescription>(dest_id);
+            mark_child_requirements<WorkItemDescription>(dest_id, register_owned);
         }
 
         bool enqueue_remote() const final
