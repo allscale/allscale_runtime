@@ -5,6 +5,7 @@
 #include <allscale/treeture.hpp>
 #include <allscale/monitor.hpp>
 #include <allscale/data_item_manager.hpp>
+#include <allscale/data_item_manager/mark_child_requirements.hpp>
 #include <allscale/data_item_manager/acquire.hpp>
 #include <allscale/data_item_manager/acquire_rank.hpp>
 #include <allscale/data_item_manager/locate.hpp>
@@ -550,6 +551,40 @@ namespace allscale { namespace detail {
         hpx::future<std::size_t> split(bool sync, std::size_t this_id) final
         {
             return split<WorkItemDescription>(sync, this_id);
+        }
+
+        template <typename WorkItemDescription_>
+        typename std::enable_if<
+            WorkItemDescription_::split_variant::valid
+        >::type
+        mark_child_requirements(std::size_t dest_id)
+        {
+            data_item_manager::mark_child_requirements(
+                detail::merge_data_item_reqs(
+                    hpx::util::tuple_cat(
+                        get_requirements<typename WorkItemDescription::split_variant>(nullptr),
+                        get_requirements<typename WorkItemDescription::process_variant>(nullptr)
+                    )
+                ), dest_id
+            );
+        }
+
+        template <typename WorkItemDescription_>
+        typename std::enable_if<
+            !WorkItemDescription_::split_variant::valid
+        >::type
+        mark_child_requirements(std::size_t dest_id)
+        {
+            data_item_manager::mark_child_requirements(
+                detail::merge_data_item_reqs(
+                    get_requirements<typename WorkItemDescription::process_variant>(nullptr)
+                ), dest_id
+            );
+        }
+
+        void mark_child_requirements(std::size_t dest_id)
+        {
+            mark_child_requirements<WorkItemDescription>(dest_id);
         }
 
         bool enqueue_remote() const final

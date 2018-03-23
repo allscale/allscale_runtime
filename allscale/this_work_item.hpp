@@ -97,6 +97,7 @@ namespace allscale {
                 ar & needs_checkpoint_;
             }
         };
+    public:
         std::shared_ptr<id> parent_;
         tree_config config_;
 

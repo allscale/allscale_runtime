@@ -475,7 +475,6 @@ struct main_process
         timer.restart();
         for(int i = 0 ; i <= iterations; ++i){
             allscale::spawn_first<stencil>(mat_a, mat_b, begin, end, N).wait();
-            std::cout << "Iteration " << i << " done.\n";
             if (i == 0)
             {
                 std::cout << "First iteration time: " << timer.elapsed() << '\n';

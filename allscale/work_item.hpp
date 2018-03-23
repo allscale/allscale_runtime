@@ -100,7 +100,7 @@ namespace allscale {
         const char* name() const
         {
             if (impl_)
-            return impl_->name();
+                return impl_->name();
             return "";
         }
 
@@ -127,6 +127,13 @@ namespace allscale {
             HPX_ASSERT(impl_->valid());
             return impl_->process(exec, this_id);
     //         impl_.reset();
+        }
+
+        void mark_child_requirements(std::size_t dest_id)
+        {
+            HPX_ASSERT(valid());
+            HPX_ASSERT(impl_->valid());
+            impl_->mark_child_requirements(dest_id);
         }
 
         bool enqueue_remote() const

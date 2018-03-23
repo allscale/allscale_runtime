@@ -8,6 +8,7 @@
 #include <hpx/runtime/naming/id_type.hpp>
 
 #include <memory>
+#include <unordered_map>
 
 namespace allscale { namespace data_item_manager {
     // The data_item represents a fragment of the globally distributed data item
@@ -57,15 +58,9 @@ namespace allscale { namespace data_item_manager {
         // accelerate lookups.
         location_info<region_type> location_cache;
 
-        // The parent region marks the region from the parent.
-        // It is the union of left, right and owned.
-        region_type parent_region;
-        // The left region is what is owned by the left child or any of its
-        // descendants
-        region_type left_region;
-        // The right region is what is owned by the right child or any of its
-        // descendants
-        region_type right_region;
+        // The child regions mark the regions occupied by the children spawend
+        // from this locality.
+        std::unordered_map<std::size_t, region_type> child_regions;
         // The owned region is what is allocated and owned by this locality
         region_type owned_region;
     };
