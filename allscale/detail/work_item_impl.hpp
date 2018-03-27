@@ -5,6 +5,7 @@
 #include <allscale/treeture.hpp>
 #include <allscale/monitor.hpp>
 #include <allscale/data_item_manager.hpp>
+#include <allscale/data_item_manager/mark_child_requirements.hpp>
 #include <allscale/data_item_manager/acquire.hpp>
 #include <allscale/data_item_manager/acquire_rank.hpp>
 #include <allscale/data_item_manager/locate.hpp>
@@ -393,7 +394,7 @@ namespace allscale { namespace detail {
               , std::forward<Reqs>(reqs));
         }
 
-        hpx::future<std::size_t> process(executor_type& exec) final
+        hpx::future<std::size_t> process(executor_type& exec, std::size_t this_id) final
         {
             HPX_ASSERT(valid());
 
@@ -410,7 +411,7 @@ namespace allscale { namespace detail {
             data_item_manager::log_req(s, reqs);
 #endif
             return hpx::dataflow(hpx::launch::sync,
-                hpx::util::annotated_function([reqs, this_ = std::move(this_), &exec](auto locate_future)
+                hpx::util::annotated_function([reqs, this_ = std::move(this_), &exec, this_id](auto locate_future)
                 {
                     auto infos = hpx::util::unwrap(locate_future);
                     std::size_t rank = data_item_manager::acquire_rank(reqs, infos);
@@ -430,11 +431,11 @@ namespace allscale { namespace detail {
                         }
                     }
                     // Route to different locality
-                    if (rank != std::size_t(-2) && rank != hpx::get_locality_id())
+                    if (rank != std::size_t(-2) && rank != this_id)
                     {
                         return hpx::make_ready_future(rank);
                     }
-                    HPX_ASSERT(rank == std::size_t(-2) || rank == hpx::get_locality_id());
+                    HPX_ASSERT(rank == std::size_t(-2) || rank == this_id);
                     return this_->process(exec, data_item_manager::acquire(reqs, infos));
                 }, "allscale::work_item::process::locate_continuation"),
 #if defined(ALLSCALE_DEBUG_DIM)
@@ -449,7 +450,7 @@ namespace allscale { namespace detail {
         typename std::enable_if<
             WorkItemDescription_::split_variant::valid,
             hpx::future<std::size_t>
-        >::type split(bool sync, hpx::util::tuple<> && reqs)
+        >::type split(bool sync, hpx::util::tuple<> && reqs, std::size_t this_id)
         {
             if (sync && id().last() % 2 == 1)
             {
@@ -471,11 +472,11 @@ namespace allscale { namespace detail {
         typename std::enable_if<
             WorkItemDescription_::split_variant::valid,
             hpx::future<std::size_t>
-        >::type split(bool sync, Reqs && reqs)
+        >::type split(bool sync, Reqs && reqs, std::size_t this_id)
         {
             auto this_ = shared_this();
             return hpx::dataflow(//sync ? hpx::launch::sync : hpx::launch::async,
-                hpx::util::annotated_function([reqs, this_ = std::move(this_)](auto locate_future)
+                hpx::util::annotated_function([reqs, this_ = std::move(this_), this_id](auto locate_future)
                 {
                     auto infos = hpx::util::unwrap(locate_future);
                     std::size_t rank = data_item_manager::acquire_rank(reqs, infos);
@@ -485,11 +486,11 @@ namespace allscale { namespace detail {
                         return hpx::make_ready_future(std::size_t(-1));
                     }
                     // Route to different locality
-                    if (rank != std::size_t(-2) && rank != hpx::get_locality_id())
+                    if (rank != std::size_t(-2) && rank != this_id)
                     {
                         return hpx::make_ready_future(rank);
                     }
-                    HPX_ASSERT(rank == std::size_t(-2) || rank == hpx::get_locality_id());
+                    HPX_ASSERT(rank == std::size_t(-2) || rank == this_id);
                     typedef
                         typename hpx::util::decay<decltype(hpx::util::unwrap(std::move(reqs)))>::type
                         reqs_type;
@@ -514,7 +515,7 @@ namespace allscale { namespace detail {
         typename std::enable_if<
             WorkItemDescription_::split_variant::valid,
             hpx::future<std::size_t>
-        >::type split(bool sync)
+        >::type split(bool sync, std::size_t this_id)
         {
             auto reqs = detail::merge_data_item_reqs(
                 get_requirements<typename WorkItemDescription::split_variant>(nullptr)
@@ -533,23 +534,57 @@ namespace allscale { namespace detail {
                 )
             );
 #endif
-            return split<WorkItemDescription>(sync, std::move(reqs));
+            return split<WorkItemDescription>(sync, std::move(reqs), this_id);
         }
 
         template <typename WorkItemDescription_>
         typename std::enable_if<
             !WorkItemDescription_::split_variant::valid,
             hpx::future<std::size_t>
-        >::type split(bool)
+        >::type split(bool, std::size_t)
         {
             throw std::logic_error(
                 "Calling split on a work item without valid split variant");
             return hpx::make_ready_future(std::size_t(-1));
         }
 
-        hpx::future<std::size_t> split(bool sync) final
+        hpx::future<std::size_t> split(bool sync, std::size_t this_id) final
         {
-            return split<WorkItemDescription>(sync);
+            return split<WorkItemDescription>(sync, this_id);
+        }
+
+        template <typename WorkItemDescription_>
+        typename std::enable_if<
+            WorkItemDescription_::split_variant::valid
+        >::type
+        mark_child_requirements(std::size_t dest_id)
+        {
+            data_item_manager::mark_child_requirements(
+                detail::merge_data_item_reqs(
+                    hpx::util::tuple_cat(
+                        get_requirements<typename WorkItemDescription::split_variant>(nullptr),
+                        get_requirements<typename WorkItemDescription::process_variant>(nullptr)
+                    )
+                ), dest_id
+            );
+        }
+
+        template <typename WorkItemDescription_>
+        typename std::enable_if<
+            !WorkItemDescription_::split_variant::valid
+        >::type
+        mark_child_requirements(std::size_t dest_id)
+        {
+            data_item_manager::mark_child_requirements(
+                detail::merge_data_item_reqs(
+                    get_requirements<typename WorkItemDescription::process_variant>(nullptr)
+                ), dest_id
+            );
+        }
+
+        void mark_child_requirements(std::size_t dest_id)
+        {
+            mark_child_requirements<WorkItemDescription>(dest_id);
         }
 
         bool enqueue_remote() const final

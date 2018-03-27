@@ -464,15 +464,17 @@ struct main_process
         coordinate_type begin(0, 0);
         coordinate_type end(N, N);
 
+        hpx::util::high_resolution_timer timer;
+
         allscale::spawn_first<grid_init>(mat_a, mat_b, begin,end).wait();
 
+        std::cout << "Initialization took " << timer.elapsed() << " seconds\n";
         std::cout << "Starting iterations\n";
 
         // DO ACTUAL WORK: SPAWN FIRST WORK ITEM
-        hpx::util::high_resolution_timer timer;
+        timer.restart();
         for(int i = 0 ; i <= iterations; ++i){
             allscale::spawn_first<stencil>(mat_a, mat_b, begin, end, N).wait();
-            std::cout << "Iteration " << i << " done.\n";
             if (i == 0)
             {
                 std::cout << "First iteration time: " << timer.elapsed() << '\n';

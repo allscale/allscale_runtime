@@ -100,7 +100,7 @@ namespace allscale {
         const char* name() const
         {
             if (impl_)
-            return impl_->name();
+                return impl_->name();
             return "";
         }
 
@@ -109,11 +109,11 @@ namespace allscale {
             return impl_->get_treeture();
         }
 
-        hpx::future<std::size_t> split(bool sync)
+        hpx::future<std::size_t> split(bool sync, std::size_t this_id)
         {
             HPX_ASSERT(valid());
             HPX_ASSERT(impl_->valid());
-            return impl_->split(sync);
+            return impl_->split(sync, this_id);
     //         impl_.reset();
         }
 
@@ -122,11 +122,18 @@ namespace allscale {
             impl_->on_ready(std::move(f));
         }
 
-        hpx::future<std::size_t> process(executor_type& exec) {
+        hpx::future<std::size_t> process(executor_type& exec, std::size_t this_id) {
             HPX_ASSERT(valid());
             HPX_ASSERT(impl_->valid());
-            return impl_->process(exec);
+            return impl_->process(exec, this_id);
     //         impl_.reset();
+        }
+
+        void mark_child_requirements(std::size_t dest_id)
+        {
+            HPX_ASSERT(valid());
+            HPX_ASSERT(impl_->valid());
+            impl_->mark_child_requirements(dest_id);
         }
 
         bool enqueue_remote() const

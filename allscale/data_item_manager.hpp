@@ -4,6 +4,7 @@
 #include <allscale/config.hpp>
 #include <allscale/data_item_manager/acquire.hpp>
 #include <allscale/data_item_manager/data_item_store.hpp>
+#include <allscale/data_item_manager/fragment.hpp>
 #include <allscale/data_item_manager/shared_data.hpp>
 #include <allscale/data_item_reference.hpp>
 #include <allscale/data_item_requirement.hpp>
@@ -39,26 +40,7 @@ namespace allscale { namespace data_item_manager {
         typename DataItem::facade_type
         get(const allscale::data_item_reference<DataItem>& ref)
         {
-            using mutex_type = typename data_item_store<DataItem>::data_item_type::mutex_type;
-            auto &item = data_item_store<DataItem>::lookup(ref);
-            {
-                std::unique_lock<mutex_type> l(item.mtx);
-                if (item.fragment == nullptr)
-                {
-                    typename DataItem::shared_data_type shared_data_;
-                    {
-                        hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                        shared_data_ = shared_data(ref);
-                    }
-                    if (item.fragment == nullptr)
-                    {
-                        using fragment_type = typename DataItem::fragment_type;
-                        item.fragment.reset(new fragment_type(std::move(shared_data_)));
-                    }
-                }
-                HPX_ASSERT(item.fragment);
-            }
-            return item.fragment->mask();
+            return fragment(ref).mask();
 		}
 
         template <typename T>

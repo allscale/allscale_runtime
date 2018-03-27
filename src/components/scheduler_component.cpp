@@ -573,7 +573,7 @@ namespace allscale { namespace components {
                                              network_.schedule(expected_rank, std::move(work), std::move(this_id));
                                          }
                                  },
-                                 work.split(sync)
+                                 work.split(sync, rank_)
                             );
                         }
                     else
@@ -589,7 +589,7 @@ namespace allscale { namespace components {
                                          {
                                              // We should move on and split...
                                              HPX_ASSERT(work.can_split());
-                                             work.split(true);
+                                             work.split(true, rank_);
                                          }
                                      else if(expected_rank != std::size_t(-2))
                                          {
@@ -598,13 +598,14 @@ namespace allscale { namespace components {
                                              network_.schedule(expected_rank, std::move(work), std::move(this_id));
                                          }
                                  },
-                                 work.process(executors_[numa_domain])
+                                 work.process(executors_[numa_domain], rank_)
                             );
                         }
 
                     return;
                 }
             //task not meant to be local: move task to remote nodes
+            work.mark_child_requirements(schedule_rank);
 
             allscale::resilience::global_wi_dispatched(work, schedule_rank);
             network_.schedule(schedule_rank, std::move(work), parent_id);
