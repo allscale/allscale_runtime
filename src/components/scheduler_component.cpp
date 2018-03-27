@@ -233,12 +233,13 @@ namespace allscale { namespace components {
                                 {
                                     if (idx == std::string::npos)
                                         {
+#ifdef DEBUG_
+                                            std::cout << " Setting energy policy\n" ;
+#endif
+
                                             energy_requested = true;
                                         }
                                     energy_leeway = leeway;
-#ifdef DEBUG_
-                                    std::cout << " Setting energy policy\n" ;
-#endif
 
                                 }
                             else
@@ -464,7 +465,7 @@ namespace allscale { namespace components {
                             
                             
                             
-                    frequency_timer_.start();
+                    //frequency_timer_.start();
 #else
                     // should we really abort or should we reset energy to 1 ?
                     HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
@@ -915,7 +916,7 @@ namespace allscale { namespace components {
                 hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                 for(auto& pu: resume_threads)
                     {
-                        std::cout << "And now : Resuming PU " << pu << " !\n" << std::flush;
+                        std::cout << "And now : Resuming PU " << rp_->get_pu_num(pu + thread_pools_[pool_idx]->get_thread_offset()) << " !\n" << std::flush;
                         //hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                         thread_pools_[pool_idx]->resume_processing_unit(pu).get();
                     }
