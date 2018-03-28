@@ -58,8 +58,8 @@ namespace allscale
         {};
 
     private:
-        static std::size_t rank_;
         static components::scheduler & get();
+        static std::size_t rank_;
 
         typedef hpx::lcos::local::spinlock mutex_type;
         static void partition_resources(hpx::resource::partitioner& rp);

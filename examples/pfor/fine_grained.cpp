@@ -95,6 +95,7 @@ int hpx_main(int argc, char **argv)
 //     allscale::components::monitor_component_init();
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
+    allscale::monitor::run(hpx::get_locality_id());
 
     std::int64_t n = argc >= 2 ? std::stoi(std::string(argv[1])) : DEFAULT_SIZE;
     std::int64_t steps = argc >= 3 ? std::stoi(std::string(argv[2])) : 1000;
@@ -124,6 +125,7 @@ int hpx_main(int argc, char **argv)
 		std::cout << "pfor(0.." << n << ") taking " << (app_elapsed/steps) << " microseconds. Iter: " << i << "\n";
         }
         allscale::scheduler::stop();
+        allscale::monitor::stop();
 
         std::cout << "Mean time: " << mean/iters << std::endl;
     }

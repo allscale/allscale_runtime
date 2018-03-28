@@ -40,6 +40,14 @@ namespace allscale {
         event_functions(e).push_back(f);
     }
 
+
+    void monitor::disconnect(event e, event_function f)
+    {
+//        event_functions(e).erase(std::remove(event_functions(e).begin(), 
+//	     event_functions(e).end(), f), event_functions(e).end());
+    }
+
+
     void monitor::signal(event e, work_item const& w)
     {
         for(auto& f: event_functions(e))
