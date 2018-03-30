@@ -295,7 +295,7 @@ namespace allscale { namespace components {
                     hpx::threads::reset((resuming_masks_.back()));
                     executors_.emplace_back(pool_name);
                 }
-
+#if defined(ALLSCALE_HAVE_CPUFREQ)
             if (multi_objectives)
                 {
                     //reallocating objectives_status vector of vectors
@@ -308,7 +308,7 @@ namespace allscale { namespace components {
                               << ", resource=" << resource_leeway
                               << ", energy=" << energy_leeway << "\n" << std::flush; 
                 }
-
+#endif
             // if energy is to be taken into account, need to prep for it
             if ( energy_requested )
                 {
@@ -1313,6 +1313,7 @@ namespace allscale { namespace components {
         //multi-objectives policy called on task enqueued 
         bool scheduler::multi_objectives_adjust(std::size_t current_id)
         {
+#if defined(ALLSCALE_HAVE_CPUFREQ)
             //we enter this function for each enqueued task, check if we need to adjust objectives
             if ((current_id < period_for_time ) || 
                 (current_id % period_for_time != 0))
@@ -1542,6 +1543,7 @@ namespace allscale { namespace components {
                                 }
                         }
                 }
+#endif
             return true;
         }
     
