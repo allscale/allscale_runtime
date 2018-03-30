@@ -29,3 +29,7 @@ if(CPUFREQ_FOUND)
     target_link_libraries(allscale_component ${CPUFREQ_LIBRARIES})
     target_compile_definitions(allscale_component PUBLIC ALLSCALE_HAVE_CPUFREQ)
 endif()
+
+if(EXTRAE_DIR)
+    target_link_libraries(allscale_component ${EXTRAE_DIR}/lib/libpttrace.so)
+endif()

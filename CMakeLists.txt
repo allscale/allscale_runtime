@@ -25,6 +25,16 @@ if (ALLSCALE_WITH_PAPI)
 add_definitions(-DHAVE_PAPI)
 endif()
 
+if (ALLSCALE_WITH_EXTRAE)
+if(NOT EXTRAE_DIR)
+  message(FATAL_ERROR "EXTRAE_DIR Cmake variable not set. Please set it to point to the directory where EXTRAE is installed")
+else()
+add_definitions(-DHAVE_EXTRAE)
+include_directories(${EXTRAE_DIR}/include)
+endif()
+
+endif()
+
 if(NOT ALLSCALE_API_DIR)
   message(FATAL_ERROR "ALLSCALE_API_DIR CMake variable not set. Please set it to point to the directory where you checked out https://github.com/allscale/allscale_api/")
 endif()

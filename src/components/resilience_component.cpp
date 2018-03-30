@@ -108,6 +108,7 @@ namespace allscale { namespace components {
         keep_running = true;
         recovery_done = false;
         start_time = std::chrono::high_resolution_clock::now();
+
         hpx::get_num_localities().get();
 
         thread_safe_printer("before logical ring\n");

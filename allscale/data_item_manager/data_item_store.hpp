@@ -40,17 +40,30 @@ struct data_item_store
         using mutex_type = allscale::util::readers_writers_mutex;
         static mutex_type mtx;
         static std::unordered_map<id_type, data_item_type> store_;
-        boost::shared_lock<mutex_type> l(mtx);
 
-        auto it = store_.find(id);
-        if (it == store_.end())
+        // A thread local cache to avoid locking alltogether.
+        thread_local static std::unordered_map<id_type, data_item_type*> tls_store_;
+
+        auto jt = tls_store_.find(id);
+        if (jt != tls_store_.end())
+            return *jt->second;
+
         {
-            l.unlock();
-            std::unique_lock<mutex_type> ll(mtx);
-            return store_[id];
-        }
+            boost::shared_lock<mutex_type> l(mtx);
 
-        return it->second;
+            auto it = store_.find(id);
+            if (it == store_.end())
+            {
+                l.unlock();
+                std::unique_lock<mutex_type> ll(mtx);
+                tls_store_[id] = &store_[id];
+                return store_[id];
+            }
+
+            tls_store_[id] = &it->second;
+
+            return it->second;
+        }
     }
 
     static data_item_type& lookup(data_item_reference const& ref)

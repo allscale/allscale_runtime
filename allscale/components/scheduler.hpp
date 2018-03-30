@@ -47,6 +47,7 @@ namespace allscale { namespace components {
         void enqueue(work_item work, this_work_item::id);
         void stop();
 
+
     private:
         std::size_t get_num_numa_nodes();
         std::size_t get_num_numa_cores(std::size_t domain);
