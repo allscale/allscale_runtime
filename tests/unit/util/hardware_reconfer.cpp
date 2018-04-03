@@ -1,4 +1,4 @@
-
+#if defined(ALLSCALE_HAVE_CPUFREQ)
 #include <string>
 #include <iostream>
 #include <thread>
@@ -79,5 +79,9 @@ int main(int argc, char** argv) {
 }
 
 
-
+#else
+int main(int argc, char** argv) {
+    return 0;
+}
+#endif
 
