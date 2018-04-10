@@ -10,6 +10,7 @@ set(tests
   data_item_get
   data_item_get_invariant
   stream
+  two_point_correlation.allscale
   transpose
   stencil
 )

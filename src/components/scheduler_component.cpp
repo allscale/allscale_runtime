@@ -7,6 +7,8 @@
 #include <hpx/util/unlock_guard.hpp>
 #include <hpx/traits/executor_traits.hpp>
 
+#include <boost/format.hpp>
+
 #include <sstream>
 #include <iterator>
 #include <algorithm>
@@ -30,7 +32,7 @@ namespace allscale { namespace components {
             , min_threads(1)
             , max_resource(0)
             , max_time(0)
-            , max_power(0)        
+            , max_power(0)
             , current_energy_usage(0)
             , last_actual_energy_usage(0)
             , actual_energy_usage(0)
@@ -260,7 +262,7 @@ namespace allscale { namespace components {
                             //                objectives_with_leeways.push_back(std::make_pair(obj, leeway));
                         }
                 }
-            
+
             std::string input_resource_step_str = hpx::get_config_entry("allscale.resource_step", "");
             if ( !input_resource_step_str.empty() )
                 {
@@ -269,7 +271,7 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
                     std::cout << "Resource step provided : " << resource_step << "\n" ;
 #endif
-                    
+
                     if ( resource_step ==0 || resource_step >= os_thread_count )
                         {
                             HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init", "resource step should be within ]0, total nb threads[");
@@ -304,9 +306,9 @@ namespace allscale { namespace components {
                         {
                             objectives_status[i].resize(3);
                         }
-                    std::cout << "multi-objectives policy set with time=" << time_leeway 
+                    std::cout << "multi-objectives policy set with time=" << time_leeway
                               << ", resource=" << resource_leeway
-                              << ", energy=" << energy_leeway << "\n" << std::flush; 
+                              << ", energy=" << energy_leeway << "\n" << std::flush;
                 }
 #endif
             // if energy is to be taken into account, need to prep for it
@@ -317,7 +319,7 @@ namespace allscale { namespace components {
                     cpu_freqs = hardware_reconf::get_frequencies(0);
                     freq_step = 8; //cpu_freqs.size() / 2;
                     freq_times.resize(cpu_freqs.size());
-                            
+
 #ifdef DEBUG_
                     std::cout << "Frequencies: " ;
                     for (auto& ind : cpu_freqs )
@@ -326,11 +328,11 @@ namespace allscale { namespace components {
                         }
                     std::cout << "\n" << std::flush;
 #endif
-                            
+
                     auto min_max_freqs = std::minmax_element(cpu_freqs.begin(), cpu_freqs.end());
                     min_freq = *min_max_freqs.first;
                     max_freq = *min_max_freqs.second;
-                            
+
 #ifdef DEBUG_
                     std::cout << "Min freq:  " << min_freq << ", Max freq: " << max_freq << "\n" << std::flush;
 #endif
@@ -344,9 +346,9 @@ namespace allscale { namespace components {
                     hardware_reconf::topo_init();
                     // We have to set CPU governors to userpace in order to change frequencies later
                     std::string governor = "ondemand";
-                            
+
                     policy.governor = const_cast<char*>(governor.c_str());
-                            
+
                     topo = hardware_reconf::read_hw_topology();
                     // first reinitialize to a normal setup
                     for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id ++)
@@ -356,14 +358,14 @@ namespace allscale { namespace components {
                             std::cout << "cpu_id "<< cpu_id << " back to on-demand. ret=  " << res << "\n" << std::flush;
 #endif
                         }
-                            
-                            
+
+
                     governor = "userspace";
                     policy.governor = const_cast<char*>(governor.c_str());
                     policy.min = min_freq;
                     policy.max = max_freq;
-                            
-                            
+
+
                     for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
                         {
                             int res = hardware_reconf::set_freq_policy(cpu_id, policy);
@@ -371,16 +373,16 @@ namespace allscale { namespace components {
                                 {
                                     HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
                                                         "Requesting energy objective without being able to set cpu frequency");
-                                            
+
                                     return;
                                 }
 #ifdef DEBUG_
                             std::cout << "cpu_id "<< cpu_id << " initial freq policy setting. ret=  " << res << "\n" << std::flush;
 #endif
                         }
-                            
+
                     // Set frequency of all threads to max when we start
-                            
+
                     {
                         // set freq to all PUs used by allscale
                         for (std::size_t i = 0; i != thread_pools_.size(); ++i)
@@ -389,7 +391,7 @@ namespace allscale { namespace components {
                                 for (std::size_t j = 0  ; j < thread_count ; j++)
                                     {
                                         std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
-                                                
+
                                         if (!cpufreq_cpu_exists(pu_num))
                                             {
                                                 int res = hardware_reconf::set_frequency(pu_num, 1 , cpu_freqs[0]);
@@ -397,16 +399,16 @@ namespace allscale { namespace components {
                                                 std::cout << "Setting cpu " << pu_num <<" to freq  "<< cpu_freqs[0] << ", (ret= " << res << ")\n" << std::flush;
 #endif
                                             }
-                                                
+
                                     }
-                                        
+
                             }
-                                
+
                     }
-                            
-                            
+
+
                     std::this_thread::sleep_for(std::chrono::microseconds(2));
-                            
+
                     // Make sure frequency change happened before continuing
                     std::cout << "topo.num_logical_cores: " << topo.num_logical_cores << "topo.num_hw_threads" << topo.num_hw_threads<< "\n" << std::flush;
                     {
@@ -418,7 +420,7 @@ namespace allscale { namespace components {
                                 for (std::size_t j =  0 ;  j < thread_count ; j++)
                                     {
                                         std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
-                                                
+
                                         if (!cpufreq_cpu_exists(pu_num))
                                             {
                                                 do
@@ -426,19 +428,19 @@ namespace allscale { namespace components {
                                                         hardware_freq = hardware_reconf::get_hardware_freq(pu_num);
 #ifdef DEBUG_
                                                         std::cout << "current freq on cpu "<< pu_num << " is " << hardware_freq << " (target freq is " << cpu_freqs[0] << " )\n" << std::flush;
-                     
+
 #endif
-                                                                
+
                                                     } while (hardware_freq != cpu_freqs[0]);
-                                                        
+
                                             }
-                                                
+
                                     }
-                                        
+
                             }
-                                
+
                     }
-                            
+
                     // offline unused cpus
                     for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id += topo.num_hw_threads)
                         {
@@ -449,34 +451,34 @@ namespace allscale { namespace components {
                                         {
                                             std::cout << " cpu_id "<< cpu_id << " found\n" << std::flush;
                                             found_it = true;
-                                                    
+
                                         }
                                 }
-                                    
+
                             if (!found_it)
                                 {
 #ifdef DEBUG_
                                     std::cout << " setting cpu_id "<< cpu_id << " offline \n" << std::flush;
 #endif
-                                            
+
                                     hardware_reconf::make_cpus_offline(cpu_id, cpu_id + topo.num_hw_threads);
                                 }
                         }
-                            
-                            
-                            
+
+
+
                     //frequency_timer_.start();
 #else
                     // should we really abort or should we reset energy to 1 ?
                     HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
                                         "Requesting energy objective without having compiled with cpufreq");
 #endif
-                    
+
                 }
-            
-            
+
+
             //             std::cerr  << "Scheduler with rank " << rank_ << " created!\n";
-            
+
             initialized_ = true;
             //             std::cerr
             //                 << "Scheduler with rank " << rank_ << " created!\n";
@@ -630,7 +632,7 @@ namespace allscale { namespace components {
 
         }
 
-        
+
         unsigned int  scheduler::suspend_threads()
         {
             std::unique_lock<mutex_type> l(resize_mtx_);
@@ -658,12 +660,12 @@ namespace allscale { namespace components {
                             }
                         std::cout << "\n" << std::flush;
 #endif
-                        
+
                         // remove from curr_mask any suspending thread still pending
                         for (std::size_t j = 0 ; j <  thread_pools_[i]->get_os_thread_count() ; j++)
                             {
                                 std::size_t pu_num = rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
-                                
+
                                 // use this opportunity to update state of suspending threads
                                 if  ( (hpx::threads::test(suspending_masks_[i], pu_num)) && !(hpx::threads::test(curr_mask, pu_num)) )
                                     {
@@ -688,11 +690,11 @@ namespace allscale { namespace components {
 #endif
                                         hpx::threads::unset(curr_mask, pu_num);
                                     }
-                                
+
                             }
                         // don't mind the resuming threads here:
                         // if they appear in used_processing_unit, assume it has resumed
-                        
+
                         //count real active threads
                         std::size_t curr_active_pus = hpx::threads::count(curr_mask);
                         active_threads_ += curr_active_pus;
@@ -706,14 +708,14 @@ namespace allscale { namespace components {
                             }
                         std::cout << "\n" << std::flush;
 #endif
-                        
+
                         // select this pool if new maximum found
                         if (curr_active_pus > domain_active_threads)
                             {
 #ifdef DEBUG_
                                 std::cout << "curr_active_pus: " << curr_active_pus << " domain_active_threads: "<< domain_active_threads << ", selecting pool " << i << " for next suspend\n";
 #endif
-                                
+
                                 domain_active_threads = curr_active_pus;
                                 active_mask = curr_mask;
                                 pool_idx = i;
@@ -733,8 +735,8 @@ namespace allscale { namespace components {
 
             // what threads are blocked
             auto blocked_os_threads = active_mask ^ initial_masks_[pool_idx];
-            
-            
+
+
             // fill a vector of PUs to suspend
             std::vector<std::size_t> suspend_threads;
             std::size_t thread_count = thread_pools_[pool_idx]->get_os_thread_count();
@@ -746,7 +748,7 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
                     std::cout << "testing pu_num: " << pu_num << "\n";
 #endif
-                    
+
                     if (hpx::threads::test(active_mask, pu_num))
                         {
                             suspend_threads.push_back(i);
@@ -768,7 +770,7 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
                         std::cout << "suspend thread on pu: " << rp_->get_pu_num(pu + thread_pools_[pool_idx]->get_thread_offset()) << "\n" << std::flush;
 #endif
-                        
+
                         thread_pools_[pool_idx]->suspend_processing_unit(pu).get();
                     }
             }
@@ -783,9 +785,9 @@ namespace allscale { namespace components {
             std::cout << "Sent disable signal. Active threads: " << active_threads  << std::endl;
 #endif
             return suspend_threads.size();
-            
+
         }
-        
+
         unsigned int scheduler::resume_threads()
         {
             std::unique_lock<mutex_type> l(resize_mtx_);
@@ -793,7 +795,7 @@ namespace allscale { namespace components {
             std::cout << "Trying to awake a thread\n" << std::flush;
 #endif
             //hpx::threads::any(blocked_os_threads)
-            
+
             hpx::threads::mask_type blocked_mask;
             std::size_t active_threads_ = 0;
             std::size_t domain_blocked_threads = 0; //std::numeric_limits<std::size_t>::max();
@@ -963,7 +965,7 @@ namespace allscale { namespace components {
 
 
                             {
-                                
+
                                 current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
                                 if (std::isnan(current_avg_iter_time))
                                     {
@@ -1310,24 +1312,24 @@ namespace allscale { namespace components {
             return true;
         }
 
-        //multi-objectives policy called on task enqueued 
+        //multi-objectives policy called on task enqueued
         bool scheduler::multi_objectives_adjust(std::size_t current_id)
         {
 #if defined(ALLSCALE_HAVE_CPUFREQ)
             //we enter this function for each enqueued task, check if we need to adjust objectives
-            if ((current_id < period_for_time ) || 
+            if ((current_id < period_for_time ) ||
                 (current_id % period_for_time != 0))
                 {
                     return true;
                 }
-            
+
 
             std::unique_lock<mutex_type> l(resize_mtx_);
 #ifdef DEBUG_
             std::cout << "Entering multi_objectives_adjust(), num_threads_: "<< active_threads << ", time_requested\
 : " << time_requested << ", resource_requested: " << resource_requested <<  "\n";
 #endif
-            
+
             // first section: all freq to max, resource to max, find the best time by throttling more and more
             if (!target_resource_found)
                 {
@@ -1343,8 +1345,8 @@ namespace allscale { namespace components {
 #endif
                                     return true;
                                 }
-                            
-                            
+
+
                             {
                                 //    hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
                                 current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
@@ -1355,15 +1357,15 @@ namespace allscale { namespace components {
 #endif
                                         current_avg_iter_time = 0.0;
                                     }
-                                
+
                                 //                    current_avg_iter_time = allscale_monitor->get_last_iteration_time();
                                 //                    current_avg_iter_time = allscale_monitor->get_avg_work_item_times(sampling_interval);
 #ifdef DEBUG_
                                 std::cout << "Now current_avg_iter_time= " << current_avg_iter_time << "\n" << std::flush;
 #endif
-                                
+
                                 //measure max power now
-#if defined(ALLSCALE_HAVE_CPUFREQ) 
+#if defined(ALLSCALE_HAVE_CPUFREQ)
                                 if (energy_requested)
                                     {
                                         max_power = hardware_reconf::read_system_power();
@@ -1375,8 +1377,8 @@ namespace allscale { namespace components {
                             }
                             return true;
                         } //From now, we should have enough information
-                    
-                                        
+
+
                     // get the average iteration time from the monitoring
                     last_avg_iter_time = current_avg_iter_time;
                     current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
@@ -1408,24 +1410,24 @@ namespace allscale { namespace components {
 #endif
                             return true;
                         }
-                    
+
 
                 }
             else //(target_resource_found) : now we know what number of resource gives best time
-                { 
+                {
                     unsigned long current_freq_hw = 0;
                     //check the current time from monitoring
                     current_avg_iter_time = allscale_monitor->get_avg_time_last_iterations(sampling_interval);
 
                     //new time < target time, we still have room in resource or energy budget
-                    if (current_avg_iter_time <= (max_time / time_leeway)) 
+                    if (current_avg_iter_time <= (max_time / time_leeway))
                         {
 #ifdef DEBUG_
                             std::cout << "Still have some time margin\n" << std::flush;
 #endif
 
                             //resource are not yet at obj(r)
-                            if(active_threads > (resource_leeway * os_thread_count)) 
+                            if(active_threads > (resource_leeway * os_thread_count))
                                 {
                                     //decrease resources by suspending threads
 #ifdef DEBUG_
@@ -1434,19 +1436,19 @@ namespace allscale { namespace components {
                                     hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                                     suspend_threads();
                                     return true;
-                                    
+
                                 }
-                            else if ((current_id >= period_for_power )    && 
-                                     (current_id % period_for_power == 0) && 
+                            else if ((current_id >= period_for_power )    &&
+                                     (current_id % period_for_power == 0) &&
                                      target_resource_found                &&
-                                     energy_requested) //resource == obj(r), what about energy? 
+                                     energy_requested) //resource == obj(r), what about energy?
                                 {
                                     current_freq_hw = hardware_reconf::get_hardware_freq(0);
                                     current_power_usage = hardware_reconf::read_system_power();
-                                    if(current_power_usage > (energy_leeway * max_power)) //e> obj(e) 
+                                    if(current_power_usage > (energy_leeway * max_power)) //e> obj(e)
                                         {
                                             if(current_freq_hw != min_freq) // freq != min_freq
-                                                { 
+                                                {
                                                     //lower frequency
                                                     std::vector<unsigned long>::iterator it = std::find(cpu_freqs.begin(), cpu_freqs.end(), current_freq_hw);
                                                     unsigned int freq_idx = it - cpu_freqs.begin();
@@ -1457,7 +1459,7 @@ namespace allscale { namespace components {
 #endif
 
                                                             //      std::cout << "current power: " << freq_times[freq_idx].first << " power for lower freq: " << freq_times[freq_idx + freq_step].first << "\n" << std::flush;
-                                                            
+
                                                             hardware_reconf::set_next_frequency(freq_step, true);
                                                             return true;
                                                         }
@@ -1486,14 +1488,14 @@ namespace allscale { namespace components {
 #endif
 
                                                     // std::cout << "current power: " << freq_times[freq_idx].first << " power for higher freq: " << freq_times[freq_idx - freq_step].first << "\n" << std::flush;
-                                                        
+
                                                     //      std::cout << " increasing frequency\n" << std::flush;
                                                     hardware_reconf::set_next_frequency(freq_step, false);
                                                     return true;
-                                                    
-                                                }                                            
+
+                                                }
                                         }
-                                }                            
+                                }
                         }
                     else  //new time > target time, i.e. we are off target for time, need to increase speed
                         {
@@ -1523,19 +1525,19 @@ namespace allscale { namespace components {
                                     if (freq_idx   > freq_step )
                                         {
                                             // std::cout << "current power: " << freq_times[freq_idx].first << " power for higher freq: " << freq_times[freq_idx - freq_step].first << "\n" << std::flush;
-                                            
+
                                             //      std::cout << " increasing frequency\n" << std::flush;
                                             hardware_reconf::set_next_frequency(freq_step, false);
                                             return true;
-                                            
-                                        }                                            
+
+                                        }
                                 }
                             else  //current_resource == target; freq is already max, add resource if possible
                                 {
 #ifdef DEBUG_
                                     std::cout << "Resuming threads as a last resort\n" << std::flush;
 #endif
-                                                            
+
                                     //increase nb_resource
                                     hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
                                     resume_threads();
@@ -1546,7 +1548,7 @@ namespace allscale { namespace components {
 #endif
             return true;
         }
-    
+
         //multi-objectives policy called on timer
         bool scheduler::multi_objectives_adjust_timed()
         {

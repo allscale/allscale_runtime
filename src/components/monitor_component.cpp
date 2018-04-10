@@ -7,6 +7,8 @@
 #include <string>
 #include <unistd.h>
 
+#include <boost/format.hpp>
+
 #include <hpx/compat/thread.hpp>
 
 #include <hpx/runtime/serialization/serialize.hpp>
@@ -66,7 +68,7 @@ namespace allscale { namespace components {
 //	  ),
 //          2000000,
 //          "monitor::sample_node",
-//          false 
+//          false
 //       )
      , task_throughput(0)
      , finished_tasks(0)
@@ -145,7 +147,7 @@ namespace allscale { namespace components {
    void monitor::change_sampling_interval(long long new_interval)
    {
       std::unique_lock<std::mutex> lock(sampling_mutex);
-      sampling_interval_ms = new_interval;  
+      sampling_interval_ms = new_interval;
    }
 */
 
@@ -210,13 +212,13 @@ namespace allscale { namespace components {
        return true;
    }
 
- 
+
    // Additional OS-thread process profiles in here
    void monitor::process_profiles()
    {
        std::shared_ptr<allscale::profile> profile;
        std::string id, parent_id;
- 
+
        // Wait until there's some work to do
        std::unique_lock<std::mutex> lk(m_queue);
        while(!done)
@@ -234,7 +236,7 @@ namespace allscale { namespace components {
              parent_id = profile->get_parent_wid();
 
              // Save the treeture graph
-             // TODO Check whether this needs an extra mutex 
+             // TODO Check whether this needs an extra mutex
 //             std::shared_ptr<allscale::work_item_dependency> wd(
 //                 new allscale::work_item_dependency(parent_id, id));
 
@@ -256,7 +258,7 @@ namespace allscale { namespace components {
              work_item_times.push_back(profile->get_exclusive_time());
 
              lock.unlock();
-             queues[current_read_queue].pop(); 
+             queues[current_read_queue].pop();
           }
           lk.lock();
           current_read_queue++;
@@ -288,12 +290,12 @@ namespace allscale { namespace components {
 
 //             w_names.insert(std::make_pair(parent_id, id));
              profiles.insert(std::make_pair(id, profile));
-             
+
              // Save work item time in the times vector to compute stats on-the-fly if need be for the last X work items
              work_item_times.push_back(profile->get_exclusive_time());
-             
+
              lock.unlock();
-             
+
 
              queues[current_read_queue].pop();
 
@@ -347,7 +349,7 @@ namespace allscale { namespace components {
 #if 0
       // REMOVED DUE TO OVERHEAD ISSUES
       // Now this is computed on-demand
-    
+
       // Update stats per work item name
       time = p->get_exclusive_time();
       auto it = work_item_stats_map.find(w.name());
@@ -419,13 +421,13 @@ namespace allscale { namespace components {
          // Profile does not exist yet, we create it
          p = std::make_shared<profile>(my_wid.name(), w.name(), my_wid.parent().name());
          my_wid.set_profile(p);
-      }      
+      }
       else {
          // Profile exists, finish wrapper executed before start wrapper
          p->end = std::chrono::steady_clock::now();
 
          // Put the profile in the queue for the OS-thread to process it
-         { 
+         {
             std::lock_guard<std::mutex> lk(m_queue);
 
             queues[current_write_queue].push(p);
@@ -531,7 +533,7 @@ namespace allscale { namespace components {
       else {
          p->end = std::chrono::steady_clock::now();
 
-         // Put the profile in the queue for the OS-thread to process it 
+         // Put the profile in the queue for the OS-thread to process it
          {
            std::lock_guard<std::mutex> lk(m_queue);
 
@@ -539,7 +541,7 @@ namespace allscale { namespace components {
            if(queues[current_write_queue].size() >= MIN_QUEUE_ELEMS)
 		notify_consumer = true;
 /*
-           num_split_tasks++; 
+           num_split_tasks++;
            double task_time = p->get_exclusive_time();
            total_split_time += task_time;
            if(!min_split_task || min_split_task > task_time)
@@ -597,7 +599,7 @@ namespace allscale { namespace components {
       else {
          p->end = std::chrono::steady_clock::now();
 
-         // Put the profile in the queue for the OS-thread to process it 
+         // Put the profile in the queue for the OS-thread to process it
          {
            std::lock_guard<std::mutex> lk(m_queue);
 
@@ -626,7 +628,7 @@ namespace allscale { namespace components {
       Extrae_event(6000019, 0);
 #endif
    }
-   
+
 
    void monitor::global_w_exec_process_finish_wrapper(work_item const& w)
    {
@@ -1073,7 +1075,7 @@ namespace allscale { namespace components {
    double monitor::get_last_iteration_time()
    {
       std::lock_guard<mutex_type> lock(history_mutex);
- 
+
       if(!(history->iteration_time.size())) return 0.0;
       else return history->iteration_time.back();
    }
@@ -1400,7 +1402,7 @@ namespace allscale { namespace components {
       std::size_t const os_threads = hpx::get_os_thread_count();
       std::size_t self = hpx::get_worker_thread_num();
 
-      
+
       if(!enable_monitor) return;
 
       execution_end = std::chrono::steady_clock::now();
@@ -1416,7 +1418,7 @@ namespace allscale { namespace components {
       data_file.close();
 #endif
 
-      if(rank_ == 0) 
+      if(rank_ == 0)
       {
         std::vector<hpx::future<void>> stop_futures;
         typedef allscale::components::monitor::stop_action stop_action;
@@ -1439,7 +1441,7 @@ namespace allscale { namespace components {
 //      p->result_ready = execution_end;
 
       // Finish additional OS-thread
-      { 
+      {
          std::lock_guard<std::mutex> lk(m_queue);
          done = true;
       }
@@ -1457,10 +1459,10 @@ namespace allscale { namespace components {
 /*
       {
          std::lock_guard<std::mutex> lk(m_queue);
-         std::cerr << "Num split tasks " << num_split_tasks << "   Avg split time " << total_split_time/num_split_tasks 
+         std::cerr << "Num split tasks " << num_split_tasks << "   Avg split time " << total_split_time/num_split_tasks
 		   << " Min split time " << min_split_task << " Max split task " << max_split_task << std::endl;
 
-         std::cerr << "Num process tasks " << num_process_tasks << "   Avg process time " << total_process_time/num_process_tasks 
+         std::cerr << "Num process tasks " << num_process_tasks << "   Avg process time " << total_process_time/num_process_tasks
                    << " Min process time " << min_process_task << " Max process task " << max_process_task << std::endl;
 
 
@@ -1487,8 +1489,8 @@ namespace allscale { namespace components {
 
         for ( auto it = profiles.begin(); it != profiles.end(); ++it ) {
 
-                allscale::work_item_stats stats(it->first, (it->second)->get_wname(), get_exclusive_time(it->first), 
-                    get_inclusive_time(it->first), get_children_mean_time(it->first), 
+                allscale::work_item_stats stats(it->first, (it->second)->get_wname(), get_exclusive_time(it->first),
+                    get_inclusive_time(it->first), get_children_mean_time(it->first),
                     get_children_SD_time(it->first));
 
                 my_local_stats.insert(std::make_pair(it->first, stats));
@@ -1502,12 +1504,12 @@ namespace allscale { namespace components {
            std::vector<profile_map> rcv_buffer = f.get();
 
 
-           for ( auto it = rcv_buffer.begin(); it != rcv_buffer.end(); ++it ) 
+           for ( auto it = rcv_buffer.begin(); it != rcv_buffer.end(); ++it )
            {
                 global_stats.insert((*it).begin(), (*it).end());
            }
         }
-        else hpx::lcos::gather_there(gather_basename1, hpx::make_ready_future(my_local_stats)).wait(); 
+        else hpx::lcos::gather_there(gather_basename1, hpx::make_ready_future(my_local_stats)).wait();
 
 
         // Collect work item dependencies from all localities
@@ -1760,13 +1762,13 @@ namespace allscale { namespace components {
       worker_thread = std::thread(&allscale::components::monitor::process_profiles, this);
 
       // Start sampling timer
-      if(sampling_interval_ms > 0) { 
+      if(sampling_interval_ms > 0) {
 
 	 metric_sampler_ = std::make_unique<hpx::util::interval_timer>(
 					hpx::util::bind(&monitor::sample_node, this),
 					sampling_interval_ms*1000,
 					"node_sampler",
-					false);  
+					false);
 //         metric_sampler_.change_interval(sampling_interval_ms*1000);
          metric_sampler_->start();
       }
