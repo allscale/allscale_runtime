@@ -496,7 +496,7 @@ namespace allscale { namespace detail {
                     }
                     HPX_ASSERT(rank == std::size_t(-2) || rank == this_id);
                     typedef
-                        typename hpx::util::decay<decltype(hpx::util::unwrap(std::move(reqs)))>::type
+                        typename hpx::util::decay<decltype(hpx::util::unwrap(data_item_manager::acquire(reqs, infos)))>::type
                         reqs_type;
                     return hpx::dataflow(hpx::launch::sync,
                         hpx::util::annotated_function(hpx::util::unwrapping([this_ = std::move(this_)](reqs_type reqs) mutable
@@ -505,7 +505,7 @@ namespace allscale { namespace detail {
                             this_->do_split(std::move(reqs));
                             return std::size_t(-2);
                         }), "allscale::work_item::reqs_cont_sync")
-                      , std::move(reqs));
+                      , data_item_manager::acquire(reqs, infos));
                 }, "allscale::work_item::spli::locate_cont"),
 #if defined(ALLSCALE_DEBUG_DIM)
                 data_item_manager::locate(std::move(s), std::forward<Reqs>(reqs))
