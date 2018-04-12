@@ -371,10 +371,55 @@ template<> struct to_std_array_type<allscale_type_73> { using type = std::array<
 int32_t allscale_fun_5(int32_t var_0, char** var_1) {
     const int32_t var_2 = 7;
     const uint64_t var_3 = (uint64_t)20;
-    const uint64_t var_4 = (uint64_t)1000;
-    const float var_5 = (float)0;
-    const float var_6 = (float)100;
-    const float var_7 = (float)20;
+    uint64_t var_4 = (uint64_t)1000;
+    float var_5 = (float)0;
+    float var_6 = (float)100;
+    float var_7 = (float)20;
+
+    if (var_0 == 2)
+    {
+        std::string args(var_1[1]);
+        std::size_t idx = 0;
+        while (args.size() > 0)
+        {
+            std::string::size_type pos = args.find(':');
+            std::string arg = args.substr(0, pos);
+            if (pos == std::string::npos)
+            {
+                args = std::string();
+            }
+            else
+            {
+                args = args.substr(pos + 1, std::string::npos);
+            }
+
+            switch (idx)
+            {
+                case 0:
+//                     var_2 = std::atoi(arg.c_str());
+//                     break;
+//                 case 1:
+//                     var_3 = std::atoi(arg.c_str());
+//                     break;
+//                 case 2:
+                    var_4 = std::atoi(arg.c_str());
+                    break;
+                case 3:
+                    var_5 = std::atof(arg.c_str());
+                    break;
+                case 4:
+                    var_6 = std::atof(arg.c_str());
+                    break;
+                case 5:
+                    var_7 = std::atof(arg.c_str());
+                    break;
+                default:
+                    std::cout << idx << " Usage: " << var_1[0] << " M:l:h:R\n";
+            }
+            ++idx;
+        }
+    }
+
     IMP__Insieme__lambda__slash_home_slash_herbert_slash_coding_slash_c_plus__plus__slash_allscale_compiler_slash_test_slash_data_requirements_slash_binary_tree_slash_two_point_correlation_slash_two_point_correlation_dot_cpp_420_13_struct_space_std_colon__colon_chrono_colon__colon_time_point_lt_struct_space_std_colon__colon_chrono_colon__colon__V2_colon__colon_system_clock_comma__space_struct_space_std_colon__colon_chrono_colon__colon_duration_lt_long_comma__space_struct_space_std_colon__colon_ratio_lt_1_comma__space_1000000000_gt__space__gt__space__gt__IMLOC__slash_home_slash_herbert_slash_coding_slash_c_plus__plus__slash_allscale_compiler_slash_test_slash_data_requirements_slash_binary_tree_slash_two_point_correlation_slash_two_point_correlation_dot_cpp_420_13 var_8 = (IMP__Insieme__lambda__slash_home_slash_herbert_slash_coding_slash_c_plus__plus__slash_allscale_compiler_slash_test_slash_data_requirements_slash_binary_tree_slash_two_point_correlation_slash_two_point_correlation_dot_cpp_420_13_struct_space_std_colon__colon_chrono_colon__colon_time_point_lt_struct_space_std_colon__colon_chrono_colon__colon__V2_colon__colon_system_clock_comma__space_struct_space_std_colon__colon_chrono_colon__colon_duration_lt_long_comma__space_struct_space_std_colon__colon_ratio_lt_1_comma__space_1000000000_gt__space__gt__space__gt__IMLOC__slash_home_slash_herbert_slash_coding_slash_c_plus__plus__slash_allscale_compiler_slash_test_slash_data_requirements_slash_binary_tree_slash_two_point_correlation_slash_two_point_correlation_dot_cpp_420_13&&)INS_INIT(IMP__Insieme__lambda__slash_home_slash_herbert_slash_coding_slash_c_plus__plus__slash_allscale_compiler_slash_test_slash_data_requirements_slash_binary_tree_slash_two_point_correlation_slash_two_point_correlation_dot_cpp_420_13_struct_space_std_colon__colon_chrono_colon__colon_time_point_lt_struct_space_std_colon__colon_chrono_colon__colon__V2_colon__colon_system_clock_comma__space_struct_space_std_colon__colon_chrono_colon__colon_duration_lt_long_comma__space_struct_space_std_colon__colon_ratio_lt_1_comma__space_1000000000_gt__space__gt__space__gt__IMLOC__slash_home_slash_herbert_slash_coding_slash_c_plus__plus__slash_allscale_compiler_slash_test_slash_data_requirements_slash_binary_tree_slash_two_point_correlation_slash_two_point_correlation_dot_cpp_420_13){};
     IMP__Insieme__lambda__slash_home_slash_herbert_slash_coding_slash_c_plus__plus__slash_allscale_compiler_slash_test_slash_data_requirements_slash_binary_tree_slash_two_point_correlation_slash_two_point_correlation_dot_cpp_421_12_long_const_space_type_minus_parameter_minus_0_minus_0_space__ampersand__const_space_type_minus_parameter_minus_0_minus_1_space__ampersand__IMLOC__slash_home_slash_herbert_slash_coding_slash_c_plus__plus__slash_allscale_compiler_slash_test_slash_data_requirements_slash_binary_tree_slash_two_point_correlation_slash_two_point_correlation_dot_cpp_421_12 var_9 = (IMP__Insieme__lambda__slash_home_slash_herbert_slash_coding_slash_c_plus__plus__slash_allscale_compiler_slash_test_slash_data_requirements_slash_binary_tree_slash_two_point_correlation_slash_two_point_correlation_dot_cpp_421_12_long_const_space_type_minus_parameter_minus_0_minus_0_space__ampersand__const_space_type_minus_parameter_minus_0_minus_1_space__ampersand__IMLOC__slash_home_slash_herbert_slash_coding_slash_c_plus__plus__slash_allscale_compiler_slash_test_slash_data_requirements_slash_binary_tree_slash_two_point_correlation_slash_two_point_correlation_dot_cpp_421_12&&)INS_INIT(IMP__Insieme__lambda__slash_home_slash_herbert_slash_coding_slash_c_plus__plus__slash_allscale_compiler_slash_test_slash_data_requirements_slash_binary_tree_slash_two_point_correlation_slash_two_point_correlation_dot_cpp_421_12_long_const_space_type_minus_parameter_minus_0_minus_0_space__ampersand__const_space_type_minus_parameter_minus_0_minus_1_space__ampersand__IMLOC__slash_home_slash_herbert_slash_coding_slash_c_plus__plus__slash_allscale_compiler_slash_test_slash_data_requirements_slash_binary_tree_slash_two_point_correlation_slash_two_point_correlation_dot_cpp_421_12){};
     std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<int64_t, std::ratio<1, 1000000000 > > > var_10 = (std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<int64_t, std::ratio<1, 1000000000 > > >&&)var_8.operator()();
