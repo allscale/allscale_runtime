@@ -413,52 +413,52 @@ int main(int argc, char** argv) {
 	coordinate_t low = 0;
 	coordinate_t high = 100;
 	distance_t radius = 20;
-
-    if (argc == 2)
-    {
-        std::string args(argv[1]);
-        std::size_t idx = 0;
-        while (args.size() > 0)
-        {
-            std::string::size_type pos = args.find(':');
-            std::string arg = args.substr(0, pos);
-            args = args.substr(pos + 1, std::string::npos);
-            if (pos == std::string::npos)
-            {
-                args = std::string();
-            }
-            else
-            {
-                args = args.substr(pos + 1, std::string::npos);
-            }
-
-            switch (idx)
-            {
-                case 0:
-//                     Dims = std::atoi(arg.c_str());
-//                     break;
-//                 case 1:
-//                     N = std::atoi(arg.c_str());
-//                     break;
-//                 case 2:
-                    M = std::atoi(arg.c_str());
-                    break;
-                case 3:
-                    low = std::atof(arg.c_str());
-                    break;
-                case 4:
-                    high = std::atof(arg.c_str());
-                    break;
-                case 5:
-                    radius = std::atof(arg.c_str());
-                    break;
-                default:
-                    std::cout << "Usage: " << argv[0] << " M:l:h:R\n";
-            }
-            ++idx;
-        }
-    }
-
+//
+//    if (argc == 2)
+//    {
+//        std::string args(argv[1]);
+//        std::size_t idx = 0;
+//        while (args.size() > 0)
+//        {
+//            std::string::size_type pos = args.find(':');
+//            std::string arg = args.substr(0, pos);
+//            args = args.substr(pos + 1, std::string::npos);
+//            if (pos == std::string::npos)
+//            {
+//                args = std::string();
+//            }
+//            else
+//            {
+//                args = args.substr(pos + 1, std::string::npos);
+//            }
+//
+//            switch (idx)
+//            {
+//                case 0:
+////                     Dims = std::atoi(arg.c_str());
+////                     break;
+////                 case 1:
+////                     N = std::atoi(arg.c_str());
+////                     break;
+////                 case 2:
+//                    M = std::atoi(arg.c_str());
+//                    break;
+//                case 3:
+//                    low = std::atof(arg.c_str());
+//                    break;
+//                case 4:
+//                    high = std::atof(arg.c_str());
+//                    break;
+//                case 5:
+//                    radius = std::atof(arg.c_str());
+//                    break;
+//                default:
+//                    std::cout << "Usage: " << argv[0] << " M:l:h:R\n";
+//            }
+//            ++idx;
+//        }
+//    }
+//
 	using kdtree = KDTree<Dims,N>;
 
 	// time measurement utils

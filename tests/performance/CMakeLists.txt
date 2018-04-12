@@ -12,6 +12,9 @@ set(tests
   stream
   two_point_correlation.allscale
   two_point_correlation
+  two_point_correlation.allscale.n29
+  two_point_correlation.allscale.n32
+  two_point_correlation.allscale.n34
   transpose
   stencil
 )
