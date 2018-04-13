@@ -54,11 +54,11 @@ namespace allscale {
         // If true global reference counting is required in the end, the
         // make_unmanaged call in the save function needs to be removed.
 
-        data_item_reference()
+        data_item_reference() : cache(nullptr)
         {}
 
         template <typename...Args>
-        explicit data_item_reference(hpx::future<hpx::id_type> fid)
+        explicit data_item_reference(hpx::future<hpx::id_type> fid) : cache(nullptr)
         {
             hpx::id_type id(fid.get());
             id.make_unmanaged();
@@ -74,6 +74,7 @@ namespace allscale {
         void serialize(Archive & ar, unsigned) const
         {
             ar & id_;
+            cache = nullptr;
         }
 
         hpx::naming::gid_type const& id() const
@@ -81,8 +82,21 @@ namespace allscale {
             return id_;
         }
 
+        fragment_type* getFragmentHint() const {
+            return cache;
+        }
+
+        fragment_type* setFragmentHint(fragment_type* hint) const {
+            reinterpret_cast<std::atomic<fragment_type*>&>(cache).exchange(hint,std::memory_order_relaxed);
+            return hint;
+        }
+
     private:
         hpx::naming::gid_type id_;
+
+        // a transient cache for the referenced fragment
+        mutable fragment_type* cache;
+
     };
 }
 
