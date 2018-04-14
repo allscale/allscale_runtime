@@ -504,20 +504,27 @@ struct is_allscale_fixed_sized_array : public std::false_type {};
 template<typename T>
 struct to_std_array_type;
 
-namespace allscale {
-    namespace utils {
-        template<typename T>
-        struct serializer<T,typename std::enable_if<is_allscale_fixed_sized_array<T>::value,void>::type> {
-            using array_t = typename to_std_array_type<T>::type;
-            static T load(ArchiveReader& a) {
-                return *reinterpret_cast<T*>(&serializer<array_t>::load(a)[0]);
-            }
-            static void store(ArchiveWriter& a, const T& value) {
-                serializer<array_t>::store(a,reinterpret_cast<const array_t&>(value));
-            }
-        };
+// namespace allscale {
+//     namespace utils {
+//         template<typename T>
+//         struct serializer<T,typename std::enable_if<is_allscale_fixed_sized_array<T>::value,void>::type> {
+//             using array_t = typename to_std_array_type<T>::type;
+//             static T load(ArchiveReader& a) {
+//                 return *reinterpret_cast<T*>(&serializer<array_t>::load(a)[0]);
+//             }
+//             static void store(ArchiveWriter& a, const T& value) {
+//                 serializer<array_t>::store(a,reinterpret_cast<const array_t&>(value));
+//             }
+//         };
+//     }
+// }
+namespace hpx { namespace serialization {
+    template <typename Archive, typename T, typename Enable = typename std::enable_if<is_allscale_fixed_sized_array<T>::value,void>::type>
+    void serialize(Archive& ar, T & t, unsigned)
+    {
+        ar & t.data;
     }
-}
+}}
 
 struct allscale_type_13 {
     char data[7];;

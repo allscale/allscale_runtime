@@ -1443,6 +1443,7 @@ namespace allscale { namespace components {
                                      target_resource_found                &&
                                      energy_requested) //resource == obj(r), what about energy?
                                 {
+#if defined(ALLSCALE_HAVE_CPUFREQ)
                                     current_freq_hw = hardware_reconf::get_hardware_freq(0);
                                     current_power_usage = hardware_reconf::read_system_power();
                                     if(current_power_usage > (energy_leeway * max_power)) //e> obj(e)
@@ -1495,6 +1496,7 @@ namespace allscale { namespace components {
 
                                                 }
                                         }
+#endif
                                 }
                         }
                     else  //new time > target time, i.e. we are off target for time, need to increase speed
@@ -1513,8 +1515,9 @@ namespace allscale { namespace components {
                                     return true;
                                     //increase nb resources
                                 }
+#if defined(ALLSCALE_HAVE_CPUFREQ)
                             else if (current_freq_hw = hardware_reconf::get_hardware_freq(0) != max_freq) //current freq != max
-                                {
+                              {
 #ifdef DEBUG_
                                     std::cout << "Increasing frequency\n" << std::flush;
 #endif
@@ -1532,6 +1535,7 @@ namespace allscale { namespace components {
 
                                         }
                                 }
+#endif
                             else  //current_resource == target; freq is already max, add resource if possible
                                 {
 #ifdef DEBUG_
