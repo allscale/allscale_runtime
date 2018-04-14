@@ -1,6 +1,7 @@
 set(_srcs
     data_item_reference.cpp
     data_requirements_check.cpp
+    data_item_store.cpp
     monitor.cpp
     resilience.cpp
     scheduler.cpp

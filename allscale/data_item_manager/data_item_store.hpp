@@ -10,9 +10,21 @@
 
 #include <boost/thread.hpp>
 
-#include <map>
+#include <unordered_map>
 
 namespace allscale { namespace data_item_manager {
+
+    namespace detail
+    {
+        void tls_cache(hpx::naming::gid_type const& id, void *);
+        void *tls_cache(hpx::naming::gid_type const& id);
+
+        template <typename DataItem>
+        DataItem* tls_cache(hpx::naming::gid_type const& id)
+        {
+            return reinterpret_cast<DataItem*>(tls_cache(id));
+        }
+    }
 
 template<typename DataItemType>
 struct data_item_store
@@ -41,12 +53,9 @@ struct data_item_store
         static mutex_type mtx;
         static std::unordered_map<id_type, data_item_type> store_;
 
-        // A thread local cache to avoid locking alltogether.
-        thread_local static std::unordered_map<id_type, data_item_type*> tls_store_;
-
-        auto jt = tls_store_.find(id);
-        if (jt != tls_store_.end())
-            return *jt->second;
+        auto dmp = detail::tls_cache<data_item_type>(id);
+        if (dmp != nullptr)
+            return *dmp;
 
         {
             boost::shared_lock<mutex_type> l(mtx);
@@ -56,11 +65,12 @@ struct data_item_store
             {
                 l.unlock();
                 std::unique_lock<mutex_type> ll(mtx);
-                tls_store_[id] = &store_[id];
-                return store_[id];
+                dmp = &store_[id];
+                detail::tls_cache(id, dmp);
+                return *dmp;
             }
 
-            tls_store_[id] = &it->second;
+            detail::tls_cache(id, &it->second);
 
             return it->second;
         }
