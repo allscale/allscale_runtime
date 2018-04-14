@@ -309,16 +309,6 @@ namespace allscale { namespace components {
                     std::cout << "multi-objectives policy set with time=" << time_leeway
                               << ", resource=" << resource_leeway
                               << ", energy=" << energy_leeway << "\n" << std::flush;
-//
-//
-//
-//
-//
-//
-//
-//
-//
->>>>>>>
                 }
 #endif
             // if energy is to be taken into account, need to prep for it
@@ -1506,10 +1496,7 @@ namespace allscale { namespace components {
 
                                                 }
                                         }
-<<<<<<< HEAD
-=======
 #endif
->>>>>>> fixing dm tls store
                                 }
                         }
                     else  //new time > target time, i.e. we are off target for time, need to increase speed
