@@ -28,6 +28,7 @@ add_hpx_component(allscale SOURCES ${_srcs} COMPONENT_DEPENDENCIES iostreams)
 
 if(CPUFREQ_FOUND)
     target_link_libraries(allscale_component ${CPUFREQ_LIBRARIES})
+    target_include_directories(allscale_component PUBLIC ${CPUFREQ_INCLUDE_DIRS})
     target_compile_definitions(allscale_component PUBLIC ALLSCALE_HAVE_CPUFREQ)
 endif()
 
