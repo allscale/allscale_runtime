@@ -74,7 +74,6 @@ namespace allscale {
         void serialize(Archive & ar, unsigned) const
         {
             ar & id_;
-            cache = nullptr;
         }
 
         hpx::naming::gid_type const& id() const
@@ -83,11 +82,11 @@ namespace allscale {
         }
 
         fragment_type* getFragmentHint() const {
-            return cache;
+            return cache.load(std::memory_order_acquire);
         }
 
         fragment_type* setFragmentHint(fragment_type* hint) const {
-            reinterpret_cast<std::atomic<fragment_type*>&>(cache).exchange(hint,std::memory_order_relaxed);
+            cache.exchange(hint, std::memory_order_relaxed);
             return hint;
         }
 
@@ -95,16 +94,9 @@ namespace allscale {
         hpx::naming::gid_type id_;
 
         // a transient cache for the referenced fragment
-        mutable fragment_type* cache;
+        mutable std::atomic<fragment_type*> cache;
 
     };
 }
-
-namespace hpx { namespace traits {
-    template <typename DataItem>
-    struct is_bitwise_serializable<allscale::data_item_reference<DataItem>>
-      : std::true_type
-    {};
-}}
 
 #endif
