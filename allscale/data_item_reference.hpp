@@ -65,10 +65,34 @@ namespace allscale {
             id_ = id.get_gid();
         }
 
-        data_item_reference(data_item_reference const& other) = default;
-        data_item_reference(data_item_reference&& other) = default;
-        data_item_reference& operator=(data_item_reference const& other) = default;
-        data_item_reference& operator=(data_item_reference&& other) = default;
+        data_item_reference(data_item_reference const& other)
+          : id_(other.id_)
+          , cache(nullptr)
+        {}
+
+        data_item_reference(data_item_reference&& other)
+          : id_(std::move(other.id_))
+          , cache(nullptr)
+        {
+            other.cache.store(nullptr);
+        }
+
+        data_item_reference& operator=(data_item_reference const& other)
+        {
+            id_ = other.id_;
+            cache.store(other.cache.load(std::memory_order_acquire), std::memory_order_release);
+
+            return *this;
+        }
+
+        data_item_reference& operator=(data_item_reference&& other)
+        {
+            id_ = other.id_;
+            cache.store(other.cache.load(std::memory_order_acquire), std::memory_order_release);
+            other.cache.store(nullptr, std::memory_order_release);
+
+            return *this;
+        }
 
         template <typename Archive>
         void serialize(Archive & ar, unsigned) const
@@ -86,7 +110,7 @@ namespace allscale {
         }
 
         fragment_type* setFragmentHint(fragment_type* hint) const {
-            cache.exchange(hint, std::memory_order_relaxed);
+            cache.exchange(hint, std::memory_order_acq_rel);
             return hint;
         }
 
