@@ -561,28 +561,14 @@ allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_
         case 0: {
             {
                 std::vector<allscale::utils::Vector<double, 3 >> var_6 = (std::vector<allscale::utils::Vector<double, 3 >> const&)var_0.driftVelocity;
-                insieme::utils::detail::LazyAssertion var_7 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{!var_6.empty()};
-                if (var_7) {
-                    std::cerr << "\nAssertion !(driftVel.empty()) of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/field.h:61 failed!\n" << "Expected a drift velocity vector of at least length 1";
-                };
                 allscale::utils::Vector<double, 3 > var_8 = (allscale::utils::Vector<double, 3 >&&)allscale_fun_138(-1.0E+0, IMP_allscale_colon__colon_utils_colon__colon_crossProduct_double_returns_Vector_lt_double_comma__space_3_gt_(var_6.operator[]((uint64_t)0), var_0.magneticFieldAmplitude));
                 double var_9 = var_1.planetRadius;
                 allscale::utils::Vector<double, 3 > var_10 = (allscale::utils::Vector<double, 3 > const&)var_1.objectCenter;
                 IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_pfor_long_3__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_field_dot_h_70_35_returns_detail_colon__colon_loop_reference_lt_utils_colon__colon_Vector_lt_long_comma__space_3UL_gt__space__gt_(var_2, var_4, INS_INIT(IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_field_dot_h_70_35_allscale_colon__colon_api_colon__colon_user_colon__colon_data_colon__colon_Grid_lt_struct_space_ipic3d_colon__colon_FieldNode_comma__space_3_gt__space__ampersand__allscale_colon__colon_utils_colon__colon_Vector_lt_double_comma__space_3_gt__const_space_struct_space_ipic3d_colon__colon_InitProperties_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__const_space_struct_space_ipic3d_colon__colon_UniverseProperties_allscale_colon__colon_utils_colon__colon_Vector_lt_double_comma__space_3_gt__double_void_const_space_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__space__ampersand__IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_field_dot_h_70_35){(allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_FieldNode, 3 > > const&)var_5, (allscale::utils::Vector<double, 3 > const&)var_8, var_0, (allscale::utils::Vector<long, 3 > const&)var_2, var_1, (allscale::utils::Vector<double, 3 > const&)var_10, var_9});
                 break;
             };
-            {
-                insieme::utils::detail::LazyAssertion var_11 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{(bool)false};
-                if (var_11) {
-                    std::cerr << "\nAssertion failed in /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/field.h:108 - " << "Not implemented functionality in /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/field.h:108\n" << "The specified use case is not supported yet!";
-                };
-            };
         } break;
         default: {
-            insieme::utils::detail::LazyAssertion var_11 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{(bool)false};
-            if (var_11) {
-                std::cerr << "\nAssertion failed in /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/field.h:108 - " << "Not implemented functionality in /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/field.h:108\n" << "The specified use case is not supported yet!";
-            };
         }
     };
     return (allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_FieldNode, 3 > >&&)var_5;
@@ -1147,10 +1133,6 @@ template<> struct to_std_array_type<allscale_type_1903> { using type = std::arra
 /* ------- Function Definitions --------- */
 void IMP_ipic3d_colon__colon_outputParticlePositions_allscale_colon__colon_api_colon__colon_core_colon__colon_OutputStream_returns_void(allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3 > > const& var_0, allscale::api::core::OutputStream& var_1) {
     allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3 > const&& var_2 = allscale::runtime::DataItemManager::get(var_0);
-    insieme::utils::detail::LazyAssertion var_3 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{var_2.size() <= allscale::utils::Vector<long, 3 >{(int64_t)32, (int64_t)32, (int64_t)32}};
-    if (var_3) {
-        IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(std::cerr << "\nAssertion cells.size() <= (coordinate_type{ 32,32,32 }) of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/cell.h:1005 failed!\n\tcells.size() = ", var_2.size()) << "\n\t(coordinate_type{ 32,32,32 }) = ", allscale::utils::Vector<long, 3 >{(int64_t)32, (int64_t)32, (int64_t)32}) << "\n" << "Unable to dump data for such a large cell grid at this time";
-    };
     allscale::utils::Vector<long, 3 > const& var_4 = var_2.size();
     {
         int32_t var_5 = 0;
@@ -1870,10 +1852,6 @@ allscale::treeture<void > IMP_allscale_colon__colon_api_colon__colon_user_colon_
 /* ------- Function Definitions --------- */
 void IMP_ipic3d_colon__colon_outputNumberOfParticlesPerCell(allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3 > > const& var_0, std::string const& var_1) {
     allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3 > const&& var_2 = allscale::runtime::DataItemManager::get(var_0);
-    insieme::utils::detail::LazyAssertion var_3 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{var_2.size() <= allscale::utils::Vector<long, 3 >{(int64_t)32, (int64_t)32, (int64_t)32}};
-    if (var_3) {
-        IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(std::cerr << "\nAssertion cells.size() <= (coordinate_type{ 32,32,32 }) of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/cell.h:964 failed!\n\tcells.size() = ", var_2.size()) << "\n\t(coordinate_type{ 32,32,32 }) = ", allscale::utils::Vector<long, 3 >{(int64_t)32, (int64_t)32, (int64_t)32}) << "\n" << "Unable to dump data for such a large cell grid at this time";
-    };
     IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_async__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_968_41_returns_core_colon__colon_treeture_lt_std_colon__colon_result_of_t_lt__lparen_lambda_space_at_space__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_colon_968_colon_41_rparen__space__lparen_void_rparen__gt__space__gt_(INS_INIT(IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_968_41_const_space_allscale_colon__colon_api_colon__colon_user_colon__colon_data_colon__colon_Grid_lt_struct_space_ipic3d_colon__colon_Cell_comma__space_3_gt__space__ampersand__const_space_std_colon__colon___cxx11_colon__colon_basic_string_lt_char_gt__void_IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_968_41){var_0, var_1}).wait();
 }
 struct allscale_type_375;
@@ -2882,30 +2860,6 @@ template<> struct to_std_array_type<allscale_type_321> { using type = std::array
 
 /* ------- Function Definitions --------- */
 IMP_ipic3d_colon__colon_UniverseProperties::IMP_ipic3d_colon__colon_UniverseProperties(ipic3dUseCase const& var_1, allscale::utils::Vector<long, 3 > const& var_2, allscale::utils::Vector<double, 3 > const& var_3, double var_4, double var_5, double var_6, allscale::utils::Vector<double, 3 > const& var_7, allscale::utils::Vector<double, 3 > const& var_8, allscale::utils::Vector<double, 3 > const& var_9, int32_t var_10) : useCase(var_1), size(var_2), cellWidth(var_3), dt(var_4), speedOfLight(var_5), planetRadius(var_6), objectCenter(var_7), origin(var_8), magneticField(var_9), FieldOutputCycle(var_10), outputFileBaseName() {
-    insieme::utils::detail::LazyAssertion var_11 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{var_2.x > (int64_t)0 && var_2.y > (int64_t)0 && var_2.z > (int64_t)0};
-    if (var_11) {
-        IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(std::cerr << "\nAssertion size.x > 0 && size.y > 0 && size.z > 0 of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/universe_properties.h:80 failed!\n" << "Expected positive non-zero universe size, but got ", var_2);
-    };
-    insieme::utils::detail::LazyAssertion var_12 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{var_2.x == var_2.y && var_2.y == var_2.z};
-    if (var_12) {
-        std::cerr << "\nAssertion size.x == size.y && size.y == size.z of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/universe_properties.h:81 failed!\n" << "Expected sizes of universe to be equal (=cubic universe), but got " << var_2.x << ", " << var_2.y << ", " << var_2.z;
-    };
-    insieme::utils::detail::LazyAssertion var_13 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{var_3.x > (double)0 && var_3.y > (double)0 && var_3.z > (double)0};
-    if (var_13) {
-        allscale_fun_311(std::cerr << "\nAssertion cellWidth.x > 0 && cellWidth.y > 0 && cellWidth.z > 0 of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/universe_properties.h:82 failed!\n" << "Expected positive non-zero cell widths, but got ", var_3);
-    };
-    insieme::utils::detail::LazyAssertion var_14 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{(double)0 < var_4};
-    if (var_14) {
-        std::cerr << "\nAssertion 0 < dt of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/universe_properties.h:83 failed!\n\t0 = " << 0 << "\n\tdt = " << var_4 << "\n" << "Expected positive non-zero time step, but got " << var_4;
-    };
-    insieme::utils::detail::LazyAssertion var_15 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{(double)0 < var_5};
-    if (var_15) {
-        std::cerr << "\nAssertion 0 < speedOfLight of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/universe_properties.h:84 failed!\n\t0 = " << 0 << "\n\tspeedOfLight = " << var_5 << "\n" << "Expected positive non-zero speed of light, but got " << var_5;
-    };
-    insieme::utils::detail::LazyAssertion var_16 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{(double)0 <= var_6};
-    if (var_16) {
-        std::cerr << "\nAssertion 0 <= planetRadius of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/universe_properties.h:85 failed!\n\t0 = " << 0 << "\n\tplanetRadius = " << var_6 << "\n" << "Expected positive or zero object radius, but got " << var_6;
-    };
 }
 /* ------- Function Definitions --------- */
 IMP_ipic3d_colon__colon_UniverseProperties::IMP_ipic3d_colon__colon_UniverseProperties() : IMP_ipic3d_colon__colon_UniverseProperties(ipic3dUseCaseDipole, allscale::utils::Vector<long, 3 >{(int64_t)1, (int64_t)1, (int64_t)1}, allscale::utils::Vector<double, 3 >{1.0E+0, 1.0E+0, 1.0E+0}, 1.0E+0, 1.0E+0, 0.0E+0, allscale::utils::Vector<double, 3 >{0.0E+0, 0.0E+0, 0.0E+0}, allscale::utils::Vector<double, 3 >{0.0E+0, 0.0E+0, 0.0E+0}, allscale::utils::Vector<double, 3 >{0.0E+0, 0.0E+0, 0.0E+0}, 1) { }
@@ -2970,10 +2924,6 @@ allscale::utils::Vector<double, 3 > IMP_allscale_colon__colon_utils_colon__colon
 }
 /* ------- Function Definitions --------- */
 allscale::utils::Vector<double, 3 > IMP_ipic3d_colon__colon_getLocationForFields(allscale::utils::Vector<long, 3 > const& var_0, IMP_ipic3d_colon__colon_UniverseProperties const& var_1) {
-    insieme::utils::detail::LazyAssertion var_2 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{var_0.dominatedBy(allscale_fun_579(var_1.size, allscale::utils::Vector<long, 3 >{(int64_t)1}))};
-    if (var_2) {
-        IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(std::cerr << "\nAssertion pos.dominatedBy(properties.size + coordinate_type(1)) of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/universe_properties.h:130 failed!\n" << "Position ", var_0) << " is outside universe of size ", var_1.size);
-    };
     allscale::utils::Vector<double, 3 > var_3{((double)var_0.x), ((double)var_0.y), ((double)var_0.z)};
     return (allscale::utils::Vector<double, 3 >&&)IMP_allscale_colon__colon_utils_colon__colon__operator_plus_(var_1.origin, IMP_allscale_colon__colon_utils_colon__colon_elementwiseProduct_double_3_returns_Vector_lt_double_comma__space_3UL_gt_(var_3, var_1.cellWidth));
 }
@@ -3230,18 +3180,6 @@ IMP_ipic3d_colon__colon_TransferDirection IMP_ipic3d_colon__colon_TransferDirect
 /* ------- Function Definitions --------- */
 /* ------- Function Definitions --------- */
 IMP_ipic3d_colon__colon_TransferDirection::IMP_ipic3d_colon__colon_TransferDirection(int32_t var_1, int32_t var_2, int32_t var_3) : direction((uint32_t)(var_1 << 4 | var_2 << 2 | var_3)) {
-    insieme::utils::detail::LazyAssertion var_4 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{0 <= var_1 && var_1 < 3};
-    if (var_4) {
-        std::cerr << "\nAssertion 0 <= x && x < 3 of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/transfer_buffer.h:35 failed!\n" << var_1;
-    };
-    insieme::utils::detail::LazyAssertion var_5 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{0 <= var_2 && var_2 < 3};
-    if (var_5) {
-        std::cerr << "\nAssertion 0 <= y && y < 3 of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/transfer_buffer.h:36 failed!\n" << var_2;
-    };
-    insieme::utils::detail::LazyAssertion var_6 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{0 <= var_3 && var_3 < 3};
-    if (var_6) {
-        std::cerr << "\nAssertion 0 <= z && z < 3 of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/transfer_buffer.h:37 failed!\n" << var_3;
-    };
 }
 /* ------- Function Definitions --------- */
 /* ------- Function Definitions --------- */
@@ -3336,10 +3274,6 @@ template<> struct to_std_array_type<allscale_type_589> { using type = std::array
 /* ------- Function Definitions --------- */
 IMP_ipic3d_colon__colon_Universe::IMP_ipic3d_colon__colon_Universe(IMP_ipic3d_colon__colon_UniverseProperties const& var_1) : properties(var_1), cells((allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3 > >&&)allscale::runtime::DataItemManager::create<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3 > >(var_1.size)), field((allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_FieldNode, 3 > >&&)allscale::runtime::DataItemManager::create<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_FieldNode, 3 > >(allscale_fun_579(var_1.size, allscale::utils::Vector<long, 3 >{(int64_t)3}))), bcfield((allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_BcFieldCell, 3 > >&&)allscale::runtime::DataItemManager::create<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_BcFieldCell, 3 > >(allscale_fun_579(var_1.size, allscale::utils::Vector<long, 3 >{(int64_t)2}))), currentDensity((allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3 > >&&)allscale::runtime::DataItemManager::create<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3 > >(allscale_fun_579(var_1.size, allscale::utils::Vector<long, 3 >{(int64_t)1}))) {
     allscale::utils::Vector<long, 3 > var_2 = (allscale::utils::Vector<long, 3 > const&)var_1.size;
-    insieme::utils::detail::LazyAssertion var_3 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{var_2.x > (int64_t)0 || var_2.y > (int64_t)0 || var_2.z > (int64_t)0};
-    if (var_3) {
-        IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(std::cerr << "\nAssertion dims.x > 0 || dims.y > 0 || dims.z > 0 of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/universe.h:39 failed!\n" << "Expected positive non-zero dimensions, but got ", var_2);
-    };
 }
 /* ------- Function Definitions --------- */
 struct allscale_type_607;
@@ -3419,26 +3353,6 @@ IMP_ipic3d_colon__colon_Universe::IMP_ipic3d_colon__colon_Universe(IMP_ipic3d_co
     allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_BcFieldCell, 3 >&& var_8 = allscale::runtime::DataItemManager::get((*this).bcfield);
     allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3 >&& var_9 = allscale::runtime::DataItemManager::get((*this).currentDensity);
     allscale::utils::Vector<long, 3 > var_10 = (allscale::utils::Vector<long, 3 >&&)var_6.size();
-    insieme::utils::detail::LazyAssertion var_11 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{var_10 == var_1.size};
-    if (var_11) {
-        IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(std::cerr << "\nAssertion size == properties.size of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/universe.h:44 failed!\n" << "Expected size of universe and size of cell grid to match, but got ", var_10) << " and ", var_1.size);
-    };
-    insieme::utils::detail::LazyAssertion var_12 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{allscale_fun_579(var_10, allscale::utils::Vector<long, 3 >{(int64_t)3}) == var_7.size()};
-    if (var_12) {
-        IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(std::cerr << "\nAssertion (size + coordinate_type(3)) == field.size() of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/universe.h:45 failed!\n" << "Expected size of field grid to be equal to size of cell grid + 3 but got ", var_7.size()) << " and ", var_10);
-    };
-    insieme::utils::detail::LazyAssertion var_13 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{allscale_fun_579(var_10, allscale::utils::Vector<long, 3 >{(int64_t)2}) == var_8.size()};
-    if (var_13) {
-        IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(std::cerr << "\nAssertion (size + coordinate_type(2)) == bcfield.size() of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/universe.h:46 failed!\n" << "Expected size of magnetic field grid to be equal to size of cell grid + 2 but got ", var_7.size()) << " and ", var_10);
-    };
-    insieme::utils::detail::LazyAssertion var_14 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{allscale_fun_579(var_10, allscale::utils::Vector<long, 3 >{(int64_t)1}) == var_9.size()};
-    if (var_14) {
-        IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(std::cerr << "\nAssertion (size + coordinate_type(1)) == currentDensity.size() of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/universe.h:47 failed!\n" << "Expected size of current density grid to be equal to size of cell grid + 1 but got ", var_7.size()) << " and ", var_10);
-    };
-    insieme::utils::detail::LazyAssertion var_15 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{var_10.x > (int64_t)0 || var_10.y > (int64_t)0 || var_10.z > (int64_t)0};
-    if (var_15) {
-        IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(std::cerr << "\nAssertion size.x > 0 || size.y > 0 || size.z > 0 of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/universe.h:48 failed!\n" << "Expected positive non-zero dimensions, but got ", var_10);
-    };
 }
 /* ------- Function Definitions --------- */
 /* ------- Function Definitions --------- */
@@ -3506,19 +3420,11 @@ template<> struct to_std_array_type<allscale_type_1047> { using type = std::arra
 
 /* ------- Function Definitions --------- */
 allscale::utils::Vector<double, 3 > IMP_ipic3d_colon__colon_getOriginOfCell(allscale::utils::Vector<long, 3 > const& var_0, IMP_ipic3d_colon__colon_UniverseProperties const& var_1) {
-    insieme::utils::detail::LazyAssertion var_2 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{var_0.dominatedBy(var_1.size)};
-    if (var_2) {
-        IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(std::cerr << "\nAssertion pos.dominatedBy(properties.size) of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/universe_properties.h:123 failed!\n" << "Position ", var_0) << " is outside universe of size ", var_1.size);
-    };
     allscale::utils::Vector<double, 3 > var_3{((double)var_0.x), ((double)var_0.y), ((double)var_0.z)};
     return (allscale::utils::Vector<double, 3 >&&)IMP_allscale_colon__colon_utils_colon__colon__operator_plus_(var_1.origin, IMP_allscale_colon__colon_utils_colon__colon_elementwiseProduct_double_3_returns_Vector_lt_double_comma__space_3UL_gt_(var_3, var_1.cellWidth));
 }
 /* ------- Function Definitions --------- */
 allscale::utils::Vector<double, 3 > IMP_ipic3d_colon__colon_getCenterOfCell(allscale::utils::Vector<long, 3 > const& var_0, IMP_ipic3d_colon__colon_UniverseProperties const& var_1) {
-    insieme::utils::detail::LazyAssertion var_2 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{var_0.strictlyDominatedBy(var_1.size)};
-    if (var_2) {
-        IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(std::cerr << "\nAssertion pos.strictlyDominatedBy(properties.size) of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/universe_properties.h:136 failed!\n" << "Position ", var_0) << " is outside universe of size ", var_1.size);
-    };
     return (allscale::utils::Vector<double, 3 >&&)IMP_allscale_colon__colon_utils_colon__colon__operator_plus_(IMP_ipic3d_colon__colon_getOriginOfCell(var_0, var_1), IMP_allscale_colon__colon_utils_colon__colon__operator_div_(var_1.cellWidth, 2.0E+0));
 }
 /* ------- Function Definitions --------- */
@@ -3561,10 +3467,6 @@ bool IMP_ipic3d_colon__colon_verifyCorrectParticlesPositionInCell(IMP_ipic3d_col
 }
 /* ------- Function Definitions --------- */
 void IMP_ipic3d_colon__colon_importParticles(IMP_ipic3d_colon__colon_UniverseProperties const& var_0, IMP_ipic3d_colon__colon_Cell& var_1, allscale::utils::Vector<long, 3 > const& var_2, IMP_ipic3d_colon__colon_TransferBuffers& var_3) {
-    insieme::utils::detail::LazyAssertion var_4 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{var_2.dominatedBy(var_0.size)};
-    if (var_4) {
-        IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(std::cerr << "\nAssertion pos.dominatedBy(universeProperties.size) of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/cell.h:840 failed!\n" << "Position ", var_2) << " is outside universe of size ", var_0.size);
-    };
     IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_863_17_struct_space_ipic3d_colon__colon_Cell_space__ampersand__auto_const_space_type_minus_parameter_minus_0_minus_0_space__ampersand__IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_863_17 var_5 = (IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_863_17_struct_space_ipic3d_colon__colon_Cell_space__ampersand__auto_const_space_type_minus_parameter_minus_0_minus_0_space__ampersand__IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_863_17&&)INS_INIT(IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_863_17_struct_space_ipic3d_colon__colon_Cell_space__ampersand__auto_const_space_type_minus_parameter_minus_0_minus_0_space__ampersand__IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_863_17){var_1};
     var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 0, 0}));
     var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 0, 1}));
@@ -3592,10 +3494,6 @@ void IMP_ipic3d_colon__colon_importParticles(IMP_ipic3d_colon__colon_UniversePro
     var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 2, 0}));
     var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 2, 1}));
     var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 2, 2}));
-    insieme::utils::detail::LazyAssertion var_6 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{IMP_ipic3d_colon__colon_verifyCorrectParticlesPositionInCell(var_0, var_1, var_2)};
-    if (var_6) {
-        std::cerr << "\nAssertion verifyCorrectParticlesPositionInCell(universeProperties, cell, pos) of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/cell.h:911 failed!\n";
-    };
 }
 /* ------- Function Definitions --------- */
 void IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_simulator_dot_h_165_21_struct_space_ipic3d_colon__colon_Universe_space__ampersand__ipic3d_colon__colon_TransferBuffers_space__ampersand__void_const_space_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__space__ampersand_::operator()(allscale::utils::Vector<long, 3 > const& index) const {
@@ -3686,10 +3584,6 @@ struct allscale_type_1250 {
 /* ------- Function Definitions --------- */
 void IMP_ipic3d_colon__colon_moveParticles(IMP_ipic3d_colon__colon_UniverseProperties const& var_0, IMP_ipic3d_colon__colon_Cell& var_1, allscale::utils::Vector<long, 3 > const& var_2, allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_FieldNode, 3 > > const& var_3) {
     allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_FieldNode, 3 > const&& var_4 = allscale::runtime::DataItemManager::get(var_3);
-    insieme::utils::detail::LazyAssertion var_5 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{var_2.dominatedBy(var_0.size)};
-    if (var_5) {
-        IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(std::cerr << "\nAssertion pos.dominatedBy(universeProperties.size) of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/cell.h:569 failed!\n" << "Position ", var_2) << " is outside universe of size ", var_0.size);
-    };
     if (var_1.particles.empty()) {
         return;
     };
@@ -3788,10 +3682,6 @@ allscale::utils::Vector<double, 3 >& allscale_fun_1308(allscale::utils::Vector<d
 }
 /* ------- Function Definitions --------- */
 void IMP_ipic3d_colon__colon_exportParticles(IMP_ipic3d_colon__colon_UniverseProperties const& var_0, IMP_ipic3d_colon__colon_Cell& var_1, allscale::utils::Vector<long, 3 > const& var_2, IMP_ipic3d_colon__colon_TransferBuffers& var_3) {
-    insieme::utils::detail::LazyAssertion var_4 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{var_2.dominatedBy(var_0.size)};
-    if (var_4) {
-        IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(IMP_allscale_colon__colon_utils_colon__colon__operator_lshift_(std::cerr << "\nAssertion pos.dominatedBy(universeProperties.size) of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/cell.h:629 failed!\n" << "Position ", var_2) << " is outside universe of size ", var_0.size);
-    };
     std::vector<IMP_ipic3d_colon__colon_Particle> var_5;
     var_5.reserve(var_1.particles.size());
     {
@@ -5128,10 +5018,6 @@ IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__co
     allscale::utils::Vector<long, 3 > var_6 = var_5;
     allscale::utils::Vector<long, 3 > var_7 = var_4;
     var_6.operator[](pos) = *cxx_style_assignment(&var_7.operator[](pos), allscale_fun_1621(var_0, IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_range_long{var_4.operator[](pos), var_5.operator[](pos)}).left.end_returns_constlong());
-    insieme::utils::detail::LazyAssertion var_8 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{var_2.operator()(var_4, var_5) == var_2.operator()(var_4, var_6) + var_2.operator()(var_7, var_5)};
-    if (var_8) {
-        std::cerr << "\nAssertion volume(begin,end) == volume(begin,midA) + volume(midB,end) of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_Distributed/workspace/code/../api/code/api/include/allscale/api/user/algorithm/pfor.h:970 failed!\n\tvolume(begin,end) = " << var_2.operator()(var_4, var_5) << "\n\tvolume(begin,midA) + volume(midB,end) = " << var_2.operator()(var_4, var_6) + var_2.operator()(var_7, var_5) << "\n";
-    };
     return (IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_fragments_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_&&)IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_make_fragments_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__returns_fragments_lt_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__space__gt_(IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_{var_4, var_6}, IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_{var_7, var_5});
 }
 /* ------- Function Definitions --------- */
@@ -5384,10 +5270,6 @@ IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__co
     allscale::utils::Vector<long, 3 > var_6 = var_5;
     allscale::utils::Vector<long, 3 > var_7 = var_4;
     var_6.operator[](pos) = *cxx_style_assignment(&var_7.operator[](pos), allscale_fun_1621(var_0, IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_range_long{var_4.operator[](pos), var_5.operator[](pos)}).left.end_returns_constlong());
-    insieme::utils::detail::LazyAssertion var_8 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{var_2.operator()(var_4, var_5) == var_2.operator()(var_4, var_6) + var_2.operator()(var_7, var_5)};
-    if (var_8) {
-        std::cerr << "\nAssertion volume(begin,end) == volume(begin,midA) + volume(midB,end) of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_Distributed/workspace/code/../api/code/api/include/allscale/api/user/algorithm/pfor.h:970 failed!\n\tvolume(begin,end) = " << var_2.operator()(var_4, var_5) << "\n\tvolume(begin,midA) + volume(midB,end) = " << var_2.operator()(var_4, var_6) + var_2.operator()(var_7, var_5) << "\n";
-    };
     return (IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_fragments_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_&&)allscale_fun_1665(IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_{var_4, var_6}, IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_{var_7, var_5});
 }
 /* ------- Function Definitions --------- */
@@ -6188,10 +6070,6 @@ template<> struct to_std_array_type<allscale_type_2030> { using type = std::arra
 
 /* ------- Function Definitions --------- */
 IMP_ipic3d_colon__colon_distribution_colon__colon_spherical_ipic3d_colon__colon_distribution_colon__colon_generic_particle_generator_lt_ipic3d_colon__colon_distribution_colon__colon_vector_colon__colon_uniform_comma__space_ipic3d_colon__colon_distribution_colon__colon_vector_colon__colon_normal_comma__space_struct_space_ipic3d_colon__colon_distribution_colon__colon_species_colon__colon_electron_gt_::IMP_ipic3d_colon__colon_distribution_colon__colon_spherical_ipic3d_colon__colon_distribution_colon__colon_generic_particle_generator_lt_ipic3d_colon__colon_distribution_colon__colon_vector_colon__colon_uniform_comma__space_ipic3d_colon__colon_distribution_colon__colon_vector_colon__colon_normal_comma__space_struct_space_ipic3d_colon__colon_distribution_colon__colon_species_colon__colon_electron_gt_(IMP_ipic3d_colon__colon_distribution_colon__colon_generic_particle_generator_ipic3d_colon__colon_distribution_colon__colon_vector_colon__colon_uniform_ipic3d_colon__colon_distribution_colon__colon_vector_colon__colon_normal_struct_space_ipic3d_colon__colon_distribution_colon__colon_species_colon__colon_electron const& var_1, allscale::utils::Vector<double, 3 > const& var_2, double var_3) : dist(var_1), center(var_2), radius(var_3) {
-    insieme::utils::detail::LazyAssertion var_4 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{var_3 > (double)0};
-    if (var_4) {
-        std::cerr << "\nAssertion radius > 0 of /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/cell.h:253 failed!\n\tradius = " << var_3 << "\n\t0 = " << 0 << "\n";
-    };
 }
 /* ------- Function Definitions --------- */
 double IMP_ipic3d_colon__colon_norm_double_3_returns_double(allscale::utils::Vector<double, 3 > const& var_0) {
@@ -6220,10 +6098,6 @@ IMP_ipic3d_colon__colon_Particle IMP_ipic3d_colon__colon_distribution_colon__col
             };
             var_1++;
         };
-    };
-    insieme::utils::detail::LazyAssertion var_3 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{(bool)false};
-    if (var_3) {
-        std::cerr << "\nAssertion failed in /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed/workspace/code/app/include/ipic3d/app/cell.h:263 - " << "Probably empty distribution!";
     };
     return {};
 }
@@ -6393,10 +6267,6 @@ bool __wi_allscale_wi_10_can_split::call(hpx::util::tuple<IMP_empty_instance2_IM
 }
 /* ------- Function Definitions --------- */
 allscale::treeture<void > allscale_fun_2246(hpx::util::tuple<IMP_empty_instance2_IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_Distributed_slash_workspace_slash_api_slash_code_slash_api_slash_include_slash_allscale_slash_api_slash_user_slash_algorithm_slash_async_dot_h_63_3, IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_968_41_const_space_allscale_colon__colon_api_colon__colon_user_colon__colon_data_colon__colon_Grid_lt_struct_space_ipic3d_colon__colon_Cell_comma__space_3_gt__space__ampersand__const_space_std_colon__colon___cxx11_colon__colon_basic_string_lt_char_gt__void_IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_968_41 > const& var_0) {
-    insieme::utils::detail::LazyAssertion var_1 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{(bool)false};
-    if (var_1) {
-        std::cerr << "\nAssertion failed in /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_Distributed/workspace/code/../api/code/api/include/allscale/api/user/algorithm/async.h:70 - " << "Should not be reached!";
-    };
     hpx::util::get<1 >(var_0).operator()();
     return (void)0, allscale::make_ready_treeture();
 }
@@ -6427,10 +6297,6 @@ void allscale_fun_2255(hpx::util::tuple<IMP_empty_instance2_IMLOC__slash_var_sla
 }
 /* ------- Function Definitions --------- */
 void allscale_fun_2256(hpx::util::tuple<IMP_empty_instance2_IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_Distributed_slash_workspace_slash_api_slash_code_slash_api_slash_include_slash_allscale_slash_api_slash_user_slash_algorithm_slash_async_dot_h_63_3, IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_968_41_const_space_allscale_colon__colon_api_colon__colon_user_colon__colon_data_colon__colon_Grid_lt_struct_space_ipic3d_colon__colon_Cell_comma__space_3_gt__space__ampersand__const_space_std_colon__colon___cxx11_colon__colon_basic_string_lt_char_gt__void_IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_arch_paper_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_968_41 > const& var_0) {
-    insieme::utils::detail::LazyAssertion var_1 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{(bool)false};
-    if (var_1) {
-        std::cerr << "\nAssertion failed in /var/lib/jenkins/jobs/Nightly_AllScale_Compiler_Distributed/workspace/code/../api/code/api/include/allscale/api/user/algorithm/async.h:70 - " << "Should not be reached!";
-    };
     hpx::util::get<1 >(var_0).operator()();
     return (void)0;
 }
