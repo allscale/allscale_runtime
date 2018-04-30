@@ -47,7 +47,7 @@ namespace allscale { namespace components {
 
 
    monitor::monitor(std::uint64_t rank)
-     : num_localities_(hpx::get_num_localities().get())
+     : num_localities_(0)
      , rank_(rank)
      , enable_monitor(true)
      , output_profile_table_(0)
@@ -1598,6 +1598,7 @@ namespace allscale { namespace components {
 	 std::cout << "Monitor component disabled!\n";
 	 return;
       }
+      num_localities_ = allscale::get_num_localities();
 
       allscale::monitor::connect(allscale::monitor::work_item_split_execution_started, monitor::global_w_exec_split_start_wrapper);
       allscale::monitor::connect(allscale::monitor::work_item_process_execution_started, monitor::global_w_exec_process_start_wrapper);

@@ -478,6 +478,21 @@ namespace allscale { namespace detail {
             hpx::future<std::size_t>
         >::type split(bool sync, Reqs && reqs, std::size_t this_id)
         {
+#if defined(ALLSCALE_DEBUG_DIM)
+            std::string s = this->name();
+            s += '(';
+            s += id_.name();
+            s += ").split";
+            data_item_manager::log_req(s,
+                    reqs
+//                 detail::merge_data_item_reqs(
+//                     hpx::util::tuple_cat(
+//                         get_requirements<typename WorkItemDescription::split_variant>(nullptr),
+//                         get_requirements<typename WorkItemDescription::process_variant>(nullptr)
+//                     )
+//                 )
+            );
+#endif
             auto this_ = shared_this();
             return hpx::dataflow(//sync ? hpx::launch::sync : hpx::launch::async,
                 hpx::util::annotated_function([reqs, this_ = std::move(this_), this_id](auto locate_future)
@@ -524,20 +539,6 @@ namespace allscale { namespace detail {
             auto reqs = detail::merge_data_item_reqs(
                 get_requirements<typename WorkItemDescription::split_variant>(nullptr)
             );
-#if defined(ALLSCALE_DEBUG_DIM)
-            std::string s = this->name();
-            s += '(';
-            s += id_.name();
-            s += ").split";
-            data_item_manager::log_req(s,
-                detail::merge_data_item_reqs(
-                    hpx::util::tuple_cat(
-                        get_requirements<typename WorkItemDescription::split_variant>(nullptr),
-                        get_requirements<typename WorkItemDescription::process_variant>(nullptr)
-                    )
-                )
-            );
-#endif
             return split<WorkItemDescription>(sync, std::move(reqs), this_id);
         }
 
@@ -589,6 +590,11 @@ namespace allscale { namespace detail {
         void mark_child_requirements(std::size_t dest_id)
         {
             mark_child_requirements<WorkItemDescription>(dest_id);
+//             data_item_manager::mark_child_requirements(
+//                 detail::merge_data_item_reqs(
+//                     get_requirements<typename WorkItemDescription::process_variant>(nullptr)
+//                 ), dest_id
+//             );
         }
 
         bool enqueue_remote() const final

@@ -281,7 +281,8 @@ namespace allscale { namespace data_item_manager {
                             << ", "
                             << std::hex << req.ref.id().get_lsb() << std::dec
                             << ": "
-                            << region_type::intersect(fragment(item).getTotalSize(), remainder)
+                            << remainder
+//                             << region_type::intersect(fragment(item).getTotalSize(), remainder)
                             << '\n';
                         os.close();
 #endif
@@ -315,7 +316,7 @@ namespace allscale { namespace data_item_manager {
 
 #if defined(ALLSCALE_DEBUG_DIM)
         template <locate_state state, typename Requirements, std::size_t...Is>
-        auto locate(std::string name, Requirements const& reqs, std::size_t src_id, hpx::util::detail::pack_c<std::size_t, Is...>)
+        auto locate(std::string name, Requirements const& reqs, hpx::util::detail::pack_c<std::size_t, Is...>)
          -> hpx::util::tuple<decltype(locate<state>(name, hpx::util::get<Is>(reqs), std::declval<std::size_t>()))...>
         {
             static_assert(state == locate_state::init, "Wrong state");
@@ -382,7 +383,8 @@ namespace allscale { namespace data_item_manager {
                 << ", "
                 << std::hex << req.ref.id().get_lsb() << std::dec
                 << ": "
-                << region_type::intersect(fragment(req.ref, item).getTotalSize(), req.region) << '\n';
+                << req.region << '\n';
+//                 << region_type::intersect(fragment(req.ref, item).getTotalSize(), req.region) << '\n';
             os.close();
         }
 

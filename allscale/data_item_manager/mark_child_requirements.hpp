@@ -46,6 +46,8 @@ namespace allscale { namespace data_item_manager {
                 }
             }
             this_child_region = std::move(allowed);
+
+//             std::cout << hpx::get_locality_id() << " Marking child requirement " << dest_id << ": " << this_child_region << '\n';
         }
 
         template <typename Requirement, typename RequirementAllocator>
