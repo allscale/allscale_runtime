@@ -38,7 +38,7 @@ namespace allscale
 
             template <typename Target>
             treeture_task(treeture<void> parent, Target&& data, init_no_addref no_addref)
-              : base_type(std::forward<Target>(data), no_addref)
+              : base_type(no_addref, std::forward<Target>(data))
               , parent_(std::move(parent))
             {
                 children_[0] = treeture<void>();
