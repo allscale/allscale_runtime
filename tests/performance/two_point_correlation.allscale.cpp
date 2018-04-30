@@ -4,8 +4,6 @@
  * ---------------------------------------------------------------------
  */
 
-#define ALLSCALE_DEBUG_DIM
-
 #include <algorithm>
 #include <alloca.h>
 #include <allscale/api/user/data/binary_tree.h>
@@ -43,6 +41,9 @@
 #include <initializer_list> // force libstdc++ to include its config
 #undef _GLIBCXX_HAVE_GETS   // correct broken config
 #endif
+
+using data_item_type_1 = allscale::api::user::data::StaticBalancedBinaryTree<
+    allscale::utils::Vector<float, 7>, 20>;
 
 /* ------- Program Code --------- */
 
@@ -82,22 +83,6 @@ template <typename T>
 struct is_allscale_fixed_sized_array : public std::false_type {};
 
 template <typename T> struct to_std_array_type;
-
-namespace allscale {
-namespace utils {
-template <typename T>
-struct serializer<T, typename std::enable_if<
-                         is_allscale_fixed_sized_array<T>::value, void>::type> {
-  using array_t = typename to_std_array_type<T>::type;
-  static T load(ArchiveReader &a) {
-    return *reinterpret_cast<T *>(&serializer<array_t>::load(a)[0]);
-  }
-  static void store(ArchiveWriter &a, const T &value) {
-    serializer<array_t>::store(a, reinterpret_cast<const array_t &>(value));
-  }
-};
-} // namespace utils
-} // namespace allscale
 
 struct allscale_type_53 {
   char data[18];
@@ -270,8 +255,6 @@ template <> struct to_std_array_type<allscale_type_93> {
   using type = std::array<char, 4u>;
 };
 
-using data_item_type_1 = allscale::api::user::data::StaticBalancedBinaryTree<
-    allscale::utils::Vector<float, 7>, 20>;
 REGISTER_DATAITEMSERVER_DECLARATION(data_item_type_1)
 REGISTER_DATAITEMSERVER(data_item_type_1)
 struct IMP_Args;
@@ -1378,7 +1361,7 @@ allscale_fun_246(
               hpx::util::get<1>(var_0),
           allscale::api::user::data::StaticBalancedBinaryTreeRegion<
               20>::subtree(hpx::util::get<0>(var_0).node.getSubtreeIndex()),
-          allscale::runtime::AccessMode::ReadOnly)};
+          allscale::runtime::AccessMode::ReadWrite)};
 }
 struct __wi_allscale_wi_2_variant_0 {
   static allscale::treeture<uint64_t> execute(
@@ -1438,7 +1421,7 @@ allscale_fun_256(
               hpx::util::get<1>(var_0),
           allscale::api::user::data::StaticBalancedBinaryTreeRegion<
               20>::closure(hpx::util::get<0>(var_0).node.getSubtreeIndex()),
-          allscale::runtime::AccessMode::ReadOnly)};
+          allscale::runtime::AccessMode::ReadWrite)};
 }
 /* ------- Function Prototypes ---------- */
 uint64_t

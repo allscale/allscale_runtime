@@ -406,14 +406,13 @@ namespace allscale { namespace detail {
             auto reqs = detail::merge_data_item_reqs(
                 get_requirements<typename WorkItemDescription::process_variant>(nullptr)
             );
-
 #if defined(ALLSCALE_DEBUG_DIM)
-            std::string s = this->name();
+            std::string s = this_->name();
             s += '(';
-            s += id_.name();
+            s += this_->id_.name();
             s += ").process";
-            data_item_manager::log_req(s, reqs);
 #endif
+
             return hpx::dataflow(hpx::launch::sync,
                 hpx::util::annotated_function([reqs, this_ = std::move(this_), &exec, this_id](auto locate_future)
                 {
@@ -439,6 +438,13 @@ namespace allscale { namespace detail {
                     {
                         return hpx::make_ready_future(rank);
                     }
+#if defined(ALLSCALE_DEBUG_DIM)
+                    std::string s = this_->name();
+                    s += '(';
+                    s += this_->id_.name();
+                    s += ").process";
+                    data_item_manager::log_req(s, reqs);
+#endif
                     HPX_ASSERT(rank == std::size_t(-2) || rank == this_id);
                     return this_->process(exec, data_item_manager::acquire(reqs, infos));
                 }, "allscale::work_item::process::locate_continuation"),
@@ -478,22 +484,13 @@ namespace allscale { namespace detail {
             hpx::future<std::size_t>
         >::type split(bool sync, Reqs && reqs, std::size_t this_id)
         {
-#if defined(ALLSCALE_DEBUG_DIM)
-            std::string s = this->name();
-            s += '(';
-            s += id_.name();
-            s += ").split";
-            data_item_manager::log_req(s,
-                    reqs
-//                 detail::merge_data_item_reqs(
-//                     hpx::util::tuple_cat(
-//                         get_requirements<typename WorkItemDescription::split_variant>(nullptr),
-//                         get_requirements<typename WorkItemDescription::process_variant>(nullptr)
-//                     )
-//                 )
-            );
-#endif
             auto this_ = shared_this();
+#if defined(ALLSCALE_DEBUG_DIM)
+                    std::string s = this_->name();
+                    s += '(';
+                    s += this_->id_.name();
+                    s += ").process";
+#endif
             return hpx::dataflow(//sync ? hpx::launch::sync : hpx::launch::async,
                 hpx::util::annotated_function([reqs, this_ = std::move(this_), this_id](auto locate_future)
                 {
@@ -513,6 +510,13 @@ namespace allscale { namespace detail {
                     typedef
                         typename hpx::util::decay<decltype(hpx::util::unwrap(data_item_manager::acquire(reqs, infos)))>::type
                         reqs_type;
+#if defined(ALLSCALE_DEBUG_DIM)
+                    std::string s = this_->name();
+                    s += '(';
+                    s += this_->id_.name();
+                    s += ").process";
+                    data_item_manager::log_req(s, reqs);
+#endif
                     return hpx::dataflow(hpx::launch::sync,
                         hpx::util::annotated_function(hpx::util::unwrapping([this_ = std::move(this_)](reqs_type reqs) mutable
                         {

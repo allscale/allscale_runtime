@@ -2,6 +2,7 @@
 #ifndef ALLSCALE_SPAWN_HPP
 #define ALLSCALE_SPAWN_HPP
 
+#include <allscale/spawn_fwd.hpp>
 #include <allscale/work_item.hpp>
 #include <allscale/scheduler.hpp>
 

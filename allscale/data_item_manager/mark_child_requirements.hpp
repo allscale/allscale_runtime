@@ -45,9 +45,7 @@ namespace allscale { namespace data_item_manager {
                     allowed = region_type::difference(allowed, child.second);
                 }
             }
-            this_child_region = std::move(allowed);
-
-//             std::cout << hpx::get_locality_id() << " Marking child requirement " << dest_id << ": " << this_child_region << '\n';
+            this_child_region = std::move(allowed);//region_type::merge(allowed, this_child_region);
         }
 
         template <typename Requirement, typename RequirementAllocator>

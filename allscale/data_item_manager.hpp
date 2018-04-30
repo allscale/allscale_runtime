@@ -8,8 +8,12 @@
 #include <allscale/data_item_manager/shared_data.hpp>
 #include <allscale/data_item_reference.hpp>
 #include <allscale/data_item_requirement.hpp>
+#include <allscale/work_item_description.hpp>
+#include <allscale/spawn_fwd.hpp>
+#include <allscale/do_serialization.hpp>
 #include <allscale/lease.hpp>
 #include "allscale/utils/serializer.h"
+#include "allscale/api/user/data/binary_tree.h"
 
 #include <hpx/runtime/components/new.hpp>
 #include <hpx/util/detail/yield_k.hpp>
@@ -17,6 +21,113 @@
 #include <type_traits>
 
 namespace allscale { namespace data_item_manager {
+        template <typename DataItem>
+        struct initializer
+        {
+            static void call(data_item_reference<DataItem> const& ref)
+            {
+            }
+        };
+
+        template <typename T, std::size_t depth>
+        struct initializer<
+            allscale::api::user::data::StaticBalancedBinaryTree<T, depth>
+        >
+        {
+            using data_item_type =
+                allscale::api::user::data::StaticBalancedBinaryTree<T, depth>;
+            struct tree_init_name {
+                static const char* name() { return "tree_init"; }
+            };
+            struct tree_init_split;
+            struct tree_init_process;
+            struct tree_init_can_split;
+
+            using tree_init = allscale::work_item_description<
+                void,
+                tree_init_name,
+                allscale::do_serialization,
+                tree_init_split,
+                tree_init_process,
+                tree_init_can_split
+            >;
+
+            struct tree_init_can_split
+            {
+                template <typename Closure>
+                static bool call(Closure const& c)
+                {
+                    auto begin = hpx::util::get<1>(c);
+                    auto end = hpx::util::get<2>(c);
+
+                    return end - begin > 2;
+                }
+            };
+
+            struct tree_init_split {
+                template <typename Closure>
+                static hpx::future<void> execute(Closure const& c)
+                {
+                    auto data = hpx::util::get<0>(c);
+                    auto begin = hpx::util::get<1>(c);
+                    auto end = hpx::util::get<2>(c);
+
+                    auto mid = begin + (end - begin)/ 2;
+
+                    return hpx::when_all(
+                        allscale::spawn<tree_init>(data, mid, end).get_future(),
+                        allscale::spawn<tree_init>(data, begin, mid).get_future()
+                    );
+                }
+
+                static constexpr bool valid = true;
+            };
+
+            struct tree_init_process {
+                template <typename Closure>
+                static void execute(Closure const& c)
+                {
+                    // do nothing ...
+                }
+
+                template <typename Closure>
+                static hpx::util::tuple<
+                    allscale::data_item_requirement<data_item_type>
+                >
+                get_requirements(Closure const& c)
+                {
+                    auto data = hpx::util::get<0>(c);
+                    auto begin = hpx::util::get<1>(c);
+                    auto end = hpx::util::get<2>(c);
+
+                    using region_type = typename data_item_type::region_type;
+
+                    region_type region;
+
+            //         if (begin == 0) region = region_type::root();
+
+                    for (auto i = begin; i < end; ++i)
+                    {
+                        region = region_type::merge(region, region_type::subtree(i));
+                    }
+
+                    return hpx::util::make_tuple(
+                        allscale::createDataItemRequirement(
+                            data, region,
+                            allscale::access_mode::ReadWrite
+                        )
+                    );
+                }
+                static constexpr bool valid = true;
+            };
+            static void call(data_item_reference<data_item_type> const& ref)
+            {
+                std::cerr << " (Default distributing Binary Tree) ";
+                allscale::spawn_first<tree_init>(ref, 0, 1024).wait();
+            }
+        };
+
+
         template <typename DataItem, typename...Args>
         allscale::data_item_reference<DataItem>
         create(Args&&...args)
@@ -33,6 +144,7 @@ namespace allscale { namespace data_item_manager {
                 );
             auto &item = data_item_store<DataItem>::lookup(ref);
             item.shared_data.reset(new shared_data_type(std::forward<Args>(args)...));
+            initializer<DataItem>::call(ref);
             return ref;
         }
 

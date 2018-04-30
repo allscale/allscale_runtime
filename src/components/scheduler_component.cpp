@@ -505,10 +505,12 @@ namespace allscale { namespace components {
 
 
             std::uint64_t schedule_rank = work.id().rank();
-            if(!allscale::resilience::rank_running(schedule_rank))
-                {
-                    schedule_rank = rank_;
-                }
+            if ((schedule_rank != rank_ && !work.enqueue_remote()) ||
+                !allscale::resilience::rank_running(schedule_rank))
+            {
+                work.update_rank(rank_);
+                schedule_rank = rank_;
+            }
 
             HPX_ASSERT(work.valid());
 
@@ -570,7 +572,6 @@ namespace allscale { namespace components {
                                      else if(expected_rank != std::size_t(-2))
                                          {
                                              HPX_ASSERT(expected_rank != rank_);
-//                                              std::cout << "Dispatching split " << work.name() << " to " << expected_rank << '\n';
                                              work.update_rank(expected_rank);
                                              network_.schedule(expected_rank, std::move(work), std::move(this_id));
                                          }
@@ -591,13 +592,11 @@ namespace allscale { namespace components {
                                          {
                                              // We should move on and split...
                                              HPX_ASSERT(work.can_split());
-//                                              std::cout << "Can't locate data for " << work.name() << '\n';
                                              work.split(true, rank_);
                                          }
                                      else if(expected_rank != std::size_t(-2))
                                          {
                                              HPX_ASSERT(expected_rank != rank_);
-//                                              std::cout << "Dispatching process " << work.name() << " to " << expected_rank << '\n';
                                              work.update_rank(expected_rank);
                                              network_.schedule(expected_rank, std::move(work), std::move(this_id));
                                          }
@@ -612,7 +611,6 @@ namespace allscale { namespace components {
             work.mark_child_requirements(schedule_rank);
 
             allscale::resilience::global_wi_dispatched(work, schedule_rank);
-//             std::cout << "Dispatching " << work.name() << " to " << schedule_rank << '\n';
             network_.schedule(schedule_rank, std::move(work), parent_id);
         }
 
