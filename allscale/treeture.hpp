@@ -61,8 +61,7 @@ namespace allscale {
 //             set_left_child(other.get_left_child());
 //             set_right_child(other.get_right_child());
             auto shared_state = shared_state_;
-            HPX_ASSERT(other.shared_state_);
-            other.shared_state_->set_on_completed(
+            state->set_on_completed(
                 [state, shared_state]()
                 {
                     shared_state->set_value(hpx::util::unused_type{});
