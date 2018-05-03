@@ -45,6 +45,7 @@ namespace allscale { namespace components {
         void init();
 
         void enqueue(work_item work, this_work_item::id);
+        void enqueue_local(work_item work, this_work_item::id, bool force_split, bool sync);
         void stop();
 
 
@@ -76,7 +77,7 @@ namespace allscale { namespace components {
 	bool power_periodic_frequency_scale();
         bool multi_objectives_adjust(std::size_t current_id);
 	bool multi_objectives_adjust_timed();
-        
+
         hpx::util::interval_timer throttle_timer_;
         hpx::util::interval_timer frequency_timer_;
         hpx::util::interval_timer multi_objectives_timer_;
@@ -102,7 +103,7 @@ namespace allscale { namespace components {
         // execution times and number of times that particular thread used
         // due to suspend and resume
         std::vector<std::pair<double, unsigned int>> thread_times;
-        
+
 
         unsigned long min_freq;
         unsigned long max_freq;
@@ -126,7 +127,7 @@ namespace allscale { namespace components {
         std::vector<std::pair<unsigned long long, double>> freq_times;
         std::vector<std::vector<std::pair<unsigned long long, double>>> objectives_status;
         unsigned int freq_step;
-        
+
         bool target_freq_found;
 #endif
         unsigned int resource_step;
@@ -158,7 +159,7 @@ namespace allscale { namespace components {
         unsigned int period_for_time;
         unsigned int period_for_resource;
         unsigned int period_for_power;
-            
+
 
     };
 }}

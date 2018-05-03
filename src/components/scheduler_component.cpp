@@ -551,59 +551,7 @@ namespace allscale { namespace components {
                                         }
                                 }
                         }
-
-                    allscale::monitor::signal(allscale::monitor::work_item_enqueued, work);
-
-                    // FIXME: modulus shouldn't be needed here
-                    std::size_t numa_domain = work.id().numa_domain();
-                    HPX_ASSERT(numa_domain < executors_.size());
-
-                    if (do_split(work))
-                        {
-                            hpx::dataflow(hpx::launch::sync,
-                                 [this_id = std::move(parent_id), work, this](hpx::future<std::size_t>&& f) mutable
-                                 {
-                                     std::size_t expected_rank = f.get();
-                                     if(expected_rank == std::size_t(-1))
-                                         {
-                                            std::cerr << "split for " << work.name() << ": write requirements reside on different localities!\n";
-                                            std::abort();
-                                         }
-                                     else if(expected_rank != std::size_t(-2))
-                                         {
-                                             HPX_ASSERT(expected_rank != rank_);
-                                             work.update_rank(expected_rank);
-                                             network_.schedule(expected_rank, std::move(work), std::move(this_id));
-                                         }
-                                 },
-                                 work.split(sync, rank_)
-                            );
-                        }
-                    else
-                        {
-                            hpx::dataflow(hpx::launch::sync,
-                                 [this_id = std::move(parent_id), work, numa_domain, this](hpx::future<std::size_t>&& f) mutable
-                                 {
-                                     // the process variant might fail if we try to acquire
-                                     // data item read/write on multiple localities
-                                     // we need to split then.
-                                     std::size_t expected_rank = f.get();
-                                     if(expected_rank == std::size_t(-1))
-                                         {
-                                             // We should move on and split...
-                                             HPX_ASSERT(work.can_split());
-                                             work.split(true, rank_);
-                                         }
-                                     else if(expected_rank != std::size_t(-2))
-                                         {
-                                             HPX_ASSERT(expected_rank != rank_);
-                                             work.update_rank(expected_rank);
-                                             network_.schedule(expected_rank, std::move(work), std::move(this_id));
-                                         }
-                                 },
-                                 work.process(executors_[numa_domain], rank_)
-                            );
-                        }
+                    enqueue_local(std::move(work), std::move(parent_id), false, sync);
 
                     return;
                 }
@@ -614,20 +562,67 @@ namespace allscale { namespace components {
             network_.schedule(schedule_rank, std::move(work), parent_id);
         }
 
+        void scheduler::enqueue_local(work_item work, this_work_item::id parent_id, bool force_split, bool sync)
+        {
+            if (force_split && !work.can_split())
+            {
+                std::cerr << "split for " << work.name() << "(" << work.id().name() << ") requested but can't split further\n";
+                std::abort();
+            }
+            allscale::monitor::signal(allscale::monitor::work_item_enqueued, work);
+            hpx::future<std::size_t> acquire_rank;
+            if (force_split || do_split(work))
+            {
+                acquire_rank = work.split(sync, rank_);
+            }
+            else
+            {
+                std::size_t numa_domain = work.id().numa_domain();
+                HPX_ASSERT(numa_domain < executors_.size());
+                acquire_rank = work.process(executors_[numa_domain], rank_);
+            }
+
+            typename hpx::traits::detail::shared_state_ptr_for<hpx::future<std::size_t>>::type const& state
+                = hpx::traits::future_access<hpx::future<std::size_t>>::get_shared_state(acquire_rank);
+
+            state->set_on_completed(
+                [
+                    this_id = std::move(parent_id),
+                    work = std::move(work),
+                    acquire_rank = std::move(acquire_rank),
+                    this
+                ]() mutable
+                {
+                    std::size_t expected_rank = acquire_rank.get();
+                    if(expected_rank == std::size_t(-1))
+                    {
+                        // We should move on and split further...
+                        enqueue_local(std::move(work), std::move(this_id), true, false);
+                    }
+                    else if(expected_rank != std::size_t(-2))
+                    {
+                        HPX_ASSERT(expected_rank != rank_);
+                        work.update_rank(expected_rank);
+                        network_.schedule(expected_rank, std::move(work), std::move(this_id));
+                    }
+                }
+            );
+        }
+
         bool scheduler::do_split(work_item const& w)
         {
             // Check if the work item is splittable first
             if (w.can_split())
+            {
+                // Check if we reached the required depth
+                // FIXME: make the cut off runtime configurable...
+                if (w.id().splittable())
                 {
-                    // Check if we reached the required depth
-                    // FIXME: make the cut off runtime configurable...
-                    if (w.id().splittable())
-                        {
-                            // FIXME: add more elaborate splitting criterions
-                            return true;
-                        }
-                    return false;
+                    // FIXME: add more elaborate splitting criterions
+                    return true;
                 }
+                return false;
+            }
             // return false if it isn't
             return false;
 
