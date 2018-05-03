@@ -14,10 +14,26 @@ namespace allscale { namespace data_item_manager {
     namespace detail
     {
         template <typename Requirement, typename LocationInfo>
-        std::size_t acquire_rank(Requirement const& req, LocationInfo const& info)
+        std::size_t num_readwrite(Requirement const& req, LocationInfo const& info)
         {
-            // If it's a read only access, return -2
-            if (req.mode == access_mode::ReadOnly) return std::size_t(-2);
+            if (req.mode == access_mode::ReadWrite)
+            {
+                return 1;
+            }
+            else
+            {
+                return 0;
+            }
+        }
+        template <typename Requirement, typename LocationInfo>
+        std::size_t acquire_rank(Requirement const& req, LocationInfo const& info, std::size_t write_count)
+        {
+            // If it's a read only access and at least one write access, return -2
+            if (req.mode == access_mode::ReadOnly && write_count > 0)
+            {
+                return std::size_t(-2);
+            }
+
             HPX_ASSERT(!info.regions.empty());
             // If we have more than one part, we need to split
             if (info.regions.size() > 1)
@@ -30,14 +46,29 @@ namespace allscale { namespace data_item_manager {
 
         template <typename Requirement, typename RequirementAllocator,
             typename LocationInfo, typename LocationInfoAllocator>
-        std::size_t acquire_rank(std::vector<Requirement, RequirementAllocator> const& reqs,
+        std::size_t num_readwrite(std::vector<Requirement, RequirementAllocator> const& reqs,
             std::vector<LocationInfo, LocationInfoAllocator> const& infos)
+        {
+            HPX_ASSERT(reqs.size() == infos.size());
+            std::size_t res = 0;
+            for (std::size_t i = 0; i != reqs.size(); ++i)
+            {
+                res += detail::num_readwrite(reqs[i], infos[i]);
+            }
+            // If all match, all is good. return what we got
+            return res;
+        }
+
+        template <typename Requirement, typename RequirementAllocator,
+            typename LocationInfo, typename LocationInfoAllocator>
+        std::size_t acquire_rank(std::vector<Requirement, RequirementAllocator> const& reqs,
+            std::vector<LocationInfo, LocationInfoAllocator> const& infos, std::size_t write_count)
         {
             HPX_ASSERT(reqs.size() == infos.size());
             std::size_t rank(-2);
             for (std::size_t i = 0; i != reqs.size(); ++i)
             {
-                std::size_t cur_rank = detail::acquire_rank(reqs[i], infos[i]);
+                std::size_t cur_rank = detail::acquire_rank(reqs[i], infos[i], write_count);
                 if (cur_rank == std::size_t(-2)) continue;
                 if (cur_rank == std::size_t(-1)) return cur_rank;
 
@@ -61,11 +92,27 @@ namespace allscale { namespace data_item_manager {
         }
 
         template <typename Requirements, typename LocationInfos, std::size_t...Is>
+        std::size_t num_readwrite(Requirements const& reqs, LocationInfos const& infos,
+            hpx::util::detail::pack_c<std::size_t, Is...>)
+        {
+            std::size_t nums[] = {
+                detail::num_readwrite(hpx::util::get<Is>(reqs), hpx::util::get<Is>(infos))...
+            };
+            std::size_t res = 0;
+            for (std::size_t cur_num: nums)
+            {
+                res += cur_num;
+            }
+            return res;
+        }
+
+        template <typename Requirements, typename LocationInfos, std::size_t...Is>
         std::size_t acquire_rank(Requirements const& reqs, LocationInfos const& infos,
+            std::size_t write_count,
             hpx::util::detail::pack_c<std::size_t, Is...>)
         {
             std::size_t ranks[] = {
-                detail::acquire_rank(hpx::util::get<Is>(reqs), hpx::util::get<Is>(infos))...
+                detail::acquire_rank(hpx::util::get<Is>(reqs), hpx::util::get<Is>(infos), write_count)...
             };
             std::size_t rank(-2);
             for (std::size_t cur_rank: ranks)
@@ -101,9 +148,11 @@ namespace allscale { namespace data_item_manager {
             hpx::util::tuple_size<LocationInfos>::type::value,
             "requirements and location info sizes do not match");
 
-        return detail::acquire_rank(reqs, infos,
+        using pack =
             typename hpx::util::detail::make_index_pack<
-                hpx::util::tuple_size<Requirements>::type::value>::type{});
+                hpx::util::tuple_size<Requirements>::type::value>::type;
+        std::size_t write_count = detail::num_readwrite(reqs, infos, pack{});
+        return detail::acquire_rank(reqs, infos, write_count, pack{});
     }
 
     namespace detail
