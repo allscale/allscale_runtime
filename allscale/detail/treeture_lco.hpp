@@ -4,9 +4,8 @@
 
 #include <allscale/treeture_fwd.hpp>
 
-#include <hpx/traits/managed_component_policies.hpp>
 #include <hpx/runtime/actions/component_action.hpp>
-#include <hpx/runtime/components/server/managed_component_base.hpp>
+#include <hpx/runtime/components/server/component_base.hpp>
 #include <hpx/runtime/components/component_type.hpp>
 #include <hpx/util/assert.hpp>
 
@@ -16,7 +15,7 @@ namespace allscale { namespace detail {
 
     template <typename T>
     struct treeture_lco :
-        public hpx::components::managed_component_base<treeture_lco<T>>
+        public hpx::components::component_base<treeture_lco<T>>
     {
         typedef typename std::conditional<
             std::is_void<T>::value, hpx::util::unused_type, T>::type
@@ -39,15 +38,15 @@ namespace allscale { namespace detail {
             HPX_ASSERT(shared_state_);
         }
 
-        boost::intrusive_ptr<shared_state_type> get_state()
+        hpx::future<T> get_state()
         {
             HPX_ASSERT(shared_state_);
-            return shared_state_;
+//             return shared_state_;
+            return hpx::traits::future_access<hpx::future<T>>
+                ::create(shared_state_);
         }
         HPX_DEFINE_COMPONENT_DIRECT_ACTION(treeture_lco, get_state);
 
-        treeture<void> get_parent();
-        HPX_DEFINE_COMPONENT_DIRECT_ACTION(treeture_lco, get_parent);
         treeture<void> get_left_child();
         HPX_DEFINE_COMPONENT_DIRECT_ACTION(treeture_lco, get_left_child);
         treeture<void> get_right_child();

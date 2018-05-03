@@ -25,10 +25,7 @@ namespace allscale
     {
         typedef typename WorkItemDescription::result_type result_type;
 
-        allscale::treeture<void> parent(this_work_item::get_id().get_treeture());
-        if (!parent)
-            parent = treeture<void>{};
-        allscale::treeture<result_type> tres(parent_arg(), parent);
+        allscale::treeture<result_type> tres(treeture_init);
 
         work_item wi(false, WorkItemDescription(), deps.dep_, tres, std::forward<Ts>(vs)...);
 
@@ -52,8 +49,7 @@ namespace allscale
     spawn_first_with_dependencies(const runtime::dependencies& deps, Ts&&...vs)
     {
         typedef typename WorkItemDescription::result_type result_type;
-        allscale::treeture<void> null_parent;
-        allscale::treeture<result_type> tres(parent_arg(), null_parent);
+        allscale::treeture<result_type> tres(treeture_init);
 
         scheduler::schedule(
             work_item(true, WorkItemDescription(), deps.dep_, tres, std::forward<Ts>(vs)...)

@@ -23,7 +23,8 @@ namespace allscale {
         struct is_treeture<treeture<T>> : std::true_type {};
     }
 
-    struct parent_arg {};
+    struct treeture_init_t {};
+    constexpr treeture_init_t treeture_init;
 }
 
 #endif

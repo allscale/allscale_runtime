@@ -242,7 +242,7 @@ namespace allscale { namespace this_work_item {
 
 //         wi_ = std::move(wi);
 //         wi_ = wi;
-        tres_ = wi->get_treeture();
+//         tres_ = wi->get_treeture();
     }
 
     id *get_id_ptr()
@@ -294,11 +294,11 @@ namespace allscale { namespace this_work_item {
         return *parent_;
     }
 
-    treeture<void> id::get_treeture() const
-    {
-        return tres_;
-//         return wi_->get_treeture();
-    }
+//     treeture<void> id::get_treeture() const
+//     {
+//         return tres_;
+// //         return wi_->get_treeture();
+//     }
 
     bool operator==(id const& lhs, id const& rhs)
     {

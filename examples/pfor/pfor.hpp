@@ -258,8 +258,6 @@ struct pfor_neighbor_sync_split_variant
                 std::move(drl)
             )
         );
-        allscale::treeture<void> parent(allscale::this_work_item::get_id().get_treeture());
-        parent.set_children(left, right);
 
         return
             hpx::when_all(

@@ -11,16 +11,15 @@ ALLSCALE_REGISTER_TREETURE_TYPE_(int, allscale_int);
 
 void test1()
 {
-    allscale::treeture<void> null_parent;
     {
-        allscale::treeture<int> t(allscale::parent_arg{}, null_parent);
+        allscale::treeture<int> t(allscale::treeture_init);
         hpx::future<int> f = t.get_future();
         t.set_value(9);
         HPX_TEST_EQ(f.get(), 9);
     }
     hpx::future<int> f;
     {
-        allscale::treeture<int> t(allscale::parent_arg{}, null_parent);
+        allscale::treeture<int> t(allscale::treeture_init);
         f = t.get_future();
         t.set_value(9);
     }
@@ -43,13 +42,12 @@ HPX_PLAIN_ACTION(remote_set);
 
 void test2()
 {
-    allscale::treeture<void> null_parent;
     auto localities = hpx::find_all_localities();
     {
         remote_get_action act;
         for (auto id: localities)
         {
-            allscale::treeture<int> t(allscale::parent_arg{}, null_parent);
+            allscale::treeture<int> t(allscale::treeture_init);
             auto f = hpx::async(act, id, t);
             t.set_value(4711);
             f.get();
@@ -61,7 +59,7 @@ void test2()
         {
             hpx::future<void> f;
             {
-                allscale::treeture<int> t(allscale::parent_arg{}, null_parent);
+                allscale::treeture<int> t(allscale::treeture_init);
                 f = hpx::async(act, id, t);
                 t.set_value(4711);
             }
@@ -72,7 +70,7 @@ void test2()
         remote_set_action act;
         for (auto id: localities)
         {
-            allscale::treeture<int> t(allscale::parent_arg{}, null_parent);
+            allscale::treeture<int> t(allscale::treeture_init);
             hpx::apply(act, id, t);
             HPX_TEST_EQ(t.get_future().get(), 1377);
         }
@@ -83,7 +81,7 @@ void test2()
         {
             hpx::future<int> f;
             {
-                allscale::treeture<int> t(allscale::parent_arg{}, null_parent);
+                allscale::treeture<int> t(allscale::treeture_init);
                 f = t.get_future();
                 hpx::apply(act, id, t);
             }
@@ -94,9 +92,8 @@ void test2()
 
 void test3()
 {
-    allscale::treeture<void> null_parent;
     {
-        allscale::treeture<int> t(allscale::parent_arg{}, null_parent);
+        allscale::treeture<int> t(allscale::treeture_init);
         allscale::treeture<void> tt(t);
         hpx::future<int> f = t.get_future();
         t.set_value(9);

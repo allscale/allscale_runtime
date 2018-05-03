@@ -3,7 +3,7 @@
 #define ALLSCALE_TREETURE_HPP
 
 #include <allscale/treeture_fwd.hpp>
-#include <hpx/runtime/components/server/managed_component_base.hpp>
+#include <hpx/runtime/components/server/component.hpp>
 #include <hpx/runtime/components/new.hpp>
 #include <hpx/lcos/base_lco_with_value.hpp>
 #include <hpx/lcos/async.hpp>
@@ -30,8 +30,8 @@ namespace allscale {
           : shared_state_(nullptr)
         {}
 
-        treeture(parent_arg, treeture<void> const& parent = treeture<void>())
-          : shared_state_(new shared_state_type(parent,
+        treeture(treeture_init_t)
+          : shared_state_(new shared_state_type(
                 typename shared_state_type::init_no_addref()))
         {
         }
@@ -41,8 +41,8 @@ namespace allscale {
                 !hpx::traits::is_future<U>::value
              && !traits::is_treeture<U>::value
             >::type>
-        explicit treeture(U&& u, treeture<void> const& parent = treeture<void>())
-          : shared_state_(new shared_state_type(parent, std::forward<U>(u),
+        explicit treeture(U&& u)
+          : shared_state_(new shared_state_type(std::forward<U>(u),
                 typename shared_state_type::init_no_addref()))
         {
         }
@@ -50,7 +50,7 @@ namespace allscale {
         template <typename U>
         treeture(treeture<U> other,
             typename std::enable_if<std::is_void<T>::value, U>::type* = nullptr)
-          : shared_state_(new shared_state_type(other.parent(),
+          : shared_state_(new shared_state_type(
                 typename shared_state_type::init_no_addref()))
         {
             hpx::future<void> f = other.get_future();
@@ -70,7 +70,7 @@ namespace allscale {
 
         template <typename U>
         treeture(hpx::future<U> fut, typename std::enable_if<!std::is_same<T, void>::value, U>::type* = nullptr)
-          : shared_state_(new shared_state_type(treeture<void>(),
+          : shared_state_(new shared_state_type(
                 typename shared_state_type::init_no_addref()))
         {
             HPX_ASSERT(fut.valid());
@@ -87,7 +87,7 @@ namespace allscale {
 
         template <typename U>
         treeture(hpx::future<U> fut, typename std::enable_if<std::is_same<T, void>::value, U>::type* = nullptr)
-          : shared_state_(new shared_state_type(treeture<void>(),
+          : shared_state_(new shared_state_type(
                 typename shared_state_type::init_no_addref()))
         {
             typename hpx::traits::detail::shared_state_ptr_for<hpx::future<U>>::type state
@@ -135,12 +135,12 @@ namespace allscale {
 
         hpx::naming::id_type get_id()
         {
-            return id_.get();
+            return id_;
         }
 
         bool valid() const
         {
-            return shared_state_ != nullptr || (id_.valid() && id_.get() != hpx::invalid_id);
+            return shared_state_ != nullptr || (id_ && id_ != hpx::invalid_id);
         }
 
         explicit operator bool() const
@@ -162,8 +162,8 @@ namespace allscale {
             else
             {
                 typename wrapped_type::get_state_action action;
-                HPX_ASSERT(id_.valid());
-                action(id_.get());
+                HPX_ASSERT(id_);
+                action(id_);
             }
         }
 
@@ -184,8 +184,8 @@ namespace allscale {
             else
             {
                 typename detail::treeture_lco<T>::set_value_action action;
-                HPX_ASSERT(id_.valid());
-                hpx::apply(action, id_.get(), std::forward<U>(u));
+                HPX_ASSERT(id_);
+                hpx::apply(action, id_, std::forward<U>(u));
             }
         }
 
@@ -199,26 +199,14 @@ namespace allscale {
             else
             {
                 typename wrapped_type::get_state_action action;
-                HPX_ASSERT(id_.valid());
-                return hpx::async(action, id_.get());
+                HPX_ASSERT(id_);
+                return hpx::async(action, id_);
             }
         }
 
         T get_result() const
         {
             return get_future().get();
-        }
-
-        treeture<void> parent()
-        {
-            if (shared_state_)
-            {
-//                 HPX_ASSERT(shared_state_->parent_);
-                return shared_state_->parent_;
-            }
-            typename wrapped_type::get_parent_action action;
-//             return hpx::async(action, id_);
-            return action(id_.get());
         }
 
         void set_children(treeture<void> left, treeture<void> right)
@@ -230,7 +218,7 @@ namespace allscale {
             else
             {
                 typename wrapped_type::set_children_action action;
-                hpx::apply(action, id_.get(), std::move(left), std::move(right));
+                hpx::apply(action, id_, std::move(left), std::move(right));
             }
         }
 
@@ -256,19 +244,18 @@ namespace allscale {
                 }
                 return;
             }
-            hpx::id_type const& dest = id_.get();
             switch (idx)
             {
                 case 0:
                     {
                         typename wrapped_type::set_left_child_action action;
-                        hpx::apply(action, dest, std::move(child));
+                        hpx::apply(action, id_, std::move(child));
                     }
                     break;
                 case 1:
                     {
                         typename wrapped_type::set_right_child_action action;
-                        hpx::apply(action, dest, std::move(child));
+                        hpx::apply(action, id_, std::move(child));
                     }
                     break;
                 default:
@@ -297,7 +284,7 @@ namespace allscale {
             {
                 typename wrapped_type::get_left_child_action action;
                 // TODO: futurize
-                return hpx::async(action, id_.get());
+                return hpx::async(action, id_);
             }
         }
 
@@ -319,7 +306,7 @@ namespace allscale {
             {
                 typename wrapped_type::get_right_child_action action;
                 // TODO: futurize
-                return hpx::async(action, id_.get());
+                return hpx::async(action, id_);
             }
         }
 
@@ -334,22 +321,18 @@ namespace allscale {
         template <typename Archive>
         void save(Archive & ar, unsigned) const
         {
-            hpx::shared_future<hpx::id_type> id;
+            if (shared_state_)
             {
                 std::unique_lock<mutex_type> l(mtx_);
-                if (shared_state_)
+                hpx::id_type id;
+                if (!id_)
                 {
-                    if (!id_.valid())
-                    {
-                        {
-                            hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                            id = hpx::local_new<wrapped_type>(shared_state_);
-                        }
-                    }
-                    if (!id_.valid())
-                    {
-                        id_ = id;
-                    }
+                    hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
+                    id = hpx::local_new<wrapped_type>(shared_state_).get();
+                }
+                if (!id_)
+                {
+                    id_ = std::move(id);
                 }
             }
             ar & id_;
@@ -361,7 +344,7 @@ namespace allscale {
     private:
         boost::intrusive_ptr<shared_state_type> shared_state_;
         mutable mutex_type mtx_;
-        mutable hpx::shared_future<hpx::id_type> id_;
+        mutable hpx::id_type id_;
         bool fixed_children_ = false;
 
         template <typename U>
@@ -409,22 +392,21 @@ namespace hpx { namespace traits {
 
 #include <allscale/detail/treeture_lco.hpp>
 #include <allscale/detail/treeture_task.hpp>
-#include <hpx/runtime/components/derived_component_factory.hpp>
+#include <hpx/runtime/components/component_factory.hpp>
 
 #define ALLSCALE_REGISTER_TREETURE_TYPE_(T, NAME)                               \
-    using HPX_PP_CAT(NAME, _treeture) = ::allscale::detail::treeture_lco< T >;\
-    using NAME =                                                                \
-        ::hpx::components::managed_component<                                   \
-            HPX_PP_CAT(NAME, _treeture)                                       \
+    using HPX_PP_CAT(NAME, _treeture) = ::allscale::detail::treeture_lco< T >;  \
+    using HPX_PP_CAT(NAME, _treeture_component) =                               \
+        ::hpx::components::component<                                           \
+            HPX_PP_CAT(NAME, _treeture)                                         \
         >;                                                                      \
-    HPX_REGISTER_DERIVED_COMPONENT_FACTORY(NAME, HPX_PP_CAT(NAME, _treeture), \
-        HPX_PP_STRINGIZE(HPX_PP_CAT(NAME, treeture_base_lco)))              \
+    HPX_REGISTER_COMPONENT(HPX_PP_CAT(NAME, _treeture_component),               \
+        HPX_PP_CAT(NAME, _treeture))                                            \
 /**/
 
 #define ALLSCALE_REGISTER_TREETURE_TYPE(T)                                      \
     ALLSCALE_REGISTER_TREETURE_TYPE_(                                           \
-        T,                                                                      \
-        HPX_PP_CAT(HPX_PP_CAT(treeture, T), _component_type)                \
+        T, T                                                                    \
     )                                                                           \
 /**/
 

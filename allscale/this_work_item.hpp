@@ -61,7 +61,7 @@ namespace allscale {
 
         void update_rank(std::size_t rank);
 
-        treeture<void> get_treeture() const;
+//         treeture<void> get_treeture() const;
 
         explicit operator bool() const
         {
@@ -114,7 +114,7 @@ namespace allscale {
 
         std::list<std::size_t> id_;
         std::size_t next_id_;
-        treeture<void> tres_;
+//         treeture<void> tres_;
 //         detail::work_item_impl_base* wi_;
 //         std::shared_ptr<detail::work_item_impl_base> wi_;
 
@@ -122,14 +122,34 @@ namespace allscale {
 
         friend class hpx::serialization::access;
         template <typename Archive>
-        void serialize(Archive& ar, unsigned)
+        void load(Archive& ar, unsigned)
         {
-            ar & parent_;
+//             id parent;
+//             ar & parent;
+//             if (parent)
+//                 parent_ = std::make_shared<id>(parent);
+
             ar & config_;
             ar & id_;
             ar & next_id_;
-            ar & tres_;
+//             ar & tres_;
         }
+
+        template <typename Archive>
+        void save(Archive& ar, unsigned) const
+        {
+//             if (parent_)
+//                 ar & *parent_;
+//             else
+//                 ar & id();
+
+            ar & config_;
+            ar & id_;
+            ar & next_id_;
+//             ar & tres_;
+        }
+
+        HPX_SERIALIZATION_SPLIT_MEMBER();
     };
 }}
 

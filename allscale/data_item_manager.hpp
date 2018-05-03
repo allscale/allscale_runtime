@@ -75,8 +75,8 @@ namespace allscale { namespace data_item_manager {
                     auto mid = begin + (end - begin)/ 2;
 
                     return hpx::when_all(
-                        allscale::spawn<tree_init>(data, mid, end).get_future(),
-                        allscale::spawn<tree_init>(data, begin, mid).get_future()
+                        allscale::spawn<tree_init>(data, begin, mid).get_future(),
+                        allscale::spawn<tree_init>(data, mid, end).get_future()
                     );
                 }
 
@@ -123,7 +123,8 @@ namespace allscale { namespace data_item_manager {
             static void call(data_item_reference<data_item_type> const& ref)
             {
                 std::cerr << " (Default distributing Binary Tree) ";
-                allscale::spawn_first<tree_init>(ref, 0, 1024).wait();
+                auto end = data_item_type::region_type::num_leaf_trees;
+                allscale::spawn_first<tree_init>(ref, 0, end).wait();
             }
         };
 

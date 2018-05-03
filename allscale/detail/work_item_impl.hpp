@@ -194,7 +194,7 @@ namespace allscale { namespace detail {
         {
             if(is_split) monitor::signal(monitor::work_item_split_execution_finished,
                 		            work_item(this_));
-	    else monitor::signal(monitor::work_item_process_execution_finished, work_item(this_));
+            else monitor::signal(monitor::work_item_process_execution_finished, work_item(this_));
 
 
             typedef typename std::decay<Future>::type work_res_type;
@@ -215,7 +215,7 @@ namespace allscale { namespace detail {
                     monitor::signal(monitor::work_item_result_propagated,
                         work_item(std::move(this_)));
                 },
-                std::move(this_), state, std::move(leases)));
+                std::move(this_), std::move(state), std::move(leases)));
         }
 
         template <typename Future, typename Leases>
@@ -228,7 +228,7 @@ namespace allscale { namespace detail {
         {
             if(is_split) monitor::signal(monitor::work_item_split_execution_finished,
                 				work_item(this_));
-	    else monitor::signal(monitor::work_item_process_execution_finished, work_item(this_));
+            else monitor::signal(monitor::work_item_process_execution_finished, work_item(this_));
 
 
             typename hpx::util::detail::make_index_pack<
@@ -462,12 +462,12 @@ namespace allscale { namespace detail {
             hpx::future<std::size_t>
         >::type split(bool sync, hpx::util::tuple<> && reqs, std::size_t this_id)
         {
-            if (sync && id().last() % 2 == 1)
-            {
-                do_split(std::move(reqs));
-                return hpx::make_ready_future(std::size_t(-2));
-            }
-            else
+//             if (sync && id().last() % 2 == 1)
+//             {
+//                 do_split(std::move(reqs));
+//                 return hpx::make_ready_future(std::size_t(-2));
+//             }
+//             else
             {
                 auto this_ = shared_this();
                 return hpx::async([this_ = std::move(this_)]()
@@ -489,7 +489,7 @@ namespace allscale { namespace detail {
                     std::string s = this_->name();
                     s += '(';
                     s += this_->id_.name();
-                    s += ").process";
+                    s += ").split";
 #endif
             return hpx::dataflow(//sync ? hpx::launch::sync : hpx::launch::async,
                 hpx::util::annotated_function([reqs, this_ = std::move(this_), this_id](auto locate_future)
@@ -514,7 +514,7 @@ namespace allscale { namespace detail {
                     std::string s = this_->name();
                     s += '(';
                     s += this_->id_.name();
-                    s += ").process";
+                    s += ").split";
                     data_item_manager::log_req(s, reqs);
 #endif
                     return hpx::dataflow(hpx::launch::sync,

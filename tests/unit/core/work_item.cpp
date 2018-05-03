@@ -50,7 +50,7 @@ bool test_work_item(){
     allscale::this_work_item::set_id(main_id);
 
     using result_type = ultra_simple_work_item_descr::result_type;
-    allscale::treeture<result_type> trs(allscale::parent_arg{});
+    allscale::treeture<result_type> trs(allscale::treeture_init);
     auto test_item = allscale::work_item(true,ultra_simple_work_item_descr(),trs);
 
     allscale::executor_type exec("default");
@@ -78,7 +78,7 @@ bool test_work_items_all_localities(){
             allscale::this_work_item::set_id(main_id);
 
             using result_type = ultra_simple_work_item_descr::result_type;
-            allscale::treeture<result_type> trs(allscale::parent_arg{});
+            allscale::treeture<result_type> trs(allscale::treeture_init);
             auto test_item = allscale::work_item(true,ultra_simple_work_item_descr(),trs);
 
             hpx::apply([test_item, &exec]()mutable{allscale::this_work_item::set_id(main_id); test_item.process(exec,0);});
