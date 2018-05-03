@@ -74,10 +74,10 @@ namespace allscale { namespace data_item_manager {
 
                     auto mid = begin + (end - begin)/ 2;
 
-                    return hpx::when_all(
-                        allscale::spawn<tree_init>(data, begin, mid).get_future(),
-                        allscale::spawn<tree_init>(data, mid, end).get_future()
-                    );
+                    auto l = allscale::spawn<tree_init>(data, begin, mid);
+                    auto r = allscale::spawn<tree_init>(data, mid, end);
+
+                    return hpx::when_all(l.get_future(), r.get_future());
                 }
 
                 static constexpr bool valid = true;

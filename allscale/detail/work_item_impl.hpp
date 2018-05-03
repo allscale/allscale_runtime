@@ -527,7 +527,7 @@ namespace allscale { namespace detail {
                       , data_item_manager::acquire(reqs, infos));
                 }, "allscale::work_item::spli::locate_cont");
 
-            if (sync)
+            if (sync && id().last() % 2 == 1)
             {
                 return hpx::dataflow(hpx::launch::sync, std::move(continuation),
 #if defined(ALLSCALE_DEBUG_DIM)

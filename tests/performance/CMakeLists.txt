@@ -15,7 +15,6 @@ set(tests
   two_point_correlation.allscale.n29
   two_point_correlation.allscale.n32
   two_point_correlation.allscale.n34
-  two_point_correlation.allscale.n29.v2
   transpose
   stencil
 )
