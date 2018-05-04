@@ -16,8 +16,6 @@ HPX_REGISTER_COMPONENT_MODULE()
 
 namespace allscale
 {
-    std::size_t scheduler::rank_ = std::size_t(-1);
-
     void scheduler::partition_resources(hpx::resource::partitioner& rp)
     {
         auto const& numa_domains = rp.numa_domains();
@@ -142,7 +140,6 @@ namespace allscale
     {
         static this_work_item::id main_id(0);
         this_work_item::set_id(main_id);
-        rank_ = rank;
         return get_ptr();
     }
 
@@ -160,7 +157,7 @@ namespace allscale
 
     components::scheduler* scheduler::get_ptr()
     {
-        static scheduler s(rank_);
+        static scheduler s(hpx::get_locality_id());
         s.component_->init();
         return s.component_.get();
     }

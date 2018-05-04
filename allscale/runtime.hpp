@@ -32,6 +32,7 @@
 #include <hpx/util/unused.hpp>
 #include <hpx/util/unwrap.hpp>
 #include <hpx/lcos/local/dataflow.hpp>
+#include <hpx/lcos/barrier.hpp>
 
 #include <boost/program_options.hpp>
 #include <boost/program_options/parsers.hpp>
@@ -100,6 +101,8 @@ int allscale_main(boost::program_options::variables_map &)
     auto resi = allscale::resilience::run(hpx::get_locality_id());
     // start allscale scheduler ...
     auto sched = allscale::scheduler::run(hpx::get_locality_id());
+
+    hpx::lcos::barrier::synchronize();
 
 #if defined(ALLSCALE_DEBUG_DIM)
             std::stringstream filename;

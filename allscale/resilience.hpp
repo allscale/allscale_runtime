@@ -23,7 +23,6 @@ namespace allscale {
         static void global_wi_dispatched(work_item const& w, size_t schedule_rank);
         static bool rank_running(uint64_t rank);
     private:
-        static std::size_t rank_;
         resilience(std::uint64_t rank);
         std::shared_ptr<components::resilience> component_;
     };

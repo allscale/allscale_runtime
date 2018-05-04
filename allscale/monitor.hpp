@@ -43,7 +43,6 @@ namespace allscale {
         static void stop();
 
     private:
-        static std::size_t rank_;
 //        static std::shared_ptr<components::monitor> & get_ptr();
 //        static components::monitor & get();
 

@@ -11,6 +11,7 @@
 
 #include <hpx/include/unordered_map.hpp>
 #include <hpx/include/performance_counters.hpp>
+#include <hpx/lcos/barrier.hpp>
 
 #include <unistd.h>
 
@@ -175,6 +176,7 @@ int hpx_main(int argc, char **argv)
 
     // start allscale scheduler ...
     allscale::scheduler::run(hpx::get_locality_id());
+    hpx::lcos::barrier::synchronize();
 
 
     if(hpx::get_locality_id() == 0)
@@ -193,7 +195,7 @@ int hpx_main(int argc, char **argv)
         allscale::monitor::stop();
         allscale::scheduler::stop();
         allscale::resilience::stop();
-  
+
    }
 
 

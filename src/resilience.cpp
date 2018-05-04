@@ -11,11 +11,9 @@ HPX_REGISTER_COMPONENT(resilience_component)
 
 
 namespace allscale {
-    std::size_t resilience::rank_ = std::size_t(-1);
 
     components::resilience* resilience::run(std::size_t rank)
     {
-        rank_ = rank;
         return get_ptr();
     }
 
@@ -43,7 +41,7 @@ namespace allscale {
 
     components::resilience *resilience::get_ptr()
     {
-        static resilience m(rank_);
+        static resilience m(hpx::get_locality_id());
         components::resilience* res = m.component_.get();
         for (std::size_t k = 0; !res; ++k)
         {
@@ -68,7 +66,7 @@ namespace allscale {
     }
 
     bool resilience::rank_running(uint64_t rank) {
-        if (rank_ == std::size_t(-1) || rank == rank_)
+        if (hpx::get_locality_id() == rank)
             return true;
 
         return get_ptr()->rank_running(rank);

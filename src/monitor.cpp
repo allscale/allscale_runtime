@@ -12,12 +12,8 @@ typedef hpx::components::component<allscale::components::monitor> monitor_compon
 HPX_REGISTER_COMPONENT(monitor_component)
 
 namespace allscale {
-
-    std::size_t monitor::rank_ = std::size_t(-1);
-
     components::monitor* monitor::run(std::size_t rank)
     {
-        rank_ = rank;
         return get_ptr();
     }
 
@@ -43,7 +39,7 @@ namespace allscale {
 
     void monitor::disconnect(event e, event_function f)
     {
-//        event_functions(e).erase(std::remove(event_functions(e).begin(), 
+//        event_functions(e).erase(std::remove(event_functions(e).begin(),
 //	     event_functions(e).end(), f), event_functions(e).end());
     }
 
@@ -64,7 +60,7 @@ namespace allscale {
 
     components::monitor *monitor::get_ptr()
     {
-        static monitor m(rank_);
+        static monitor m(hpx::get_locality_id());
         components::monitor* res = m.component_.get();
         for (std::size_t k = 0; !res; ++k)
         {
