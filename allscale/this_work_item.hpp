@@ -51,7 +51,7 @@ namespace allscale {
 
         std::size_t hash() const;
 
-        id const& parent() const;
+        id parent() const;
 
         bool needs_checkpoint() const;
         bool splittable() const;
@@ -103,20 +103,16 @@ namespace allscale {
             }
         };
     public:
-        std::shared_ptr<id> parent_;
         tree_config config_;
 
-        bool split_locality_depth(machine_config const&);
-        bool split_numa_depth(machine_config const&);
-        bool split_thread_depth(machine_config const&);
-        void setup_left(machine_config const&);
-        void setup_right(machine_config const&);
+        bool split_locality_depth(machine_config const&, tree_config const&);
+        bool split_numa_depth(machine_config const&, tree_config const&);
+        bool split_thread_depth(machine_config const&, tree_config const&);
+        void setup_left(machine_config const&, tree_config const&);
+        void setup_right(machine_config const&, tree_config const&);
 
         std::list<std::size_t> id_;
         std::size_t next_id_;
-//         treeture<void> tres_;
-//         detail::work_item_impl_base* wi_;
-//         std::shared_ptr<detail::work_item_impl_base> wi_;
 
         std::shared_ptr<allscale::profile> profile;
 
@@ -124,29 +120,17 @@ namespace allscale {
         template <typename Archive>
         void load(Archive& ar, unsigned)
         {
-//             id parent;
-//             ar & parent;
-//             if (parent)
-//                 parent_ = std::make_shared<id>(parent);
-
             ar & config_;
             ar & id_;
             ar & next_id_;
-//             ar & tres_;
         }
 
         template <typename Archive>
         void save(Archive& ar, unsigned) const
         {
-//             if (parent_)
-//                 ar & *parent_;
-//             else
-//                 ar & id();
-
             ar & config_;
             ar & id_;
             ar & next_id_;
-//             ar & tres_;
         }
 
         HPX_SERIALIZATION_SPLIT_MEMBER();

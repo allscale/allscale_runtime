@@ -56,9 +56,8 @@ namespace allscale { namespace this_work_item {
         profile = nullptr;
     }
 
-    bool id::split_locality_depth(machine_config const& mconfig)
+    bool id::split_locality_depth(machine_config const& mconfig, tree_config const& parent)
     {
-        auto& parent = parent_->config_;
         if (parent.locality_depth_ == std::uint64_t(-1))
         {
             config_.rank_ = hpx::get_locality_id();
@@ -69,9 +68,8 @@ namespace allscale { namespace this_work_item {
         return true;
     }
 
-    bool id::split_numa_depth(machine_config const& mconfig)
+    bool id::split_numa_depth(machine_config const& mconfig, tree_config const& parent)
     {
-        auto& parent = parent_->config_;
         if (parent.numa_depth_ == std::uint8_t(-1))
         {
             config_.numa_domain_ = 0;
@@ -86,9 +84,8 @@ namespace allscale { namespace this_work_item {
     // number of threads on the given NUMA node to create enough
     // parallelism. There is currently a oversubscription factor of
     // 1.5 in the number of threads per NUMA domain.
-    bool id::split_thread_depth(machine_config const& mconfig)
+    bool id::split_thread_depth(machine_config const& mconfig, tree_config const& parent)
     {
-        auto& parent = parent_->config_;
         if (parent.thread_depth_ == std::uint32_t(-1))
         {
             config_.thread_depth_ = mconfig.thread_depths[config_.numa_domain_];
@@ -97,12 +94,11 @@ namespace allscale { namespace this_work_item {
         return true;
     }
 
-    void id::setup_left(machine_config const& mconfig)
+    void id::setup_left(machine_config const& mconfig, tree_config const& parent)
     {
-        auto& parent = parent_->config_;
         config_.rank_ = parent.rank_;
         config_.numa_domain_ = parent.numa_domain_;
-        if (!split_locality_depth(mconfig)) return;
+        if (!split_locality_depth(mconfig, parent)) return;
 
         if (parent.locality_depth_ > 1)
         {
@@ -115,7 +111,7 @@ namespace allscale { namespace this_work_item {
             config_.locality_depth_ = 1;
             config_.needs_checkpoint_ = parent.locality_depth_ > 1;
 
-            if(split_numa_depth(mconfig))
+            if(split_numa_depth(mconfig, parent))
             {
                 if(parent.numa_depth_ > 1)
                 {
@@ -125,7 +121,7 @@ namespace allscale { namespace this_work_item {
                 else
                 {
                     config_.numa_depth_ = 1;
-                    if (split_thread_depth(mconfig))
+                    if (split_thread_depth(mconfig, parent))
                     {
                         config_.thread_depth_ = parent.thread_depth_ / 2;
                     }
@@ -134,10 +130,9 @@ namespace allscale { namespace this_work_item {
         }
     }
 
-    void id::setup_right(machine_config const& mconfig)
+    void id::setup_right(machine_config const& mconfig, tree_config const& parent)
     {
-        auto& parent = parent_->config_;
-        if (!split_locality_depth(mconfig)) return;
+        if (!split_locality_depth(mconfig, parent)) return;
 
         if (parent.locality_depth_ > 1)
         {
@@ -151,7 +146,7 @@ namespace allscale { namespace this_work_item {
             config_.rank_ = parent.rank_;
             config_.needs_checkpoint_ = parent.locality_depth_ > 1;
             config_.locality_depth_ = 1;
-            if(split_numa_depth(mconfig))
+            if(split_numa_depth(mconfig, parent))
             {
                 if(parent.numa_depth_ > 1)
                 {
@@ -163,7 +158,7 @@ namespace allscale { namespace this_work_item {
                 {
                     config_.numa_domain_ = parent.numa_domain_;
                     config_.numa_depth_ = 1;
-                    if (split_thread_depth(mconfig))
+                    if (split_thread_depth(mconfig, parent))
                     {
                         config_.thread_depth_ = std::lround(parent.thread_depth_ / 2.0);
                     }
@@ -212,9 +207,6 @@ namespace allscale { namespace this_work_item {
     void id::set(detail::work_item_impl_base* wi, machine_config const& mconfig)
     {
         id& parent = get_id();
-        // set the parent with a null deleter, we only need to delete the pointer
-        // if we serialized the id...
-        parent_.reset(&parent, [](void*){});
         next_id_ = 0;
         id_ = parent.id_;
         id_.push_back(parent.next_id_++);
@@ -232,17 +224,14 @@ namespace allscale { namespace this_work_item {
         {
             if (id_.back() == 0)
             {
-                setup_left(mconfig);
+                setup_left(mconfig, parent.config_);
             }
             else
             {
-                setup_right(mconfig);
+                setup_right(mconfig, parent.config_);
             }
         }
 
-//         wi_ = std::move(wi);
-//         wi_ = wi;
-//         tres_ = wi->get_treeture();
     }
 
     id *get_id_ptr()
@@ -288,10 +277,12 @@ namespace allscale { namespace this_work_item {
         return std::hash<std::string>()(name());
     }
 
-    id const& id::parent() const
+    id id::parent() const
     {
-        HPX_ASSERT(parent_);
-        return *parent_;
+        id p = *this;
+        HPX_ASSERT(!p.id_.empty());
+        p.id_.pop_back();
+        return p;
     }
 
 //     treeture<void> id::get_treeture() const
