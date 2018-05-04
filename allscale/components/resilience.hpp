@@ -46,7 +46,7 @@ namespace allscale { namespace components {
            std::atomic<std::size_t> protectee_heartbeat;
            std::size_t my_heartbeat;
            const std::size_t miu = 1000;
-           const std::size_t delta = 1000;
+           const std::size_t delta = 10000;
            boost::dynamic_bitset<> rank_running_;
            std::size_t get_running_ranks();
            bool rank_running(uint64_t rank);
@@ -55,13 +55,14 @@ namespace allscale { namespace components {
            void thread_safe_printer(std::string output);
            // END failure detection here
 
-           uint64_t rank_, num_localities;
-           std::vector<hpx::naming::id_type> localities;
-           hpx::id_type guard_;
+           uint64_t num_localities;
+           std::vector<hpx::shared_future<hpx::id_type> > localities;
+           hpx::shared_future<hpx::id_type> guard_;
+           uint64_t rank_;
            uint64_t guard_rank_;
-           hpx::id_type protectee_;
+           hpx::shared_future<hpx::id_type> protectee_;
            static std::size_t protectee_rank_;
-           hpx::id_type protectees_protectee_;
+           hpx::shared_future<hpx::id_type> protectees_protectee_;
            uint64_t protectees_protectee_rank_;
            mutable mutex_type backup_mutex_;
            mutable mutex_type delegated_items_mutex_;
@@ -80,11 +81,11 @@ namespace allscale { namespace components {
 
            //std::vector<work_item> get_delegated_items(std::size_t schedule_id);
            //HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,get_delegated_items);
-           void set_guard(hpx::id_type guard, uint64_t guard_rank);
+           void set_guard(uint64_t guard_rank);
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,set_guard);
            void send_heartbeat(uint64_t heartbeat);
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,send_heartbeat);
-           std::pair<hpx::id_type,uint64_t> get_protectee();
+           std::pair<hpx::shared_future<hpx::id_type>,size_t> get_protectee();
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,get_protectee);
            std::map<std::string,work_item> get_local_backups();
            HPX_DEFINE_COMPONENT_DIRECT_ACTION(resilience,get_local_backups);

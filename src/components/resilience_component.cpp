@@ -34,9 +34,8 @@ namespace allscale { namespace components {
         protectee_heartbeat = counter;
     }
 
-    void resilience::set_guard(hpx::id_type guard, uint64_t guard_rank) {
-        guard_ = guard;
-        guard_.make_unmanaged();
+    void resilience::set_guard(uint64_t guard_rank) {
+        guard_ = hpx::find_from_basename("allscale/resilience", guard_rank);
         guard_rank_ = guard_rank;
     }
 
@@ -53,10 +52,10 @@ namespace allscale { namespace components {
             std::this_thread::sleep_for(milliseconds(miu));
             auto t_now =  std::chrono::high_resolution_clock::now();
             my_heartbeat = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
-            hpx::apply<send_heartbeat_action>(guard_, my_heartbeat);
+            hpx::apply<send_heartbeat_action>(guard_.get(), my_heartbeat);
             thread_safe_printer("my counter = " + std::to_string(my_heartbeat) + " protectee COUNTER = " + std::to_string(protectee_heartbeat) + "\n");
-            if (my_heartbeat > protectee_heartbeat + 10) {
-                thread_safe_printer("DETECTED FAILURE!!!\n");
+            if (my_heartbeat > protectee_heartbeat + delta/1000) {
+                thread_safe_printer("DETECTED FAILURE!!!" + std::to_string(my_heartbeat) + " -- " + std::to_string(protectee_heartbeat) + " -- "+ std::to_string(protectee_heartbeat+delta/1000)  + "\n");
                 // here comes recovery
                 my_state = SUSPECT;
                 protectee_crashed();
@@ -77,17 +76,18 @@ namespace allscale { namespace components {
         return rank_running;
     }
 
-    std::pair<hpx::id_type,uint64_t> resilience::get_protectee() {
-        return std::make_pair(protectee_, protectee_rank_);
+    std::pair<hpx::shared_future<hpx::id_type>,size_t> resilience::get_protectee() {
+        return std::make_pair(protectee_,protectee_rank_);
     }
+    
 
     void resilience::init() {
         char *env = std::getenv("ALLSCALE_RESILIENCE");
         env_resilience_disabled = (env && env[0] == '0');
         if (env_resilience_disabled) return;
 
-        localities = hpx::find_all_localities();
-        if (localities.size() < 2)
+        num_localities = hpx::get_num_localities().get();
+        if (num_localities < 2)
         {
             env_resilience_disabled = true;
         }
@@ -99,8 +99,17 @@ namespace allscale { namespace components {
 
         {
             std::unique_lock<mutex_type> lock(running_ranks_mutex_);
-            rank_running_.resize(localities.size(), true);
+            rank_running_.resize(num_localities, true);
         }
+
+        for(int i = 0; i < num_localities; i++)
+        {
+           hpx::shared_future<hpx::id_type> locality_future =
+               hpx::find_from_basename("allscale/resilience", i);
+           localities.push_back(locality_future);
+        }
+        //hpx::when_all(loc_futures).get();
+        
 
         my_state = TRUST;
         my_heartbeat = 0;
@@ -109,22 +118,20 @@ namespace allscale { namespace components {
         recovery_done = false;
         start_time = std::chrono::high_resolution_clock::now();
 
-        hpx::get_num_localities().get();
 
         thread_safe_printer("before logical ring\n");
         std::size_t right_id = (rank_ + 1) % num_localities;
         std::size_t left_id = (rank_ == 0)?(num_localities-1):(rank_-1);
         std::size_t left_left_id = (left_id == 0)?(num_localities-1):(left_id-1);
         thread_safe_printer("left:"+std::to_string(left_id)+"right:"+std::to_string(right_id)+"left left:"+std::to_string(left_left_id));
-        guard_ = hpx::find_from_basename("allscale/resilience", right_id).get();
+        guard_ = localities[right_id];
         thread_safe_printer("got guard_");
         guard_rank_ = right_id;
-        protectee_ = hpx::find_from_basename("allscale/resilience", left_id).get();
-        protectee_.make_unmanaged();
+        protectee_ = localities[left_id];
+
         protectee_rank_ = left_id;
         thread_safe_printer("PROTECTEE RANK:"+std::to_string(protectee_rank_));
-        protectees_protectee_ = hpx::find_from_basename("allscale/resilience", left_left_id).get();
-        protectees_protectee_.make_unmanaged();
+        protectees_protectee_ = localities[left_left_id];
         protectees_protectee_rank_ = left_left_id;
         thread_safe_printer("Resilience component started. Protecting "+std::to_string(protectee_rank_)+"\n");
 
@@ -145,12 +152,6 @@ namespace allscale { namespace components {
             std::unique_lock<mutex_type> lock(running_ranks_mutex_);
             thread_safe_printer("rank["+std::to_string(dead_rank)+"]=false");
             rank_running_[dead_rank] = false;
-            auto protectee_locality = get_locality_from_id(protectee_);
-            auto it = std::find(localities.begin(), localities.end(), protectee_locality);
-            // I am actually not actively using
-            // localities and num_localities now, so the
-            // following may be optional
-            localities.erase(it);
             num_localities--;
         }
         for (auto it : rescheduled_items) {
@@ -162,7 +163,7 @@ namespace allscale { namespace components {
         token++;
         if (get_running_ranks() > token) {
             thread_safe_printer("Will remote-call dispatched at rank "+std::to_string(dead_rank));
-            hpx::apply<reschedule_dispatched_to_dead_action>(guard_, dead_rank, token);
+            hpx::apply<reschedule_dispatched_to_dead_action>(guard_.get(), dead_rank, token);
         }
     }
 
@@ -174,6 +175,7 @@ namespace allscale { namespace components {
             std::unique_lock<mutex_type> lock(delegated_items_mutex_);
             delegated_items_.insert(p);
         }
+        thread_safe_printer("Will schedule work item " + w.id().name() + " to " + std::to_string(schedule_rank) + "\n");
         auto treeture = w.get_treeture();
 
         // get signal from treeture when finished
@@ -204,10 +206,9 @@ namespace allscale { namespace components {
         hpx::util::high_resolution_timer t;
         protectee_ = protectees_protectee_;
         protectee_rank_ = protectees_protectee_rank_;
-        hpx::async<set_guard_action>(protectee_, this->get_id(), rank_).get();
-        std::pair<hpx::id_type,uint64_t> p = hpx::async<get_protectee_action>(protectee_).get();
+        hpx::async<set_guard_action>(protectee_.get(), rank_).get();
+        auto p = hpx::async<get_protectee_action>(protectee_.get()).get();
         protectees_protectee_ = p.first;
-        protectees_protectee_.make_unmanaged();
         protectees_protectee_rank_ = p.second;
         thread_safe_printer("Finish recovery\n");
 
@@ -226,7 +227,7 @@ namespace allscale { namespace components {
             keep_running = false;
             // dpn't forget to end the circle
             if (get_running_ranks() > token) {
-                hpx::async<shutdown_action>(guard_, ++token).get();
+                hpx::async<shutdown_action>(guard_.get(), ++token).get();
             }
         }
     }

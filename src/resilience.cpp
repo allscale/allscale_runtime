@@ -57,7 +57,7 @@ namespace allscale {
         return *get_ptr();
     }
 
-    std::pair<hpx::id_type,uint64_t> resilience::get_protectee() {
+    std::pair<hpx::shared_future<hpx::id_type>,uint64_t> resilience::get_protectee() {
         return get_ptr()->get_protectee();
     }
 
