@@ -462,20 +462,8 @@ namespace allscale { namespace detail {
             hpx::future<std::size_t>
         >::type split(bool sync, hpx::util::tuple<> && reqs, std::size_t this_id)
         {
-            if (sync && id().last() % 2 == 1)
-            {
-                do_split(std::move(reqs));
-                return hpx::make_ready_future(std::size_t(-2));
-            }
-            else
-            {
-                auto this_ = shared_this();
-                return hpx::async([this_ = std::move(this_)]()
-                {
-                    this_->do_split(hpx::util::tuple<>());
-                    return std::size_t(-2);
-                });
-            }
+            do_split(std::move(reqs));
+            return hpx::make_ready_future(std::size_t(-2));
         }
 
         template <typename WorkItemDescription_, typename Reqs>
@@ -527,26 +515,13 @@ namespace allscale { namespace detail {
                       , data_item_manager::acquire(reqs, infos));
                 }, "allscale::work_item::spli::locate_cont");
 
-            if (sync && id().last() % 2 == 1)
-            {
-                return hpx::dataflow(hpx::launch::sync, std::move(continuation),
+            return hpx::dataflow(hpx::launch::sync, std::move(continuation),
 #if defined(ALLSCALE_DEBUG_DIM)
-                    data_item_manager::locate(std::move(s), std::forward<Reqs>(reqs))
+                data_item_manager::locate(std::move(s), std::forward<Reqs>(reqs))
 #else
-                    data_item_manager::locate(std::forward<Reqs>(reqs))
+                data_item_manager::locate(std::forward<Reqs>(reqs))
 #endif
-                );
-            }
-            else
-            {
-                return hpx::dataflow(std::move(continuation),
-#if defined(ALLSCALE_DEBUG_DIM)
-                    data_item_manager::locate(std::move(s), std::forward<Reqs>(reqs))
-#else
-                    data_item_manager::locate(std::forward<Reqs>(reqs))
-#endif
-                );
-            }
+            );
         }
 
         template <typename WorkItemDescription_>
