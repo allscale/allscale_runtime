@@ -558,7 +558,7 @@ namespace allscale { namespace components {
             //task not meant to be local: move task to remote nodes
             work.mark_child_requirements(schedule_rank);
 
-            //allscale::resilience::global_wi_dispatched(work, schedule_rank);
+            allscale::resilience::global_wi_dispatched(work, schedule_rank);
             network_.schedule(schedule_rank, std::move(work), parent_id);
         }
 
