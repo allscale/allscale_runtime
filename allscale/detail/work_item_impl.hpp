@@ -417,7 +417,8 @@ namespace allscale { namespace detail {
                 hpx::util::annotated_function([reqs, this_ = std::move(this_), &exec, this_id](auto locate_future)
                 {
                     auto infos = hpx::util::unwrap(locate_future);
-                    std::size_t rank = data_item_manager::acquire_rank(reqs, infos);
+                    std::size_t rank = data_item_manager::acquire_rank(reqs, infos,
+                        this_->can_split());
                     // Write regions are on different localities, need split
                     if (rank == std::size_t(-1))
                     {
@@ -495,7 +496,8 @@ namespace allscale { namespace detail {
                 hpx::util::annotated_function([reqs, this_ = std::move(this_), this_id](auto locate_future)
                 {
                     auto infos = hpx::util::unwrap(locate_future);
-                    std::size_t rank = data_item_manager::acquire_rank(reqs, infos);
+                    std::size_t rank = data_item_manager::acquire_rank(reqs, infos,
+                        this_->can_split());
                     // Write regions are on different localities, need split
                     if (rank == std::size_t(-1))
                     {
