@@ -59,23 +59,32 @@ namespace allscale
 
             void set_children(treeture<void> left, treeture<void> right)
             {
-                std::lock_guard<typename base_type::mutex_type> l(this->mtx_);
-                children_[0] = std::move(left);
-                children_[1] = std::move(right);
+                std::array<hpx::id_type, 2> children = {children_[0].get_id(), children_[1].get_id()};
+                {
+                    std::lock_guard<typename base_type::mutex_type> l(this->mtx_);
+                    children_[0] = std::move(left);
+                    children_[1] = std::move(right);
+                }
             }
 
             void set_left_child(treeture<void> child)
             {
-                std::lock_guard<typename base_type::mutex_type> l(this->mtx_);
-//                 HPX_ASSERT(child);
-                children_[0] = std::move(child);
+                hpx::id_type child_id = children_[0].get_id();
+                {
+                    std::lock_guard<typename base_type::mutex_type> l(this->mtx_);
+    //                 HPX_ASSERT(child);
+                    children_[0] = std::move(child);
+                }
             }
 
             void set_right_child(treeture<void> child)
             {
-                std::lock_guard<typename base_type::mutex_type> l(this->mtx_);
-//                 HPX_ASSERT(child);
-                children_[1] = std::move(child);
+                hpx::id_type child_id = children_[1].get_id();
+                {
+                    std::lock_guard<typename base_type::mutex_type> l(this->mtx_);
+    //                 HPX_ASSERT(child);
+                    children_[1] = std::move(child);
+                }
             }
 
             std::array<treeture<void>, 2> children_;

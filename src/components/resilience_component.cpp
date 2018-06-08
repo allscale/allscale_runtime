@@ -153,6 +153,10 @@ namespace allscale { namespace components {
             thread_safe_printer("rank["+std::to_string(dead_rank)+"]=false");
             rank_running_[dead_rank] = false;
             num_localities--;
+            // tell failure detector to stop
+            // DON'T REMOVE OR SOME RUNS HANG FOREVER !!!
+            if (num_localities < 2)
+                keep_running = false;
         }
         for (auto it : rescheduled_items) {
             auto w = it.second;
