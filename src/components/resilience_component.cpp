@@ -49,7 +49,7 @@ namespace allscale { namespace components {
 
     void resilience::send_heartbeat_loop() {
         while (keep_running) {
-            std::this_thread::sleep_for(milliseconds(miu));
+            hpx::this_thread::sleep_for(milliseconds(miu));
             auto t_now =  std::chrono::high_resolution_clock::now();
             my_heartbeat = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
             hpx::apply<send_heartbeat_action>(guard_.get(), my_heartbeat);
