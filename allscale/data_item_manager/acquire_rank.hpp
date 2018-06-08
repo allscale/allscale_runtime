@@ -141,7 +141,7 @@ namespace allscale { namespace data_item_manager {
     }
 
     template <typename Requirements, typename LocationInfos>
-    std::size_t acquire_rank(Requirements const& reqs, LocationInfos const& infos)
+    std::size_t acquire_rank(Requirements const& reqs, LocationInfos const& infos, bool can_split)
     {
         static_assert(
             hpx::util::tuple_size<Requirements>::type::value ==
@@ -152,6 +152,9 @@ namespace allscale { namespace data_item_manager {
             typename hpx::util::detail::make_index_pack<
                 hpx::util::tuple_size<Requirements>::type::value>::type;
         std::size_t write_count = detail::num_readwrite(reqs, infos, pack{});
+        // If we can't split further, we artificially increase the write count
+        // to not let the read requirements influence the scheduling decision.
+        write_count = 1;
         return detail::acquire_rank(reqs, infos, write_count, pack{});
     }
 

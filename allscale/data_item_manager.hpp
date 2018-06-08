@@ -145,7 +145,7 @@ namespace allscale { namespace data_item_manager {
                 );
             auto &item = data_item_store<DataItem>::lookup(ref);
             item.shared_data.reset(new shared_data_type(std::forward<Args>(args)...));
-            initializer<DataItem>::call(ref);
+//             initializer<DataItem>::call(ref);
             return ref;
         }
 
