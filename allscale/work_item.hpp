@@ -54,7 +54,7 @@ namespace allscale {
 
         void set_this_id(machine_config const& mconfig)
         {
-            impl_->set_this_id(mconfig);
+            impl_->set_this_id(mconfig, is_first_);
         }
 
         bool is_first()

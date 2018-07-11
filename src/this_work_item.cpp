@@ -46,6 +46,11 @@ namespace allscale { namespace this_work_item {
         next_id_(0)
     {
         HPX_ASSERT(i == 0);
+        reset_distribution();
+    }
+
+    void id::reset_distribution()
+    {
         config_.rank_ = -1;
         config_.numa_domain_ = 0;
         config_.locality_depth_ = -1;//hpx::get_num_localities(hpx::launch::sync);
@@ -183,13 +188,13 @@ namespace allscale { namespace this_work_item {
 
     void id::update_rank(std::size_t rank)
     {
-        HPX_ASSERT(config_.rank_ != std::uint64_t(-1));
+//         HPX_ASSERT(config_.rank_ != std::uint64_t(-1));
         config_.rank_ = rank;
     }
 
     std::size_t id::rank() const
     {
-        HPX_ASSERT(config_.rank_ != std::uint64_t(-1));
+//         HPX_ASSERT(config_.rank_ != std::uint64_t(-1));
         return config_.rank_;
     }
 
@@ -204,12 +209,18 @@ namespace allscale { namespace this_work_item {
     }
 
 //     void id::set(std::shared_ptr<detail::work_item_impl_base> wi)
-    void id::set(detail::work_item_impl_base* wi, machine_config const& mconfig)
+    void id::set(detail::work_item_impl_base* wi, machine_config const& mconfig, bool can_split)
     {
         id& parent = get_id();
         next_id_ = 0;
         id_ = parent.id_;
         id_.push_back(parent.next_id_++);
+
+        if (!can_split)
+        {
+            config_ = parent.config_;
+            return;
+        }
 
 //         HPX_ASSERT(parent.config_.rank_ != std::uint64_t(-1));
 //         HPX_ASSERT(parent.config_.locality_depth_ != std::uint64_t(-1));
@@ -222,12 +233,14 @@ namespace allscale { namespace this_work_item {
         }
         else
         {
+//             if ((id_.back() & 1) == 0)
             if (id_.back() == 0)
             {
                 setup_left(mconfig, parent.config_);
             }
             else
             {
+//                 HPX_ASSERT((id_.back() & 1) == 1);
                 setup_right(mconfig, parent.config_);
             }
         }

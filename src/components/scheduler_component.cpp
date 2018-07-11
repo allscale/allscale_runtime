@@ -505,6 +505,9 @@ namespace allscale { namespace components {
 
 
             std::uint64_t schedule_rank = work.id().rank();
+            if (schedule_rank == std::uint64_t(-1))
+                schedule_rank = rank_;
+
             if ((schedule_rank != rank_ && !work.enqueue_remote()) ||
                 !allscale::resilience::rank_running(schedule_rank))
             {

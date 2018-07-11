@@ -21,6 +21,14 @@ namespace allscale{
 
         data_item_requirement() = default;
 
+        data_item_requirement(data_item_requirement const&) = default;
+        data_item_requirement(data_item_requirement && other) noexcept
+          : ref(std::move(other.ref))
+          , region(std::move(other.region))
+          , mode(other.mode)
+        {
+        }
+
         data_item_requirement(
                 data_item_reference<DataItemType> pref,
                 typename DataItemType::region_type pregion,

@@ -12,6 +12,13 @@ namespace allscale { namespace data_item_manager {
     {
         location_info() = default;
 
+        location_info(location_info const& other) = default;
+
+        location_info(location_info&& other) noexcept
+          : regions(std::move(other.regions))
+        {
+        }
+
         std::unordered_map<std::size_t, Region> regions;
 
         template <typename Archive>

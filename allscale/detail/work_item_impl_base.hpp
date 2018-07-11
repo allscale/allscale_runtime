@@ -35,7 +35,7 @@ namespace allscale { namespace detail {
             id_.update_rank(rank);
         }
 
-		void set_this_id(machine_config const& config);
+		void set_this_id(machine_config const& config, bool is_first);
 		this_work_item::id const& id() const;
 		virtual const char* name() const=0;
 

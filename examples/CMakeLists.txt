@@ -26,6 +26,11 @@ add_hpx_executable(
   SOURCES ipic3d_allscalecc_data.cpp
   COMPONENT_DEPENDENCIES allscale
 )
+add_hpx_executable(
+  amdados_allscalecc
+  SOURCES amdados/amdados_generated.cpp
+  COMPONENT_DEPENDENCIES allscale
+)
 
 add_subdirectory(pfor)
 add_subdirectory(uts)

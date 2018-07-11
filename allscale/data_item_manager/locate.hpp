@@ -263,12 +263,12 @@ namespace allscale { namespace data_item_manager {
                     if (src_id == this_id && !remainder.empty())
                     {
                         HPX_ASSERT(locate_state::init == state);
-                        auto & part = info.regions[this_id];
-                        part = region_type::merge(part, remainder);
-                        std::unique_lock<mutex_type> l(item.region_mtx);
-                        // merge with our own region
-                        item.owned_region =
-                            region_type::merge(item.owned_region, remainder);
+//                         auto & part = info.regions[this_id];
+//                         part = region_type::merge(part, remainder);
+//                         std::unique_lock<mutex_type> l(item.region_mtx);
+//                         // merge with our own region
+//                         item.owned_region =
+//                             region_type::merge(item.owned_region, remainder);
 #if defined(ALLSCALE_DEBUG_DIM)
                         std::stringstream filename;
                         filename << "data_item." << this_id << ".log";

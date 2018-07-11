@@ -43,11 +43,13 @@ namespace allscale {
 
         id();
 
-        void set(detail::work_item_impl_base*, machine_config const& mconfig);
+        void set(detail::work_item_impl_base*, machine_config const& mconfig, bool);
 
         std::string name() const;
         std::size_t last() const;
         std::size_t depth() const;
+
+        void reset_distribution();
 
         std::size_t hash() const;
 

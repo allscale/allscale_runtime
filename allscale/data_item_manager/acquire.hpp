@@ -54,27 +54,35 @@ namespace allscale { namespace data_item_manager {
 
             HPX_ASSERT(!req.region.empty());
 
+            region_type remainder = req.region;
+            for (auto& r: info.regions)
+            {
+                remainder = region_type::difference(remainder, r.second);
+            }
+
             // Resize data to the requested size...
             auto& item = data_item_store<data_item_type>::lookup(req.ref);
-            region_type req_region;
-            if (req.mode == access_mode::ReadOnly)
-            {
-                req_region = std::move(req.region);
-            }
-            else
-            {
-                boost::shared_lock<mutex_type> l(item.region_mtx);
-                HPX_ASSERT(req.mode == access_mode::ReadWrite);
-                // clip region to registered region...
-                req_region = region_type::intersect(item.owned_region, req.region);
-            }
+//             region_type req_region;
+//             if (req.mode == access_mode::ReadOnly)
+//             {
+//                 req_region = std::move(req.region);
+//             }
+//             else
+//             {
+//                 boost::shared_lock<mutex_type> l(item.region_mtx);
+//                 HPX_ASSERT(req.mode == access_mode::ReadWrite);
+//                 // clip region to registered region...
+//                 req_region = region_type::intersect(item.owned_region, req.region);
+//             }
             {
                 std::unique_lock<mutex_type> ll(item.fragment_mtx);
+                item.owned_region =
+                    region_type::merge(item.owned_region, remainder);
                 auto& frag = fragment(req.ref, item, ll);
-                if (!allscale::api::core::isSubRegion(req_region, frag.getCoveredRegion()))
+                if (!allscale::api::core::isSubRegion(req.region, frag.getCoveredRegion()))
                 {
                     frag.resize(
-                            region_type::merge(req_region, frag.getCoveredRegion())
+                            region_type::merge(req.region, frag.getCoveredRegion())
                     );
                 }
             }

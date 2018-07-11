@@ -51,6 +51,10 @@ namespace allscale
         typedef typename WorkItemDescription::result_type result_type;
         allscale::treeture<result_type> tres(treeture_init);
 
+//         auto id = this_work_item::get_id_ptr();
+//         if (id)
+//             id->reset_distribution();
+
         scheduler::schedule(
             work_item(true, WorkItemDescription(), deps.dep_, tres, std::forward<Ts>(vs)...)
         );

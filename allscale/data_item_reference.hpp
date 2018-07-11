@@ -70,7 +70,7 @@ namespace allscale {
           , cache(nullptr)
         {}
 
-        data_item_reference(data_item_reference&& other)
+        data_item_reference(data_item_reference&& other) noexcept
           : id_(std::move(other.id_))
           , cache(nullptr)
         {
@@ -85,7 +85,7 @@ namespace allscale {
             return *this;
         }
 
-        data_item_reference& operator=(data_item_reference&& other)
+        data_item_reference& operator=(data_item_reference&& other) noexcept
         {
             id_ = other.id_;
             cache.store(other.cache.load(std::memory_order_acquire), std::memory_order_release);

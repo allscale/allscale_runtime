@@ -34,14 +34,48 @@ namespace allscale { namespace data_item_manager {
                 return std::size_t(-2);
             }
 
-            HPX_ASSERT(!info.regions.empty());
-            // If we have more than one part, we need to split
-            if (info.regions.size() > 1)
+            using data_item_type = typename Requirement::data_item_type;
+            using lease_type = allscale::lease<data_item_type>;
+            using transfer_action_type = transfer_action<data_item_type>;
+            using region_type = typename data_item_type::region_type;
+            using mutex_type = typename data_item_store<data_item_type>::data_item_type::mutex_type;
+
+            // If we couldn't resolve a remainder, we need to allocate the requested
+            // fragment. This allocation happens either on this rank or the location
+            // of the other requirements. As such, we return -2.
+            if (info.regions.empty())
             {
-                return std::size_t(-1);
+                return std::size_t(-2);
             }
 
-            return info.regions.begin()->first;
+            region_type remainder = req.region;
+            std::size_t dest_rank(-2);
+            for (auto& r: info.regions)
+            {
+                remainder = region_type::difference(remainder, r.second);
+
+                if (r.first != dest_rank)
+                {
+                    if (dest_rank != std::size_t(-2))
+                    {
+                        return std::size_t(-1);
+                    }
+                    else
+                    {
+                        dest_rank = r.first;
+                    }
+                }
+            }
+
+            return dest_rank;
+//             HPX_ASSERT(!info.regions.empty());
+//             // If we have more than one part, we need to split
+//             if (info.regions.size() > 1)
+//             {
+//                 return std::size_t(-1);
+//             }
+//
+//             return info.regions.begin()->first;
         }
 
         template <typename Requirement, typename RequirementAllocator,
@@ -70,7 +104,10 @@ namespace allscale { namespace data_item_manager {
             {
                 std::size_t cur_rank = detail::acquire_rank(reqs[i], infos[i], write_count);
                 if (cur_rank == std::size_t(-2)) continue;
-                if (cur_rank == std::size_t(-1)) return cur_rank;
+                if (cur_rank == std::size_t(-1))
+                {
+                    return cur_rank;
+                }
 
                 if (cur_rank != rank)
                 {
@@ -118,7 +155,10 @@ namespace allscale { namespace data_item_manager {
             for (std::size_t cur_rank: ranks)
             {
                 if (cur_rank == std::size_t(-2)) continue;
-                if (cur_rank == std::size_t(-1)) return cur_rank;
+                if (cur_rank == std::size_t(-1))
+                {
+                    return cur_rank;
+                }
 
                 if (cur_rank != rank)
                 {
@@ -163,9 +203,9 @@ namespace allscale { namespace data_item_manager {
         template <typename Requirement, typename LocationInfo>
         void print_location_info(Requirement const& req, LocationInfo const& info)
         {
-            if (info.regions.size() > 1)
+//             if (info.regions.size() > 1)
             {
-                std::cerr << "Conflicting requirement " << typeid(req).name() << " with region: " << req.region << '\n';
+                std::cerr << "Conflicting requirement " << typeid(req).name() << "(" << (req.mode == access_mode::ReadOnly? "ro" : "rw") << ", "<< std::hex << req.ref.id().get_lsb() << std::dec << ") with region: " << req.region << '\n';
                 std::cerr << "Cannot resolve locations on " << hpx::get_locality_id() << ":\n";
                 for (auto const& parts: info.regions)
                 {
