@@ -13,6 +13,7 @@
 
 #include <hpx/plugins/parcel/coalescing_message_handler_registration.hpp>
 
+#include <hpx/include/actions.hpp>
 #include <hpx/runtime/naming/id_type.hpp>
 #include <hpx/util/tuple.hpp>
 
@@ -42,6 +43,43 @@ namespace allscale { namespace data_item_manager {
             >::type
         {};
 
+        template <typename Requirement>
+        typename Requirement::region_type mark_owned(Requirement req, std::size_t src_id);
+
+        template <typename Requirement>
+        struct mark_owned_action
+          : hpx::actions::make_action<
+                decltype(&mark_owned<Requirement>),
+                &mark_owned<Requirement>,
+                mark_owned_action<Requirement>>::type
+        {};
+
+        template <typename Requirement>
+        typename Requirement::region_type mark_owned(Requirement req, std::size_t src_id)
+        {
+            using region_type = typename Requirement::region_type;
+            using location_info_type = location_info<region_type>;
+            using data_item_type = typename Requirement::data_item_type;
+            using fragment_type = typename data_item_store<data_item_type>::data_item_type::fragment_type;
+            using mutex_type = typename data_item_store<data_item_type>::data_item_type::mutex_type;
+
+            auto& item = data_item_store<data_item_type>::lookup(req.ref);
+
+            std::unique_lock<mutex_type> ll(item.fragment_mtx);
+
+            region_type registered = req.region;
+            for (auto &r : item.location_cache.regions)
+            {
+                registered = region_type::difference(registered, r.second);
+            }
+
+            auto& part = item.location_cache.regions[src_id];
+
+            part = region_type::merge(part, registered);
+
+            return registered;
+        }
+
         template <typename Requirement, typename LocationInfo>
         hpx::future<allscale::lease<typename Requirement::data_item_type>>
         acquire(Requirement const& req, LocationInfo const& info)
@@ -60,6 +98,8 @@ namespace allscale { namespace data_item_manager {
                 remainder = region_type::difference(remainder, r.second);
             }
 
+//             hpx::future<regio> mark_owned;
+
             // Resize data to the requested size...
             auto& item = data_item_store<data_item_type>::lookup(req.ref);
 //             region_type req_region;
@@ -74,10 +114,20 @@ namespace allscale { namespace data_item_manager {
 //                 // clip region to registered region...
 //                 req_region = region_type::intersect(item.owned_region, req.region);
 //             }
+            using mark_owned_action_type = mark_owned_action<Requirement>;
+            region_type registered;
+            if (!remainder.empty())
+            {
+                registered = hpx::async<mark_owned_action_type>(
+                    hpx::naming::get_id_from_locality_id(0),
+                    Requirement(req.ref, remainder, req.mode),
+                    hpx::get_locality_id()).get();
+            }
+
             {
                 std::unique_lock<mutex_type> ll(item.fragment_mtx);
                 item.owned_region =
-                    region_type::merge(item.owned_region, remainder);
+                    region_type::merge(item.owned_region, registered);
                 auto& frag = fragment(req.ref, item, ll);
                 if (!allscale::api::core::isSubRegion(req.region, frag.getCoveredRegion()))
                 {
@@ -86,7 +136,6 @@ namespace allscale { namespace data_item_manager {
                     );
                 }
             }
-
 
             if (req.mode == access_mode::ReadWrite)
             {

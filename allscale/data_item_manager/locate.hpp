@@ -27,35 +27,90 @@ namespace allscale { namespace data_item_manager {
             down
         };
 
-        inline std::size_t get_parent_id(std::size_t this_id)
-        {
-            std::size_t level = 0;
-            std::size_t res = (this_id >> level) << level;
-            while (res > 0)
-            {
-                ++level;
-                std::size_t tmp_res = (this_id >> level) << level;
-                if (tmp_res != res) return tmp_res;
-            }
+//         inline std::size_t get_parent_id(std::size_t this_id)
+//         {
+//             std::size_t level = 0;
+//             std::size_t res = (this_id >> level) << level;
+//             while (res > 0)
+//             {
+//                 ++level;
+//                 std::size_t tmp_res = (this_id >> level) << level;
+//                 if (tmp_res != res) return tmp_res;
+//             }
+//
+//             return res;
+//         }
+//
+//         template <locate_state state, typename Requirement>
+//         hpx::future<location_info<typename Requirement::region_type>>
+// #if defined(ALLSCALE_DEBUG_DIM)
+//         locate(std::string name, Requirement req, std::size_t src_id);
+// #else
+//         locate(Requirement req, std::size_t src_id);
+// #endif
+//
+//         template <locate_state state, typename Requirement>
+//         struct locate_action
+//           : hpx::actions::make_action<
+//                 decltype(&locate<state, Requirement>),
+//                 &locate<state, Requirement>,
+//                 locate_action<state, Requirement>>::type
+//         {};
 
-            return res;
+        template <typename Requirement>
+        location_info<typename Requirement::region_type>
+        locate_root(Requirement req);
+
+        template <typename Requirement>
+        struct locate_root_action
+          : hpx::actions::make_action<
+                decltype(&locate_root<Requirement>),
+                &locate_root<Requirement>,
+                locate_root_action<Requirement>>::type
+        {};
+
+        template <typename Requirement>
+        location_info<typename Requirement::region_type>
+        locate_root(Requirement req)
+        {
+            using region_type = typename Requirement::region_type;
+            using location_info_type = location_info<region_type>;
+            using data_item_type = typename Requirement::data_item_type;
+            using fragment_type = typename data_item_store<data_item_type>::data_item_type::fragment_type;
+            using mutex_type = typename data_item_store<data_item_type>::data_item_type::mutex_type;
+
+            location_info_type info;
+
+            auto& item = data_item_store<data_item_type>::lookup(req.ref);
+            boost::shared_lock<mutex_type> l(item.region_mtx);
+
+            auto remainder = std::move(req.region);
+
+            for (auto const& cached: item.location_cache.regions)
+            {
+                auto part = region_type::intersect(remainder, cached.second);
+                // We got a hit!
+                if (!part.empty())
+                {
+                    // Insert location information...
+                    auto & info_part = info.regions[cached.first];
+
+                    info_part = region_type::merge(info_part, part);
+
+                    // Subtract what we got from what we requested
+                    remainder = region_type::difference(remainder, part);
+
+                    // If the remainder is empty, we got everything covered...
+                    if (remainder.empty())
+                    {
+                        HPX_ASSERT(!info.regions.empty());
+                        return info;
+                    }
+                }
+            }
+            return info;
         }
 
-        template <locate_state state, typename Requirement>
-        hpx::future<location_info<typename Requirement::region_type>>
-#if defined(ALLSCALE_DEBUG_DIM)
-        locate(std::string name, Requirement req, std::size_t src_id);
-#else
-        locate(Requirement req, std::size_t src_id);
-#endif
-
-        template <locate_state state, typename Requirement>
-        struct locate_action
-          : hpx::actions::make_action<
-                decltype(&locate<state, Requirement>),
-                &locate<state, Requirement>,
-                locate_action<state, Requirement>>::type
-        {};
 
         template <locate_state state, typename Requirement>
         hpx::future<location_info<typename Requirement::region_type>>
@@ -141,126 +196,58 @@ namespace allscale { namespace data_item_manager {
 //             item.cache_lookup_time += timer.elapsed();
 //             item.cache_miss++;
 
-            // We couldn't satisfy the request with locally stored information...
-            // now branch out to our parent and children...
-            std::vector<hpx::future<location_info_type>> remote_infos;
-            std::vector<std::pair<hpx::id_type, region_type>> child_regions;
-            using locate_down_action_type = locate_action<locate_state::down, Requirement>;
-            using locate_up_action_type = locate_action<locate_state::up, Requirement>;
+            HPX_ASSERT(!remainder.empty());
 
-            remote_infos.reserve(item.child_regions.size() + 1);
-            child_regions.reserve(item.child_regions.size());
-
-            // Calculate the needed
-            for (auto& child : item.child_regions)
-            {
-                // Check if covered by this child
-                region_type part = region_type::intersect(remainder, child.second);
-                if (!part.empty())
-                {
-                    if (child.first == src_id)
-                    {
-                        // Insert location information...
-                        auto & info_part = info.regions[child.first];
-                        info_part = region_type::merge(info_part, part);
-                    }
-                    else
-                    {
-                        child_regions.push_back(std::make_pair(
-                            hpx::naming::get_id_from_locality_id(child.first), part));
-                    }
-                    // Subtract what we got from what we requested
-                    remainder = region_type::difference(remainder, part);
-                }
-            }
             l.unlock();
 
-            for (auto& child: child_regions)
-            {
-                remote_infos.push_back(
-                    // FIXME: make resilient
-                    hpx::async<locate_up_action_type>(child.first,
-#if defined(ALLSCALE_DEBUG_DIM)
-                        std::string(),
-#endif
-                        Requirement(req.ref, child.second, req.mode), src_id
-                    )
-                );
-            }
-
-            if (!remainder.empty())
-            {
-                if (state != locate_state::up && this_id != 0)
-                {
-                    hpx::id_type target(
-                        hpx::naming::get_id_from_locality_id(
-                            get_parent_id(this_id)
-                        )
-                    );
-                    remote_infos.push_back(
-                        // FIXME: make resilient
-                        hpx::async<locate_down_action_type>(target,
-#if defined(ALLSCALE_DEBUG_DIM)
-                            std::string(),
-#endif
-                            Requirement(req.ref, remainder, req.mode), src_id
-                        )
-                    );
-                }
-            }
-
-            if (remote_infos.empty() && remainder.empty())
-            {
-                return hpx::make_ready_future(std::move(info));
-            }
+            using locate_root_action_type = locate_root_action<Requirement>;
+            hpx::future<location_info_type> remote_info =
+                hpx::async<locate_root_action_type>(
+                    hpx::naming::get_id_from_locality_id(0),
+                    Requirement(req.ref, std::move(remainder), req.mode));
 
             return hpx::dataflow(hpx::util::annotated_function(
 #if defined(ALLSCALE_DEBUG_DIM)
-                [name = std::move(name), info = std::move(info), req, remainder = std::move(remainder), src_id]
+                [name = std::move(name), info = std::move(info), req, src_id, remainder = std::move(remainder)]
 #else
-                [info = std::move(info), req, remainder = std::move(remainder), src_id]
+                [info = std::move(info), req, src_id, remainder = std::move(remainder)]
 #endif
-                (std::vector<hpx::future<location_info_type>>&& remote_infos) mutable
+                (hpx::future<location_info_type>&& remote_info) mutable
                 {
                     auto& item = data_item_store<data_item_type>::lookup(req.ref);
                     std::size_t this_id = hpx::get_locality_id();
 
                     // Merge infos
-                    if (remote_infos.size() > 0)
+                    location_info_type info = remote_info.get();
+                    if (info.regions.size() > 0)
                     {
                         std::unique_lock<mutex_type> l(item.region_mtx);
-                        for (auto& info_parts_fut: remote_infos)
+                        for (auto const& remote_info: info.regions)
                         {
-                            if (info_parts_fut.valid())
+                            // This marks the need to initialize the requested
+                            // region
+//                             if (src_id == this_id && remote_info.first == src_id)
+//                             {
+//                                 remainder = region_type::intersect(remainder, remote_info.second);
+//                             }
+//                             else
                             {
-                                auto info_parts = info_parts_fut.get();
-                                for (auto const& remote_info: info_parts.regions)
-                                {
-                                    // This marks the need to initialize the requested
-                                    // region
-                                    if (src_id == this_id && remote_info.first == src_id)
-                                    {
-                                        remainder = region_type::intersect(remainder, remote_info.second);
-                                    }
-                                    else
-                                    {
-                                        // update cache.
-                                        auto & cached_part = item.location_cache.regions[remote_info.first];
-                                        cached_part = region_type::merge(cached_part, remote_info.second);
+                                // update cache.
+                                auto & cached_part = item.location_cache.regions[remote_info.first];
+                                cached_part = region_type::merge(cached_part, remote_info.second);
 
-                                        remainder = region_type::difference(remainder, remote_info.second);
+                                remainder = region_type::difference(remainder, remote_info.second);
 
-                                        // Insert location information...
-                                        auto & part = info.regions[remote_info.first];
-                                        part = region_type::merge(part, remote_info.second);
-                                    }
-                                }
+                                // Insert location information...
+                                auto & part = info.regions[remote_info.first];
+                                part = region_type::merge(part, remote_info.second);
                             }
                         }
                         remainder = region_type::difference(remainder, item.owned_region);
                     }
 
-                    if (src_id == this_id && !remainder.empty())
+#if defined(ALLSCALE_DEBUG_DIM)
+                    if (!remainder.empty())
                     {
                         HPX_ASSERT(locate_state::init == state);
 //                         auto & part = info.regions[this_id];
@@ -269,7 +256,6 @@ namespace allscale { namespace data_item_manager {
 //                         // merge with our own region
 //                         item.owned_region =
 //                             region_type::merge(item.owned_region, remainder);
-#if defined(ALLSCALE_DEBUG_DIM)
                         std::stringstream filename;
                         filename << "data_item." << this_id << ".log";
                         std::ofstream os(filename.str(), std::ios_base::app);
@@ -285,10 +271,10 @@ namespace allscale { namespace data_item_manager {
 //                             << region_type::intersect(fragment(item).getTotalSize(), remainder)
                             << '\n';
                         os.close();
-#endif
                     }
+#endif
                     return std::move(info);
-                }, "allscale::data_item_manager::locate::remote_cont"), std::move(remote_infos)
+                }, "allscale::data_item_manager::locate::remote_cont"), std::move(remote_info)
             );
         }
 
