@@ -65,7 +65,7 @@ namespace allscale { namespace data_item_manager {
 
             auto& item = data_item_store<data_item_type>::lookup(req.ref);
 
-            std::unique_lock<mutex_type> ll(item.fragment_mtx);
+            std::unique_lock<mutex_type> ll(item.region_mtx);
 
             region_type registered = req.region;
             for (auto &r : item.location_cache.regions)
@@ -123,11 +123,15 @@ namespace allscale { namespace data_item_manager {
                     Requirement(req.ref, remainder, req.mode),
                     hpx::get_locality_id()).get();
             }
+            if (!registered.empty())
+            {
+                std::unique_lock<mutex_type> ll(item.region_mtx);
+                item.owned_region =
+                    region_type::merge(item.owned_region, registered);
+            }
 
             {
                 std::unique_lock<mutex_type> ll(item.fragment_mtx);
-                item.owned_region =
-                    region_type::merge(item.owned_region, registered);
                 auto& frag = fragment(req.ref, item, ll);
                 if (!allscale::api::core::isSubRegion(req.region, frag.getCoveredRegion()))
                 {

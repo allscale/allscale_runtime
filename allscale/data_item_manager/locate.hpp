@@ -134,71 +134,57 @@ namespace allscale { namespace data_item_manager {
 
             auto& item = data_item_store<data_item_type>::lookup(req.ref);
 
-            boost::shared_lock<mutex_type> l(item.region_mtx);
-            // FIXME: wait for migration and lock here.
-
-//             item.locate_access++;
-
-            // Now try to locate ...
             region_type remainder = std::move(req.region);
-
-            // First check the intersection of our own region
-            region_type part = region_type::intersect(remainder, item.owned_region);
-            if (!part.empty())
             {
-                info.regions.insert(std::make_pair(this_id, part));
-                // Subtract what we got from what we requested
-                remainder = region_type::difference(remainder, part);
+                boost::shared_lock<mutex_type> l(item.region_mtx);
+                // FIXME: wait for migration and lock here.
 
-                // If the remainder is empty, we got everything covered...
-                if (remainder.empty())
-                {
-                    HPX_ASSERT(!info.regions.empty());
-                    return hpx::make_ready_future(std::move(info));
-                }
-            }
+                // Now try to locate ...
 
-            // Lookup in our cache
-//             hpx::util::high_resolution_timer timer;
-//             hpx::util::high_resolution_timer intersect_timer;
-//             hpx::util::high_resolution_timer merge_timer;
-//             hpx::util::high_resolution_timer difference_timer;
-
-            for (auto const& cached: item.location_cache.regions)
-            {
-//                 intersect_timer.restart();
-                part = region_type::intersect(remainder, cached.second);
-//                 item.intersect_time += intersect_timer.elapsed();
-                // We got a hit!
+                // First check the intersection of our own region
+                region_type part = region_type::intersect(remainder, item.owned_region);
                 if (!part.empty())
                 {
-                    // Insert location information...
-                    auto & info_part = info.regions[cached.first];
-
-//                     merge_timer.restart();
-                    info_part = region_type::merge(info_part, part);
-//                     item.merge_time += merge_timer.elapsed();
-
-//                     difference_timer.restart();
+                    info.regions.insert(std::make_pair(this_id, part));
                     // Subtract what we got from what we requested
                     remainder = region_type::difference(remainder, part);
-//                     item.difference_time += difference_timer.elapsed();
 
                     // If the remainder is empty, we got everything covered...
                     if (remainder.empty())
                     {
-//                         item.cache_lookup_time += timer.elapsed();
                         HPX_ASSERT(!info.regions.empty());
                         return hpx::make_ready_future(std::move(info));
                     }
                 }
+
+                // Lookup in our cache
+
+                for (auto const& cached: item.location_cache.regions)
+                {
+                    part = region_type::intersect(remainder, cached.second);
+                    // We got a hit!
+                    if (!part.empty())
+                    {
+                        // Insert location information...
+                        auto & info_part = info.regions[cached.first];
+
+                        info_part = region_type::merge(info_part, part);
+
+                        // Subtract what we got from what we requested
+                        remainder = region_type::difference(remainder, part);
+
+                        // If the remainder is empty, we got everything covered...
+                        if (remainder.empty())
+                        {
+                            HPX_ASSERT(!info.regions.empty());
+                            return hpx::make_ready_future(std::move(info));
+                        }
+                    }
+                }
+
             }
-//             item.cache_lookup_time += timer.elapsed();
-//             item.cache_miss++;
 
             HPX_ASSERT(!remainder.empty());
-
-            l.unlock();
 
             using locate_root_action_type = locate_root_action<Requirement>;
             hpx::future<location_info_type> remote_info =
@@ -212,17 +198,17 @@ namespace allscale { namespace data_item_manager {
 #else
                 [info = std::move(info), req, src_id, remainder = std::move(remainder)]
 #endif
-                (hpx::future<location_info_type>&& remote_info) mutable
+                (hpx::future<location_info_type>&& remote_info_fut) mutable
                 {
                     auto& item = data_item_store<data_item_type>::lookup(req.ref);
                     std::size_t this_id = hpx::get_locality_id();
 
                     // Merge infos
-                    location_info_type info = remote_info.get();
-                    if (info.regions.size() > 0)
+                    location_info_type remote_info = remote_info_fut.get();
+                    if (remote_info.regions.size() > 0)
                     {
                         std::unique_lock<mutex_type> l(item.region_mtx);
-                        for (auto const& remote_info: info.regions)
+                        for (auto const& remote_info: remote_info.regions)
                         {
                             // This marks the need to initialize the requested
                             // region
