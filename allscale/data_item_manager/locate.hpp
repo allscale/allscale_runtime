@@ -63,7 +63,7 @@ namespace allscale { namespace data_item_manager {
 
         template <typename Requirement>
         struct locate_root_action
-          : hpx::actions::make_action<
+          : hpx::actions::make_direct_action<
                 decltype(&locate_root<Requirement>),
                 &locate_root<Requirement>,
                 locate_root_action<Requirement>>::type

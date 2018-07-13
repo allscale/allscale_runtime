@@ -48,7 +48,7 @@ namespace allscale { namespace data_item_manager {
 
         template <typename Requirement>
         struct mark_owned_action
-          : hpx::actions::make_action<
+          : hpx::actions::make_direct_action<
                 decltype(&mark_owned<Requirement>),
                 &mark_owned<Requirement>,
                 mark_owned_action<Requirement>>::type
