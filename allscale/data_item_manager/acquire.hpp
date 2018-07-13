@@ -79,10 +79,9 @@ namespace allscale { namespace data_item_manager {
 
             return registered;
         }
-
-        template <typename Requirement, typename LocationInfo>
-        hpx::future<allscale::lease<typename Requirement::data_item_type>>
-        acquire(Requirement const& req, LocationInfo const& info)
+        template <typename Item, typename Region, typename Requirement, typename LocationInfo>
+        hpx::future<allscale::lease<typename Item::data_item_type>>
+        acquire_cont(Item & item, Region registered, Requirement req, LocationInfo const& info)
         {
             using data_item_type = typename Requirement::data_item_type;
             using lease_type = allscale::lease<data_item_type>;
@@ -90,39 +89,6 @@ namespace allscale { namespace data_item_manager {
             using region_type = typename data_item_type::region_type;
             using mutex_type = typename data_item_store<data_item_type>::data_item_type::mutex_type;
 
-            HPX_ASSERT(!req.region.empty());
-
-            region_type remainder = req.region;
-            for (auto& r: info.regions)
-            {
-                remainder = region_type::difference(remainder, r.second);
-            }
-
-//             hpx::future<regio> mark_owned;
-
-            // Resize data to the requested size...
-            auto& item = data_item_store<data_item_type>::lookup(req.ref);
-//             region_type req_region;
-//             if (req.mode == access_mode::ReadOnly)
-//             {
-//                 req_region = std::move(req.region);
-//             }
-//             else
-//             {
-//                 boost::shared_lock<mutex_type> l(item.region_mtx);
-//                 HPX_ASSERT(req.mode == access_mode::ReadWrite);
-//                 // clip region to registered region...
-//                 req_region = region_type::intersect(item.owned_region, req.region);
-//             }
-            using mark_owned_action_type = mark_owned_action<Requirement>;
-            region_type registered;
-            if (!remainder.empty())
-            {
-                registered = hpx::async<mark_owned_action_type>(
-                    hpx::naming::get_id_from_locality_id(0),
-                    Requirement(req.ref, remainder, req.mode),
-                    hpx::get_locality_id()).get();
-            }
             if (!registered.empty())
             {
                 std::unique_lock<mutex_type> ll(item.region_mtx);
@@ -182,6 +148,46 @@ namespace allscale { namespace data_item_manager {
                     }, "allscale::data_item_manager::transfers_cont"),
                     std::move(transfers));
             }
+        }
+
+        template <typename Requirement, typename LocationInfo>
+        hpx::future<allscale::lease<typename Requirement::data_item_type>>
+        acquire(Requirement const& req, LocationInfo const& info)
+        {
+            using data_item_type = typename Requirement::data_item_type;
+            using lease_type = allscale::lease<data_item_type>;
+            using transfer_action_type = transfer_action<data_item_type>;
+            using region_type = typename data_item_type::region_type;
+            using mutex_type = typename data_item_store<data_item_type>::data_item_type::mutex_type;
+
+            HPX_ASSERT(!req.region.empty());
+
+            region_type remainder = req.region;
+            for (auto& r: info.regions)
+            {
+                remainder = region_type::difference(remainder, r.second);
+            }
+
+//             hpx::future<regio> mark_owned;
+
+            // Resize data to the requested size...
+            auto& item = data_item_store<data_item_type>::lookup(req.ref);
+            using mark_owned_action_type = mark_owned_action<Requirement>;
+            if (!remainder.empty())
+            {
+                return hpx::async<mark_owned_action_type>(
+                    hpx::naming::get_id_from_locality_id(0),
+                    Requirement(req.ref, remainder, req.mode),
+                    hpx::get_locality_id()).then(hpx::launch::sync,
+                    [item = &item, req = std::move(req), info](hpx::future<region_type> registered) mutable
+                    {
+                        return acquire_cont(*item, registered.get(), std::move(req), info);
+                    }
+                );
+            }
+
+            region_type registered;
+            return acquire_cont(item, std::move(registered), std::move(req), info);
         }
 
         template <typename Requirement, typename RequirementAllocator,

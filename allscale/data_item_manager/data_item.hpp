@@ -19,6 +19,7 @@ namespace allscale { namespace data_item_manager {
     template <typename DataItemType>
     struct data_item
     {
+        using data_item_type = DataItemType;
         using mutex_type = allscale::util::readers_writers_mutex;
         using region_type = typename DataItemType::region_type;
         using fragment_type = typename DataItemType::fragment_type;
