@@ -204,11 +204,11 @@ namespace allscale { namespace data_item_manager {
                     std::size_t this_id = hpx::get_locality_id();
 
                     // Merge infos
-                    location_info_type remote_info = remote_info_fut.get();
-                    if (remote_info.regions.size() > 0)
+                    location_info_type remote_infos = remote_info_fut.get();
+                    if (remote_infos.regions.size() > 0)
                     {
                         std::unique_lock<mutex_type> l(item.region_mtx);
-                        for (auto const& remote_info: remote_info.regions)
+                        for (auto const& remote_info: remote_infos.regions)
                         {
                             // This marks the need to initialize the requested
                             // region
