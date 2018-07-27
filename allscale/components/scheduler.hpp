@@ -6,6 +6,7 @@
 #include <allscale/this_work_item.hpp>
 #include <allscale/components/treeture_buffer.hpp>
 #include <allscale/components/scheduler_network.hpp>
+#include <allscale/components/localoptimizer.hpp>
 #if defined(ALLSCALE_HAVE_CPUFREQ)
 #include <allscale/util/hardware_reconf.hpp>
 #endif
@@ -25,6 +26,10 @@
 #include <deque>
 #include <vector>
 #include <unordered_map>
+#include <chrono>
+
+//#define MEASURE_MANUAL_ 1
+#define MEASURE_ 1
 
 
 namespace allscale { namespace components {
@@ -52,6 +57,7 @@ namespace allscale { namespace components {
     private:
         std::size_t get_num_numa_nodes();
         std::size_t get_num_numa_cores(std::size_t domain);
+        void initialize_cpu_frequencies();
 
         hpx::resource::detail::partitioner *rp_;
         const hpx::threads::topology *topo_;
@@ -69,21 +75,43 @@ namespace allscale { namespace components {
 
         bool collect_counters();
         //try to suspend resource_step threads, return number of threads which received a new suspend order;
-        unsigned int suspend_threads();
+        // REM unsigned int suspend_threads();
+        unsigned int suspend_threads(std::size_t);
         //try to resume resource_step threads, return number of threads which received a new resume order;
-        unsigned int resume_threads();
-        bool periodic_throttle();
-        bool periodic_frequency_scale();
-	bool power_periodic_frequency_scale();
-        bool multi_objectives_adjust(std::size_t current_id);
-	bool multi_objectives_adjust_timed();
+        // REM         unsigned int resume_threads();
+        unsigned int resume_threads(std::size_t);      
 
-        hpx::util::interval_timer throttle_timer_;
-        hpx::util::interval_timer frequency_timer_;
-        hpx::util::interval_timer multi_objectives_timer_;
+#ifdef MEASURE_
+        // convenience methods to update measured metrics of interest
+        void update_active_osthreads(std::size_t);
+        void update_power_consumption(std::size_t);        
+#endif
+
+        void fix_allcores_frequencies(int index);
+
+        // REM hpx::util::interval_timer throttle_timer_;
+        // REMhpx::util::interval_timer frequency_timer_;
+        //REM hpx::util::interval_timer multi_objectives_timer_;
+
+        /* captures absolute timestamp of the last time the optimizer
+           has been invoked */
+        //std::chrono::time_point<std::chrono::high_resolution_clock> 
+        //    last_optimization_timestamp_;
+        long last_optimization_timestamp_;
+
+        /* periodicity in milliseconds to invoke the optimizer */
+        const long optimization_period_ms = 5;
+
+        /* captures absolute timestamp of the last time optimization
+           objective value have been measured (sampled) */
+        //std::chrono::time_point<std::chrono::high_resolution_clock> 
+        //    last_objective_measurement_timestamp_;
+        long last_objective_measurement_timestamp_;
+
+        /* periodicity in milliseconds to invoke objective sampling */
+        const long objective_measurement_period_ms = 1;        
 
         //extra masks to better handle suspending/resuming threads
-
         std::vector<hpx::threads::thread_pool_base*> thread_pools_;
         std::vector<hpx::threads::mask_type> initial_masks_;
         std::vector<hpx::threads::mask_type> suspending_masks_;
@@ -104,16 +132,11 @@ namespace allscale { namespace components {
         // due to suspend and resume
         std::vector<std::pair<double, unsigned int>> thread_times;
 
-
         unsigned long min_freq;
         unsigned long max_freq;
         unsigned long max_resource;
         unsigned long max_time;
         unsigned long max_power;
-        unsigned long long current_energy_usage;
-        unsigned long long last_energy_usage;
-        unsigned long long last_actual_energy_usage;
-        unsigned long long actual_energy_usage;
         unsigned long long current_power_usage;
         unsigned long long last_power_usage;
         unsigned long long power_sum;
@@ -127,7 +150,6 @@ namespace allscale { namespace components {
         std::vector<std::pair<unsigned long long, double>> freq_times;
         std::vector<std::vector<std::pair<unsigned long long, double>>> objectives_status;
         unsigned int freq_step;
-
         bool target_freq_found;
 #endif
         unsigned int resource_step;
@@ -141,7 +163,6 @@ namespace allscale { namespace components {
         double current_avg_iter_time;
         monitor *allscale_monitor;
 
-        //        std::vector<std::pair<std::string, double>> objectives_with_leeways;
         const std::vector<std::string> objectives = {
             "time",
             "resource",
@@ -160,6 +181,41 @@ namespace allscale { namespace components {
         unsigned int period_for_resource;
         unsigned int period_for_power;
 
+        /* cumulative number of locally scheduled application tasks (work items) */
+        unsigned long long nr_tasks_scheduled;        
+
+#ifdef MEASURE_MANUAL_
+        int param_osthreads_;
+        int param_locked_frequency_idx_;
+        unsigned long fixed_frequency_; // fixed frequency the runtime is ran at
+#endif
+
+#ifdef MEASURE_
+        /* Resources measured metrics (OS threads) */
+        unsigned long long meas_active_threads_sum;  // cumulative sum of active OS threads measured
+        unsigned long long meas_active_threads_count; // number of times active OS threads have been sampled
+        unsigned long long meas_active_threads_max; // maximum number of active OS threads throughout execution
+        unsigned long long meas_active_threads_min; // minimum number of active OS threads throughout execution
+
+        /* Power/Energy measured metrics */
+        unsigned long long meas_power_sum; // cumulative sum of power consumption measured (in Watts)
+        unsigned long long meas_power_count; // number of times power consumption has been sampled
+        int meas_power_min; // minimum system power measurement throughout execution in Watts
+        int meas_power_max; // maximum system power measurement throughout execution in Watts
+
+        /* Execution time measured metrics */
+        double min_iter_time; // minimum iteration time measured throughout execution
+        double max_iter_time; // maximum iteration time measured throughout execution
+#endif
+        /* local node optimizer object */
+        localoptimizer lopt_;
+
+        long int nr_opt_steps;
+
+        /* flag to enable local optimizer, if objectives have been specified, 
+           set to false otherwise.
+         */
+         bool uselopt;
 
     };
 }}

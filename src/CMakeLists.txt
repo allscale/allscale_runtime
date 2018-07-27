@@ -14,6 +14,8 @@ set(_srcs
     components/scheduler_network.cpp
     components/util/graph_colouring.cpp
     detail/work_item_impl_base.cpp
+    components/localoptimizer.cpp
+    components/nmsimplex_bbincr.cpp
 )
 
 if(CPUFREQ_FOUND)
