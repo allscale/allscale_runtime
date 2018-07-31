@@ -54,7 +54,7 @@ scheduler::scheduler(std::uint64_t rank)
 
 #if defined(MEASURE_)
       ,
-      meas_active_threads_sum(0), meas_active_threads_count(0), 
+      meas_active_threads_sum(0), meas_active_threads_count(0),
       meas_active_threads_max(0), meas_active_threads_min(0),
       meas_power_min(0), meas_power_max(0),
       min_iter_time(0), max_iter_time(0)
@@ -63,8 +63,8 @@ scheduler::scheduler(std::uint64_t rank)
 #if defined(MEASURE_MANUAL_)
       ,
       param_osthreads_(1),param_locked_frequency_idx_(0),fixed_frequency_(0)
-      
-#endif       
+
+#endif
       ,
       target_resource_found(false), resource_step(1), multi_objectives(false),
       time_requested(false), resource_requested(false), energy_requested(false),
@@ -134,7 +134,7 @@ std::size_t scheduler::get_num_numa_nodes() {
  * scheduler::get_num_numa_cores()
  *
  * Returns number of cores in the specified domain as an integer.
- * The desired domain is specified as an integer argument. It is the 
+ * The desired domain is specified as an integer argument. It is the
  * responsibility of the caller to specify a domain ID within bounds.
  * If the domain is off bounds, an exception is thrown.
  *
@@ -170,7 +170,7 @@ std::size_t scheduler::get_num_numa_cores(std::size_t domain) {
  * scheduler::init()
  *
  * Initializes scheduler data structures and state, including local optimizer
- * per user parameteres specified. 
+ * per user parameteres specified.
  * Called only once after local scheduler first instantiation.
  *
 */
@@ -214,10 +214,12 @@ void scheduler::init() {
       hpx::get_config_entry("allscale.objective", "");
 
   /* Read optimization policy selected by the user. If not specified,
-     allscale policy is the default */ 
+     allscale policy is the default */
     std::string input_optpolicy_str =
       hpx::get_config_entry("allscale.policy", "allscale");
+#ifdef DEBUG_MULTIOBJECTIVE_
     std::cout << "[Local Optimizer|INFO] Optimization Policy Active = " << input_optpolicy_str << std::endl;
+#endif
     if (input_optpolicy_str=="allscale")
       lopt_.setPolicy(allscale);
     else if (input_optpolicy_str=="random")
@@ -467,16 +469,18 @@ void scheduler::init() {
     lopt_.setobjectives(objectives_temp);
     lopt_.setmaxthreads(os_thread_count);
     lopt_.reset(os_thread_count,0);
-  #if defined(ALLSCALE_HAVE_CPUFREQ)  
+  #if defined(ALLSCALE_HAVE_CPUFREQ)
     using hardware_reconf = allscale::components::util::hardware_reconf;
-    std::vector<unsigned long> freq_temp = 
+    std::vector<unsigned long> freq_temp =
       lopt_.setfrequencies(hardware_reconf::get_frequencies(0));
     if (freq_temp.empty()){
       HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
       "error in initializing the local optimizer, allowed frequency values are empty");
     }
   #endif
+#ifdef DEBUG_
     lopt_.printobjectives();
+#endif
   }
 }
 
@@ -500,17 +504,17 @@ void scheduler::initialize_cpu_frequencies() {
   unsigned long temp_transition_latency=hardware_reconf::get_cpu_transition_latency(1);
 #ifdef DEBUG_INIT_
   if (temp_transition_latency==0)
-    std::cout << "[INFO] Transition Latency Unavailable" << 
+    std::cout << "[INFO] Transition Latency Unavailable" <<
       "\n" << std::flush;
   else
-    std::cout << "[INFO] Core-1 Frequency Transition Latency = " << 
+    std::cout << "[INFO] Core-1 Frequency Transition Latency = " <<
       hardware_reconf::get_cpu_transition_latency(2)/1000 <<
       " milliseconds\n" << std::flush;
 #endif
 #endif
-  
+
 #ifdef DEBUG_INIT_
-  std::cout << "[INFO] Governors available on the system: " << 
+  std::cout << "[INFO] Governors available on the system: " <<
       "\n" << std::flush;
   std::vector<std::string> temp_governors = hardware_reconf::get_governors(0);
   for (std::vector<std::string>::const_iterator i = temp_governors.begin(); i != temp_governors.end(); ++i)
@@ -705,7 +709,7 @@ void scheduler::enqueue(work_item work, this_work_item::id id) {
   if ((temp_id >= period_for_power) &&
       (temp_id % period_for_power == 0))
     update_power_consumption(hardware_reconf::read_system_power());
-#endif  
+#endif
 
   // schedule locally
   if (schedule_rank == rank_) {
@@ -717,7 +721,7 @@ void scheduler::enqueue(work_item work, this_work_item::id id) {
       // find out which pool has the most threads
 
       /* Count Active threads for validation*/
-      
+
       hpx::threads::mask_type active_mask;
       std::size_t active_threads_ = 0;
       std::size_t domain_active_threads = 0;
@@ -765,7 +769,7 @@ void scheduler::enqueue(work_item work, this_work_item::id id) {
   #endif
             current_avg_iter_time = 0.0;
           }
-          
+
           lopt_.measureObjective(current_avg_iter_time,power_sum/last_power_usage,
             active_threads);
           last_power_usage=0;
@@ -781,15 +785,15 @@ void scheduler::enqueue(work_item work, this_work_item::id id) {
     #ifdef DEBUG_MULTIOBJECTIVE_
           lopt_.printverbosesteps(act_temp);
     #endif
-          // amend threads if signaled 
-          /*     
+          // amend threads if signaled
+          /*
           if (act_temp.delta_threads<0){
-            unsigned int suspended_temp = 
+            unsigned int suspended_temp =
               suspend_threads(-1 * act_temp.delta_threads);
             lopt_.setCurrentThreads(lopt_.getCurrentThreads()-suspended_temp);
           }
           else if (act_temp.delta_threads>0){
-            unsigned int resumed_temp = 
+            unsigned int resumed_temp =
               resume_threads(act_temp.delta_threads);
             lopt_.setCurrentThreads(lopt_.getCurrentThreads()+resumed_temp);
           }
@@ -803,11 +807,11 @@ void scheduler::enqueue(work_item work, this_work_item::id id) {
 #endif
             unsigned int suspended_temp = suspend_threads(new_threads_target);
             //lopt_.setCurrentThreads(lopt_.getCurrentThreads()-suspended_temp);
-            lopt_.setCurrentThreads(active_threads);  
+            lopt_.setCurrentThreads(active_threads);
           }
           else if (act_temp.delta_threads > active_threads){
             int new_threads_target = act_temp.delta_threads - (int)active_threads;
-#ifdef DEBUG_MULTIOBJECTIVE_            
+#ifdef DEBUG_MULTIOBJECTIVE_
             std::cout << "[SCHEDULER|INFO]: Optimizer induced threads to resume to: " << new_threads_target << std::endl;
             std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << ", target threads = " << act_temp.delta_threads << std::endl;
 #endif
@@ -823,7 +827,7 @@ void scheduler::enqueue(work_item work, this_work_item::id id) {
 #endif
             fix_allcores_frequencies(act_temp.frequency_idx);
             lopt_.setCurrentFrequencyIdx(act_temp.frequency_idx);
-          }        
+          }
         }
       } // uselopt
     }
@@ -911,8 +915,8 @@ bool scheduler::do_split(work_item const &w) {
  *
  * scheduler::suspend_threads(std::size_t)
  *
- * Suspends specified number (as an integer) of runtime/OS threads assigned to 
- * the runtime. Note that this may not necessarily translate to hardware 
+ * Suspends specified number (as an integer) of runtime/OS threads assigned to
+ * the runtime. Note that this may not necessarily translate to hardware
  * threads, i.e. the behaviour in terms of the latter is architecture specific.
  *
 */
@@ -1093,8 +1097,8 @@ unsigned int scheduler::suspend_threads(std::size_t suspendthreads) {
  *
  * scheduler::resume_threads(std::size_t)
  *
- * Resumes specified number (as an integer) of runtime/OS threads assigned to 
- * the runtime. Note that this may not necessarily translate to hardware 
+ * Resumes specified number (as an integer) of runtime/OS threads assigned to
+ * the runtime. Note that this may not necessarily translate to hardware
  * threads, i.e. the behaviour in terms of the latter is architecture specific.
  *
 */
@@ -1255,7 +1259,7 @@ unsigned int scheduler::resume_threads(std::size_t resumethreads) {
   }
 #ifdef MEASURE_
   update_active_osthreads(resume_threads.size());
-#endif  
+#endif
   active_threads = active_threads + resume_threads.size();
 #ifdef DEBUG_THREADSTATUS_
   std::cout << "[SCHEDULER|INFO]: Thread Resume - Newly Active Threads: " << active_threads
@@ -1327,7 +1331,7 @@ void scheduler::fix_allcores_frequencies(int frequency_idx){
         if (!cpufreq_cpu_exists(pu_num)) {
           //int res = hardware_reconf::set_frequency(pu_num, 1, cpu_freqs[cpu_freqs[.size()-1]]);
           int res = hardware_reconf::set_frequency(pu_num, 1, cpu_freqs[frequency_idx]);
-#if defined(MEASURE_MANUAL_)          
+#if defined(MEASURE_MANUAL_)
           fixed_frequency_ = cpu_freqs[frequency_idx];
 #endif
 #ifdef DEBUG_FREQSCALING_
@@ -1380,13 +1384,13 @@ void scheduler::update_active_osthreads(std::size_t delta) {
 
   if (meas_active_threads_min==0)
     meas_active_threads_min=temp;
-  
+
   if (meas_active_threads_sum==0){
     meas_active_threads_count++;
     meas_active_threads_sum=active_threads;
     return;
   }
-  
+
   if ((temp >= min_threads) && (temp <= os_thread_count)){
     meas_active_threads_count++;
     meas_active_threads_sum+=temp;
@@ -1403,13 +1407,13 @@ void scheduler::update_power_consumption(std::size_t power_sample) {
 
   if (meas_power_min==0)
     meas_power_min=power_sample;
-  
+
   if (meas_power_sum==0){
     meas_power_count++;
     meas_power_sum=power_sample;
     return;
   }
-  
+
   if ((power_sample >= 0) && (power_sample <= 10000)){
     meas_power_count++;
     meas_power_sum+=power_sample;
@@ -1487,38 +1491,40 @@ void scheduler::stop() {
 
 
   /* Output all measured metrics */
+#ifdef DEBUG_MULTIOBJECTIVE_
 #ifdef MEASURE_
   std::cout << "\n****************************************************\n" << std::flush;
   std::cout << "Measured Metrics of Application Execution:\n"
 
-            << "\tTotal number of tasks scheduled locally (#taskslocal) = " 
-            << nr_tasks_scheduled << std::endl 
+            << "\tTotal number of tasks scheduled locally (#taskslocal) = "
+            << nr_tasks_scheduled << std::endl
 
-            << "\tAverage number of OS threads allocated to application (#osthreadsavg) = " 
-            << meas_active_threads_sum/meas_active_threads_count << std::endl                        
+            << "\tAverage number of OS threads allocated to application (#osthreadsavg) = "
+            << meas_active_threads_sum/meas_active_threads_count << std::endl
 
-            << "\tMinimum number of OS threads allocated to application (#osthreadsmin) = " 
+            << "\tMinimum number of OS threads allocated to application (#osthreadsmin) = "
             << meas_active_threads_min << std::endl
 
-            << "\tMaximum number of OS threads allocated to application (#osthreadsmax) = " 
+            << "\tMaximum number of OS threads allocated to application (#osthreadsmax) = "
             << meas_active_threads_max << std::endl
 
-            << "\tAverage power consumption (in Watts) by application execution (#avgpower) = " 
+            << "\tAverage power consumption (in Watts) by application execution (#avgpower) = "
             << meas_power_sum/meas_power_count << std::endl
 
-            << "\tMaximum power consumption (in Watts) by application execution (#maxpower) = " 
-            << meas_power_max << std::endl                        
+            << "\tMaximum power consumption (in Watts) by application execution (#maxpower) = "
+            << meas_power_max << std::endl
 
-            << "\tMinimum power consumption (in Watts) by application execution (#minpower) = " 
+            << "\tMinimum power consumption (in Watts) by application execution (#minpower) = "
             << meas_power_min << std::endl
 #ifdef MEASURE_MANUAL_
-            << "\tFixed Processor Frequency (in GHz) during application execution (#freq) = " 
+            << "\tFixed Processor Frequency (in GHz) during application execution (#freq) = "
             << fixed_frequency_ << std::endl
 #endif
 
             << "\n" << std::flush;
   std::cout << "****************************************************\n" << std::flush;
 
+#endif
 #endif
 
 }
