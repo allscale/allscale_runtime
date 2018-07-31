@@ -211,15 +211,15 @@ namespace allscale {
 
         void set_children(treeture<void> left, treeture<void> right)
         {
-            if (shared_state_)
-            {
-                shared_state_->set_children(std::move(left), std::move(right));
-            }
-            else
-            {
-                typename wrapped_type::set_children_action action;
-                hpx::apply(action, id_, std::move(left), std::move(right));
-            }
+//             if (shared_state_)
+//             {
+//                 shared_state_->set_children(std::move(left), std::move(right));
+//             }
+//             else
+//             {
+//                 typename wrapped_type::set_children_action action;
+//                 hpx::apply(action, id_, std::move(left), std::move(right));
+//             }
         }
 
         void set_child(std::size_t idx, treeture<void> child)
@@ -329,6 +329,7 @@ namespace allscale {
                 {
                     hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
                     id = hpx::local_new<wrapped_type>(shared_state_).get();
+                    id.make_unmanaged();
                 }
                 if (!id_)
                 {
