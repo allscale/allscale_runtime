@@ -3,7 +3,7 @@
 
 #include <hpx/util/lightweight_test.hpp>
 #include <hpx/hpx.hpp>
-#include <hpx/hpx_main.hpp>
+#include <hpx/hpx_init.hpp>
 
 struct Serializable
 {

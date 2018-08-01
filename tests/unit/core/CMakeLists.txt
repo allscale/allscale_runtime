@@ -1,6 +1,7 @@
 set(tests
   #this_work_item
 #  1d_stencil
+  hierarchy
   scalar_read_write
   scalar_read_only
   grid_init
@@ -26,3 +27,4 @@ foreach(test ${tests})
 endforeach()
 
 add_test(NAME distributed.grid_init_test COMMAND ${HPX_PREFIX}/bin/hpxrun.py --verbose -l2 -t4 $<TARGET_FILE:grid_init_test_exe> -- --hpx:ignore-batch-env --hpx:bind=none)
+add_test(NAME distributed.hierarchy_test COMMAND ${HPX_PREFIX}/bin/hpxrun.py --verbose -l2 -t4 $<TARGET_FILE:hierarchy_test_exe> -- --hpx:ignore-batch-env --hpx:bind=none)

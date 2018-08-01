@@ -2,12 +2,14 @@ set(_srcs
     data_item_reference.cpp
     data_requirements_check.cpp
     data_item_store.cpp
+    hierarchy.cpp
     monitor.cpp
     resilience.cpp
     scheduler.cpp
     this_work_item.cpp
     treeture.cpp
     get_num_localities.cpp
+    get_num_numa_nodes.cpp
     components/monitor_component.cpp
     components/resilience_component.cpp
     components/scheduler_component.cpp
