@@ -128,18 +128,11 @@ namespace allscale
 
     void scheduler::schedule(work_item work)
     {
-        get().enqueue(work, this_work_item::id());
-    }
-
-    void scheduler::schedule(work_item work, this_work_item::id id)
-    {
-        get().enqueue(work, std::move(id));
+        get().enqueue(work);
     }
 
     components::scheduler* scheduler::run(std::size_t rank)
     {
-        static this_work_item::id main_id(0);
-        this_work_item::set_id(main_id);
         return get_ptr();
     }
 

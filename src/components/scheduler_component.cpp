@@ -194,21 +194,6 @@ void scheduler::init() {
   rp_ = &hpx::resource::get_partitioner();
   topo_ = &hpx::threads::get_topology();
 
-  mconfig_.num_localities = num_localities;
-  mconfig_.thread_depths.resize(get_num_numa_nodes());
-
-  // Setting the default thread pool depths for each NUMA domain. Effectively
-  // this is an oversubscribed function of the number of hardware threads
-  // per NUMA domain
-  for (std::size_t i = 0; i < mconfig_.thread_depths.size(); i++) {
-    std::size_t num_cores = get_num_numa_cores(i);
-    // We round up here...
-    if (num_cores == 1)
-      mconfig_.thread_depths[i] = 1;
-    else
-      mconfig_.thread_depths[i] = std::lround(std::pow(num_cores, 1.5));
-  }
-
   // Reading user provided options in terms of desired optimization objectives
   std::string input_objective_str =
       hpx::get_config_entry("allscale.objective", "");
@@ -678,25 +663,12 @@ void scheduler::initialize_cpu_frequencies() {
  * Function entry point for scheduling work items for execution.
  *
 */
-void scheduler::enqueue(work_item work, this_work_item::id id) {
-  this_work_item::id parent_id;
+void scheduler::enqueue(work_item work) {
   bool sync = true;
-  if (id) {
-    this_work_item::set_id(id);
-    parent_id = std::move(id);
-    sync = false;
-  } else {
-    std::unique_lock<mutex_type> l(resize_mtx_);
 
-    work.set_this_id(mconfig_);
-    l.unlock();
-    parent_id = this_work_item::get_id();
-  }
-
-  std::uint64_t schedule_rank = work.id().rank();
+  std::uint64_t schedule_rank = rank_;
   if ((schedule_rank != rank_ && !work.enqueue_remote()) ||
       !allscale::resilience::rank_running(schedule_rank)) {
-    work.update_rank(rank_);
     schedule_rank = rank_;
   }
 
@@ -705,16 +677,15 @@ void scheduler::enqueue(work_item work, this_work_item::id id) {
   HPX_ASSERT(schedule_rank != std::uint64_t(-1));
 
 #ifdef MEASURE_
-  std::size_t temp_id = work.id().last();
-  if ((temp_id >= period_for_power) &&
+  std::size_t temp_id = work.id().id;
+  if (work.id().depth() == 0 && (temp_id >= period_for_power) &&
       (temp_id % period_for_power == 0))
     update_power_consumption(hardware_reconf::read_system_power());
 #endif
 
   // schedule locally
   if (schedule_rank == rank_) {
-    if (work.is_first()) {
-      std::size_t current_id = work.id().last();
+    if (work.id().depth() == 0) {
       allscale::monitor::signal(allscale::monitor::work_item_first, work);
 
       #ifdef DEBUG_
@@ -831,7 +802,7 @@ void scheduler::enqueue(work_item work, this_work_item::id id) {
         }
       } // uselopt
     }
-    enqueue_local(std::move(work), std::move(parent_id), false, sync);
+    enqueue_local(std::move(work), false, sync);
 
     return;
   }
@@ -839,7 +810,7 @@ void scheduler::enqueue(work_item work, this_work_item::id id) {
   //work.mark_child_requirements(schedule_rank);
 
   allscale::resilience::global_wi_dispatched(work, schedule_rank);
-  network_.schedule(schedule_rank, std::move(work), parent_id);
+  network_.schedule(schedule_rank, std::move(work));
 }
 
 
@@ -851,10 +822,9 @@ void scheduler::enqueue(work_item work, this_work_item::id id) {
  * execution on the local domain.
  *
 */
-void scheduler::enqueue_local(work_item work, this_work_item::id parent_id,
-                              bool force_split, bool sync) {
+void scheduler::enqueue_local(work_item work, bool force_split, bool sync) {
   if (force_split && !work.can_split()) {
-    std::cerr << "split for " << work.name() << "(" << work.id().name()
+    std::cerr << "split for " << work.name() << "(" << work.id()
               << ") requested but can't split further\n";
     std::abort();
   }
@@ -864,7 +834,8 @@ void scheduler::enqueue_local(work_item work, this_work_item::id parent_id,
   if (force_split || do_split(work)) {
     acquire_rank = work.split(sync, rank_);
   } else {
-    std::size_t numa_domain = work.id().numa_domain();
+      // FIXME!
+    std::size_t numa_domain = 0;//work.id().numa_domain();
     HPX_ASSERT(numa_domain < executors_.size());
     acquire_rank = work.process(executors_[numa_domain], rank_);
   }
@@ -875,17 +846,16 @@ void scheduler::enqueue_local(work_item work, this_work_item::id parent_id,
           acquire_rank);
 
   state->set_on_completed([
-    this_id = std::move(parent_id), work = std::move(work),
+    work = std::move(work),
     acquire_rank = std::move(acquire_rank), this
   ]() mutable {
     std::size_t expected_rank = acquire_rank.get();
     if (expected_rank == std::size_t(-1)) {
       // We should move on and split further...
-      enqueue_local(std::move(work), std::move(this_id), true, false);
+      enqueue_local(std::move(work), true, false);
     } else if (expected_rank != std::size_t(-2)) {
       HPX_ASSERT(expected_rank != rank_);
-      work.update_rank(expected_rank);
-      network_.schedule(expected_rank, std::move(work), std::move(this_id));
+      network_.schedule(expected_rank, std::move(work));
     }
   });
 }
@@ -900,7 +870,8 @@ bool scheduler::do_split(work_item const &w) {
   if (w.can_split()) {
     // Check if we reached the required depth
     // FIXME: make the cut off runtime configurable...
-    if (w.id().splittable()) {
+    // FIXME:!!!!!!!
+    if (w.id().depth() < 4) {
       // FIXME: add more elaborate splitting criterions
       return true;
     }
@@ -1073,13 +1044,6 @@ unsigned int scheduler::suspend_threads(std::size_t suspendthreads) {
       thread_pools_[pool_idx]->suspend_processing_unit(pu).get();
     }
   }
-  // Setting the default thread depths of the NUMA domain.
-  {
-    std::size_t num_cores =
-        get_num_numa_cores(pool_idx) - suspend_threads.size();
-    // We round up here...
-    mconfig_.thread_depths[pool_idx] = std::lround(std::pow(num_cores, 1.5));
-  }
 #ifdef MEASURE_
   update_active_osthreads(-1 * suspend_threads.size());
 #endif
@@ -1249,13 +1213,6 @@ unsigned int scheduler::resume_threads(std::size_t resumethreads) {
       // hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
       thread_pools_[pool_idx]->resume_processing_unit(pu).get();
     }
-  }
-  // Setting the default thread depths of the NUMA domain.
-  {
-    std::size_t num_cores =
-        get_num_numa_cores(pool_idx) - resume_threads.size();
-    // We round up here...
-    mconfig_.thread_depths[pool_idx] = std::lround(std::pow(num_cores, 1.5));
   }
 #ifdef MEASURE_
   update_active_osthreads(resume_threads.size());

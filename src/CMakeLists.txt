@@ -6,6 +6,7 @@ set(_srcs
     monitor.cpp
     resilience.cpp
     scheduler.cpp
+    task_id.cpp
     this_work_item.cpp
     treeture.cpp
     get_num_localities.cpp
@@ -15,7 +16,6 @@ set(_srcs
     components/scheduler_component.cpp
     components/scheduler_network.cpp
     components/util/graph_colouring.cpp
-    detail/work_item_impl_base.cpp
     components/localoptimizer.cpp
     components/nmsimplex_bbincr.cpp
 )

@@ -14,7 +14,7 @@
 
 namespace allscale
 {
-    struct profile 
+    struct profile
     {
         std::chrono::steady_clock::time_point start;
         std::chrono::steady_clock::time_point end;
@@ -73,7 +73,7 @@ namespace allscale
 		m_newS = m_oldS + (x - m_oldM)*(x - m_newM);
 
 		// set up for next iteration
-		m_oldM = m_newM; 
+		m_oldM = m_newM;
 		m_oldS = m_newS;
 	   }
 	}
@@ -124,7 +124,7 @@ namespace allscale
            for(int i = 0; i < 4; i++)
 		counter_values[i] = papi_counters_stop[i] - papi_counters_start[i];
 
-           return counter_values;            
+           return counter_values;
         }
 #endif
     };

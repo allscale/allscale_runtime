@@ -3,7 +3,6 @@
 #define ALLSCALE_COMPONENTS_SCHEDULER_NETWORK_HPP
 
 #include <allscale/work_item.hpp>
-#include <allscale/this_work_item.hpp>
 #include <allscale/util/readers_writers_mutex.hpp>
 
 #include <hpx/lcos/local/spinlock.hpp>
@@ -14,7 +13,7 @@
 namespace allscale { namespace components {
     struct scheduler_network
     {
-        void schedule(std::size_t rank, work_item work, this_work_item::id);
+        void schedule(std::size_t rank, work_item work);
         void stop();
 
     private:

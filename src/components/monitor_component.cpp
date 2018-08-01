@@ -308,7 +308,7 @@ namespace allscale { namespace components {
    {
       double time;
       std::shared_ptr<allscale::work_item_stats> stats;
-      allscale::this_work_item::id my_wid = w.id();
+      auto my_wid = w.id();
 
 #ifdef REALTIME_VIZ
       if(realtime_viz) {
@@ -412,15 +412,14 @@ namespace allscale { namespace components {
 #ifdef HAVE_EXTRAE
       Extrae_event(6000019, 1);
 #endif
-      allscale::this_work_item::id& my_wid = const_cast<allscale::this_work_item::id&>(const_cast<work_item&>(w).id());
-      std::shared_ptr<allscale::profile> p;
+      task_id & my_wid = const_cast<task_id&>(w.id());
+      std::shared_ptr<allscale::profile>& p = my_wid.profile;
       bool notify_consumer = false;
 
 
-      if(( p = my_wid.get_profile()) == nullptr) {
+      if(p == nullptr) {
          // Profile does not exist yet, we create it
-         p = std::make_shared<profile>(my_wid.name(), w.name(), my_wid.parent().name());
-         my_wid.set_profile(p);
+         p = std::make_shared<profile>(to_string(my_wid), w.name(), to_string(my_wid.parent()));
       }
       else {
          // Profile exists, finish wrapper executed before start wrapper
@@ -470,17 +469,16 @@ namespace allscale { namespace components {
    void monitor::w_exec_process_start_wrapper(work_item const& w)
    {
 
-      allscale::this_work_item::id& my_wid = const_cast<allscale::this_work_item::id&>(const_cast<work_item&>(w).id());
-      std::shared_ptr<allscale::profile> p;
+      task_id & my_wid = const_cast<task_id&>(w.id());
+      std::shared_ptr<allscale::profile>& p = my_wid.profile;
       bool notify_consumer = false;
 #ifdef HAVE_EXTRAE
       Extrae_event(6000019, 1);
 #endif
 
-      if(( p = my_wid.get_profile()) == nullptr) {
+      if(p  == nullptr) {
          // Profile does not exist yet, we create it
-         p = std::make_shared<profile>(my_wid.name(), w.name(), my_wid.parent().name());
-         my_wid.set_profile(p);
+         p = std::make_shared<profile>(to_string(my_wid), w.name(), to_string(my_wid.parent()));
       }
       else {
          // Profile exists, finish wrapper executed before start wrapper
@@ -520,15 +518,14 @@ namespace allscale { namespace components {
 #ifdef HAVE_EXTRAE
       Extrae_event(6000019, 2);
 #endif
-      allscale::this_work_item::id& my_wid = const_cast<allscale::this_work_item::id&>(const_cast<work_item&>(w).id());
-      std::shared_ptr<allscale::profile> p;
+      task_id & my_wid = const_cast<task_id&>(w.id());
+      std::shared_ptr<allscale::profile>& p = my_wid.profile;
       bool notify_consumer = false;
 
 
-      if(( p = my_wid.get_profile()) == nullptr) {
+      if(p == nullptr) {
          // Profile does not exist yet, finish wrapper executed before than create
-         p = std::make_shared<profile>(my_wid.name(), w.name(), my_wid.parent().name());
-         my_wid.set_profile(p);
+         p = std::make_shared<profile>(to_string(my_wid), w.name(), to_string(my_wid.parent()));
       }
       else {
          p->end = std::chrono::steady_clock::now();
@@ -586,15 +583,14 @@ namespace allscale { namespace components {
       Extrae_event(6000019, 2);
 #endif
 
-      allscale::this_work_item::id& my_wid = const_cast<allscale::this_work_item::id&>(const_cast<work_item&>(w).id());
-      std::shared_ptr<allscale::profile> p;
+      task_id & my_wid = const_cast<task_id&>(w.id());
+      std::shared_ptr<allscale::profile>& p = my_wid.profile;
       bool notify_consumer = false;
 
 
-      if(( p = my_wid.get_profile()) == nullptr) {
+      if(p == nullptr) {
          // Profile does not exist yet, finish wrapper executed before than create
-         p = std::make_shared<profile>(my_wid.name(), w.name(), my_wid.parent().name());
-         my_wid.set_profile(p);
+         p = std::make_shared<profile>(to_string(my_wid), w.name(), to_string(my_wid.parent()));
       }
       else {
          p->end = std::chrono::steady_clock::now();
@@ -638,11 +634,11 @@ namespace allscale { namespace components {
 
    void monitor::w_result_propagated_wrapper(allscale::work_item const& w)
    {
-      allscale::this_work_item::id my_wid = w.id();
+      auto my_wid = w.id();
       std::shared_ptr<allscale::profile> p;
 
       std::lock_guard<mutex_type> lock(work_map_mutex);
-      std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it_profiles = profiles.find(my_wid.name());
+      std::unordered_map<std::string, std::shared_ptr<allscale::profile>>::const_iterator it_profiles = profiles.find(to_string(my_wid));
 
       if( it_profiles == profiles.end() ) {
          // Work item not created yet
@@ -670,11 +666,11 @@ namespace allscale { namespace components {
       if(history->current_iteration < 0) {
 //	 history = std::make_shared<allscale::historical_data>();
 	 history->last_iteration_start = std::chrono::steady_clock::now();
-	 history->add_tree_root(w.id().name());
+	 history->add_tree_root(to_string(w.id()));
 	 history->current_iteration++;
       }
       else
-         history->new_iteration(w.id().name());
+         history->new_iteration(to_string(w.id()));
 
    }
 

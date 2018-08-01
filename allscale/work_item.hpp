@@ -5,6 +5,7 @@
 #include <allscale/detail/work_item_impl.hpp>
 #include <allscale/detail/futurize_if.hpp>
 #include <allscale/treeture.hpp>
+#include <allscale/task_id.hpp>
 #include <allscale/this_work_item.hpp>
 #include <allscale/traits/is_treeture.hpp>
 #include <allscale/traits/treeture_traits.hpp>
@@ -17,50 +18,6 @@
 namespace allscale {
     struct work_item {
         work_item() = default;
-
-        template<typename WorkItemDescription, typename Treeture, typename ...Ts>
-        work_item(bool is_first, WorkItemDescription, Treeture tre, Ts&&... vs)
-          : impl_(
-                new detail::work_item_impl<
-                    WorkItemDescription,
-                    hpx::util::tuple<
-                        typename hpx::util::decay<
-                            decltype(detail::futurize_if(std::forward<Ts>(vs)))>::type...
-                    >
-                >(
-                    std::move(tre),
-                    detail::futurize_if(std::forward<Ts>(vs))...)
-            ),
-            is_first_(is_first)
-        {
-        }
-
-        template<typename WorkItemDescription, typename Treeture, typename ...Ts>
-        work_item(bool is_first, WorkItemDescription, hpx::shared_future<void> dep, Treeture tre, Ts&&... vs)
-          : impl_(
-                new detail::work_item_impl<
-                    WorkItemDescription,
-                    hpx::util::tuple<
-                        typename hpx::util::decay<
-                            decltype(detail::futurize_if(std::forward<Ts>(vs)))>::type...
-                    >
-                >(
-                    std::move(dep), std::move(tre),
-                    detail::futurize_if(std::forward<Ts>(vs))...)
-            ),
-            is_first_(is_first)
-        {
-        }
-
-        void set_this_id(machine_config const& mconfig)
-        {
-            impl_->set_this_id(mconfig, is_first_);
-        }
-
-        bool is_first()
-        {
-            return is_first_;
-        }
 
         explicit work_item(std::shared_ptr<detail::work_item_impl_base> impl)
           : impl_(std::move(impl))
@@ -84,29 +41,21 @@ namespace allscale {
             return impl_->can_split();
         }
 
-        void update_rank(std::size_t rank)
+        task_id const& id() const
         {
             HPX_ASSERT(impl_);
-            impl_->update_rank(rank);
-        }
-
-        this_work_item::id const& id() const
-        {
-            if (impl_)
-                return impl_->id();
-            return this_work_item::get_id();
+            return impl_->id();
         }
 
         const char* name() const
         {
-            if (impl_)
-                return impl_->name();
-            return "";
+            HPX_ASSERT(impl_);
+            return impl_->name();
         }
 
-        treeture<void> get_treeture() const
+        treeture<void> get_void_treeture() const
         {
-            return impl_->get_treeture();
+            return impl_->get_void_treeture();
         }
 
         hpx::future<std::size_t> split(bool sync, std::size_t this_id)
@@ -139,7 +88,6 @@ namespace allscale {
         {
             ar & impl_;
             HPX_ASSERT(impl_->valid());
-            ar & is_first_;
         }
 
         template<typename Archive>
@@ -147,28 +95,18 @@ namespace allscale {
         {
             HPX_ASSERT(impl_->valid());
 
-//             if (ar.is_preprocessing())
-//             {
-//                 impl_->preprocess(ar);
-//             }
-//             else
-            {
-                ar & impl_;
-            }
+            ar & impl_;
             HPX_ASSERT(impl_->valid());
-            ar & is_first_;
         }
 
         void reset()
         {
             impl_.reset();
-            is_first_ = false;
         }
 
         HPX_SERIALIZATION_SPLIT_MEMBER()
 
         std::shared_ptr<detail::work_item_impl_base> impl_;
-        bool is_first_ = false;
 	};
 }
 

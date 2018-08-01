@@ -22,20 +22,6 @@
 #include <utility>
 
 namespace allscale { namespace detail {
-	struct set_id {
-		set_id(this_work_item::id& id)
-          :	old_id_(this_work_item::get_id_ptr()) {
-			this_work_item::set_id(id);
-		}
-
-		~set_id() {
-            if (old_id_)
-                this_work_item::set_id(*old_id_);
-		}
-
-		this_work_item::id* old_id_;
-	};
-
     template <typename Archive, typename T>
     auto has_serialize(hpx::traits::detail::wrap_int)
       -> std::false_type;
@@ -103,32 +89,26 @@ namespace allscale { namespace detail {
             is_closure_serializable<Closure>::value;*/
 
         // This ctor is called during serialization...
-        work_item_impl(this_work_item::id const& id, treeture<result_type>&& tres, closure_type&& closure)
+        work_item_impl(task_id const& id, closure_type&& closure)
           : work_item_impl_base(id)
-          , tres_(std::move(tres))
+          , tres_(treeture_init)
           , closure_(std::move(closure))
         {}
 
-        template<typename ...Ts>
-        work_item_impl(treeture<result_type> tres, Ts&&... vs)
-         : tres_(std::move(tres)), closure_(std::forward<Ts>(vs)...)
-        {
-            HPX_ASSERT(tres_.valid());
-        }
+        work_item_impl(task_id const& id, hpx::shared_future<void> dep, closure_type&& closure)
+          : work_item_impl_base(id)
+          , tres_(treeture_init)
+          , closure_(std::move(closure))
+          , dep_(std::move(dep))
+        {}
 
-        work_item_impl(this_work_item::id const& id, hpx::shared_future<void> dep, treeture<result_type>&& tres, closure_type&& closure)
+        // used for serialization...
+        work_item_impl(task_id const& id, hpx::shared_future<void> dep, treeture<result_type> tres, closure_type&& closure)
           : work_item_impl_base(id)
           , tres_(std::move(tres))
           , closure_(std::move(closure))
           , dep_(std::move(dep))
         {}
-
-        template<typename ...Ts>
-        work_item_impl(hpx::shared_future<void> dep, treeture<result_type> tres, Ts&&... vs)
-         : tres_(std::move(tres)), closure_(std::forward<Ts>(vs)...), dep_(std::move(dep))
-        {
-            HPX_ASSERT(tres_.valid());
-        }
 
         std::shared_ptr<work_item_impl> shared_this()
         {
@@ -140,7 +120,12 @@ namespace allscale { namespace detail {
             return WorkItemDescription::name();
         }
 
-        treeture<void> get_treeture() final
+        treeture<void> get_void_treeture() const final
+        {
+            return tres_;
+        }
+
+        treeture<result_type> get_treeture() const
         {
             return tres_;
         }
@@ -209,7 +194,7 @@ namespace allscale { namespace detail {
                         hpx::util::tuple_size<Leases>::type::value>::type pack;
                     release(pack, leases);
 
-                    set_id si(this_->id_);
+                    this_work_item::set s(*this_);
                     detail::set_treeture(this_->tres_ , state);
                     monitor::signal(monitor::work_item_result_propagated,
                         work_item(std::move(this_)));
@@ -234,7 +219,7 @@ namespace allscale { namespace detail {
                 hpx::util::tuple_size<Leases>::type::value>::type pack;
             release(pack, leases);
 
-            set_id si(this_->id_);
+            this_work_item::set s(*this_);
             tres_.set_value(std::forward<Future>(work_res));
             monitor::signal(monitor::work_item_result_propagated,
                 work_item(std::move(this_)));
@@ -252,7 +237,7 @@ namespace allscale { namespace detail {
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_process_execution_started,
                 work_item(this_));
-            set_id si(this->id_);
+            this_work_item::set s(*this_);
 
             auto work_res =
                 WorkItemDescription::process_variant::execute(closure_);
@@ -272,7 +257,7 @@ namespace allscale { namespace detail {
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_process_execution_started,
                 work_item(this_));
-            set_id si(this->id_);
+            this_work_item::set s(*this_);
 
             WorkItemDescription::process_variant::execute(closure_);
 
@@ -298,7 +283,7 @@ namespace allscale { namespace detail {
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_split_execution_started, work_item(this_));
 
-            set_id si(this->id_);
+            this_work_item::set s(*this_);
 
             auto work_res =
                 WorkItemDescription::split_variant::execute(closure_);
@@ -441,7 +426,7 @@ namespace allscale { namespace detail {
 #if defined(ALLSCALE_DEBUG_DIM)
                     std::string s = this_->name();
                     s += '(';
-                    s += this_->id_.name();
+                    s += this_->id_;
                     s += ").process";
                     data_item_manager::log_req(s, reqs);
 #endif
@@ -462,7 +447,7 @@ namespace allscale { namespace detail {
             hpx::future<std::size_t>
         >::type split(bool sync, hpx::util::tuple<> && reqs, std::size_t this_id)
         {
-            if (sync && id().last() % 2 == 1)
+            if (sync && id().is_right())
             {
                 do_split(std::move(reqs));
                 return hpx::make_ready_future(std::size_t(-2));
@@ -528,7 +513,7 @@ namespace allscale { namespace detail {
                       , data_item_manager::acquire(reqs, infos));
                 }, "allscale::work_item::spli::locate_cont");
 
-            if (sync && id().last() % 2 == 1)
+            if (sync && id().is_right())
             {
                 return hpx::dataflow(hpx::launch::sync, std::move(continuation),
 #if defined(ALLSCALE_DEBUG_DIM)
@@ -597,6 +582,7 @@ namespace allscale { namespace detail {
     serialize(Archive& ar, work_item_impl<WorkItemDescription, Closure>& wi, unsigned)
     {
         ar & wi.id_;
+        ar & wi.num_children;
         ar & wi.tres_;
         ar & wi.closure_;
         ar & wi.dep_;
@@ -625,17 +611,23 @@ namespace allscale { namespace detail {
     {
         typedef work_item_impl<WorkItemDescription, Closure> work_item_type;
 
-        this_work_item::id id;
+        std::uint8_t num_children;
+        task_id id;
         treeture<typename work_item_type::result_type> tres;
         typename work_item_type::closure_type closure;
         hpx::shared_future<void> dep;
 
         ar & id;
+        ar & num_children;
         ar & tres;
         ar & closure;
         ar & dep;
 
-        return new work_item_type(id, std::move(dep), std::move(tres), std::move(closure));
+        auto res = new work_item_type(id, std::move(dep), std::move(tres), std::move(closure));
+
+        res->num_children = num_children;
+
+        return res;
     }
 
     template <typename WorkItemDescription, typename Closure>

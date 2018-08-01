@@ -3,7 +3,6 @@
 #define ALLSCALE_COMPONENTS_SCHEDULER_HPP
 
 #include <allscale/work_item.hpp>
-#include <allscale/this_work_item.hpp>
 #include <allscale/components/treeture_buffer.hpp>
 #include <allscale/components/scheduler_network.hpp>
 #include <allscale/components/localoptimizer.hpp>
@@ -49,8 +48,8 @@ namespace allscale { namespace components {
         scheduler(std::uint64_t rank);
         void init();
 
-        void enqueue(work_item work, this_work_item::id);
-        void enqueue_local(work_item work, this_work_item::id, bool force_split, bool sync);
+        void enqueue(work_item work);
+        void enqueue_local(work_item work, bool force_split, bool sync);
         void stop();
 
 
@@ -61,7 +60,6 @@ namespace allscale { namespace components {
 
         hpx::resource::detail::partitioner *rp_;
         const hpx::threads::topology *topo_;
-        machine_config mconfig_;
         std::uint64_t rank_;
         bool initialized_;
         std::atomic<bool> stopped_;
@@ -79,12 +77,12 @@ namespace allscale { namespace components {
         unsigned int suspend_threads(std::size_t);
         //try to resume resource_step threads, return number of threads which received a new resume order;
         // REM         unsigned int resume_threads();
-        unsigned int resume_threads(std::size_t);      
+        unsigned int resume_threads(std::size_t);
 
 #ifdef MEASURE_
         // convenience methods to update measured metrics of interest
         void update_active_osthreads(std::size_t);
-        void update_power_consumption(std::size_t);        
+        void update_power_consumption(std::size_t);
 #endif
 
         void fix_allcores_frequencies(int index);
@@ -95,7 +93,7 @@ namespace allscale { namespace components {
 
         /* captures absolute timestamp of the last time the optimizer
            has been invoked */
-        //std::chrono::time_point<std::chrono::high_resolution_clock> 
+        //std::chrono::time_point<std::chrono::high_resolution_clock>
         //    last_optimization_timestamp_;
         long last_optimization_timestamp_;
 
@@ -104,12 +102,12 @@ namespace allscale { namespace components {
 
         /* captures absolute timestamp of the last time optimization
            objective value have been measured (sampled) */
-        //std::chrono::time_point<std::chrono::high_resolution_clock> 
+        //std::chrono::time_point<std::chrono::high_resolution_clock>
         //    last_objective_measurement_timestamp_;
         long last_objective_measurement_timestamp_;
 
         /* periodicity in milliseconds to invoke objective sampling */
-        const long objective_measurement_period_ms = 1;        
+        const long objective_measurement_period_ms = 1;
 
         //extra masks to better handle suspending/resuming threads
         std::vector<hpx::threads::thread_pool_base*> thread_pools_;
@@ -182,7 +180,7 @@ namespace allscale { namespace components {
         unsigned int period_for_power;
 
         /* cumulative number of locally scheduled application tasks (work items) */
-        unsigned long long nr_tasks_scheduled;        
+        unsigned long long nr_tasks_scheduled;
 
 #ifdef MEASURE_MANUAL_
         int param_osthreads_;
@@ -212,7 +210,7 @@ namespace allscale { namespace components {
 
         long int nr_opt_steps;
 
-        /* flag to enable local optimizer, if objectives have been specified, 
+        /* flag to enable local optimizer, if objectives have been specified,
            set to false otherwise.
          */
          bool uselopt;

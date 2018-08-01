@@ -11,7 +11,7 @@
 #include <mutex>
 #include <memory>
 #include <vector>
-#include <queue> 
+#include <queue>
 #include <stdlib.h>
 #include <string>
 #include <condition_variable>
@@ -35,14 +35,14 @@
 #define MAX_PAPI_COUNTERS 4
 #endif
 
-#define MIN_QUEUE_ELEMS 500 
+#define MIN_QUEUE_ELEMS 500
 
 typedef std::unordered_map<std::string, allscale::work_item_stats> profile_map;
 typedef std::unordered_map<std::string, std::vector<std::string>> dependency_graph;
 
 namespace allscale { namespace components {
 
-       struct HPX_COMPONENT_EXPORT monitor 
+       struct HPX_COMPONENT_EXPORT monitor
 	 : hpx::components::component_base<monitor>
        {
 
@@ -64,16 +64,16 @@ namespace allscale { namespace components {
 //           hpx::id_type get_right_neighbour() { return right_; }
 
 
-           /////////////////////////////////////////////////////////////////////////////////////    
-           ///                       Performance Data Introspection 
+           /////////////////////////////////////////////////////////////////////////////////////
+           ///                       Performance Data Introspection
            ////////////////////////////////////////////////////////////////////////////////////
 
            /// \brief This function returns the exclusive execution time of a work item.
-           ///        Exclusive time is the time spent only in the work item itself. 
+           ///        Exclusive time is the time spent only in the work item itself.
            ///
-           /// \param w_id         [in] work item id ("1.0.1" for example) 
-           /// 
-           /// \returns            work item exclusive execution time 
+           /// \param w_id         [in] work item id ("1.0.1" for example)
+           ///
+           /// \returns            work item exclusive execution time
            double get_exclusive_time(std::string w_id);
 
 
@@ -81,34 +81,34 @@ namespace allscale { namespace components {
            ///        Inclusive time is the time spent in the work item and its children. In other
            ///        words, the time from the beginning of the work item until it has the result ready.
            ///
-           /// \param w_id         [in] work item id ("1.0.1" for example) 
+           /// \param w_id         [in] work item id ("1.0.1" for example)
            ///
            /// \returns            work item inclusive execution time
            double get_inclusive_time(std::string w_id);
 
            double get_inclusive_time_old(std::string w_id);
 
-           /// \brief This function returns the average exclusive execution time 
+           /// \brief This function returns the average exclusive execution time
            ///        of a set of work items with the same name.
            ///
-           /// \param w_name         [in] work item name ("fib" for example) 
+           /// \param w_name         [in] work item name ("fib" for example)
            ///
            /// \returns            work item average exclusive execution time
            double get_average_exclusive_time(std::string w_name);
 
-           /// \brief This function returns the minimum exclusive execution time 
+           /// \brief This function returns the minimum exclusive execution time
            ///        of a set of work items with the same name.
            ///
-           /// \param w_name         [in] work item name ("fib" for example)  
+           /// \param w_name         [in] work item name ("fib" for example)
            ///
            /// \returns            work item minimum exclusive execution time
            double get_minimum_exclusive_time(std::string w_name);
 
 
-           /// \brief This function returns the maximum exclusive execution time 
+           /// \brief This function returns the maximum exclusive execution time
            ///        of a set of work items with the same name.
            ///
-           /// \param w_name         [in] work item name ("fib" for example)  
+           /// \param w_name         [in] work item name ("fib" for example)
            ///
            /// \returns            work item average mximum execution time
            double get_maximum_exclusive_time(std::string w_name);
@@ -117,7 +117,7 @@ namespace allscale { namespace components {
            /// \brief This function returns the mean exclusive execution time for
            ///        all the children of a work item.
            ///
-           /// \param w_id         [in] work item id ("1.0.1" for example)  
+           /// \param w_id         [in] work item id ("1.0.1" for example)
            ///
            /// \returns            children mean exclusive execution time
            double get_children_mean_time(std::string w_id);
@@ -127,7 +127,7 @@ namespace allscale { namespace components {
            ///        the exclusive execution time for all the children
            ///        of a work item.
            ///
-           /// \param w_id         [in] work item id ("1.0.1" for example)   
+           /// \param w_id         [in] work item id ("1.0.1" for example)
            ///
            /// \returns            standard deviation for children's exclusive execution time
            double get_children_SD_time(std::string w_id);
@@ -136,15 +136,15 @@ namespace allscale { namespace components {
            /// \brief This function returns the average exclusive execution time for
            ///        the last num_work_items executed.
            ///
-           /// \param num_work_items     [in] number of work items executed   
+           /// \param num_work_items     [in] number of work items executed
            ///
-           /// \returns                  average execution time for the last X work items executed 
+           /// \returns                  average execution time for the last X work items executed
            double get_avg_work_item_times(std::uint32_t num_work_items);
 
            /// \brief This function returns the standard deviation in the execution
            ///        time for the last num_work_items executed.
            ///
-           /// \param num_work_items     [in] number of work items executed         
+           /// \param num_work_items     [in] number of work items executed
            ///
            /// \returns                  standard deviation in exec time for the last X work items executed
            double get_SD_work_item_times(std::uint32_t num_work_items);
@@ -162,7 +162,7 @@ namespace allscale { namespace components {
 
 
            // Remote calls for the Introspection API
-//           std::uint64_t get_remote_rank(hpx::id_type locality);          
+//           std::uint64_t get_remote_rank(hpx::id_type locality);
            double get_exclusive_time_remote(hpx::id_type locality, std::string w_id);
            double get_inclusive_time_remote(hpx::id_type locality, std::string w_id);
            double get_average_exclusive_time_remote(hpx::id_type locality, std::string w_name);
@@ -174,24 +174,24 @@ namespace allscale { namespace components {
 
 #ifdef HAVE_PAPI
            // PAPI counters
-           /// \brief This function returns an array with the PAPI counter values measured 
+           /// \brief This function returns an array with the PAPI counter values measured
            ///        for a work item. The array must be deallocated explicitly after its use.
            ///
            /// \param w_id         [in] work item id ("1.0.1" for example)
            ///
-           /// \returns            array of counter values, ordered as they were especified 
-           ///                     in the var MONITOR_PAPI 
+           /// \returns            array of counter values, ordered as they were especified
+           ///                     in the var MONITOR_PAPI
            long long *get_papi_counters(std::string w_id);
 #endif
 
 
            /////////////////////////////////////////////////////////////////////////////////////
-           ///                       Historical Data Introspection  
+           ///                       Historical Data Introspection
            ////////////////////////////////////////////////////////////////////////////////////
 
            /// \brief This function returns the execution time for the i-th iteration.
            ///
-           /// \param i         [in] iteration number 
+           /// \param i         [in] iteration number
            ///
            /// \returns         iteration time
            double get_iteration_time(int i);
@@ -206,11 +206,11 @@ namespace allscale { namespace components {
 
            /// \brief This function returns the number of iterations executed.
            ///
-           /// \returns         number of iterations executed 
+           /// \returns         number of iterations executed
            long get_number_of_iterations();
 
 
-           /// \brief This function returns the average execution time for the 
+           /// \brief This function returns the average execution time for the
            ///        last num_iters iterations.
            ///
            /// \param num_iters     [in] number of iterations
@@ -221,14 +221,14 @@ namespace allscale { namespace components {
            uint64_t get_timestamp( void );
 
 
-           /// \brief This function returns the idle rate 
+           /// \brief This function returns the idle rate
            ///        for the last measuring interval in the current locality.
            ///
            /// \returns             idle rate
            double get_idle_rate();
 
 
-           /// \brief This function returns the average idle rate 
+           /// \brief This function returns the average idle rate
            ///        of the current locality.
            ///
            /// \returns             average idle rate
@@ -269,15 +269,15 @@ namespace allscale { namespace components {
            static void global_finalize();
            void monitor_component_finalize();
 
-          
+
            // Functions related to the sampled metrics per locality
 
-           /// \brief This function changes the sampling frequency 
+           /// \brief This function changes the sampling frequency
            ///
-           /// \param new_interval     [in] new interval time in milliseconds 
+           /// \param new_interval     [in] new interval time in milliseconds
 //           void change_sampling_interval(long long new_interval);
 
-           /// \brief This function returns the task throughput in task/ms  
+           /// \brief This function returns the task throughput in task/ms
 	   /// \returns		WorkItem throughput for the locality
            double get_throughput();
 
@@ -286,7 +286,7 @@ namespace allscale { namespace components {
 
            private:
 
-             // MONITOR MANAGEMENT 
+             // MONITOR MANAGEMENT
              // Measuring total execution time
 	     std::chrono::steady_clock::time_point execution_start;
 	     std::chrono::steady_clock::time_point execution_end;
@@ -394,7 +394,7 @@ namespace allscale { namespace components {
                                 profile_map& global_stats, dependency_graph& g);
              void print_trees_per_iteration();
              void monitor_component_output(std::unordered_map<std::string, allscale::work_item_stats>& s);
-             
+
 
 #ifdef HAVE_PAPI
              // PAPI counters per thread
@@ -403,7 +403,7 @@ namespace allscale { namespace components {
              std::vector<std::string> papi_counter_names;
 	     void monitor_papi_output();
 #endif
-             // ENV. VARS 
+             // ENV. VARS
 	     int output_profile_table_;
 	     int output_treeture_;
 	     int output_iteration_trees_;

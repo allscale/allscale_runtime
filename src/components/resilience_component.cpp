@@ -79,7 +79,7 @@ namespace allscale { namespace components {
     std::pair<hpx::shared_future<hpx::id_type>,size_t> resilience::get_protectee() {
         return std::make_pair(protectee_,protectee_rank_);
     }
-    
+
 
     void resilience::init() {
         char *env = std::getenv("ALLSCALE_RESILIENCE");
@@ -109,7 +109,7 @@ namespace allscale { namespace components {
            localities.push_back(locality_future);
         }
         //hpx::when_all(loc_futures).get();
-        
+
 
         my_state = TRUST;
         my_heartbeat = 0;
@@ -161,8 +161,8 @@ namespace allscale { namespace components {
         for (auto it : rescheduled_items) {
             auto w = it.second;
             auto id = w.id();
-            thread_safe_printer("Reschedule delegated item:"+id.name());
-            allscale::scheduler::schedule(std::move(w), id);
+            thread_safe_printer("Reschedule delegated item:"+to_string(id));
+            allscale::scheduler::schedule(std::move(w));
         }
         token++;
         if (get_running_ranks() > token) {
@@ -179,8 +179,8 @@ namespace allscale { namespace components {
             std::unique_lock<mutex_type> lock(delegated_items_mutex_);
             delegated_items_.insert(p);
         }
-        thread_safe_printer("Will schedule work item " + w.id().name() + " to " + std::to_string(schedule_rank) + "\n");
-        auto treeture = w.get_treeture();
+        thread_safe_printer("Will schedule work item " + to_string(w.id()) + " to " + std::to_string(schedule_rank) + "\n");
+        auto treeture = w.get_void_treeture();
 
         // get signal from treeture when finished
         // and continuation
