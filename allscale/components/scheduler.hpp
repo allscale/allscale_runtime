@@ -48,10 +48,16 @@ namespace allscale { namespace components {
         scheduler(std::uint64_t rank);
         void init();
 
-        void enqueue(work_item work);
-        void enqueue_local(work_item work, bool force_split, bool sync);
+//         void enqueue(work_item work);
+//         void enqueue_local(work_item work, bool force_split, bool sync);
+
+        void schedule_local(work_item work, std::size_t numa_node,
+            std::size_t local_depth);
+
+
         void stop();
 
+        std::uint64_t rank_;
 
     private:
         std::size_t get_num_numa_nodes();
@@ -60,7 +66,6 @@ namespace allscale { namespace components {
 
         hpx::resource::detail::partitioner *rp_;
         const hpx::threads::topology *topo_;
-        std::uint64_t rank_;
         bool initialized_;
         std::atomic<bool> stopped_;
 
@@ -69,7 +74,7 @@ namespace allscale { namespace components {
         mutex_type spawn_throttle_mtx_;
         std::unordered_map<const char*, treeture_buffer> spawn_throttle_;
 
-        bool do_split(work_item const& work);
+        bool do_split(work_item const& work, std::size_t local_depth, std::size_t numa_node);
 
         bool collect_counters();
         //try to suspend resource_step threads, return number of threads which received a new suspend order;
@@ -116,6 +121,9 @@ namespace allscale { namespace components {
         std::vector<hpx::threads::mask_type> resuming_masks_;
         std::vector<executor_type> executors_;
         std::atomic<std::size_t> current_;
+
+        // This is the depth where we don't want to split anymore...
+        std::vector<std::size_t> depth_cut_off_;
 
         // resources tracking
         std::size_t os_thread_count; // initial (max) resources

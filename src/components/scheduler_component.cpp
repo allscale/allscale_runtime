@@ -194,6 +194,14 @@ void scheduler::init() {
   rp_ = &hpx::resource::get_partitioner();
   topo_ = &hpx::threads::get_topology();
 
+  depth_cut_off_.resize(get_num_numa_nodes());
+  for(std::size_t i = 0; i < depth_cut_off_.size(); ++i)
+  {
+      std::size_t num_cores = get_num_numa_cores(i);
+      if (num_cores == 1) depth_cut_off_[i] = 1;
+      else depth_cut_off_[i] = std::lround(std::log2(std::pow(num_cores, 1.5)));
+  }
+
   // Reading user provided options in terms of desired optimization objectives
   std::string input_objective_str =
       hpx::get_config_entry("allscale.objective", "");
@@ -663,155 +671,155 @@ void scheduler::initialize_cpu_frequencies() {
  * Function entry point for scheduling work items for execution.
  *
 */
-void scheduler::enqueue(work_item work) {
-  bool sync = true;
-
-  std::uint64_t schedule_rank = rank_;
-  if ((schedule_rank != rank_ && !work.enqueue_remote()) ||
-      !allscale::resilience::rank_running(schedule_rank)) {
-    schedule_rank = rank_;
-  }
-
-  HPX_ASSERT(work.valid());
-
-  HPX_ASSERT(schedule_rank != std::uint64_t(-1));
-
-#ifdef MEASURE_
-  std::size_t temp_id = work.id().id;
-  if (work.id().depth() == 0 && (temp_id >= period_for_power) &&
-      (temp_id % period_for_power == 0))
-    update_power_consumption(hardware_reconf::read_system_power());
-#endif
-
-  // schedule locally
-  if (schedule_rank == rank_) {
-    if (work.id().depth() == 0) {
-      allscale::monitor::signal(allscale::monitor::work_item_first, work);
-
-      #ifdef DEBUG_
-      // find out which pool has the most threads
-
-      /* Count Active threads for validation*/
-
-      hpx::threads::mask_type active_mask;
-      std::size_t active_threads_ = 0;
-      std::size_t domain_active_threads = 0;
-      std::size_t pool_idx = 0;
-      int total_threads_counted=0;
-      // Select thread pool with the highest number of activated threads
-      for (std::size_t i = 0; i != thread_pools_.size(); ++i) {
-          // get the current used PUs as HPX knows
-          hpx::threads::mask_type curr_mask =
-          thread_pools_[i]->get_used_processing_units();
-          for (std::size_t j = 0; j < thread_pools_[i]->get_os_thread_count();j++) {
-            std::size_t pu_num =
-              rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
-            if (hpx::threads::test(curr_mask, pu_num))
-              total_threads_counted++;
-          }
-      }
-      std::cout << "Active OS Threads = " <<  total_threads_counted << std::endl;
-      #endif
-
-      // this is the place where we take policy specific actions
-
-      if (uselopt && !lopt_.isConverged()){
-        last_power_usage++;
-        current_power_usage = hardware_reconf::read_system_power();
-        power_sum += current_power_usage;
-
-        auto t_now = std::chrono::system_clock::now();
-        auto t_now_ms = std::chrono::time_point_cast<std::chrono::milliseconds>(t_now);
-        auto t_value = t_now_ms.time_since_epoch();
-        long t_duration_now = t_value.count();
-
-        long elapsedTimeMs = t_duration_now - last_objective_measurement_timestamp_;
-
-        if (elapsedTimeMs > objective_measurement_period_ms){
-          last_objective_measurement_timestamp_= t_duration_now;
-
-          // iteration time
-          current_avg_iter_time =
-              allscale_monitor->get_avg_time_last_iterations(sampling_interval);
-          if (std::isnan(current_avg_iter_time)) {
-  #ifdef DEBUG_
-            std::cout
-                << "monitoring returns NaN, setting current average time to 0\n ";
-  #endif
-            current_avg_iter_time = 0.0;
-          }
-
-          lopt_.measureObjective(current_avg_iter_time,power_sum/last_power_usage,
-            active_threads);
-          last_power_usage=0;
-          power_sum=0;
-        }
-
-        elapsedTimeMs = t_duration_now - last_optimization_timestamp_;
-
-        if (elapsedTimeMs > optimization_period_ms){
-          last_optimization_timestamp_= t_duration_now;
-          nr_opt_steps++;
-          actuation act_temp = lopt_.step();
-    #ifdef DEBUG_MULTIOBJECTIVE_
-          lopt_.printverbosesteps(act_temp);
-    #endif
-          // amend threads if signaled
-          /*
-          if (act_temp.delta_threads<0){
-            unsigned int suspended_temp =
-              suspend_threads(-1 * act_temp.delta_threads);
-            lopt_.setCurrentThreads(lopt_.getCurrentThreads()-suspended_temp);
-          }
-          else if (act_temp.delta_threads>0){
-            unsigned int resumed_temp =
-              resume_threads(act_temp.delta_threads);
-            lopt_.setCurrentThreads(lopt_.getCurrentThreads()+resumed_temp);
-          }
-          */
-
-          if (act_temp.delta_threads < active_threads){
-            int new_threads_target = (int)active_threads - act_temp.delta_threads;
-#ifdef DEBUG_MULTIOBJECTIVE_
-            std::cout << "[SCHEDULER|INFO]: Optimizer induced threads to suspend: " << new_threads_target << std::endl;
-            std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << ", target threads = " << act_temp.delta_threads << std::endl;
-#endif
-            unsigned int suspended_temp = suspend_threads(new_threads_target);
-            //lopt_.setCurrentThreads(lopt_.getCurrentThreads()-suspended_temp);
-            lopt_.setCurrentThreads(active_threads);
-          }
-          else if (act_temp.delta_threads > active_threads){
-            int new_threads_target = act_temp.delta_threads - (int)active_threads;
-#ifdef DEBUG_MULTIOBJECTIVE_
-            std::cout << "[SCHEDULER|INFO]: Optimizer induced threads to resume to: " << new_threads_target << std::endl;
-            std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << ", target threads = " << act_temp.delta_threads << std::endl;
-#endif
-            unsigned int resumed_temp = resume_threads(new_threads_target);
-            //lopt_.setCurrentThreads(lopt_.getCurrentThreads()+resumed_temp);
-            lopt_.setCurrentThreads(active_threads);
-          }
-
-          // amend frequency if signaled
-          if (act_temp.frequency_idx != -1){
-#ifdef DEBUG_MULTIOBJECTIVE_
-            std::cout << "[SCHEDULER|INFO]: Optimizer induced frequency scaling to index : " << act_temp.frequency_idx << std::endl;
-#endif
-            fix_allcores_frequencies(act_temp.frequency_idx);
-            lopt_.setCurrentFrequencyIdx(act_temp.frequency_idx);
-          }
-        }
-      } // uselopt
-    }
-    enqueue_local(std::move(work), false, sync);
-
-    return;
-  }
-  // task not meant to be local: move task to remote nodes
-  //work.mark_child_requirements(schedule_rank);
-
-  allscale::resilience::global_wi_dispatched(work, schedule_rank);
-  network_.schedule(schedule_rank, std::move(work));
-}
+// void scheduler::enqueue(work_item work) {
+//   bool sync = true;
+//
+//   std::uint64_t schedule_rank = rank_;
+//   if ((schedule_rank != rank_ && !work.enqueue_remote()) ||
+//       !allscale::resilience::rank_running(schedule_rank)) {
+//     schedule_rank = rank_;
+//   }
+//
+//   HPX_ASSERT(work.valid());
+//
+//   HPX_ASSERT(schedule_rank != std::uint64_t(-1));
+//
+// #ifdef MEASURE_
+//   std::size_t temp_id = work.id().id;
+//   if (work.id().depth() == 0 && (temp_id >= period_for_power) &&
+//       (temp_id % period_for_power == 0))
+//     update_power_consumption(hardware_reconf::read_system_power());
+// #endif
+//
+//   // schedule locally
+//   if (schedule_rank == rank_) {
+//     if (work.id().depth() == 0) {
+//       allscale::monitor::signal(allscale::monitor::work_item_first, work);
+//
+//       #ifdef DEBUG_
+//       // find out which pool has the most threads
+//
+//       /* Count Active threads for validation*/
+//
+//       hpx::threads::mask_type active_mask;
+//       std::size_t active_threads_ = 0;
+//       std::size_t domain_active_threads = 0;
+//       std::size_t pool_idx = 0;
+//       int total_threads_counted=0;
+//       // Select thread pool with the highest number of activated threads
+//       for (std::size_t i = 0; i != thread_pools_.size(); ++i) {
+//           // get the current used PUs as HPX knows
+//           hpx::threads::mask_type curr_mask =
+//           thread_pools_[i]->get_used_processing_units();
+//           for (std::size_t j = 0; j < thread_pools_[i]->get_os_thread_count();j++) {
+//             std::size_t pu_num =
+//               rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
+//             if (hpx::threads::test(curr_mask, pu_num))
+//               total_threads_counted++;
+//           }
+//       }
+//       std::cout << "Active OS Threads = " <<  total_threads_counted << std::endl;
+//       #endif
+//
+//       // this is the place where we take policy specific actions
+//
+//       if (uselopt && !lopt_.isConverged()){
+//         last_power_usage++;
+//         current_power_usage = hardware_reconf::read_system_power();
+//         power_sum += current_power_usage;
+//
+//         auto t_now = std::chrono::system_clock::now();
+//         auto t_now_ms = std::chrono::time_point_cast<std::chrono::milliseconds>(t_now);
+//         auto t_value = t_now_ms.time_since_epoch();
+//         long t_duration_now = t_value.count();
+//
+//         long elapsedTimeMs = t_duration_now - last_objective_measurement_timestamp_;
+//
+//         if (elapsedTimeMs > objective_measurement_period_ms){
+//           last_objective_measurement_timestamp_= t_duration_now;
+//
+//           // iteration time
+//           current_avg_iter_time =
+//               allscale_monitor->get_avg_time_last_iterations(sampling_interval);
+//           if (std::isnan(current_avg_iter_time)) {
+//   #ifdef DEBUG_
+//             std::cout
+//                 << "monitoring returns NaN, setting current average time to 0\n ";
+//   #endif
+//             current_avg_iter_time = 0.0;
+//           }
+//
+//           lopt_.measureObjective(current_avg_iter_time,power_sum/last_power_usage,
+//             active_threads);
+//           last_power_usage=0;
+//           power_sum=0;
+//         }
+//
+//         elapsedTimeMs = t_duration_now - last_optimization_timestamp_;
+//
+//         if (elapsedTimeMs > optimization_period_ms){
+//           last_optimization_timestamp_= t_duration_now;
+//           nr_opt_steps++;
+//           actuation act_temp = lopt_.step();
+//     #ifdef DEBUG_MULTIOBJECTIVE_
+//           lopt_.printverbosesteps(act_temp);
+//     #endif
+//           // amend threads if signaled
+//           /*
+//           if (act_temp.delta_threads<0){
+//             unsigned int suspended_temp =
+//               suspend_threads(-1 * act_temp.delta_threads);
+//             lopt_.setCurrentThreads(lopt_.getCurrentThreads()-suspended_temp);
+//           }
+//           else if (act_temp.delta_threads>0){
+//             unsigned int resumed_temp =
+//               resume_threads(act_temp.delta_threads);
+//             lopt_.setCurrentThreads(lopt_.getCurrentThreads()+resumed_temp);
+//           }
+//           */
+//
+//           if (act_temp.delta_threads < active_threads){
+//             int new_threads_target = (int)active_threads - act_temp.delta_threads;
+// #ifdef DEBUG_MULTIOBJECTIVE_
+//             std::cout << "[SCHEDULER|INFO]: Optimizer induced threads to suspend: " << new_threads_target << std::endl;
+//             std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << ", target threads = " << act_temp.delta_threads << std::endl;
+// #endif
+//             unsigned int suspended_temp = suspend_threads(new_threads_target);
+//             //lopt_.setCurrentThreads(lopt_.getCurrentThreads()-suspended_temp);
+//             lopt_.setCurrentThreads(active_threads);
+//           }
+//           else if (act_temp.delta_threads > active_threads){
+//             int new_threads_target = act_temp.delta_threads - (int)active_threads;
+// #ifdef DEBUG_MULTIOBJECTIVE_
+//             std::cout << "[SCHEDULER|INFO]: Optimizer induced threads to resume to: " << new_threads_target << std::endl;
+//             std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << ", target threads = " << act_temp.delta_threads << std::endl;
+// #endif
+//             unsigned int resumed_temp = resume_threads(new_threads_target);
+//             //lopt_.setCurrentThreads(lopt_.getCurrentThreads()+resumed_temp);
+//             lopt_.setCurrentThreads(active_threads);
+//           }
+//
+//           // amend frequency if signaled
+//           if (act_temp.frequency_idx != -1){
+// #ifdef DEBUG_MULTIOBJECTIVE_
+//             std::cout << "[SCHEDULER|INFO]: Optimizer induced frequency scaling to index : " << act_temp.frequency_idx << std::endl;
+// #endif
+//             fix_allcores_frequencies(act_temp.frequency_idx);
+//             lopt_.setCurrentFrequencyIdx(act_temp.frequency_idx);
+//           }
+//         }
+//       } // uselopt
+//     }
+//     enqueue_local(std::move(work), false, sync);
+//
+//     return;
+//   }
+//   // task not meant to be local: move task to remote nodes
+//   //work.mark_child_requirements(schedule_rank);
+//
+//   allscale::resilience::global_wi_dispatched(work, schedule_rank);
+//   network_.schedule(schedule_rank, std::move(work));
+// }
 
 
 /**
@@ -822,42 +830,97 @@ void scheduler::enqueue(work_item work) {
  * execution on the local domain.
  *
 */
-void scheduler::enqueue_local(work_item work, bool force_split, bool sync) {
-  if (force_split && !work.can_split()) {
-    std::cerr << "split for " << work.name() << "(" << work.id()
-              << ") requested but can't split further\n";
-    std::abort();
-  }
-  nr_tasks_scheduled++;
-  allscale::monitor::signal(allscale::monitor::work_item_enqueued, work);
-  hpx::future<std::size_t> acquire_rank;
-  if (force_split || do_split(work)) {
-    acquire_rank = work.split(sync, rank_);
-  } else {
-      // FIXME!
-    std::size_t numa_domain = 0;//work.id().numa_domain();
-    HPX_ASSERT(numa_domain < executors_.size());
-    acquire_rank = work.process(executors_[numa_domain], rank_);
-  }
+// void scheduler::enqueue_local(work_item work, bool force_split, bool sync) {
+//   if (force_split && !work.can_split()) {
+//     std::cerr << "split for " << work.name() << "(" << work.id()
+//               << ") requested but can't split further\n";
+//     std::abort();
+//   }
+//   nr_tasks_scheduled++;
+//   allscale::monitor::signal(allscale::monitor::work_item_enqueued, work);
+//   hpx::future<std::size_t> acquire_rank;
+//   if (force_split || do_split(work)) {
+//     acquire_rank = work.split(sync, rank_);
+//   } else {
+//       // FIXME!
+//     std::size_t numa_domain = 0;//work.id().numa_domain();
+//     HPX_ASSERT(numa_domain < executors_.size());
+//     acquire_rank = work.process(executors_[numa_domain], rank_);
+//   }
+//
+//   typename hpx::traits::detail::shared_state_ptr_for<
+//       hpx::future<std::size_t>>::type const &state =
+//       hpx::traits::future_access<hpx::future<std::size_t>>::get_shared_state(
+//           acquire_rank);
+//
+//   state->set_on_completed([
+//     work = std::move(work),
+//     acquire_rank = std::move(acquire_rank), this
+//   ]() mutable {
+//     std::size_t expected_rank = acquire_rank.get();
+//     if (expected_rank == std::size_t(-1)) {
+//       // We should move on and split further...
+//       enqueue_local(std::move(work), true, false);
+//     } else if (expected_rank != std::size_t(-2)) {
+//       HPX_ASSERT(expected_rank != rank_);
+//       network_.schedule(expected_rank, std::move(work));
+//     }
+//   });
+// }
 
-  typename hpx::traits::detail::shared_state_ptr_for<
-      hpx::future<std::size_t>>::type const &state =
-      hpx::traits::future_access<hpx::future<std::size_t>>::get_shared_state(
-          acquire_rank);
+void scheduler::schedule_local(work_item work, std::size_t numa_node,
+    std::size_t local_depth)
+{
+    nr_tasks_scheduled++;
 
-  state->set_on_completed([
-    work = std::move(work),
-    acquire_rank = std::move(acquire_rank), this
-  ]() mutable {
-    std::size_t expected_rank = acquire_rank.get();
-    if (expected_rank == std::size_t(-1)) {
-      // We should move on and split further...
-      enqueue_local(std::move(work), true, false);
-    } else if (expected_rank != std::size_t(-2)) {
-      HPX_ASSERT(expected_rank != rank_);
-      network_.schedule(expected_rank, std::move(work));
+    allscale::monitor::signal(allscale::monitor::work_item_enqueued, work);
+    hpx::future<std::size_t> acquire_rank;
+    if (do_split(work, local_depth, numa_node))
+    {
+        if (!work.can_split()) {
+            std::cerr << "split for " << work.name() << "(" << work.id()
+                << ") requested but can't split further\n";
+            std::abort();
+        }
+        acquire_rank = work.split(rank_);
     }
-  });
+    else
+    {
+        HPX_ASSERT(numa_node < executors_.size());
+        acquire_rank = work.process(executors_[numa_node], rank_);
+    }
+
+    typename hpx::traits::detail::shared_state_ptr_for<
+        hpx::future<std::size_t>>::type const &state =
+        hpx::traits::future_access<hpx::future<std::size_t>>::get_shared_state(
+                acquire_rank);
+
+    state->set_on_completed(
+        [
+            work = std::move(work),
+            acquire_rank = std::move(acquire_rank), this
+        ]() mutable
+        {
+            std::size_t expected_rank = acquire_rank.get();
+            if (expected_rank == std::size_t(-1))
+            {
+                std::cout << "expected_rank == std::size_t(-1)...\n";
+                std::abort();
+
+                // FIXME!!!
+                // We should move on and split further...
+//                 enqueue_local(std::move(work), true, false);
+            }
+            else if (expected_rank != std::size_t(-2))
+            {
+                std::cout << "expected_rank != std::size_t(-2)...\n";
+                std::abort();
+                // FIXME!!!!!
+                // HPX_ASSERT(expected_rank != rank_);
+                // network_.schedule(expected_rank, std::move(work));
+            }
+        }
+    );
 }
 
 /**
@@ -865,16 +928,17 @@ void scheduler::enqueue_local(work_item work, bool force_split, bool sync) {
  * scheduler::do_split
  *
 */
-bool scheduler::do_split(work_item const &w) {
+bool scheduler::do_split(work_item const &w, std::size_t local_depth, std::size_t numa_node) {
   // Check if the work item is splittable first
   if (w.can_split()) {
     // Check if we reached the required depth
     // FIXME: make the cut off runtime configurable...
     // FIXME:!!!!!!!
-    if (w.id().depth() < 4) {
+    if (local_depth < depth_cut_off_[numa_node]) {
       // FIXME: add more elaborate splitting criterions
       return true;
     }
+
     return false;
   }
   // return false if it isn't
@@ -1043,6 +1107,13 @@ unsigned int scheduler::suspend_threads(std::size_t suspendthreads) {
 
       thread_pools_[pool_idx]->suspend_processing_unit(pu).get();
     }
+  }
+
+  // Setting the default thread depths of the NUMA domain
+  {
+      std::size_t num_cores = get_num_numa_cores(pool_idx) - suspend_threads.size();
+      if (num_cores == 1) depth_cut_off_[pool_idx] = 1;
+      else depth_cut_off_[pool_idx] = std::lround(std::log2(std::pow(num_cores, 1.5)));
   }
 #ifdef MEASURE_
   update_active_osthreads(-1 * suspend_threads.size());
@@ -1213,6 +1284,12 @@ unsigned int scheduler::resume_threads(std::size_t resumethreads) {
       // hpx::util::unlock_guard<std::unique_lock<mutex_type> > ul(l);
       thread_pools_[pool_idx]->resume_processing_unit(pu).get();
     }
+  }
+  // Setting the default thread depths of the NUMA domain
+  {
+      std::size_t num_cores = get_num_numa_cores(pool_idx) - resume_threads.size();
+      if (num_cores == 1) depth_cut_off_[pool_idx] = 1;
+      else depth_cut_off_[pool_idx] = std::lround(std::log2(std::pow(num_cores, 1.5)));
   }
 #ifdef MEASURE_
   update_active_osthreads(resume_threads.size());

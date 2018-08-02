@@ -56,8 +56,8 @@ namespace allscale
             >::type
         {};
 
-    private:
         static components::scheduler & get();
+    private:
 
         typedef hpx::lcos::local::spinlock mutex_type;
         static void partition_resources(hpx::resource::partitioner& rp);

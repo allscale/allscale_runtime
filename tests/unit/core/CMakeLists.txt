@@ -8,8 +8,7 @@ set(tests
   grid_stencil
   grid_init_overlap
   serialization
-  treeture
-  work_item)
+  treeture)
 
 foreach(test ${tests})
     set(sources ${test}.cpp)

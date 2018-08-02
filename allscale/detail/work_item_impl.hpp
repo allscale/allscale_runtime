@@ -445,29 +445,29 @@ namespace allscale { namespace detail {
         typename std::enable_if<
             WorkItemDescription_::split_variant::valid,
             hpx::future<std::size_t>
-        >::type split(bool sync, hpx::util::tuple<> && reqs, std::size_t this_id)
+        >::type split(hpx::util::tuple<> && reqs, std::size_t this_id)
         {
-            if (sync && id().is_right())
-            {
+//             if (id().is_right())
+//             {
                 do_split(std::move(reqs));
                 return hpx::make_ready_future(std::size_t(-2));
-            }
-            else
-            {
-                auto this_ = shared_this();
-                return hpx::async([this_ = std::move(this_)]()
-                {
-                    this_->do_split(hpx::util::tuple<>());
-                    return std::size_t(-2);
-                });
-            }
+//             }
+//             else
+//             {
+//                 auto this_ = shared_this();
+//                 return hpx::async([this_ = std::move(this_)]()
+//                 {
+//                     this_->do_split(hpx::util::tuple<>());
+//                     return std::size_t(-2);
+//                 });
+//             }
         }
 
         template <typename WorkItemDescription_, typename Reqs>
         typename std::enable_if<
             WorkItemDescription_::split_variant::valid,
             hpx::future<std::size_t>
-        >::type split(bool sync, Reqs && reqs, std::size_t this_id)
+        >::type split(Reqs && reqs, std::size_t this_id)
         {
             auto this_ = shared_this();
 #if defined(ALLSCALE_DEBUG_DIM)
@@ -513,8 +513,8 @@ namespace allscale { namespace detail {
                       , data_item_manager::acquire(reqs, infos));
                 }, "allscale::work_item::spli::locate_cont");
 
-            if (sync && id().is_right())
-            {
+//             if (id().is_right())
+//             {
                 return hpx::dataflow(hpx::launch::sync, std::move(continuation),
 #if defined(ALLSCALE_DEBUG_DIM)
                     data_item_manager::locate(std::move(s), std::forward<Reqs>(reqs))
@@ -522,45 +522,45 @@ namespace allscale { namespace detail {
                     data_item_manager::locate(std::forward<Reqs>(reqs))
 #endif
                 );
-            }
-            else
-            {
-                return hpx::dataflow(std::move(continuation),
-#if defined(ALLSCALE_DEBUG_DIM)
-                    data_item_manager::locate(std::move(s), std::forward<Reqs>(reqs))
-#else
-                    data_item_manager::locate(std::forward<Reqs>(reqs))
-#endif
-                );
-            }
+//             }
+//             else
+//             {
+//                 return hpx::dataflow(std::move(continuation),
+// #if defined(ALLSCALE_DEBUG_DIM)
+//                     data_item_manager::locate(std::move(s), std::forward<Reqs>(reqs))
+// #else
+//                     data_item_manager::locate(std::forward<Reqs>(reqs))
+// #endif
+//                 );
+//             }
         }
 
         template <typename WorkItemDescription_>
         typename std::enable_if<
             WorkItemDescription_::split_variant::valid,
             hpx::future<std::size_t>
-        >::type split(bool sync, std::size_t this_id)
+        >::type split(std::size_t this_id)
         {
             auto reqs = detail::merge_data_item_reqs(
                 get_requirements<typename WorkItemDescription::split_variant>(nullptr)
             );
-            return split<WorkItemDescription>(sync, std::move(reqs), this_id);
+            return split<WorkItemDescription>(std::move(reqs), this_id);
         }
 
         template <typename WorkItemDescription_>
         typename std::enable_if<
             !WorkItemDescription_::split_variant::valid,
             hpx::future<std::size_t>
-        >::type split(bool, std::size_t)
+        >::type split(std::size_t)
         {
             throw std::logic_error(
                 "Calling split on a work item without valid split variant");
             return hpx::make_ready_future(std::size_t(-1));
         }
 
-        hpx::future<std::size_t> split(bool sync, std::size_t this_id) final
+        hpx::future<std::size_t> split(std::size_t this_id) final
         {
-            return split<WorkItemDescription>(sync, this_id);
+            return split<WorkItemDescription>(this_id);
         }
 
         bool enqueue_remote() const final

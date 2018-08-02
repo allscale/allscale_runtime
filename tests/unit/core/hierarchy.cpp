@@ -365,6 +365,8 @@ int hpx_main(int argc, char **argv)
     navigation(2);
     navigation(4);
 
+    HierarchyAddress::numaCutOff = std::ceil(std::log2(allscale::get_num_numa_nodes()));
+
     comm_test();
 
     return hpx::finalize();

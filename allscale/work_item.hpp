@@ -58,11 +58,11 @@ namespace allscale {
             return impl_->get_void_treeture();
         }
 
-        hpx::future<std::size_t> split(bool sync, std::size_t this_id)
+        hpx::future<std::size_t> split(std::size_t this_id)
         {
             HPX_ASSERT(valid());
             HPX_ASSERT(impl_->valid());
-            return impl_->split(sync, this_id);
+            return impl_->split(this_id);
     //         impl_.reset();
         }
 
