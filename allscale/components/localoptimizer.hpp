@@ -40,7 +40,7 @@ namespace allscale { namespace components {
       /* local minimum during single objective optimization */
       double globalmin;
       /* local minimum during single objective optimization */
-      double globalmax;         
+      double globalmax;
       /* current deviation of the objective value from observed min */
       double currentthreshold;
       /* sampled objective values throughout execution */
@@ -53,7 +53,7 @@ namespace allscale { namespace components {
       bool converged;
       /* true if optimizer for objective has been initialized, false otherwise */
       bool initialized;
-      /* index to the parameter vectors for setup that has so far achieved 
+      /* index to the parameter vectors for setup that has so far achieved
          the minimum over all samples */
       long int min_params_idx;
       double converged_minimum;
@@ -79,7 +79,10 @@ namespace allscale { namespace components {
     struct localoptimizer
     {
         localoptimizer()
-            :current_objective_idx_(0),nmd(0.01),frequency_param_(0),
+            :current_objective_idx_(0),nmd(0.01),
+#if defined(ALLSCALE_HAVE_CPUFREQ)
+            frequency_param_(0),
+#endif
             converged_(false){
             if (optmethod_==random)
                 srand (std::time(NULL));
@@ -96,7 +99,7 @@ namespace allscale { namespace components {
                     << policyToString(pol)
                     << " policy for single objective search."
                     << std::endl;
-#endif             
+#endif
         }
 
         searchPolicy getPolicy(){return optmethod_;}
@@ -105,14 +108,14 @@ namespace allscale { namespace components {
 
         std::size_t getCurrentThreads(){return threads_param_;}
 
-        void setCurrentThreads(std::size_t threads){threads_param_ = threads;}        
+        void setCurrentThreads(std::size_t threads){threads_param_ = threads;}
 
 #if defined(ALLSCALE_HAVE_CPUFREQ)
         unsigned int getCurrentFrequencyIdx(){return frequency_param_;}
 
-        void setCurrentFrequencyIdx(unsigned int idx){frequency_param_ = idx;}    
+        void setCurrentFrequencyIdx(unsigned int idx){frequency_param_ = idx;}
 
-        const std::vector<unsigned long> 
+        const std::vector<unsigned long>
         setfrequencies(std::vector<unsigned long> frequencies){
             frequencies_param_allowed_=frequencies;
             //std::cout << "**************** = " << frequency_param_ << std::endl;
@@ -174,13 +177,13 @@ namespace allscale { namespace components {
         /* active optimization parameter - nr of OS threads active */
         int threads_param_;
 
-        /* ordered set of OS thread values that have been assigned to the 
-           runtime by the optimization algorithm. The most recent value is 
+        /* ordered set of OS thread values that have been assigned to the
+           runtime by the optimization algorithm. The most recent value is
            stored at the end of the vector */
         std::vector<unsigned long> thread_param_values_;
 
         /* maximum number of OS threads supported by the runtime */
-        std::size_t max_threads_;        
+        std::size_t max_threads_;
 
 #if defined(ALLSCALE_HAVE_CPUFREQ)
         /* active optimization parameter - current CPU frequency index */
@@ -191,12 +194,12 @@ namespace allscale { namespace components {
            end of the vector */
         std::vector<unsigned long> frequency_param_values_;
 
-        /* vector containing sorted list of frequencies supported by the 
+        /* vector containing sorted list of frequencies supported by the
            processor */
         std::vector<unsigned long> frequencies_param_allowed_;
 
         /* index to the vector of allowed frequencies that points to the highest
-           frequency. The ordering of the vector, as reported by hardware 
+           frequency. The ordering of the vector, as reported by hardware
            reconfiguration can be platform specific, and therefore we need this
            index to make sorted access to the vector platform agnostic */
         const short unsigned int highest_frequency_allowed_idx_ = 0;
