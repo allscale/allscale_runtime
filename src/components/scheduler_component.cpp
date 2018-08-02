@@ -31,7 +31,6 @@
 // only meant to be defined if one needs to measure the efficacy
 // of the scheduler
 #undef DEBUG_
-#define ALLSCALE_HAVE_CPUFREQ 1
 #define ALLSCALE_USE_CORE_OFFLINING 1
 
 namespace allscale {
@@ -188,7 +187,9 @@ void scheduler::init() {
 
 #ifdef MEASURE_
   update_active_osthreads(0);
+#ifdef ALLSCALE_HAVE_CPUFREQ
   update_power_consumption(hardware_reconf::read_system_power());
+#endif
 #endif
 
   rp_ = &hpx::resource::get_partitioner();
@@ -494,6 +495,7 @@ void scheduler::initialize_cpu_frequencies() {
   freq_times.resize(cpu_freqs.size());
 
 #ifdef MEASURE_
+#ifdef ALLSCALE_HAVE_CPUFREQ
   unsigned long temp_transition_latency=hardware_reconf::get_cpu_transition_latency(1);
 #ifdef DEBUG_INIT_
   if (temp_transition_latency==0)
@@ -505,13 +507,16 @@ void scheduler::initialize_cpu_frequencies() {
       " milliseconds\n" << std::flush;
 #endif
 #endif
+#endif
 
 #ifdef DEBUG_INIT_
   std::cout << "[INFO] Governors available on the system: " <<
       "\n" << std::flush;
+#ifdef ALLSCALE_HAVE_CPUFREQ
   std::vector<std::string> temp_governors = hardware_reconf::get_governors(0);
   for (std::vector<std::string>::const_iterator i = temp_governors.begin(); i != temp_governors.end(); ++i)
     std::cout << "[INFO]\t" << *i << "\n" << std::flush;
+#endif
   std::cout << "\n" << std::flush;
 #endif
 
@@ -538,6 +543,7 @@ void scheduler::initialize_cpu_frequencies() {
   std::cout << "nbpus known to topo_:  " << nbpus << "\n" << std::flush;
 #endif
 
+#ifdef ALLSCALE_HAVE_CPUFREQ
   hardware_reconf::make_cpus_online(0, nbpus);
   hardware_reconf::topo_init();
   // We have to set CPU governors to userpace in order to change frequencies
@@ -578,6 +584,7 @@ void scheduler::initialize_cpu_frequencies() {
               << std::flush;
 #endif
   }
+#endif
 
   // Set frequency of all threads to max when we start
 
@@ -589,6 +596,7 @@ void scheduler::initialize_cpu_frequencies() {
         std::size_t pu_num =
             rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
 
+#ifdef ALLSCALE_HAVE_CPUFREQ
         if (!cpufreq_cpu_exists(pu_num)) {
           int res = hardware_reconf::set_frequency(pu_num, 1, cpu_freqs[0]);
 #ifdef DEBUG_INIT_
@@ -597,6 +605,7 @@ void scheduler::initialize_cpu_frequencies() {
                     << std::flush;
 #endif
         }
+#endif
       }
     }
   }
@@ -609,6 +618,7 @@ void scheduler::initialize_cpu_frequencies() {
             << std::flush;
   {
     // check status of Pus frequency
+#ifdef ALLSCALE_HAVE_CPUFREQ
     for (std::size_t i = 0; i != thread_pools_.size(); ++i) {
       unsigned long hardware_freq = 0;
       std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
@@ -631,6 +641,7 @@ void scheduler::initialize_cpu_frequencies() {
         }
       }
     }
+#endif
   }
 
 #ifdef ALLSCALE_USE_CORE_OFFLINING
@@ -650,7 +661,9 @@ void scheduler::initialize_cpu_frequencies() {
       std::cout << " setting cpu_id " << cpu_id << " offline \n" << std::flush;
 #endif
 
+#ifdef ALLSCALE_HAVE_CPUFREQ
       hardware_reconf::make_cpus_offline(cpu_id, cpu_id + topo.num_hw_threads);
+#endif
     }
   }
 #endif
