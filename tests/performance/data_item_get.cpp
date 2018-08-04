@@ -62,8 +62,10 @@ struct main_process {
                 var_3,
                 StaticGridRegion<2>({0,0}, {200, 200}),
                 allscale::access_mode::ReadWrite));
+        std::unique_ptr<allscale::data_item_manager::task_requirements_base> req1_ptr(
+            new allscale::data_item_manager::task_requirements<hpx::util::decay<decltype(req1)>::type>(std::move(req1)));
         auto lease1 = hpx::util::unwrap(allscale::data_item_manager::acquire(
-            req1, hpx::util::unwrap(allscale::data_item_manager::locate(req1))
+            std::move(req1_ptr), hpx::util::unwrap(allscale::data_item_manager::locate(req1))
         ));
 
         auto req2 = hpx::util::make_tuple(
@@ -71,6 +73,9 @@ struct main_process {
                 var_4,
                 StaticGridRegion<2>({0,0}, {200, 200}),
                 allscale::access_mode::ReadWrite));
+
+        std::unique_ptr<allscale::data_item_manager::task_requirements_base> req2_ptr(
+            new allscale::data_item_manager::task_requirements<hpx::util::decay<decltype(req2)>::type>(std::move(req2)));
         auto lease2 = hpx::util::unwrap(allscale::data_item_manager::acquire(
             req2, hpx::util::unwrap(allscale::data_item_manager::locate(req2))
         ));

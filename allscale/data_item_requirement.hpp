@@ -17,6 +17,7 @@ namespace allscale{
 
         ref_type ref;
         region_type region;
+        region_type allowance;
         access_mode mode = access_mode::Invalid;
 
         data_item_requirement() = default;
@@ -25,6 +26,7 @@ namespace allscale{
         data_item_requirement(data_item_requirement && other) noexcept
           : ref(std::move(other.ref))
           , region(std::move(other.region))
+          , allowance(std::move(other.allowance))
           , mode(other.mode)
         {
         }
@@ -45,6 +47,7 @@ namespace allscale{
         {
            ar & ref;
            ar & region;
+           ar & allowance;
            ar & mode;
         }
     };

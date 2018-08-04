@@ -281,7 +281,8 @@ namespace runtime {
 		static S& getLocalService(HierarchyAddress const& addr)
         {
             assert_eq(addr.getRank(), hpx::get_locality_id());
-			return getService<S>().get(addr.getNumaNode(), addr.getLayer());
+            auto& s = getService<S>();
+			return s.get(addr.getNumaNode(), addr.getLayer());
 		}
 
 		/**

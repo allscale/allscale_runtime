@@ -2,11 +2,11 @@ set(tests
   #this_work_item
 #  1d_stencil
   hierarchy
-  scalar_read_write
-  scalar_read_only
+  #scalar_read_write
+  #scalar_read_only
   grid_init
-  grid_stencil
-  grid_init_overlap
+  #grid_stencil
+  #grid_init_overlap
   serialization
   treeture)
 

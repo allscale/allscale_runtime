@@ -1152,7 +1152,10 @@ IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__co
     return (IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_loop_reference_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_&&)IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_pfor_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt___Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_simulator_dot_h_202_21_returns_detail_colon__colon_loop_reference_lt_Vector_lt_long_comma__space_3_gt__space__gt_(IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_detail_colon__colon_range_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt_{var_0, index}, var_2, IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_no_dependencies{});
 }
 /* ------- Function Definitions --------- */
-void IMP_ipic3d_colon__colon_simulateSteps_struct_space_ipic3d_colon__colon_detail_colon__colon_default_particle_to_field_projector_struct_space_ipic3d_colon__colon_detail_colon__colon_default_field_solver_struct_space_ipic3d_colon__colon_detail_colon__colon_default_particle_mover_returns_void(uint64_t var_0, IMP_ipic3d_colon__colon_Universe& var_1) {
+double IMP_ipic3d_colon__colon_simulateSteps_struct_space_ipic3d_colon__colon_detail_colon__colon_default_particle_to_field_projector_struct_space_ipic3d_colon__colon_detail_colon__colon_default_field_solver_struct_space_ipic3d_colon__colon_detail_colon__colon_default_particle_mover_returns_void(uint64_t var_0, IMP_ipic3d_colon__colon_Universe& var_1) {
+    double first = 0.0;
+    std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<int64_t, std::ratio<1, 1000000000 > > > start = (std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<int64_t, std::ratio<1, 1000000000 > > >&&)std::chrono::system_clock::now();
+
     allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3u >&& var_2 = allscale::runtime::DataItemManager::get(var_1.cells);
     IMP_ipic3d_colon__colon_detail_colon__colon_default_particle_mover var_3 = (IMP_ipic3d_colon__colon_detail_colon__colon_default_particle_mover&&)IMP_ipic3d_colon__colon_detail_colon__colon_default_particle_mover{};
     allscale::utils::Vector<long, 3 > var_4 = (allscale::utils::Vector<long, 3 >&&)allscale::utils::Vector<long, 3 >{(int64_t)0};
@@ -1164,9 +1167,17 @@ void IMP_ipic3d_colon__colon_simulateSteps_struct_space_ipic3d_colon__colon_deta
             {
                 IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_pfor_long_3__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_simulator_dot_h_195_21_returns_detail_colon__colon_loop_reference_lt_utils_colon__colon_Vector_lt_long_comma__space_3UL_gt__space__gt_(var_4, var_5, INS_INIT(IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_simulator_dot_h_195_21_struct_space_ipic3d_colon__colon_detail_colon__colon_default_particle_mover_struct_space_ipic3d_colon__colon_Universe_space__ampersand__ipic3d_colon__colon_TransferBuffers_space__ampersand__void_const_space_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__space__ampersand_){(IMP_ipic3d_colon__colon_detail_colon__colon_default_particle_mover const&)var_3, (IMP_ipic3d_colon__colon_Universe const&)var_1, (IMP_ipic3d_colon__colon_TransferBuffers const&)var_6});
                 IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_pfor_long_3__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_simulator_dot_h_202_21_returns_detail_colon__colon_loop_reference_lt_utils_colon__colon_Vector_lt_long_comma__space_3UL_gt__space__gt_(var_4, var_5, INS_INIT(IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_simulator_dot_h_202_21_struct_space_ipic3d_colon__colon_Universe_space__ampersand__ipic3d_colon__colon_TransferBuffers_space__ampersand__void_const_space_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__space__ampersand_){(IMP_ipic3d_colon__colon_Universe const&)var_1, (IMP_ipic3d_colon__colon_TransferBuffers const&)var_6});
+
+                if (var_8 == 1)
+                {
+                    std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<int64_t, std::ratio<1, 1000000000 > > > end = (std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<int64_t, std::ratio<1, 1000000000 > > >&&)std::chrono::system_clock::now();
+                    first = (double)std::chrono::duration_cast<std::chrono::duration<int64_t, std::ratio<1, 1000 > >, int64_t, std::ratio<1, 1000000000 > >((end - start)).count() / 1.0E+3;
+                }
+
             };
         };
     };
+    return first;
 }
 /* ------- Function Definitions --------- */
 void IMP_ipic3d_colon__colon_outputParticlePositions_allscale_colon__colon_api_colon__colon_core_colon__colon_OutputStream_returns_void(allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3u > > const& var_0, allscale::api::core::OutputStream& var_1) {
@@ -1220,11 +1231,13 @@ int32_t IMP_ipic3d_colon__colon_processUniverse(IMP_ipic3d_colon__colon_Universe
     };
     std::cout << "Running simulation..." << &std::endl;
     std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<int64_t, std::ratio<1, 1000000000 > > > var_4 = (std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<int64_t, std::ratio<1, 1000000000 > > >&&)std::chrono::system_clock::now();
-    IMP_ipic3d_colon__colon_simulateSteps_struct_space_ipic3d_colon__colon_detail_colon__colon_default_particle_to_field_projector_struct_space_ipic3d_colon__colon_detail_colon__colon_default_field_solver_struct_space_ipic3d_colon__colon_detail_colon__colon_default_particle_mover_returns_void(var_2, var_0);
+
+     double first = IMP_ipic3d_colon__colon_simulateSteps_struct_space_ipic3d_colon__colon_detail_colon__colon_default_particle_to_field_projector_struct_space_ipic3d_colon__colon_detail_colon__colon_default_field_solver_struct_space_ipic3d_colon__colon_detail_colon__colon_default_particle_mover_returns_void(var_2, var_0);
     std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<int64_t, std::ratio<1, 1000000000 > > > var_5 = (std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<int64_t, std::ratio<1, 1000000000 > > >&&)std::chrono::system_clock::now();
-    std::cout << "Simulation Finished" << &std::endl;
     double var_6 = (double)std::chrono::duration_cast<std::chrono::duration<int64_t, std::ratio<1, 1000 > >, int64_t, std::ratio<1, 1000000000 > >((var_5 - var_4)).count() / 1.0E+3;
+    std::cout << "Simulation Finished" << &std::endl;
     std::cout << "Simulation took " << var_6 << "s\n";
+    std::cout << "First iteration: " << first << "s\n";
     std::cout << "Throughput: " << (double)(var_2 * pos) / var_6 << " particles/s \n";
     if (var_3) {
         IMP_ipic3d_colon__colon_outputParticlePositions(var_0.cells, std::string{"t_end.txt", std::allocator<char >{}});

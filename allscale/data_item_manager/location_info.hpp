@@ -19,6 +19,13 @@ namespace allscale { namespace data_item_manager {
         {
         }
 
+        void add_part(std::size_t rank, Region const& region)
+        {
+            HPX_ASSERT(!region.empty());
+            auto& part = regions[rank];
+            part = Region::merge(part, region);
+        }
+
         std::unordered_map<std::size_t, Region> regions;
 
         template <typename Archive>

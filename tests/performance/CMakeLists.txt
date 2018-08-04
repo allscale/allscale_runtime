@@ -7,8 +7,8 @@ set(tests
   pi-dump-trg
   quicksort-dump-trg
   vector_add-dump-trg
-  data_item_get
-  data_item_get_invariant
+  #data_item_get
+  #data_item_get_invariant
   stream
   #tpc.allscalecc.latency_n29
   #tpc.allscalecc.latency_n30

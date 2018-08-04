@@ -49,21 +49,10 @@ namespace allscale { namespace data_item_manager {
         double insert_time = 0.0;
 
         // The mutex which protects this data item from concurrent accesses
-        mutex_type region_mtx;
-        mutex_type fragment_mtx;
+        mutex_type mtx;
 
         std::unique_ptr<fragment_type> fragment;
         std::unique_ptr<shared_data_type> shared_data;
-
-        // A simple location info data structure will serve as a cache to
-        // accelerate lookups.
-        location_info<region_type> location_cache;
-
-        // The child regions mark the regions occupied by the children spawend
-        // from this locality.
-        std::unordered_map<std::size_t, region_type> child_regions;
-        // The owned region is what is allocated and owned by this locality
-        region_type owned_region;
     };
 }}
 

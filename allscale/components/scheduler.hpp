@@ -4,7 +4,6 @@
 
 #include <allscale/work_item.hpp>
 #include <allscale/components/treeture_buffer.hpp>
-#include <allscale/components/scheduler_network.hpp>
 #include <allscale/components/localoptimizer.hpp>
 #if defined(ALLSCALE_HAVE_CPUFREQ)
 #include <allscale/util/hardware_reconf.hpp>
@@ -51,8 +50,9 @@ namespace allscale { namespace components {
 //         void enqueue(work_item work);
 //         void enqueue_local(work_item work, bool force_split, bool sync);
 
-        void schedule_local(work_item work, std::size_t numa_node,
-            std::size_t local_depth);
+        void schedule_local(work_item work,
+            std::unique_ptr<data_item_manager::task_requirements_base>&& deps,
+            runtime::HierarchyAddress const& addr, std::size_t local_depth);
 
 
         void stop();
@@ -60,6 +60,7 @@ namespace allscale { namespace components {
         std::uint64_t rank_;
 
     private:
+
         std::size_t get_num_numa_nodes();
         std::size_t get_num_numa_cores(std::size_t domain);
         void initialize_cpu_frequencies();
@@ -68,8 +69,6 @@ namespace allscale { namespace components {
         const hpx::threads::topology *topo_;
         bool initialized_;
         std::atomic<bool> stopped_;
-
-        scheduler_network network_;
 
         mutex_type spawn_throttle_mtx_;
         std::unordered_map<const char*, treeture_buffer> spawn_throttle_;

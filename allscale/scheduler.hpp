@@ -3,7 +3,6 @@
 #define ALLSCALE_SCHEDULER_HPP
 
 #include <hpx/config.hpp>
-#include <allscale/work_item.hpp>
 
 #include <hpx/lcos/local/spinlock.hpp>
 #include <hpx/hpx_init.hpp>
@@ -20,6 +19,8 @@ namespace allscale
         struct scheduler;
     }
 
+    struct work_item;
+
     struct scheduler
     {
         // This function needs to be called before hpx::init.
@@ -35,26 +36,12 @@ namespace allscale
         scheduler() { HPX_ASSERT(false); }
         scheduler(std::size_t rank);
 
-        static void schedule(work_item work);
+        static std::size_t rank();
+
+        static void schedule(work_item&& work);
         static components::scheduler* run(std::size_t rank);
         static void stop();
         static components::scheduler* get_ptr();
-
-        struct schedule_action
-          : hpx::actions::make_direct_action<
-               void(*)(work_item),
-               &scheduler::schedule,
-               schedule_action
-            >::type
-        {};
-
-        struct stop_action
-          : hpx::actions::make_action<
-               void(*)(),
-               &scheduler::stop,
-               stop_action
-            >::type
-        {};
 
         static components::scheduler & get();
     private:

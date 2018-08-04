@@ -9,6 +9,7 @@
 #include <allscale/data_item_reference.hpp>
 #include <allscale/data_item_requirement.hpp>
 #include <allscale/work_item_description.hpp>
+#include <allscale/data_item_manager/index_service.hpp>
 #include <allscale/spawn_fwd.hpp>
 #include <allscale/do_serialization.hpp>
 #include <allscale/lease.hpp>
@@ -21,6 +22,7 @@
 #include <type_traits>
 
 namespace allscale { namespace data_item_manager {
+
         template <typename DataItem>
         struct initializer
         {
@@ -190,15 +192,19 @@ namespace allscale { namespace data_item_manager {
 }}//end namespace allscale
 
 #define REGISTER_DATAITEMSERVER_DECLARATION(type)                               \
-    HPX_REGISTER_ACTION_DECLARATION(                                            \
-        allscale::data_item_manager::detail::transfer_action<type>,             \
-        HPX_PP_CAT(transfer_action_, type))                                     \
+/**/
+//     HPX_REGISTER_ACTION_DECLARATION(                                            \
+//         allscale::data_item_manager::detail::transfer_action<type>,             \
+//         HPX_PP_CAT(transfer_action_, type))                                     \
 /**/
 
 #define REGISTER_DATAITEMSERVER(type)                                           \
-    HPX_REGISTER_ACTION(                                                        \
-        allscale::data_item_manager::detail::transfer_action<type>,             \
-        HPX_PP_CAT(transfer_action_, type))                                     \
+    static allscale::data_item_manager::auto_registration<type>                 \
+        HPX_PP_CAT(index_service_, type);                                       \
+/**/
+//     HPX_REGISTER_ACTION(                                                        \
+//         allscale::data_item_manager::detail::transfer_action<type>,             \
+//         HPX_PP_CAT(transfer_action_, type))                                     \
 /**/
 
 #endif

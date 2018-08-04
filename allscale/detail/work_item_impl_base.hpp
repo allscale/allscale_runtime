@@ -4,6 +4,8 @@
 
 #include <allscale/treeture.hpp>
 #include <allscale/task_id.hpp>
+#include <allscale/hierarchy.hpp>
+#include <allscale/data_item_manager/task_requirements.hpp>
 
 #include <hpx/include/serialization.hpp>
 #include <hpx/util/unique_function.hpp>
@@ -19,6 +21,9 @@ namespace allscale { namespace detail {
     struct work_item_impl_base
       : std::enable_shared_from_this<work_item_impl_base>
     {
+        using task_requirements =
+            std::unique_ptr<data_item_manager::task_requirements_base>;
+
 		work_item_impl_base() = default;
 
         work_item_impl_base(task_id const& id)
@@ -40,8 +45,10 @@ namespace allscale { namespace detail {
         virtual void on_ready(hpx::util::unique_function_nonser<void()> f)=0;
 
 		virtual bool can_split() const=0;
-		virtual hpx::future<std::size_t> process(executor_type& exec, std::size_t)=0;
-		virtual hpx::future<std::size_t> split(std::size_t)=0;
+		virtual void process(executor_type& exec, task_requirements&&)=0;
+		virtual void split(executor_type& exec, task_requirements&&)=0;
+
+        virtual task_requirements get_task_requirements() const = 0;
 
         virtual bool enqueue_remote() const=0;
 

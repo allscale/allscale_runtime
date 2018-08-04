@@ -2,6 +2,7 @@ set(_srcs
     data_item_reference.cpp
     data_requirements_check.cpp
     data_item_store.cpp
+    data_item/index_service.cpp
     hierarchy.cpp
     monitor.cpp
     resilience.cpp
@@ -14,7 +15,6 @@ set(_srcs
     components/monitor_component.cpp
     components/resilience_component.cpp
     components/scheduler_component.cpp
-    components/scheduler_network.cpp
     components/util/graph_colouring.cpp
     components/localoptimizer.cpp
     components/nmsimplex_bbincr.cpp

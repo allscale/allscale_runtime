@@ -3,7 +3,6 @@
 #define ALLSCALE_COMPONENTS_LOCALOPTIMIZER_HPP
 
 #include <allscale/components/nmsimplex_bbincr.hpp>
-#include <allscale/components/scheduler_network.hpp>
 #if defined(ALLSCALE_HAVE_CPUFREQ)
 #include <allscale/util/hardware_reconf.hpp>
 #endif

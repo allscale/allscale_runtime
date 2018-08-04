@@ -35,10 +35,14 @@ namespace allscale { namespace data_item_manager {
             ar & id_;
 //             hpx::util::high_resolution_timer timer;
             auto & item = data_item_store<DataItem>::lookup(id_);
+            using mutex_type = typename data_item_store<DataItem>::data_item_type::mutex_type;
             HPX_ASSERT(item.fragment);
             allscale::utils::ArchiveReader reader(ar);
 
-            item.fragment->insert(reader);
+            {
+                std::unique_lock<mutex_type> ll(item.mtx);
+                item.fragment->insert(reader);
+            }
 //             using mutex_type = typename data_item_store<DataItem>::data_item_type::mutex_type;
 //             {
 //                 std::unique_lock<mutex_type> l(item.mtx);

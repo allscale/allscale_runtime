@@ -196,11 +196,23 @@ void scheduler::init() {
   topo_ = &hpx::threads::get_topology();
 
   depth_cut_off_.resize(get_num_numa_nodes());
+  std::size_t num_cores = 0;
   for(std::size_t i = 0; i < depth_cut_off_.size(); ++i)
   {
-      std::size_t num_cores = get_num_numa_cores(i);
+      num_cores += get_num_numa_cores(i);
+  }
+  for(std::size_t i = 0; i < depth_cut_off_.size(); ++i)
+  {
       if (num_cores == 1) depth_cut_off_[i] = 1;
-      else depth_cut_off_[i] = std::lround(std::log2(std::pow(num_cores, 1.5)));
+      else
+      {
+          depth_cut_off_[i] =
+            std::ceil(
+                std::log2(
+                    1.5 * num_cores * allscale::get_num_localities()
+                )
+            );
+      }
   }
 
   // Reading user provided options in terms of desired optimization objectives
@@ -881,13 +893,16 @@ void scheduler::initialize_cpu_frequencies() {
 //   });
 // }
 
-void scheduler::schedule_local(work_item work, std::size_t numa_node,
-    std::size_t local_depth)
+void scheduler::schedule_local(work_item work,
+    std::unique_ptr<data_item_manager::task_requirements_base>&& reqs,
+    runtime::HierarchyAddress const& addr, std::size_t local_depth)
 {
     nr_tasks_scheduled++;
 
+    std::size_t numa_node = addr.getNumaNode();
+
     allscale::monitor::signal(allscale::monitor::work_item_enqueued, work);
-    hpx::future<std::size_t> acquire_rank;
+
     if (do_split(work, local_depth, numa_node))
     {
         if (!work.can_split()) {
@@ -895,45 +910,50 @@ void scheduler::schedule_local(work_item work, std::size_t numa_node,
                 << ") requested but can't split further\n";
             std::abort();
         }
-        acquire_rank = work.split(rank_);
+
+        hpx::future<void> acquired = reqs->acquire_split(addr);
+        typename hpx::traits::detail::shared_state_ptr_for<
+            hpx::future<void>>::type const &state =
+            hpx::traits::future_access<hpx::future<void>>::get_shared_state(
+                    acquired);
+
+        state->set_on_completed(
+            [state, this, numa_node, work = std::move(work), reqs = std::move(reqs)]() mutable
+            {
+                auto &exec = executors_[numa_node];
+                work.split(exec, std::move(reqs));
+            });
     }
     else
     {
-        HPX_ASSERT(numa_node < executors_.size());
-        acquire_rank = work.process(executors_[numa_node], rank_);
-    }
+//         {
+//             static hpx::lcos::local::spinlock mtx;
+//             mtx.lock();
+//             std::cout << "processing " << work.name() << " (" << work.id() << " on numa " << numa_node << "\n";
+//             mtx.unlock();
+//         }
+        hpx::future<void> acquired = reqs->acquire_process(addr);
+        typename hpx::traits::detail::shared_state_ptr_for<
+            hpx::future<void>>::type const &state =
+            hpx::traits::future_access<hpx::future<void>>::get_shared_state(
+                    acquired);
 
-    typename hpx::traits::detail::shared_state_ptr_for<
-        hpx::future<std::size_t>>::type const &state =
-        hpx::traits::future_access<hpx::future<std::size_t>>::get_shared_state(
-                acquire_rank);
+        auto f =
+            [state, work = std::move(work), reqs = std::move(reqs)](executor_type& exec) mutable
+            {
+                work.process(exec, std::move(reqs));
+            };
 
-    state->set_on_completed(
-        [
-            work = std::move(work),
-            acquire_rank = std::move(acquire_rank), this
-        ]() mutable
+        state->set_on_completed(
+        [f = std::move(f), this, numa_node]() mutable
         {
-            std::size_t expected_rank = acquire_rank.get();
-            if (expected_rank == std::size_t(-1))
-            {
-                std::cout << "expected_rank == std::size_t(-1)...\n";
-                std::abort();
-
-                // FIXME!!!
-                // We should move on and split further...
-//                 enqueue_local(std::move(work), true, false);
-            }
-            else if (expected_rank != std::size_t(-2))
-            {
-                std::cout << "expected_rank != std::size_t(-2)...\n";
-                std::abort();
-                // FIXME!!!!!
-                // HPX_ASSERT(expected_rank != rank_);
-                // network_.schedule(expected_rank, std::move(work));
-            }
-        }
-    );
+            auto &exec = executors_[numa_node];
+            hpx::parallel::execution::post(
+                exec, hpx::util::annotated_function(
+                    hpx::util::deferred_call(std::move(f), std::ref(exec)),
+                    "allscale::work_item::process"));
+        });
+    }
 }
 
 /**
@@ -948,6 +968,7 @@ bool scheduler::do_split(work_item const &w, std::size_t local_depth, std::size_
     // FIXME: make the cut off runtime configurable...
     // FIXME:!!!!!!!
     if (local_depth < depth_cut_off_[numa_node]) {
+//         std::cout << "
       // FIXME: add more elaborate splitting criterions
       return true;
     }
@@ -1126,7 +1147,15 @@ unsigned int scheduler::suspend_threads(std::size_t suspendthreads) {
   {
       std::size_t num_cores = get_num_numa_cores(pool_idx) - suspend_threads.size();
       if (num_cores == 1) depth_cut_off_[pool_idx] = 1;
-      else depth_cut_off_[pool_idx] = std::lround(std::log2(std::pow(num_cores, 1.5)));
+      else
+      {
+          depth_cut_off_[pool_idx] =
+            std::lround(
+                std::log2(
+                    std::pow(num_cores + allscale::get_num_localities() + allscale::get_num_numa_nodes(), 1.5)
+                )
+            );
+      }
   }
 #ifdef MEASURE_
   update_active_osthreads(-1 * suspend_threads.size());
@@ -1302,7 +1331,15 @@ unsigned int scheduler::resume_threads(std::size_t resumethreads) {
   {
       std::size_t num_cores = get_num_numa_cores(pool_idx) - resume_threads.size();
       if (num_cores == 1) depth_cut_off_[pool_idx] = 1;
-      else depth_cut_off_[pool_idx] = std::lround(std::log2(std::pow(num_cores, 1.5)));
+      else
+      {
+          depth_cut_off_[pool_idx] =
+            std::lround(
+                std::log2(
+                    std::pow(num_cores + allscale::get_num_localities() + allscale::get_num_numa_nodes(), 1.5)
+                )
+            );
+      }
   }
 #ifdef MEASURE_
   update_active_osthreads(resume_threads.size());
@@ -1532,9 +1569,6 @@ void scheduler::stop() {
   stopped_ = true;
   //         work_queue_cv_.notify_all();
   //         std::cout << "rank(" << rank_ << "): scheduled " << count_ << "\n";
-
-  network_.stop();
-
 
 
   /* Output all measured metrics */

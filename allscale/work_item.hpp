@@ -17,6 +17,9 @@
 
 namespace allscale {
     struct work_item {
+        using task_requirements =
+            std::unique_ptr<data_item_manager::task_requirements_base>;
+
         work_item() = default;
 
         explicit work_item(std::shared_ptr<detail::work_item_impl_base> impl)
@@ -58,11 +61,11 @@ namespace allscale {
             return impl_->get_void_treeture();
         }
 
-        hpx::future<std::size_t> split(std::size_t this_id)
+        void split(executor_type& exec, task_requirements&& reqs)
         {
             HPX_ASSERT(valid());
             HPX_ASSERT(impl_->valid());
-            return impl_->split(this_id);
+            impl_->split(exec, std::move(reqs));
     //         impl_.reset();
         }
 
@@ -71,15 +74,22 @@ namespace allscale {
             impl_->on_ready(std::move(f));
         }
 
-        hpx::future<std::size_t> process(executor_type& exec, std::size_t this_id) {
+        void process(executor_type& exec, task_requirements&& reqs) {
             HPX_ASSERT(valid());
             HPX_ASSERT(impl_->valid());
-            return impl_->process(exec, this_id);
+            impl_->process(exec, std::move(reqs));
     //         impl_.reset();
+        }
+
+        task_requirements get_task_requirements() const
+        {
+            HPX_ASSERT(impl_);
+            return impl_->get_task_requirements();
         }
 
         bool enqueue_remote() const
         {
+            HPX_ASSERT(impl_);
             return impl_->enqueue_remote();
         }
 

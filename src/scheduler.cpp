@@ -7,6 +7,8 @@
 #include <allscale/components/scheduler.hpp>
 #include <allscale/get_num_numa_nodes.hpp>
 #include <allscale/get_num_localities.hpp>
+#include <allscale/data_item_manager/index_service.hpp>
+#include <allscale/data_item_manager/task_requirements.hpp>
 
 #include <hpx/include/actions.hpp>
 #include <hpx/apply.hpp>
@@ -21,8 +23,9 @@ HPX_REGISTER_COMPONENT_MODULE()
 
 namespace allscale
 {
+
     void schedule_global(runtime::HierarchyAddress addr, work_item work);
-    void schedule_down_global(runtime::HierarchyAddress addr, work_item work);
+    void schedule_down_global(runtime::HierarchyAddress addr, work_item work, std::unique_ptr<data_item_manager::task_requirements_base> reqs);
 }
 
 HPX_PLAIN_DIRECT_ACTION(allscale::schedule_global, schedule_global_action);
@@ -161,7 +164,7 @@ namespace allscale
           , is_root_(here_ == root_)
           , depth_(root_.getLayer() - here_.getLayer())
         {
-            if (parent_.getRank() != scheduler::get().rank_)
+            if (parent_.getRank() != scheduler::rank())
             {
                 parent_id_ = hpx::naming::get_id_from_locality_id(
                     parent_.getRank());
@@ -177,9 +180,9 @@ namespace allscale
                     right_ = left_;
                 }
 
-                HPX_ASSERT(left_.getRank() == scheduler::get().rank_);
+                HPX_ASSERT(left_.getRank() == scheduler::rank());
 
-                if (right_.getRank() != scheduler::get().rank_)
+                if (right_.getRank() != scheduler::rank())
                 {
                     right_id_ = hpx::naming::get_id_from_locality_id(
                         right_.getRank());
@@ -189,39 +192,56 @@ namespace allscale
 
         void schedule(work_item work)
         {
-//             // FIXME: check if all data is covered...
-//             if (!is_root_ && work.id().depth() > depth_ && true)
-//             {
-//                 schedule_down(std::move(work));
-//             }
+            auto reqs = work.get_task_requirements();
 
-//             // if we are not the root, we need to propagate to our parent...
-//             if (!is_root_)
-//             {
-//                 if (!parent_id_)
-//                 {
-//                     runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(parent_).
-//                         schedule(std::move(work));
-//                 }
-//                 else
-//                 {
-//                     hpx::apply<schedule_global_action>(parent_id_, parent_, std::move(work));
-//                 }
-//                 return;
-//             }
+            if (!work.enqueue_remote())
+            {
+                HPX_ASSERT(reqs->check_write_requirements(here_));
+                scheduler::get().schedule_local(
+                    std::move(work), std::move(reqs), here_, work.id().depth());
+                return;
+            }
 
-            return schedule_down(std::move(work));
+            // FIXME: check if all data is covered...
+            if (!is_root_ && work.id().depth() > depth_ && reqs->check_write_requirements(here_))
+            {
+                schedule_down(std::move(work), std::move(reqs));
+                return;
+            }
+
+            // if we are not the root, we need to propagate to our parent...
+            if (!is_root_)
+            {
+                if (!parent_id_)
+                {
+                    runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(parent_).
+                        schedule(std::move(work));
+                }
+                else
+                {
+                    hpx::apply<schedule_global_action>(parent_id_, parent_, std::move(work));
+                }
+                return;
+            }
+
+            reqs->get_missing_regions(here_);
+
+            return schedule_down(std::move(work), std::move(reqs));
         }
 
-        void schedule_down(work_item work)
+        void schedule_down(work_item work, std::unique_ptr<data_item_manager::task_requirements_base> reqs)
         {
             HPX_ASSERT(here_.getRank() == hpx::get_locality_id());
+
+            reqs->mark_write_requirements(here_);
+
+            HPX_ASSERT(reqs->check_write_requirements(here_));
 
             auto id = work.id();
             if (here_.isLeaf())
             {
                 scheduler::get().schedule_local(
-                    std::move(work), here_.getNumaNode(), id.depth() - depth_);
+                    std::move(work), std::move(reqs), here_, id.depth());
                 return;
             }
 
@@ -229,7 +249,7 @@ namespace allscale
             if (id.depth() <= depth_)
             {
                 scheduler::get().schedule_local(
-                    std::move(work), here_.getNumaNode(), 0);
+                    std::move(work), std::move(reqs), here_, 0);
                 return;
             }
 
@@ -244,26 +264,28 @@ namespace allscale
             // FIXME: add DIM stuff...
             if (target_left)
             {
+                reqs->get_missing_regions_left(here_);
                 runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(left_).
-                    schedule_down(std::move(work));
+                    schedule_down(std::move(work), std::move(reqs));
             }
             else
             {
+                reqs->get_missing_regions_right(here_);
                 if (!right_id_)
                 {
                     runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(right_).
-                        schedule_down(std::move(work));
+                        schedule_down(std::move(work), std::move(reqs));
                 }
                 else
                 {
-                    hpx::apply<schedule_down_global_action>(right_id_, right_, std::move(work));
+                    hpx::apply<schedule_down_global_action>(right_id_, right_, std::move(work), std::move(reqs));
                 }
             }
             return;
         }
     };
 
-    void scheduler::schedule(work_item work)
+    void scheduler::schedule(work_item&& work)
     {
         // Calculate our local root address ...
         static auto rank = get().rank_;
@@ -283,10 +305,15 @@ namespace allscale
             schedule(std::move(work));
     }
 
-    void schedule_down_global(runtime::HierarchyAddress addr, work_item work)
+    void schedule_down_global(runtime::HierarchyAddress addr, work_item work, std::unique_ptr<data_item_manager::task_requirements_base> reqs)
     {
         runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(addr).
-            schedule_down(std::move(work));
+            schedule_down(std::move(work), std::move(reqs));
+    }
+
+    std::size_t scheduler::rank()
+    {
+        return get().rank_;
     }
 
     components::scheduler* scheduler::run(std::size_t rank)
@@ -295,6 +322,8 @@ namespace allscale
         runtime::HierarchicalOverlayNetwork hierarchy;
 
         hierarchy.installService<scheduler_service>();
+
+        data_item_manager::init_index_services(hierarchy);
 
         return get_ptr();
     }
