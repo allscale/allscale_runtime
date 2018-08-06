@@ -718,10 +718,12 @@ void scheduler::enqueue(work_item work, this_work_item::id id) {
   HPX_ASSERT(schedule_rank != std::uint64_t(-1));
 
 #ifdef MEASURE_
+#ifdef ALLSCALE_HAVE_CPUFREQ
   std::size_t temp_id = work.id().last();
   if ((temp_id >= period_for_power) &&
       (temp_id % period_for_power == 0))
     update_power_consumption(hardware_reconf::read_system_power());
+#endif
 #endif
 
   // schedule locally
@@ -757,6 +759,7 @@ void scheduler::enqueue(work_item work, this_work_item::id id) {
 
       // this is the place where we take policy specific actions
 
+#ifdef ALLSCALE_HAVE_CPUFREQ
       if (uselopt && !lopt_.isConverged()){
         last_power_usage++;
         current_power_usage = hardware_reconf::read_system_power();
@@ -843,6 +846,7 @@ void scheduler::enqueue(work_item work, this_work_item::id id) {
           }
         }
       } // uselopt
+#endif
     }
     enqueue_local(std::move(work), std::move(parent_id), false, sync);
 
