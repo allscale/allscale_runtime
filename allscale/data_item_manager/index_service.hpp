@@ -208,10 +208,10 @@ namespace allscale { namespace data_item_manager {
                         service_->parent_, std::move(new_req));
                 }
             }
-            else
-            {
-                HPX_ASSERT(remaining.empty());
-            }
+//             else
+//             {
+//                 HPX_ASSERT(remaining.empty());
+//             }
 
             return hpx::dataflow(hpx::launch::sync,
                 [this, info = std::move(info)](auto remote_infos) mutable
