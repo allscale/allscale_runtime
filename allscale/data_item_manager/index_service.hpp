@@ -145,10 +145,10 @@ namespace allscale { namespace data_item_manager {
             // 0: parent
             // 1: left
             // 2: right
-            std::array<hpx::future<location_info<region_type>>, 3> remote_infos;
+            std::array<region_type, 3> remote_regions;
+            std::vector<hpx::future<location_info<region_type>>> remote_infos;
+            remote_infos.reserve(3);
 
-            // Next, we need to check our children, but only if we are not a leaf
-            // node
             if (!service_->here_.isLeaf())
             {
                 // Start with right...
@@ -156,22 +156,14 @@ namespace allscale { namespace data_item_manager {
                     auto part = region_type::intersect(remaining, right_);
                     if (!part.empty())
                     {
-                        hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                        Requirement new_req(req.ref, part, req.mode);
-
-                        if (service_->right_id_)
-                        {
-                            remote_infos[2] = hpx::async<locate_action<Requirement>>(service_->right_id_,
-                                service_->right_, std::move(new_req));
-                        }
-                        else
-                        {
-                            remote_infos[2] = data_item_manager::locate(
-                                service_->right_, std::move(new_req));
-                        }
-
                         // reduce remaining
                         remaining = region_type::difference(remaining, part);
+                        // add it to our lists to check further...
+                        remote_regions[2] = std::move(part);
+                    }
+                    else
+                    {
+                        remote_regions[2] = region_type();
                     }
                 }
                 // Go on with left...
@@ -180,49 +172,78 @@ namespace allscale { namespace data_item_manager {
                     auto part = region_type::intersect(remaining, left_);
                     if (!part.empty())
                     {
-                        hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
-                        HPX_ASSERT(service_->left_.getRank() == hpx::get_locality_id());
-                        remote_infos[1] = data_item_manager::locate(
-                            service_->left_, Requirement(req.ref, part, req.mode));
-
                         // reduce remaining
                         remaining = region_type::difference(remaining, part);
+                        // add it to our lists to check further...
+                        remote_regions[1] = std::move(part);
+                    }
+                    else
+                    {
+                        remote_regions[1] = region_type();
                     }
                 }
             }
-            l.unlock();
-
             // Now escalate to the parent if necessary
             // If we are the root, or have nothing left, we are done...
             if (!service_->is_root_ && !remaining.empty())
             {
-                Requirement new_req(req.ref, remaining, req.mode);
-                if (service_->parent_id_)
+                remote_regions[0] = remaining;
+            }
+            else
+            {
+                remote_regions[0] = region_type();
+            }
+
+            l.unlock();
+
+            if (!remote_regions[2].empty())
+            {
+                Requirement new_req(req.ref, remote_regions[2], req.mode);
+                if (service_->right_id_)
                 {
-                    remote_infos[0] = hpx::async<locate_action<Requirement>>(service_->parent_id_,
-                        service_->parent_, std::move(new_req));
+                    remote_infos.push_back(hpx::async<locate_action<Requirement>>(service_->right_id_,
+                        service_->right_, std::move(new_req)));
                 }
                 else
                 {
-                    remote_infos[0] = data_item_manager::locate(
-                        service_->parent_, std::move(new_req));
+                    remote_infos.push_back(data_item_manager::locate(
+                        service_->right_, std::move(new_req)));
                 }
             }
-//             else
-//             {
-//                 HPX_ASSERT(remaining.empty());
-//             }
+
+            if (!remote_regions[1].empty())
+            {
+                Requirement new_req(req.ref, remote_regions[1], req.mode);
+                HPX_ASSERT(service_->left_.getRank() == hpx::get_locality_id());
+                remote_infos.push_back(data_item_manager::locate(
+                    service_->left_, std::move(new_req)));
+            }
+
+            if (!remote_regions[0].empty())
+            {
+                Requirement new_req(req.ref, remote_regions[0], req.mode);
+                if (service_->parent_id_)
+                {
+                    remote_infos.push_back(hpx::async<locate_action<Requirement>>(service_->parent_id_,
+                        service_->parent_, std::move(new_req)));
+                }
+                else
+                {
+                    remote_infos.push_back(data_item_manager::locate(
+                        service_->parent_, std::move(new_req)));
+                }
+            }
 
             return hpx::dataflow(hpx::launch::sync,
                 [this, info = std::move(info)](auto remote_infos) mutable
                 {
+                    std::lock_guard<mutex_type> l(mtx_);
                     for (auto& fut : remote_infos)
                     {
-                        if (!fut.valid()) continue;
-
                         auto remote_info = fut.get();
                         for (auto& part : remote_info.regions)
                         {
+                            location_cache_.add_part(part.first, part.second);
                             info.add_part(part.first, std::move(part.second));
                         }
                     }
