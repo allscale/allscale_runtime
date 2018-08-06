@@ -583,7 +583,6 @@ template<> struct to_std_array_type<allscale_type_1881> { using type = std::arra
 
 /* ------- Function Definitions --------- */
 void IMP_ipic3d_colon__colon_outputNumberOfParticlesPerCell(allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3u > > const& var_0, std::string const& var_1) {
-    allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3u > const&& var_2 = allscale::runtime::DataItemManager::get(var_0);
     IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__colon_async__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_1107_41_returns_core_colon__colon_treeture_lt_std_colon__colon_result_of_t_lt__lparen_lambda_space_at_space__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_colon_1107_colon_41_rparen__space__lparen_void_rparen__gt__space__gt_(INS_INIT(IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_1107_41_const_space_allscale_colon__colon_api_colon__colon_user_colon__colon_data_colon__colon_Grid_lt_struct_space_ipic3d_colon__colon_Cell_comma__space_3_gt__space__ampersand__const_space_std_colon__colon___cxx11_colon__colon_basic_string_lt_char_gt__void_IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_1107_41){var_0, var_1}).wait();
 }
 struct allscale_type_14;
@@ -1159,7 +1158,7 @@ double IMP_ipic3d_colon__colon_simulateSteps_struct_space_ipic3d_colon__colon_de
     allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3u >&& var_2 = allscale::runtime::DataItemManager::get(var_1.cells);
     IMP_ipic3d_colon__colon_detail_colon__colon_default_particle_mover var_3 = (IMP_ipic3d_colon__colon_detail_colon__colon_default_particle_mover&&)IMP_ipic3d_colon__colon_detail_colon__colon_default_particle_mover{};
     allscale::utils::Vector<long, 3 > var_4 = (allscale::utils::Vector<long, 3 >&&)allscale::utils::Vector<long, 3 >{(int64_t)0};
-    allscale::utils::Vector<long, 3 > var_5 = (allscale::utils::Vector<long, 3 >&&)var_2.size();
+    allscale::utils::Vector<long, 3 > var_5 = var_2.size();
     IMP_ipic3d_colon__colon_TransferBuffers var_6{(var_5)};
     allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3u > > var_7 = allscale::runtime::DataItemManager::create<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3u > >(allscale_fun_1893(var_5, 2));
     {
@@ -3327,11 +3326,6 @@ template<> struct to_std_array_type<allscale_type_612> { using type = std::array
 
 /* ------- Function Definitions --------- */
 IMP_ipic3d_colon__colon_Universe::IMP_ipic3d_colon__colon_Universe(IMP_ipic3d_colon__colon_UniverseProperties const& var_1, allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3u > >&& var_2, allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_FieldNode, 3u > >&& var_3, allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_BcFieldCell, 3u > >&& var_4, allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3u > >&& var_5) : properties(var_1), cells(std::move(var_2)), field(std::move(var_3)), bcfield(std::move(var_4)), currentDensity(std::move(var_5)) {
-    allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3u >&& var_6 = allscale::runtime::DataItemManager::get((*this).cells);
-    allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_FieldNode, 3u >&& var_7 = allscale::runtime::DataItemManager::get((*this).field);
-    allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_BcFieldCell, 3u >&& var_8 = allscale::runtime::DataItemManager::get((*this).bcfield);
-    allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3u >&& var_9 = allscale::runtime::DataItemManager::get((*this).currentDensity);
-    allscale::utils::Vector<long, 3 > var_10 = (allscale::utils::Vector<long, 3 >&&)var_6.size();
 }
 /* ------- Function Definitions --------- */
 IMP_ipic3d_colon__colon_Universe::IMP_ipic3d_colon__colon_Universe(IMP_ipic3d_colon__colon_UniverseProperties&& var_1, allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3u > >&& var_2, allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_FieldNode, 3u > >&& var_3, allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_BcFieldCell, 3u > >&& var_4, allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3u > >&& var_5, DummyCtorParamType var_6) : properties(var_1), cells(var_2), field(var_3), bcfield(var_4), currentDensity(var_5) { }
@@ -3642,7 +3636,7 @@ void IMP_ipic3d_colon__colon_exportParticles(IMP_ipic3d_colon__colon_UniversePro
             uint64_t var_20 = (uint64_t)0;
             while (var_20 < var_1.particles.size()) {
                 if (var_8.operator[](var_20) != (std::vector<IMP_ipic3d_colon__colon_Particle>*)0) {
-                    (*var_8.operator[](var_20)).push_back(var_1.particles.operator[](var_20));
+                    (*var_8.operator[](var_20)).push_back(std::move(var_1.particles.operator[](var_20)));
                 };
                 ++var_20;
             };
@@ -3816,8 +3810,6 @@ struct allscale_type_1167 {
 template<> struct is_allscale_fixed_sized_array<allscale_type_1167> : public std::true_type {};
 template<> struct to_std_array_type<allscale_type_1167> { using type = std::array<char,208u>; };
 
-struct IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_1002_17_struct_space_ipic3d_colon__colon_Cell_space__ampersand__auto_const_space_type_minus_parameter_minus_0_minus_0_space__ampersand__IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_1002_17;
-typedef struct IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_1002_17_struct_space_ipic3d_colon__colon_Cell_space__ampersand__auto_const_space_type_minus_parameter_minus_0_minus_0_space__ampersand__IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_1002_17 IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_1002_17_struct_space_ipic3d_colon__colon_Cell_space__ampersand__auto_const_space_type_minus_parameter_minus_0_minus_0_space__ampersand__IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_1002_17;
 
 struct IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_1002_17_struct_space_ipic3d_colon__colon_Cell_space__ampersand__auto_const_space_type_minus_parameter_minus_0_minus_0_space__ampersand__IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_1002_17 {
     IMP_ipic3d_colon__colon_Cell& capture_cell;;
@@ -3827,32 +3819,67 @@ struct IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_
 /* ------- Function Definitions --------- */
 void IMP_ipic3d_colon__colon_importParticles(IMP_ipic3d_colon__colon_UniverseProperties const& var_0, IMP_ipic3d_colon__colon_Cell& var_1, allscale::utils::Vector<long, 3 > const& var_2, IMP_ipic3d_colon__colon_TransferBuffers& var_3) {
     IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_1002_17_struct_space_ipic3d_colon__colon_Cell_space__ampersand__auto_const_space_type_minus_parameter_minus_0_minus_0_space__ampersand__IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_1002_17 var_5 = (IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_1002_17_struct_space_ipic3d_colon__colon_Cell_space__ampersand__auto_const_space_type_minus_parameter_minus_0_minus_0_space__ampersand__IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_1002_17&&)INS_INIT(IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_1002_17_struct_space_ipic3d_colon__colon_Cell_space__ampersand__auto_const_space_type_minus_parameter_minus_0_minus_0_space__ampersand__IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_cell_dot_h_1002_17){var_1};
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 0, 0}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 0, 1}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 0, 2}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 1, 0}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 1, 1}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 1, 2}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 2, 0}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 2, 1}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 2, 2}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{1, 0, 0}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{1, 0, 1}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{1, 0, 2}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{1, 1, 0}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{1, 1, 2}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{1, 2, 0}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{1, 2, 1}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{1, 2, 2}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 0, 0}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 0, 1}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 0, 2}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 1, 0}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 1, 1}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 1, 2}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 2, 0}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 2, 1}));
-    var_5.operator()(var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 2, 2}));
+
+    std::array<std::vector<IMP_ipic3d_colon__colon_Particle>*, 26> buffers;
+    buffers[ 0] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 0, 0});
+    buffers[ 1] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 0, 1});
+    buffers[ 2] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 0, 2});
+    buffers[ 3] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 1, 0});
+    buffers[ 4] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 1, 1});
+    buffers[ 5] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 1, 2});
+    buffers[ 6] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 2, 0});
+    buffers[ 7] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 2, 1});
+    buffers[ 8] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{0, 2, 2});
+    buffers[ 9] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{1, 0, 0});
+    buffers[10] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{1, 0, 1});
+    buffers[11] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{1, 0, 2});
+    buffers[12] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{1, 1, 0});
+    buffers[13] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{1, 1, 2});
+    buffers[14] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{1, 2, 0});
+    buffers[15] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{1, 2, 1});
+    buffers[16] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{1, 2, 2});
+    buffers[17] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 0, 0});
+    buffers[18] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 0, 1});
+    buffers[19] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 0, 2});
+    buffers[20] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 1, 0});
+    buffers[21] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 1, 1});
+    buffers[22] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 1, 2});
+    buffers[23] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 2, 0});
+    buffers[24] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 2, 1});
+    buffers[25] = &var_3.getBuffer(var_2, IMP_ipic3d_colon__colon_TransferDirection{2, 2, 2});
+
+    std::size_t total = 0;
+    for (auto &b : buffers)
+        total += b->size();
+
+    var_1.particles.reserve(var_1.particles.size() + total);
+
+    var_5.operator()(*buffers[ 0]);
+    var_5.operator()(*buffers[ 1]);
+    var_5.operator()(*buffers[ 2]);
+    var_5.operator()(*buffers[ 3]);
+    var_5.operator()(*buffers[ 4]);
+    var_5.operator()(*buffers[ 5]);
+    var_5.operator()(*buffers[ 6]);
+    var_5.operator()(*buffers[ 7]);
+    var_5.operator()(*buffers[ 8]);
+    var_5.operator()(*buffers[ 9]);
+    var_5.operator()(*buffers[10]);
+    var_5.operator()(*buffers[11]);
+    var_5.operator()(*buffers[12]);
+    var_5.operator()(*buffers[13]);
+    var_5.operator()(*buffers[14]);
+    var_5.operator()(*buffers[15]);
+    var_5.operator()(*buffers[16]);
+    var_5.operator()(*buffers[17]);
+    var_5.operator()(*buffers[18]);
+    var_5.operator()(*buffers[19]);
+    var_5.operator()(*buffers[20]);
+    var_5.operator()(*buffers[21]);
+    var_5.operator()(*buffers[22]);
+    var_5.operator()(*buffers[23]);
+    var_5.operator()(*buffers[24]);
+    var_5.operator()(*buffers[25]);
 }
 /* ------- Function Definitions --------- */
 void IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_simulator_dot_h_202_21_struct_space_ipic3d_colon__colon_Universe_space__ampersand__ipic3d_colon__colon_TransferBuffers_space__ampersand__void_const_space_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__space__ampersand_::operator()(allscale::utils::Vector<long, 3 > const& index) const {
@@ -4065,7 +4092,7 @@ IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly
 }
 /* ------- Function Definitions --------- */
 void IMP__Insieme__lambda__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_field_dot_h_150_28_allscale_colon__colon_api_colon__colon_user_colon__colon_data_colon__colon_Grid_lt_struct_space_ipic3d_colon__colon_DensityNode_comma__space_3_gt__space__ampersand__void_const_space_allscale_colon__colon_utils_colon__colon_Vector_lt_long_comma__space_3_gt__space__ampersand__IMLOC__slash_var_slash_lib_slash_jenkins_slash_jobs_slash_Nightly_AllScale_Compiler_iPic3D_distributed_slash_workspace_slash_code_slash_app_slash_include_slash_ipic3d_slash_app_slash_field_dot_h_150_28::operator()(allscale::utils::Vector<long, 3 > const& index) const {
-    allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3u >&& var_2 = allscale::runtime::DataItemManager::get((allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3u > >&)(*this).capture_currentDensity);
+    allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3u >&& var_2 = allscale::runtime::DataItemManager::get((*this).capture_currentDensity);
     var_2.operator[](index).J = allscale::utils::Vector<double, 3 >{0.0E+0, 0.0E+0, 0.0E+0};
 }
 /* ------- Function Definitions --------- */
