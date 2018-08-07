@@ -102,7 +102,7 @@ namespace allscale
                     hpx::threads::policies::scheduler_mode mode =
                         hpx::threads::policies::scheduler_mode::delay_exit;
 
-//                     if (domain == 0)
+                    if (domain == 0)
                         mode = hpx::threads::policies::scheduler_mode(
                             hpx::threads::policies::scheduler_mode::do_background_work
                           | mode);
