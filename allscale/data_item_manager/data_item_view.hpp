@@ -40,7 +40,7 @@ namespace allscale { namespace data_item_manager {
             allscale::utils::ArchiveReader reader(ar);
 
             {
-                std::unique_lock<mutex_type> ll(item.mtx);
+//                 std::unique_lock<mutex_type> ll(item.mtx);
                 item.fragment->insert(reader);
             }
 //             using mutex_type = typename data_item_store<DataItem>::data_item_type::mutex_type;

@@ -199,7 +199,7 @@ void scheduler::init() {
   std::size_t num_cores = 0;
   for(std::size_t i = 0; i < depth_cut_off_.size(); ++i)
   {
-      num_cores += get_num_numa_cores(i);
+      num_cores += get_num_numa_cores(i) + 1;
   }
   for(std::size_t i = 0; i < depth_cut_off_.size(); ++i)
   {
@@ -209,7 +209,7 @@ void scheduler::init() {
           depth_cut_off_[i] =
             std::ceil(
                 std::log2(
-                    1.5 * num_cores * allscale::get_num_localities()
+                    num_cores * allscale::get_num_localities()
                 )
             );
       }
