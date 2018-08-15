@@ -7,6 +7,7 @@ set(_srcs
     monitor.cpp
     resilience.cpp
     scheduler.cpp
+    schedule_policy.cpp
     task_id.cpp
     this_work_item.cpp
     treeture.cpp

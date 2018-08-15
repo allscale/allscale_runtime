@@ -7,6 +7,7 @@ set(tests
   grid_init
   #grid_stencil
   #grid_init_overlap
+  schedule_policy
   serialization
   treeture)
 
