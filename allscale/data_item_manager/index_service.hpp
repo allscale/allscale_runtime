@@ -183,6 +183,11 @@ namespace allscale { namespace data_item_manager {
                     }
                 }
             }
+            else
+            {
+                remote_regions[1] = region_type();
+                remote_regions[2] = region_type();
+            }
             // Now escalate to the parent if necessary
             // If we are the root, or have nothing left, we are done...
             if (!service_->is_root_ && !remaining.empty())
