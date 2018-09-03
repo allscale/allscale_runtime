@@ -62,13 +62,13 @@ void decision_tree_basic()
 void scheduling_policy_basic()
 {
     // type properties
-    HPX_TEST(std::is_default_constructible<allscale::scheduling_policy>::value);
-    HPX_TEST(std::is_destructible<allscale::scheduling_policy>::value);
-
-    HPX_TEST(std::is_copy_constructible<allscale::scheduling_policy>::value);
-    HPX_TEST(std::is_move_constructible<allscale::scheduling_policy>::value);
-    HPX_TEST(std::is_copy_assignable<allscale::scheduling_policy>::value);
-    HPX_TEST(std::is_move_assignable<allscale::scheduling_policy>::value);
+//     HPX_TEST(std::is_default_constructible<allscale::scheduling_policy>::value);
+//     HPX_TEST(std::is_destructible<allscale::scheduling_policy>::value);
+//
+//     HPX_TEST(std::is_copy_constructible<allscale::scheduling_policy>::value);
+//     HPX_TEST(std::is_move_constructible<allscale::scheduling_policy>::value);
+//     HPX_TEST(std::is_copy_assignable<allscale::scheduling_policy>::value);
+//     HPX_TEST(std::is_move_assignable<allscale::scheduling_policy>::value);
 }
 
 namespace {
@@ -155,7 +155,8 @@ void scheduling_policy_uniform_fixed()
         constexpr int GRANULARITY = 3;
 
         // get uniform distributed policy
-        auto u = allscale::scheduling_policy::create_uniform(NUM_NODES, NUM_NUMA, GRANULARITY);
+        auto up = allscale::tree_scheduling_policy::create_uniform(NUM_NODES, NUM_NUMA, GRANULARITY);
+        auto& u = static_cast<allscale::tree_scheduling_policy&>(*up);
 
 //        std::cout << u << "\n";
 
@@ -184,7 +185,8 @@ void scheduling_policy_uniform_fixed_coarse()
         constexpr int GRANULARITY = 2;
 
         // get uniform distributed policy
-        auto u = allscale::scheduling_policy::create_uniform(NUM_NODES,NUM_NUMA, GRANULARITY);
+        auto up = allscale::tree_scheduling_policy::create_uniform(NUM_NODES,NUM_NUMA, GRANULARITY);
+        auto& u = static_cast<allscale::tree_scheduling_policy&>(*up);
 
 //        std::cout << u << "\n";
 
@@ -214,7 +216,8 @@ void scheduling_policy_uniform_fixed_fine()
     constexpr int GRANULARITY = 5;
 
     // get uniform distributed policy
-    auto u = allscale::scheduling_policy::create_uniform(NUM_NODES,NUM_NUMA, GRANULARITY);
+    auto up = allscale::tree_scheduling_policy::create_uniform(NUM_NODES,NUM_NUMA, GRANULARITY);
+    auto& u = static_cast<allscale::tree_scheduling_policy&>(*up);
 
 //        std::cout << u << "\n";
 
@@ -250,7 +253,8 @@ void scheduling_policy_uniform_n3_deeper()
             int GRANULARITY = CEIL_LOG_2_NUM_NODES + e;
 
             // get uniform distributed policy
-            auto u = allscale::scheduling_policy::create_uniform(NUM_NODES,NUM_NUMA, GRANULARITY);
+            auto up = allscale::tree_scheduling_policy::create_uniform(NUM_NODES,NUM_NUMA, GRANULARITY);
+            auto& u = static_cast<allscale::tree_scheduling_policy&>(*up);
 
             // get the list of all paths down to the given level
             auto max_length = std::max(CEIL_LOG_2_NUM_NODES,GRANULARITY);
@@ -299,7 +303,7 @@ void scheduling_policy_uniform_n3_deeper()
 namespace {
 
     // simulates the scheduling processes within the actual task scheduler
-    allscale::runtime::HierarchyAddress traceIndirectTarget(const allscale::scheduling_policy& policy, const allscale::runtime::HierarchyAddress& cur, const allscale::task_id::task_path& path) {
+    allscale::runtime::HierarchyAddress traceIndirectTarget(const allscale::tree_scheduling_policy& policy, const allscale::runtime::HierarchyAddress& cur, const allscale::task_id::task_path& path) {
 
         // if current node is not involved, forward to parent
         if (!policy.is_involved(cur,path)) return traceIndirectTarget(policy,cur.getParent(),path);
@@ -344,13 +348,13 @@ namespace {
         forAllChildren(addr.getRightChild(),op);
     }
 
-    void testAllSources(const allscale::scheduling_policy& policy, const std::string& trg, const allscale::task_id::task_path& path) {
+    void testAllSources(const allscale::tree_scheduling_policy& policy, const std::string& trg, const allscale::task_id::task_path& path) {
         forAllChildren(policy.root(),[&](const allscale::runtime::HierarchyAddress& cur){
             HPX_TEST_EQ(trg,toString(traceIndirectTarget(policy,cur,path)));
         });
     }
 
-    void testAllSources(const allscale::scheduling_policy& policy, const allscale::runtime::HierarchyAddress& trg, const allscale::task_id::task_path& path) {
+    void testAllSources(const allscale::tree_scheduling_policy& policy, const allscale::runtime::HierarchyAddress& trg, const allscale::task_id::task_path& path) {
         testAllSources(policy,toString(trg),path);
     }
 }
@@ -362,7 +366,8 @@ void scheduling_policy_redirect()
     for(int num_nodes=1; num_nodes<=10; num_nodes++) {
 
         // get a uniform distribution
-        auto policy = allscale::scheduling_policy::create_uniform(num_nodes, 1);
+        auto up = allscale::tree_scheduling_policy::create_uniform(num_nodes, 1);
+        auto& policy = static_cast<allscale::tree_scheduling_policy&>(*up);
 
 //            std::cout << "N=" << num_nodes << "\n" << policy << "\n";
 
@@ -376,17 +381,20 @@ void scheduling_policy_redirect()
 
 void scheduling_policy_balancing()
 {
-    auto u = allscale::scheduling_policy::create_uniform(4,1,5);
+    auto up = allscale::tree_scheduling_policy::create_uniform(4,1,5);
+    auto& u = static_cast<allscale::tree_scheduling_policy&>(*up);
 
     // providing a nicely balanced load should not cause any changes
     auto loadDist = std::vector<float>(4,1.0);
-    auto b1 = allscale::scheduling_policy::create_rebalanced(u,loadDist);
+    auto bp1 = allscale::tree_scheduling_policy::create_rebalanced(u,loadDist);
+    auto& b1 = static_cast<allscale::tree_scheduling_policy&>(*bp1);
     HPX_TEST_EQ(u.task_distribution_mapping(),b1.task_distribution_mapping());
 
     // alter the distribution
     loadDist[1] = 3;        // node 1 has 3x more load
     loadDist[3] = 2;        // node 3 has 2x more load
-    auto b2 = allscale::scheduling_policy::create_rebalanced(u,loadDist);
+    auto bp2 = allscale::tree_scheduling_policy::create_rebalanced(u,loadDist);
+    auto& b2 = static_cast<allscale::tree_scheduling_policy&>(*bp2);
     HPX_TEST_NEQ(u.task_distribution_mapping(),b2.task_distribution_mapping());
 
 
@@ -395,7 +403,8 @@ void scheduling_policy_balancing()
     loadDist[1] = 1.5;
     loadDist[2] = 1.25;
     loadDist[3] = 2;
-    auto b3 = allscale::scheduling_policy::create_rebalanced(u,loadDist);
+    auto bp3 = allscale::tree_scheduling_policy::create_rebalanced(u,loadDist);
+    auto& b3 = static_cast<allscale::tree_scheduling_policy&>(*bp3);
     HPX_TEST_NEQ(u.task_distribution_mapping(),b3.task_distribution_mapping());
 
 
@@ -404,7 +413,8 @@ void scheduling_policy_balancing()
     loadDist[1] = 0.98;
     loadDist[2] = 0.99;
     loadDist[3] = 1.04;
-    auto b4 = allscale::scheduling_policy::create_rebalanced(u,loadDist);
+    auto bp4 = allscale::tree_scheduling_policy::create_rebalanced(u,loadDist);
+    auto& b4 = static_cast<allscale::tree_scheduling_policy&>(*bp4);
     HPX_TEST_EQ(u.task_distribution_mapping(),b4.task_distribution_mapping());
 
 
@@ -414,7 +424,8 @@ void scheduling_policy_balancing()
     loadDist[1] = 0;
     loadDist[2] = 0.99;
     loadDist[3] = 1.04;
-    auto b5 = allscale::scheduling_policy::create_rebalanced(u,loadDist);
+    auto bp5 = allscale::tree_scheduling_policy::create_rebalanced(u,loadDist);
+    auto& b5 = static_cast<allscale::tree_scheduling_policy&>(*bp5);
     HPX_TEST_NEQ(u.task_distribution_mapping(),b5.task_distribution_mapping());
 
 }
@@ -425,9 +436,10 @@ void scheduling_policy_scaling()
     int N = 200;
 
     // create a policy for N nodes
-    auto policy = allscale::scheduling_policy::create_uniform(N, 1);
+    auto policy = allscale::tree_scheduling_policy::create_uniform(N, 1);
+    auto& u = static_cast<allscale::tree_scheduling_policy&>(*policy);
 
-    std::cout << policy.task_distribution_mapping() << "\n";
+    std::cout << u.task_distribution_mapping() << "\n";
 
 }
 
@@ -437,10 +449,12 @@ void scheduling_policy_scaling_rebalancing()
     int N = 200;
 
     // create a policy for N nodes
-    auto u = allscale::scheduling_policy::create_uniform(N, 1);
+    auto up = allscale::tree_scheduling_policy::create_uniform(N, 1);
+    auto& u = static_cast<allscale::tree_scheduling_policy&>(*up);
 
     std::vector<float> load(N,1.0);
-    auto b = allscale::scheduling_policy::create_rebalanced(u,load);
+    auto bp = allscale::tree_scheduling_policy::create_rebalanced(u,load);
+    auto& b = static_cast<allscale::tree_scheduling_policy&>(*bp);
 
     HPX_TEST_EQ(u.task_distribution_mapping(),b.task_distribution_mapping());
 

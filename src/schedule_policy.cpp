@@ -180,13 +180,13 @@ namespace allscale {
      * @param N the number of nodes to distribute work on
      * @param granularity the negative exponent of the acceptable load imbalance; e.g. 0 => 2^0 = 100%, 5 => 2^-5 = 3.125%
      */
-    scheduling_policy scheduling_policy::create_uniform(int N, int M, int granularity)
+    std::unique_ptr<scheduling_policy> tree_scheduling_policy::create_uniform(int N, int M, int granularity)
     {
 		// some sanity checks
-		assert_lt(0,N);
+		assert_lt(0,N * M);
 
 		// compute number of levels to be scheduled
-		auto log2 = ceilLog2(N);
+		auto log2 = ceilLog2(N * M);
 		auto levels = std::max(log2,granularity);
 
 		// create initial task to node mapping
@@ -194,7 +194,9 @@ namespace allscale {
 		std::vector<std::size_t> mapping = getEqualDistribution(N * M,numTasks);
 
 		// convert mapping in decision tree
-		return { runtime::HierarchyAddress::getRootOfNetworkSize(N, M), levels, toDecisionTree((1<<log2),mapping) };
+		return std::unique_ptr<scheduling_policy>(new tree_scheduling_policy(
+            runtime::HierarchyAddress::getRootOfNetworkSize(N, M), levels,
+            toDecisionTree((1<<log2),mapping)));
     }
 
     /**
@@ -203,7 +205,7 @@ namespace allscale {
      *
      * @param N the number of nodes to distribute work on
      */
-    scheduling_policy scheduling_policy::create_uniform(int N, int M)
+    std::unique_ptr<scheduling_policy> tree_scheduling_policy::create_uniform(int N, int M)
     {
 		return create_uniform(N, M, std::max(ceilLog2(N * M)+3,5));
     }
@@ -216,8 +218,9 @@ namespace allscale {
      * @param loadDistribution the load distribution measured, utilized for weighting tasks. Ther must be one entry per node,
      * 			no entry must be negative.
      */
-    scheduling_policy scheduling_policy::create_rebalanced(const scheduling_policy& old, const std::vector<float>& load)
+    std::unique_ptr<scheduling_policy> tree_scheduling_policy::create_rebalanced(const scheduling_policy& old_base, const std::vector<float>& load)
     {
+        tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(old_base);
 		// get given task distribution mapping
 
 		// update mapping
@@ -342,12 +345,14 @@ namespace allscale {
 		// create new scheduling policy
 		auto root = old.root();
 		auto log2 = root.getLayer();
-		return { root, old.granularity_, toDecisionTree((1<<log2),newMapping) };
+		return std::unique_ptr<scheduling_policy>(new tree_scheduling_policy(
+            root, old.granularity_,
+            toDecisionTree((1<<log2),newMapping)));
     }
 
 	namespace {
 
-        std::size_t traceTarget(const scheduling_policy& policy, task_id::task_path p) {
+        std::size_t traceTarget(const tree_scheduling_policy& policy, task_id::task_path p) {
 			auto res = policy.get_target(p);
 			while(!res.isLeaf()) {
 				p = p.getLeftChildPath();
@@ -371,7 +376,7 @@ namespace allscale {
 
 	}
 
-    std::vector<std::size_t> scheduling_policy::task_distribution_mapping() const
+    std::vector<std::size_t> tree_scheduling_policy::task_distribution_mapping() const
     {
 		std::vector<std::size_t> res;
 		res.reserve((1<<granularity_));
@@ -382,7 +387,7 @@ namespace allscale {
 		return res;
     }
 
-    bool scheduling_policy::is_involved(const allscale::runtime::HierarchyAddress& addr, const task_id::task_path& path) const
+    bool tree_scheduling_policy::is_involved(const allscale::runtime::HierarchyAddress& addr, const task_id::task_path& path) const
     {
 		// only the root node is involved in scheduling the root path
 		if (path.isRoot()) return addr == root_;
@@ -393,7 +398,7 @@ namespace allscale {
 		return is_involved(addr,path.getParentPath()) || get_target(path) == addr;
     }
 
-    schedule_decision scheduling_policy::decide(runtime::HierarchyAddress const& addr, const task_id::task_path& path) const
+    schedule_decision tree_scheduling_policy::decide(runtime::HierarchyAddress const& addr, const task_id::task_path& path) const
     {
 		// make sure this address is involved in the scheduling of this task
 //		assert_pred2(isInvolved,addr,path);
@@ -417,7 +422,7 @@ namespace allscale {
 		}
     }
 
-    runtime::HierarchyAddress scheduling_policy::get_target(const task_id::task_path& path) const
+    runtime::HierarchyAddress tree_scheduling_policy::get_target(const task_id::task_path& path) const
     {
 		// for roots it is easy
 		if (path.isRoot()) return root_;
@@ -434,5 +439,10 @@ namespace allscale {
 		}
 		assert_fail();
 		return res;
+    }
+
+    bool tree_scheduling_policy::check_target(runtime::HierarchyAddress const& addr, const task_id::task_path& path) const
+    {
+        return addr == get_target(path);
     }
 }

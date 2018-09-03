@@ -4,6 +4,7 @@
 #include <allscale/scheduler.hpp>
 #include <allscale/monitor.hpp>
 #include <allscale/resilience.hpp>
+#include <allscale/schedule_policy.hpp>
 #include <allscale/components/scheduler.hpp>
 #include <allscale/get_num_numa_nodes.hpp>
 #include <allscale/get_num_localities.hpp>
@@ -143,8 +144,18 @@ namespace allscale
 //         std::cerr << "===============================================================================\n";
     }
 
+    namespace {
+        std::unique_ptr<scheduling_policy> create_policy()
+        {
+            // FIXME: add random policy...
+            return tree_scheduling_policy::create_uniform(
+                allscale::get_num_numa_nodes(), allscale::get_num_localities());
+        }
+    }
+
     struct scheduler_service
     {
+        std::unique_ptr<scheduling_policy> policy_;
         runtime::HierarchyAddress here_;
         runtime::HierarchyAddress root_;
         runtime::HierarchyAddress parent_;
@@ -157,6 +168,7 @@ namespace allscale
 
         scheduler_service(runtime::HierarchyAddress here)
           : here_(here)
+          , policy_(create_policy())
           , root_(runtime::HierarchyAddress::getRootOfNetworkSize(
                 allscale::get_num_numa_nodes(), allscale::get_num_localities()
                 ))
@@ -202,8 +214,14 @@ namespace allscale
                 return;
             }
 
-            // FIXME: check if all data is covered...
-            if (!is_root_ && work.id().depth() > depth_ && reqs->check_write_requirements(here_))
+            // check whether current node is allowed to make autonomous scheduling decisions
+            auto path = work.id().path;
+            if (!is_root_
+                    // test that this virtual node is allowed to interfere with the scheduling
+                    // of this task
+                    && policy_->is_involved(here_, path)
+                    // test that this virtual node has control over all required data
+                    && reqs->check_write_requirements(here_))
             {
                 schedule_down(std::move(work), std::move(reqs));
                 return;
@@ -232,34 +250,34 @@ namespace allscale
         void schedule_down(work_item work, std::unique_ptr<data_item_manager::task_requirements_base> reqs)
         {
             HPX_ASSERT(here_.getRank() == hpx::get_locality_id());
+            HPX_ASSERT(policy_->is_involved(here_, work.id().path));
 
             reqs->mark_write_requirements(here_);
 
             HPX_ASSERT(reqs->check_write_requirements(here_));
 
             auto id = work.id();
-            if (here_.isLeaf())
+            // TODO: check whether left or right node covers all write requirements
+
+            // ask the scheduling policy what to do with this task
+            // on leaf level, schedule locally
+            auto d = here_.isLeaf() ? schedule_decision::stay : policy_->decide(here_, id.path);
+            HPX_ASSERT(d != schedule_decision::done);
+
+            // if it should stay, process it here
+            if (d == schedule_decision::stay)
             {
+//                 TODO
+//                 // add granted allowances
+//                 diis.addAllowanceLocal(allowance);
+//                 HPX_ASSERT(reqs->check_write_requirements(here_));
+
                 scheduler::get().schedule_local(
                     std::move(work), std::move(reqs), here_, id.depth());
                 return;
             }
 
-            // Schedule locally if not sufficiently refined...
-            if (id.depth() <= depth_)
-            {
-                scheduler::get().schedule_local(
-                    std::move(work), std::move(reqs), here_, 0);
-                return;
-            }
-
-            // decide whether to schedule left or right...
-            while (id.depth() > depth_ + 1)
-            {
-                id = id.parent();
-            }
-
-            bool target_left = (id.parent().left_child() == id);
+            bool target_left = (d == schedule_decision::left);
 
             // FIXME: add DIM stuff...
             if (target_left)

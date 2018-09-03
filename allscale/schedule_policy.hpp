@@ -24,6 +24,36 @@ namespace allscale {
 
     std::ostream& operator<<(std::ostream&, schedule_decision);
 
+    // An abstract base class for scheduling policies...
+    struct scheduling_policy
+    {
+        scheduling_policy()
+        {}
+
+        virtual ~scheduling_policy()
+        {}
+
+		/**
+		 * Determines whether the node with the given address is part of the dispatching of a task with the given path.
+		 *
+		 * @param addr the address in the hierarchy to be tested
+		 * @param path the path to be tested
+		 */
+		virtual bool is_involved(const allscale::runtime::HierarchyAddress& addr, const task_id::task_path& path) const = 0;
+
+		/**
+		 * Obtains the scheduling decision at the given node. The given node must be involved in
+		 * the scheduling of the given path.
+		 */
+		virtual schedule_decision decide(runtime::HierarchyAddress const& addr, const task_id::task_path& path) const = 0;
+
+        /**
+         * Tests whether the given target address is a valid target for the given path
+         */
+		virtual bool check_target(runtime::HierarchyAddress const& addr, const task_id::task_path& path) const = 0;
+
+    };
+
     struct decision_tree {
 
         decision_tree() {}
@@ -56,9 +86,9 @@ namespace allscale {
         std::vector<std::uint8_t> encoded_;
     };
 
-    struct scheduling_policy
+    struct tree_scheduling_policy : scheduling_policy
     {
-        scheduling_policy()
+        tree_scheduling_policy()
         {}
 
         /**
@@ -68,7 +98,7 @@ namespace allscale {
 		 * @param N the number of nodes to distribute work on
 		 * @param granularity the negative exponent of the acceptable load imbalance; e.g. 0 => 2^0 = 100%, 5 => 2^-5 = 3.125%
 		 */
-		static scheduling_policy create_uniform(int N, int M, int granularity);
+		static std::unique_ptr<scheduling_policy> create_uniform(int N, int M, int granularity);
 
 		/**
 		 * Creates a scheduling policy distributing work uniformly among the given number of nodes. The
@@ -76,7 +106,7 @@ namespace allscale {
 		 *
 		 * @param N the number of nodes to distribute work on
 		 */
-		static scheduling_policy create_uniform(int N, int M);
+		static std::unique_ptr<scheduling_policy> create_uniform(int N, int M);
 
 		/**
 		 * Creates an updated load balancing policy based on a given policy and a measured load distribution.
@@ -86,7 +116,7 @@ namespace allscale {
 		 * @param loadDistribution the load distribution measured, utilized for weighting tasks. Ther must be one entry per node,
 		 * 			no entry must be negative.
 		 */
-		static scheduling_policy create_rebalanced(const scheduling_policy& old, const std::vector<float>& load_distribution);
+		static std::unique_ptr<scheduling_policy> create_rebalanced(const scheduling_policy& old, const std::vector<float>& load_distribution);
 
         // --- observer ---
 
@@ -125,16 +155,18 @@ namespace allscale {
 		 */
 		runtime::HierarchyAddress get_target(const task_id::task_path& path) const;
 
-		// --- serialization support ---
-        template <typename Archive>
-        void serialize(Archive& ar, unsigned)
-        {
-            ar & root_;
-            ar & granularity_;
-            ar & tree_;
-        }
+        bool check_target(runtime::HierarchyAddress const& addr, const task_id::task_path& path) const;
+
+// 		// --- serialization support ---
+//         template <typename Archive>
+//         void serialize(Archive& ar, unsigned)
+//         {
+//             ar & root_;
+//             ar & granularity_;
+//             ar & tree_;
+//         }
     private:
-        scheduling_policy(runtime::HierarchyAddress root, int granularity, decision_tree&& tree)
+        tree_scheduling_policy(runtime::HierarchyAddress root, int granularity, decision_tree&& tree)
           : root_(root)
           , granularity_(granularity)
           , tree_(std::move(tree))
