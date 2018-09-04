@@ -87,7 +87,9 @@ namespace allscale { namespace data_item_manager {
                     auto info = infof.get();
                     auto& entry =
                         runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr).get(req.ref);
-                    HPX_ASSERT(addr.isLeaf());
+
+                    if (info.regions.empty()) return hpx::make_ready_future();
+
                     entry.resize_fragment(req, req.region, false);
 
                     std::vector<hpx::future<void>> transfers;

@@ -176,6 +176,38 @@ namespace allscale {
         int granularity_;
         decision_tree tree_;
     };
+
+    struct random_scheduling_policy : scheduling_policy
+    {
+        random_scheduling_policy()
+        {}
+
+		// --- the main interface for the scheduler ---
+
+		/**
+		 * Determines whether the node with the given address is part of the dispatching of a task with the given path.
+		 *
+		 * @param addr the address in the hierarchy to be tested
+		 * @param path the path to be tested
+		 */
+		bool is_involved(const allscale::runtime::HierarchyAddress& addr, const task_id::task_path& path) const;
+
+		/**
+		 * Obtains the scheduling decision at the given node. The given node must be involved in
+		 * the scheduling of the given path.
+		 */
+		schedule_decision decide(runtime::HierarchyAddress const& addr, const task_id::task_path& path) const;
+
+
+        bool check_target(runtime::HierarchyAddress const& addr, const task_id::task_path& path) const;
+
+    private:
+        typedef hpx::lcos::local::spinlock mutex_type;
+
+        mutable mutex_type mtx;
+        mutable std::uniform_real_distribution<> policy;
+        mutable std::random_device generator;
+    };
 }
 
 #endif

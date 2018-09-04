@@ -148,6 +148,12 @@ namespace allscale
         std::unique_ptr<scheduling_policy> create_policy()
         {
             // FIXME: add random policy...
+            char * env = std::getenv("ALLSCALE_SCHEDULING_POLICY");
+            if (env && env == std::string("random"))
+            {
+                return std::unique_ptr<scheduling_policy>(new random_scheduling_policy());
+            }
+
             return tree_scheduling_policy::create_uniform(
                 allscale::get_num_numa_nodes(), allscale::get_num_localities());
         }

@@ -445,4 +445,27 @@ namespace allscale {
     {
         return addr == get_target(path);
     }
+
+
+    bool random_scheduling_policy::is_involved(const allscale::runtime::HierarchyAddress& addr, const task_id::task_path& path) const
+    {
+        std::lock_guard<mutex_type> l(mtx);
+        return policy(generator) < 0.2;
+    }
+
+    schedule_decision random_scheduling_policy::decide(runtime::HierarchyAddress const& addr, const task_id::task_path& path) const
+    {
+        auto r = policy(generator);
+
+        return
+            (r < 0.33) ? schedule_decision::left :
+            (r < 0.66) ? schedule_decision::right :
+            (path.getLength() < 0) ? schedule_decision::stay : (r < 0.33) ? schedule_decision::left : schedule_decision::right;
+    }
+
+    bool random_scheduling_policy::check_target(runtime::HierarchyAddress const&, const task_id::task_path&) const
+    {
+        return true;
+    }
+
 }

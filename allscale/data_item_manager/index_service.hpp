@@ -105,26 +105,23 @@ namespace allscale { namespace data_item_manager {
         template <typename Requirement>
         void resize_fragment(Requirement const& req, region_type const& region, bool exclusive = true)
         {
-            if (service_->here_.isLeaf())
+            // resize exclusive...
+            auto& item = data_item_store<data_item_type>::lookup(req.ref);
             {
-                // resize exclusive...
-                auto& item = data_item_store<data_item_type>::lookup(req.ref);
+                std::unique_lock<mutex_type> ll(item.mtx);
+                // reserve region...
+                if (!allscale::api::core::isSubRegion(region, item.reserved))
                 {
-                    std::unique_lock<mutex_type> ll(item.mtx);
-                    // reserve region...
-                    if (!allscale::api::core::isSubRegion(region, item.reserved))
-                    {
-                        // grow reserved region...
-                        item.reserved = region_type::merge(item.reserved, region);
+                    // grow reserved region...
+                    item.reserved = region_type::merge(item.reserved, region);
 
-                        // resize fragment...
-                        auto& frag = fragment(req.ref, item, ll);
-                        frag.resize(region);
-                    }
-                    // update ownership
-                    if (exclusive)
-                        item.exclusive = region;
+                    // resize fragment...
+                    auto& frag = fragment(req.ref, item, ll);
+                    frag.resize(region);
                 }
+                // update ownership
+                if (exclusive)
+                    item.exclusive = region;
             }
         }
 
