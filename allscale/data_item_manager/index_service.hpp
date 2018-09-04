@@ -2,8 +2,10 @@
 #define ALLSCALE_DATA_ITEM_MANAGER_INDEX_SERVICE_HPP
 
 #include <allscale/hierarchy.hpp>
+#include <allscale/api/core/data.h>
 #include <allscale/data_item_reference.hpp>
 #include <allscale/data_item_manager/location_info.hpp>
+#include <allscale/data_item_manager/fragment.hpp>
 #include <allscale/scheduler.hpp>
 #include <allscale/util/readers_writers_mutex.hpp>
 
@@ -50,6 +52,24 @@ namespace allscale { namespace data_item_manager {
             HPX_ASSERT(other.full_.empty());
         }
 
+        region_type get_managed_unallocated(region_type const& region) const
+        {
+            if (service_->here_.isLeaf())
+            {
+                return {};
+            }
+
+            if (region.empty())
+            {
+                return {};
+            }
+
+            std::lock_guard<mutex_type> l(mtx_);
+            region_type allocated = region_type::merge(left_, right_);
+            region_type unallocated = region_type::difference(full_, allocated);
+            return region_type::intersect(region, unallocated);
+        }
+
         region_type get_missing_region(region_type const& region) const
         {
             if (region.empty()) return {};
@@ -82,6 +102,108 @@ namespace allscale { namespace data_item_manager {
             return res;
         }
 
+        template <typename Requirement>
+        void resize_fragment(Requirement const& req, region_type const& region, bool exclusive = true)
+        {
+            if (service_->here_.isLeaf())
+            {
+                // resize exclusive...
+                auto& item = data_item_store<data_item_type>::lookup(req.ref);
+                {
+                    std::unique_lock<mutex_type> ll(item.mtx);
+                    // reserve region...
+                    if (!allscale::api::core::isSubRegion(region, item.reserved))
+                    {
+                        // grow reserved region...
+                        item.reserved = region_type::merge(item.reserved, region);
+
+                        // resize fragment...
+                        auto& frag = fragment(req.ref, item, ll);
+                        frag.resize(region);
+                    }
+                    // update ownership
+                    if (exclusive)
+                        item.exclusive = region;
+                }
+            }
+        }
+
+        template <typename Requirement>
+        void add_full(Requirement const& req, region_type const& region)
+        {
+            if (region.empty()) return;
+
+            region_type full;
+            {
+                std::lock_guard<mutex_type> l(mtx_);
+                full_ = region_type::merge(full_, region);
+                full = full_;
+            }
+            resize_fragment(req, full);
+        }
+
+        template <typename Requirement>
+        region_type add_left(Requirement const& req, region_type const& full, region_type const& required)
+        {
+            if(full.empty() && required.empty()) return {};
+
+            region_type missing;
+            region_type region;
+            {
+                std::lock_guard<mutex_type> l(mtx_);
+
+                full_ = region_type::merge(full_, region);
+                region = full_;
+
+                // Get the missing region from the left...
+                missing = region_type::difference(required, left_);
+
+                // If nothing is missing, return empty...
+                if (missing.empty()) return {};
+
+                // Cut down to what this process is allowed...
+                missing = region_type::difference(
+                    region_type::intersect(missing, full_), right_);
+
+                // add missing to left
+                left_ = region_type::merge(left_, missing);
+            }
+            resize_fragment(req, region);
+
+            return missing;
+        }
+
+        template <typename Requirement>
+        region_type add_right(Requirement const& req, region_type const& full, region_type const& required)
+        {
+            if(full.empty() && required.empty()) return {};
+
+            region_type missing;
+            region_type region;
+            {
+                std::lock_guard<mutex_type> l(mtx_);
+
+                full_ = region_type::merge(full_, region);
+                region = full_;
+
+                // Get the missing region from the right...
+                missing = region_type::difference(required, right_);
+
+                // If nothing is missing, return empty...
+                if (missing.empty()) return {};
+
+                // Cut down to what this process is allowed...
+                missing = region_type::difference(
+                    region_type::intersect(missing, full_), left_);
+
+                // add missing to left
+                right_ = region_type::merge(right_, missing);
+            }
+            resize_fragment(req, region);
+
+            return missing;
+        }
+
         void mark_region(region_type const& region)
         {
             if (region.empty()) return;
@@ -94,6 +216,7 @@ namespace allscale { namespace data_item_manager {
         hpx::future<location_info<region_type>> locate(Requirement const& req)
         {
             location_info<region_type> info;
+//             HPX_ASSERT(req.mode == access_mode::ReadOnly);
 
             HPX_ASSERT(!req.region.empty());
 

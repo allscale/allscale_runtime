@@ -269,6 +269,12 @@ struct main_process
 	    auto addr = allscale::runtime::HierarchyAddress::getRootOfNetworkSize(
                 allscale::get_num_numa_nodes(), allscale::get_num_localities());
 
+        // Get to a leave to not confuse the DIM...
+        while (!addr.isLeaf())
+        {
+            addr = addr.getLeftChild();
+        }
+
         req_ptr->acquire_process(addr).get();
 
         auto ref = allscale::data_item_manager::get(data);

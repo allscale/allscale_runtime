@@ -56,73 +56,65 @@ namespace allscale { namespace data_item_manager {
             HPX_ASSERT(addr.getRank() == hpx::get_locality_id());
 
             HPX_ASSERT(!req.region.empty());
+
+            // First, check if we have missing regions for write access
+            if (req.mode == access_mode::ReadWrite)
+            {
+                auto& entry =
+                    runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr).get(req.ref);
+                auto missing = region_type::difference(req.region, entry.full_);
+
+                if(!missing.empty())
+                {
+                    HPX_ASSERT(addr.isLeaf());
+                    auto missing2 = region_type::difference(missing, entry.full_);
+                    HPX_ASSERT(missing == missing2);
+                    // FIXME: acquire ownership here!
+                    HPX_ASSERT(false);
+                }
+
+                // All requirements should be fulfilled now.
+                HPX_ASSERT(allscale::api::core::isSubRegion(req.region, entry.full_));
+                return hpx::make_ready_future();
+            }
+
+            HPX_ASSERT(req.mode == access_mode::ReadOnly);
+
+
             return hpx::dataflow(hpx::launch::sync,
                 [&req, addr](hpx::future<location_info> infof) -> hpx::future<void>
                 {
                     auto info = infof.get();
-                    auto& item = data_item_store<data_item_type>::lookup(req.ref);
-
-//                     if (!req.missing.empty())
-                    {
-                        std::unique_lock<mutex_type> ll(item.mtx);
-
-                        auto& frag = fragment(req.ref, item, ll);
-                        if (!allscale::api::core::isSubRegion(req.region, frag.getCoveredRegion()))
-                        {
-//                             std::cout << "resizing " << req.ref.id() << " " <<
-//                                 region_type::merge(req.region, frag.getCoveredRegion()) << "\n";
-                            frag.resize(
-                                region_type::merge(req.region, frag.getCoveredRegion())
-                            );
-                        }
-                    }
+                    auto& entry =
+                        runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr).get(req.ref);
+                    HPX_ASSERT(addr.isLeaf());
+                    entry.resize_fragment(req, req.region, false);
 
                     std::vector<hpx::future<void>> transfers;
 
                     transfers.reserve(info.regions.size());
 
-                    if (req.mode == access_mode::ReadWrite)
+                    HPX_ASSERT(req.mode == access_mode::ReadOnly);
+
+                    // collect the parts we need to transfer...
+
+                    for (auto const& part: info.regions)
                     {
-                        for (auto const& part: info.regions)
-                        {
-                            // FIXME: this should transfer ownership...
-                            HPX_ASSERT(part.first == addr.getRank());
-                        }
+                        if (part.first == addr.getRank()) continue;
 
+                        hpx::id_type target(
+                            hpx::naming::get_id_from_locality_id(part.first));
+                        transfers.push_back(
+                            hpx::async<transfer_action_type>(target, req.ref.id(),
+                                std::move(part.second)));
                     }
-                    else
-                    {
-                        HPX_ASSERT(req.mode == access_mode::ReadOnly);
 
-                        // collect the parts we need to transfer...
-
-                        for (auto const& part: info.regions)
-                        {
-                            if (part.first == addr.getRank()) continue;
-
-                            hpx::id_type target(
-                                hpx::naming::get_id_from_locality_id(part.first));
-                            transfers.push_back(
-                                hpx::async<transfer_action_type>(target, req.ref.id(),
-                                    std::move(part.second)));
-                        }
-
-                    }
                     return hpx::when_all(transfers);
 
                     // Do transfer...
                 },
                 data_item_manager::locate(addr, req)
             );
-
-//
-//             if (req.mode == access_mode::ReadOnly)
-//                 return;
-//
-//             auto& entry =
-//                 runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr).get(req.ref);
-//
-//             entry.mark_region(req.allowance);
         }
 
         template <typename Requirement, typename RequirementAllocator>

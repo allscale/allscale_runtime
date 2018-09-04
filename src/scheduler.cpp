@@ -227,6 +227,14 @@ namespace allscale
                 return;
             }
 
+            bool missing = reqs->get_missing_regions(here_);
+
+            if (missing)
+            {
+                schedule_down(std::move(work), std::move(reqs));
+                return;
+            }
+
             // if we are not the root, we need to propagate to our parent...
             if (!is_root_)
             {
@@ -242,9 +250,8 @@ namespace allscale
                 return;
             }
 
-            reqs->get_missing_regions(here_);
-
-            return schedule_down(std::move(work), std::move(reqs));
+            schedule_down(std::move(work), std::move(reqs));
+            return;
         }
 
         void schedule_down(work_item work, std::unique_ptr<data_item_manager::task_requirements_base> reqs)
@@ -252,12 +259,8 @@ namespace allscale
             HPX_ASSERT(here_.getRank() == hpx::get_locality_id());
             HPX_ASSERT(policy_->is_involved(here_, work.id().path));
 
-            reqs->mark_write_requirements(here_);
-
-            HPX_ASSERT(reqs->check_write_requirements(here_));
-
             auto id = work.id();
-            // TODO: check whether left or right node covers all write requirements
+            // TODO: check whether left and right node covers all...
 
             // ask the scheduling policy what to do with this task
             // on leaf level, schedule locally
@@ -267,9 +270,8 @@ namespace allscale
             // if it should stay, process it here
             if (d == schedule_decision::stay)
             {
-//                 TODO
-//                 // add granted allowances
-//                 diis.addAllowanceLocal(allowance);
+                // add granted allowances
+                reqs->add_allowance(here_);
 //                 HPX_ASSERT(reqs->check_write_requirements(here_));
 
                 scheduler::get().schedule_local(
@@ -279,16 +281,15 @@ namespace allscale
 
             bool target_left = (d == schedule_decision::left);
 
-            // FIXME: add DIM stuff...
             if (target_left)
             {
-                reqs->get_missing_regions_left(here_);
+                reqs->add_allowance_left(here_);
                 runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(left_).
                     schedule_down(std::move(work), std::move(reqs));
             }
             else
             {
-                reqs->get_missing_regions_right(here_);
+                reqs->add_allowance_right(here_);
                 if (!right_id_)
                 {
                     runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(right_).

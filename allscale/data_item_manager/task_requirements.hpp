@@ -2,9 +2,9 @@
 #define ALLSCALE_DATA_ITEM_TASK_REQUIREMENTS_HPP
 
 #include <allscale/hierarchy.hpp>
+#include <allscale/data_item_manager/add_allowance.hpp>
 #include <allscale/data_item_manager/check_write_requirements.hpp>
 #include <allscale/data_item_manager/get_missing_regions.hpp>
-#include <allscale/data_item_manager/mark_write_requirements.hpp>
 #include <allscale/data_item_manager/acquire.hpp>
 #include <allscale/data_item_manager/show.hpp>
 
@@ -43,10 +43,10 @@ namespace allscale { namespace data_item_manager {
         virtual void show() const = 0;
 
         virtual bool check_write_requirements(hierarchy_address const&) const = 0;
-        virtual void get_missing_regions(hierarchy_address const&) = 0;
-        virtual void get_missing_regions_left(hierarchy_address const&) = 0;
-        virtual void get_missing_regions_right(hierarchy_address const&) = 0;
-        virtual void mark_write_requirements(hierarchy_address const&) const = 0;
+        virtual bool get_missing_regions(hierarchy_address const&) = 0;
+        virtual void add_allowance(hierarchy_address const&) const= 0;
+        virtual void add_allowance_left(hierarchy_address const&)= 0;
+        virtual void add_allowance_right(hierarchy_address const&)= 0;
 
         virtual hpx::future<void> acquire_split(hierarchy_address const& addr) const = 0;
         virtual hpx::future<void> acquire_process(hierarchy_address const& addr) const = 0;
@@ -86,33 +86,27 @@ namespace allscale { namespace data_item_manager {
 
         bool check_write_requirements(hierarchy_address const& addr) const override
         {
-//             return data_item_manager::check_write_requirements(addr, split_requirements_)
-//              && data_item_manager::check_write_requirements(addr, process_requirements_);
             return data_item_manager::check_write_requirements(addr, process_requirements_);
         }
 
-        void get_missing_regions(hierarchy_address const& addr) override
+        bool get_missing_regions(hierarchy_address const& addr) override
         {
-//             data_item_manager::get_missing_regions(addr, split_requirements_);
-            data_item_manager::get_missing_regions(addr, process_requirements_);
+            return data_item_manager::get_missing_regions(addr, process_requirements_);
         }
 
-        void get_missing_regions_left(hierarchy_address const& addr) override
+        void add_allowance(hierarchy_address const& addr) const
         {
-//             data_item_manager::get_missing_regions_left(addr, split_requirements_);
-            data_item_manager::get_missing_regions_left(addr, process_requirements_);
+            data_item_manager::add_allowance(addr, process_requirements_);
         }
 
-        void get_missing_regions_right(hierarchy_address const& addr) override
+        void add_allowance_left(hierarchy_address const& addr)
         {
-//             data_item_manager::get_missing_regions_right(addr, split_requirements_);
-            data_item_manager::get_missing_regions_right(addr, process_requirements_);
+            data_item_manager::add_allowance_left(addr, process_requirements_);
         }
 
-        void mark_write_requirements(hierarchy_address const& addr) const override
+        void add_allowance_right(hierarchy_address const& addr)
         {
-//             data_item_manager::mark_write_requirements(addr, split_requirements_);
-            data_item_manager::mark_write_requirements(addr, process_requirements_);
+            data_item_manager::add_allowance_right(addr, process_requirements_);
         }
 
         hpx::future<void> acquire_split(hierarchy_address const& addr) const

@@ -39,20 +39,14 @@ namespace allscale { namespace data_item_manager {
 //             std::cerr << '\n';
         }
 
-        std::size_t locate_access = 0;
-        std::size_t cache_miss = 0;
-        double cache_lookup_time = 0.0;
-        double intersect_time = 0.0;
-        double merge_time = 0.0;
-        double difference_time = 0.0;
-        double extract_time = 0.0;
-        double insert_time = 0.0;
-
         // The mutex which protects this data item from concurrent accesses
         mutex_type mtx;
 
         std::unique_ptr<fragment_type> fragment;
         std::unique_ptr<shared_data_type> shared_data;
+
+        region_type exclusive;
+        region_type reserved;
     };
 }}
 

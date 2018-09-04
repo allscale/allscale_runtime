@@ -926,12 +926,6 @@ void scheduler::schedule_local(work_item work,
     }
     else
     {
-//         {
-//             static hpx::lcos::local::spinlock mtx;
-//             mtx.lock();
-//             std::cout << "processing " << work.name() << " (" << work.id() << " on numa " << numa_node << "\n";
-//             mtx.unlock();
-//         }
         hpx::future<void> acquired = reqs->acquire_process(addr);
         typename hpx::traits::detail::shared_state_ptr_for<
             hpx::future<void>>::type const &state =
