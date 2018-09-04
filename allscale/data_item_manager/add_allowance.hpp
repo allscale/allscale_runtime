@@ -29,8 +29,6 @@ namespace allscale { namespace data_item_manager {
             if (req.mode == access_mode::ReadOnly)
                 return;
 
-            HPX_ASSERT(addr.isLeaf());
-
             auto& entry =
                 runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr).get(req.ref);
 
