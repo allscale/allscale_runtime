@@ -263,7 +263,7 @@ namespace allscale
         void schedule_down(work_item work, std::unique_ptr<data_item_manager::task_requirements_base> reqs)
         {
             HPX_ASSERT(here_.getRank() == hpx::get_locality_id());
-            HPX_ASSERT(policy_->is_involved(here_, work.id().path));
+//             HPX_ASSERT(policy_->is_involved(here_, work.id().path));
 
             auto id = work.id();
             // TODO: check whether left and right node covers all...

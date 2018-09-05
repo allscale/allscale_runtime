@@ -455,6 +455,7 @@ namespace allscale {
 
     schedule_decision random_scheduling_policy::decide(runtime::HierarchyAddress const& addr, const task_id::task_path& path) const
     {
+        std::lock_guard<mutex_type> l(mtx);
         auto r = policy(generator);
 
         return

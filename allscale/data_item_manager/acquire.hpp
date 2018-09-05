@@ -80,16 +80,14 @@ namespace allscale { namespace data_item_manager {
 
             HPX_ASSERT(req.mode == access_mode::ReadOnly);
 
-
             return hpx::dataflow(hpx::launch::sync,
                 [&req, addr](hpx::future<location_info> infof) -> hpx::future<void>
                 {
                     auto info = infof.get();
-                    auto& entry =
-                        runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr).get(req.ref);
-
                     if (info.regions.empty()) return hpx::make_ready_future();
 
+                    auto& entry =
+                        runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr).get(req.ref);
                     entry.resize_fragment(req, req.region, false);
 
                     std::vector<hpx::future<void>> transfers;
@@ -103,6 +101,11 @@ namespace allscale { namespace data_item_manager {
                     for (auto const& part: info.regions)
                     {
                         if (part.first == addr.getRank()) continue;
+//                         {
+//                             auto& item = data_item_store<data_item_type>::lookup(req.ref);
+//                             std::unique_lock<mutex_type> ll(item.mtx);
+//                             HPX_ASSERT(allscale::api::core::isSubRegion(part.second, item.reserved));
+//                         }
 
                         hpx::id_type target(
                             hpx::naming::get_id_from_locality_id(part.first));
@@ -110,9 +113,7 @@ namespace allscale { namespace data_item_manager {
                             hpx::async<transfer_action_type>(target, req.ref.id(),
                                 std::move(part.second)));
                     }
-
                     return hpx::when_all(transfers);
-
                     // Do transfer...
                 },
                 data_item_manager::locate(addr, req)

@@ -117,7 +117,7 @@ namespace allscale { namespace data_item_manager {
 
                     // resize fragment...
                     auto& frag = fragment(req.ref, item, ll);
-                    frag.resize(region);
+                    frag.resize(item.reserved);
                 }
                 // update ownership
                 if (exclusive)
