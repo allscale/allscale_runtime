@@ -57,12 +57,15 @@ namespace allscale {
         data_item_reference() : cache(nullptr)
         {}
 
-        template <typename...Args>
         explicit data_item_reference(hpx::future<hpx::id_type> fid) : cache(nullptr)
         {
             hpx::id_type id(fid.get());
             id.make_unmanaged();
             id_ = id.get_gid();
+        }
+
+        explicit data_item_reference(hpx::naming::gid_type id) : id_(id), cache(nullptr)
+        {
         }
 
         data_item_reference(data_item_reference const& other)
@@ -80,7 +83,7 @@ namespace allscale {
         data_item_reference& operator=(data_item_reference const& other)
         {
             id_ = other.id_;
-            cache.store(other.cache.load(std::memory_order_acquire), std::memory_order_release);
+//             cache.store(other.cache.load(std::memory_order_acquire), std::memory_order_release);
 
             return *this;
         }
@@ -88,8 +91,8 @@ namespace allscale {
         data_item_reference& operator=(data_item_reference&& other) noexcept
         {
             id_ = other.id_;
-            cache.store(other.cache.load(std::memory_order_acquire), std::memory_order_release);
-            other.cache.store(nullptr, std::memory_order_release);
+//             cache.store(other.cache.load(std::memory_order_acquire), std::memory_order_release);
+//             other.cache.store(nullptr, std::memory_order_release);
 
             return *this;
         }
@@ -106,12 +109,14 @@ namespace allscale {
         }
 
         fragment_type* getFragmentHint() const {
-            return cache.load(std::memory_order_acquire);
+            return nullptr;
+//             return cache.load(std::memory_order_acquire);
         }
 
         fragment_type* setFragmentHint(fragment_type* hint) const {
-            cache.exchange(hint, std::memory_order_acq_rel);
-            return hint;
+            return nullptr;
+//             cache.exchange(hint, std::memory_order_acq_rel);
+//             return hint;
         }
 
     private:

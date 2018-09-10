@@ -179,8 +179,7 @@ namespace allscale {
 
     struct random_scheduling_policy : scheduling_policy
     {
-        random_scheduling_policy()
-        {}
+        random_scheduling_policy();
 
 		// --- the main interface for the scheduler ---
 
@@ -203,6 +202,8 @@ namespace allscale {
 
     private:
         typedef hpx::lcos::local::spinlock mutex_type;
+
+        std::size_t cutoff_level_;
 
         mutable mutex_type mtx;
         mutable std::uniform_real_distribution<> policy;

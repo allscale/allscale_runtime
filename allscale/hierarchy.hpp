@@ -130,7 +130,7 @@ namespace runtime {
 			assert_true(isVirtualNode());
             if (layer <= numaCutOff)
             {
-                return {rank, numa_node + (1<<layer - 1), layer-1 };
+                return {rank, numa_node + (1<<(layer - 1)), layer-1 };
             }
 
             assert_true(layer != 0);

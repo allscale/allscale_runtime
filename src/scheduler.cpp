@@ -214,7 +214,9 @@ namespace allscale
 
             if (!work.enqueue_remote())
             {
-                HPX_ASSERT(reqs->check_write_requirements(here_));
+                reqs->get_missing_regions(here_);
+//                 HPX_ASSERT(reqs->check_write_requirements(here_));
+                reqs->add_allowance(here_);
                 scheduler::get().schedule_local(
                     std::move(work), std::move(reqs), here_, work.id().depth());
                 return;
@@ -229,14 +231,7 @@ namespace allscale
                     // test that this virtual node has control over all required data
                     && reqs->check_write_requirements(here_))
             {
-                schedule_down(std::move(work), std::move(reqs));
-                return;
-            }
-
-            bool missing = reqs->get_missing_regions(here_);
-
-            if (missing)
-            {
+//                 std::cout << here_ << ' ' << work.name() << "." << work.id() << ": shortcut " << '\n';
                 schedule_down(std::move(work), std::move(reqs));
                 return;
             }
@@ -256,6 +251,7 @@ namespace allscale
                 return;
             }
 
+            reqs->get_missing_regions(here_);
             schedule_down(std::move(work), std::move(reqs));
             return;
         }
@@ -276,6 +272,8 @@ namespace allscale
             // if it should stay, process it here
             if (d == schedule_decision::stay)
             {
+//                 std::cout << here_ << ' ' << work.name() << "." << id << ": local: " << '\n';
+//                 reqs->show();
                 // add granted allowances
                 reqs->add_allowance(here_);
 //                 HPX_ASSERT(reqs->check_write_requirements(here_));
@@ -285,16 +283,20 @@ namespace allscale
                 return;
             }
 
-            bool target_left = (d == schedule_decision::left);
+            bool target_left = (d == schedule_decision::left) || (right_ == left_);
 
             if (target_left)
             {
+//                 std::cout << here_ << ' ' << work.name() << "." << id << ": left: " << '\n';
+//                 reqs->show();
                 reqs->add_allowance_left(here_);
                 runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(left_).
                     schedule_down(std::move(work), std::move(reqs));
             }
             else
             {
+//                 std::cout << here_ << ' ' << work.name() << "." << id << ": right: " << '\n';
+//                 reqs->show();
                 reqs->add_allowance_right(here_);
                 if (!right_id_)
                 {

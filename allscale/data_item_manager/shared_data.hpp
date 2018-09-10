@@ -26,11 +26,11 @@ namespace allscale { namespace data_item_manager {
 
         auto& item = data_item_store<data_item_type>::lookup(ref.id());
 
-        boost::shared_lock<mutex_type> l(item.mtx);
+        std::unique_lock<mutex_type> l(item.mtx);
 
         if (item.shared_data == nullptr)
         {
-            l.unlock();
+            hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
             std::size_t this_id = hpx::get_locality_id();
             HPX_ASSERT(this_id != 0);
             // FIXME: make resilient

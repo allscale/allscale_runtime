@@ -32,7 +32,7 @@ namespace allscale { namespace data_item_manager {
             auto& entry =
                 runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr).get(req.ref);
 
-            entry.add_full(req, req.allowance);
+            entry.add_full(req.allowance);
         }
 
         template <typename Requirement>
@@ -50,7 +50,7 @@ namespace allscale { namespace data_item_manager {
             auto& entry =
                 runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr).get(req.ref);
 
-            req.allowance = entry.add_left(req, req.allowance, req.region);
+            req.allowance = entry.add_left(req.allowance, req.region);
         }
 
         template <typename Requirement>
@@ -68,7 +68,7 @@ namespace allscale { namespace data_item_manager {
             auto& entry =
                 runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr).get(req.ref);
 
-            req.allowance = entry.add_right(req, req.allowance, req.region);
+            req.allowance = entry.add_right(req.allowance, req.region);
         }
 
         template <typename Requirement, typename RequirementAllocator>

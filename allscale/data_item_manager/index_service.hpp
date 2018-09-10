@@ -3,7 +3,7 @@
 
 #include <allscale/hierarchy.hpp>
 #include <allscale/api/core/data.h>
-#include <allscale/data_item_reference.hpp>
+#include <allscale/data_item_requirement.hpp>
 #include <allscale/data_item_manager/location_info.hpp>
 #include <allscale/data_item_manager/fragment.hpp>
 #include <allscale/scheduler.hpp>
@@ -33,6 +33,41 @@ namespace allscale { namespace data_item_manager {
             locate_action<Requirement>>::type
     {};
 
+    template <typename DataItemReference, typename Region>
+    hpx::future<location_info<Region>>
+    acquire_ownership_for(runtime::HierarchyAddress const& addr,
+            runtime::HierarchyAddress const& child,
+            DataItemReference const& ref, Region missing);
+
+    template <
+        typename Requirement,
+        typename DataItemReference = typename Requirement::ref_type,
+        typename Region = typename Requirement::region_type
+    >
+    struct acquire_ownership_for_action
+      : hpx::actions::make_direct_action<
+            decltype(&acquire_ownership_for<DataItemReference, Region>),
+            &acquire_ownership_for<DataItemReference, Region>,
+            acquire_ownership_for_action<Requirement, DataItemReference, Region>>::type
+    {};
+
+    template <typename DataItemReference, typename Region>
+    hpx::future<location_info<Region>>
+    collect_child_ownerships(runtime::HierarchyAddress const& addr,
+            DataItemReference const& ref, Region region);
+
+    template <
+        typename Requirement,
+        typename DataItemReference = typename Requirement::ref_type,
+        typename Region = typename Requirement::region_type
+    >
+    struct collect_child_ownerships_action
+      : hpx::actions::make_direct_action<
+            decltype(&collect_child_ownerships<DataItemReference, Region>),
+            &collect_child_ownerships<DataItemReference, Region>,
+            collect_child_ownerships_action<Requirement, DataItemReference, Region>>::type
+    {};
+
     template <typename DataItem>
     struct index_entry
     {
@@ -54,17 +89,8 @@ namespace allscale { namespace data_item_manager {
 
         region_type get_managed_unallocated(region_type const& region) const
         {
-            if (service_->here_.isLeaf())
-            {
-                return {};
-            }
+            if (service_->here_.isLeaf()) return {};
 
-            if (region.empty())
-            {
-                return {};
-            }
-
-            std::lock_guard<mutex_type> l(mtx_);
             region_type allocated = region_type::merge(left_, right_);
             region_type unallocated = region_type::difference(full_, allocated);
             return region_type::intersect(region, unallocated);
@@ -73,37 +99,21 @@ namespace allscale { namespace data_item_manager {
         region_type get_missing_region(region_type const& region) const
         {
             if (region.empty()) return {};
-
             std::lock_guard<mutex_type> l(mtx_);
+
+            region_type managed_unallocated = get_managed_unallocated(region);
+            if (!managed_unallocated.empty()) return managed_unallocated;
+
             return region_type::difference(region, full_);
         }
 
-        region_type get_missing_region_left(region_type const& region)
+        bool check_write_requirement(region_type const& region) const
         {
-            if (region.empty()) return {};
-
-            std::lock_guard<mutex_type> l(mtx_);
-            auto res = region_type::difference(region, left_);
-
-            left_ = region_type::merge(left_, res);
-
-            return res;
-        }
-
-        region_type get_missing_region_right(region_type const& region)
-        {
-            if (region.empty()) return {};
-
-            std::lock_guard<mutex_type> l(mtx_);
-            auto res = region_type::difference(region, right_);
-
-            right_ = region_type::merge(right_, res);
-
-            return res;
+            return get_missing_region(region).empty();
         }
 
         template <typename Requirement>
-        void resize_fragment(Requirement const& req, region_type const& region, bool exclusive = true)
+        void resize_fragment(Requirement const& req, region_type const& region, bool exclusive)
         {
             // resize exclusive...
             auto& item = data_item_store<data_item_type>::lookup(req.ref);
@@ -125,88 +135,444 @@ namespace allscale { namespace data_item_manager {
             }
         }
 
-        template <typename Requirement>
-        void add_full(Requirement const& req, region_type const& region)
-        {
-            if (region.empty()) return;
-
-            region_type full;
-            {
-                std::lock_guard<mutex_type> l(mtx_);
-                full_ = region_type::merge(full_, region);
-                full = full_;
-            }
-            resize_fragment(req, full);
-        }
-
-        template <typename Requirement>
-        region_type add_left(Requirement const& req, region_type const& full, region_type const& required)
-        {
-            if(full.empty() && required.empty()) return {};
-
-            region_type missing;
-            region_type region;
-            {
-                std::lock_guard<mutex_type> l(mtx_);
-
-                full_ = region_type::merge(full_, region);
-                region = full_;
-
-                // Get the missing region from the left...
-                missing = region_type::difference(required, left_);
-
-                // If nothing is missing, return empty...
-                if (missing.empty()) return {};
-
-                // Cut down to what this process is allowed...
-                missing = region_type::difference(
-                    region_type::intersect(missing, full_), right_);
-
-                // add missing to left
-                left_ = region_type::merge(left_, missing);
-            }
-            resize_fragment(req, region);
-
-            return missing;
-        }
-
-        template <typename Requirement>
-        region_type add_right(Requirement const& req, region_type const& full, region_type const& required)
-        {
-            if(full.empty() && required.empty()) return {};
-
-            region_type missing;
-            region_type region;
-            {
-                std::lock_guard<mutex_type> l(mtx_);
-
-                full_ = region_type::merge(full_, region);
-                region = full_;
-
-                // Get the missing region from the right...
-                missing = region_type::difference(required, right_);
-
-                // If nothing is missing, return empty...
-                if (missing.empty()) return {};
-
-                // Cut down to what this process is allowed...
-                missing = region_type::difference(
-                    region_type::intersect(missing, full_), left_);
-
-                // add missing to left
-                right_ = region_type::merge(right_, missing);
-            }
-            resize_fragment(req, region);
-
-            return missing;
-        }
-
-        void mark_region(region_type const& region)
+        void add_full(region_type const& region)
         {
             if (region.empty()) return;
 
             std::lock_guard<mutex_type> l(mtx_);
             full_ = region_type::merge(full_, region);
+        }
+
+        region_type add_left(region_type const& region, region_type const& required)
+        {
+            std::lock_guard<mutex_type> l(mtx_);
+//             std::cout << "    left: " << region << ' ' << full_ << ' ' << left_ << ' ' << ' ' << right_ << '\n';
+
+            // extend the local ownership
+            full_ = region_type::merge(full_, region);
+
+            // Get the missing region from the left...
+            region_type missing = region_type::difference(required, left_);
+
+            // If nothing is missing, return empty...
+            if (missing.empty()) return {};
+
+            // Cut down to what this process is allowed...
+            missing = region_type::difference(
+                region_type::intersect(missing, full_), right_);
+
+            // add missing to left
+            left_ = region_type::merge(left_, missing);
+
+            return missing;
+        }
+
+        region_type add_right(region_type const& region, region_type const& required)
+        {
+            std::lock_guard<mutex_type> l(mtx_);
+//             std::cout << "    right: " << region << ' ' << full_ << ' ' << left_ << ' ' << ' ' << right_ << '\n';
+
+            // extend the local ownership
+            full_ = region_type::merge(full_, region);
+
+            // Get the missing region from the right...
+            region_type missing = region_type::difference(required, right_);
+
+            // If nothing is missing, return empty...
+            if (missing.empty()) return {};
+
+            // Cut down to what this process is allowed...
+            missing = region_type::difference(
+                region_type::intersect(missing, full_), left_);
+
+            // add missing to right
+            right_ = region_type::merge(right_, missing);
+
+            return missing;
+        }
+
+        template <typename Requirement>
+        hpx::future<location_info<region_type>>
+        acquire_ownership(Requirement const& req, region_type const& missing)
+        {
+            {
+                std::lock_guard<mutex_type> l(mtx_);
+                full_ = region_type::merge(full_, missing);
+                left_ = region_type::difference(left_, missing);
+                right_ = region_type::difference(right_, missing);
+            }
+            add_full(missing);
+#if defined(HPX_DEBUG)
+            HPX_ASSERT(!missing.empty());
+            auto cont =
+                [this, &req, missing](hpx::future<location_info<region_type>> infof)
+                {
+                    HPX_ASSERT(service_->here_.isLeaf());
+                    // We should now cover all missing data.
+                    location_info<region_type> info = infof.get();
+                    {
+                        region_type covered;
+                        for (auto const& parts : info.regions)
+                        {
+                            covered = region_type::merge(covered, parts.second);
+                        }
+                        HPX_ASSERT(covered == missing);
+                    }
+                    return info;
+                };
+
+            if (service_->parent_id_)
+            {
+                return hpx::dataflow(hpx::launch::sync, std::move(cont),
+                    hpx::async<acquire_ownership_for_action<Requirement>>(
+                        service_->parent_id_,
+                        service_->parent_, service_->here_, req.ref, missing));
+            }
+            else
+            {
+                return hpx::dataflow(hpx::launch::sync,
+                    [cont = std::move(cont)](hpx::future<location_info<region_type>> infof)
+                    {
+                        return cont(std::move(infof));
+                    },
+                    data_item_manager::acquire_ownership_for(
+                        service_->parent_, service_->here_, req.ref, missing));
+            }
+#else
+            if (service_->parent_id_)
+            {
+                return hpx::async<acquire_ownership_for_action<Requirement>>(
+                        service_->parent_id_,
+                        service_->parent_, service_->here_, req.ref, std::move(missing));
+            }
+            else
+            {
+                return data_item_manager::acquire_ownership_for(
+                        service_->parent_, service_->here_, req.ref, std::move(missing));
+            }
+#endif
+        }
+
+        template <typename DataItemReference>
+        hpx::future<location_info<region_type>>
+        acquire_ownership_for(runtime::HierarchyAddress const& child,
+            DataItemReference const& ref, region_type missing)
+        {
+            using data_item_type = typename DataItemReference::data_item_type;
+            using requirement_type = allscale::data_item_requirement<data_item_type>;
+            HPX_ASSERT(!service_->here_.isLeaf());
+
+#if defined(HPX_DEBUG)
+            region_type missing_ref = missing;
+            // Make sure local management is consistent (for the requested part)
+            {
+                std::unique_lock<mutex_type> l(mtx_);
+                if (!(region_type::intersect(full_, missing) ==
+                    region_type::merge(
+                        region_type::intersect(left_, missing),
+                        region_type::intersect(right_, missing)
+                    )))
+                {
+                    std::cerr
+                        << "Node:      " << service_->here_ << '\n'
+                        << "Regions:   " << missing << '\n'
+                        << "Available: " << full_ << '\n'
+                        << "Left:      " << left_ << '\n'
+                        << "Right:     " << right_ << '\n'
+                        << "Merged:    " << region_type::merge(left_, right_) << '\n'
+                        << " -- intersected -- \n"
+                        << "Available: " << region_type::intersect(full_, missing) << '\n'
+                        << "Left:      " << region_type::intersect(left_, missing) << '\n'
+                        << "Right:     " << region_type::intersect(right_, missing) << '\n'
+                        ;
+                    std::abort();
+                }
+            }
+#endif
+
+            // Make sure the given child is really a child of this node
+            HPX_ASSERT(child == service_->left_ || child == service_->right_);
+
+            bool collect_left = (child == service_->right_);
+
+            // Extract the missing regions from our left or right child
+            region_type part;
+            {
+                std::unique_lock<mutex_type> l(mtx_);
+
+//                 HPX_ASSERT(full_ == region_type::merge(left_, right_));
+
+                if (collect_left)
+                {
+                    HPX_ASSERT(region_type::intersect(right_, missing).empty());
+                    part = region_type::intersect(missing, left_);
+                    right_ = region_type::merge(right_, missing);
+                }
+                else
+                {
+                    HPX_ASSERT(region_type::intersect(left_, missing).empty());
+                    part = region_type::intersect(missing, right_);
+                    left_ = region_type::merge(left_, missing);
+                }
+
+                if (!part.empty())
+                {
+                    HPX_ASSERT(allscale::api::core::isSubRegion(part, full_));
+                    missing = region_type::difference(missing, part);
+
+                    // Remove remaining missing from our ownership list.
+                    left_ = region_type::difference(left_, part);
+                    right_ = region_type::difference(right_, part);
+
+                    // Add the new ownerhsip info
+                    // collect left means, we came from a right child, as such,
+                    // the missing part is now owned by the right child and vice versa
+                    if (collect_left)
+                    {
+                        right_ = region_type::merge(right_, part);
+                    }
+                    else
+                    {
+                        left_ = region_type::merge(left_, part);
+                    }
+                }
+
+                // if there are still parts missing, we need to remove it from
+                // our ownership record, and update the left/right part
+                if (!missing.empty())
+                {
+                    full_ = region_type::difference(full_, missing);
+                }
+            }
+
+            std::vector<hpx::future<location_info<region_type>>> remote_infos;
+            remote_infos.reserve(2);
+
+            // If we haven't covered everything, we need to descend to our parent
+            if (!missing.empty())
+            {
+                HPX_ASSERT(!service_->is_root_);
+                if (service_->parent_id_)
+                {
+                    remote_infos.push_back(
+                        hpx::async<acquire_ownership_for_action<requirement_type>>(
+                            service_->parent_id_, service_->parent_, service_->here_,
+                            ref, std::move(missing)));
+                }
+                else
+                {
+                    remote_infos.push_back(
+                        data_item_manager::acquire_ownership_for(
+                            service_->parent_, service_->here_,
+                            ref, std::move(missing)));
+                }
+            }
+
+            // If the part is not empty, we need to collect the information from
+            // our child.
+            if (!part.empty())
+            {
+                auto id = collect_left ? hpx::invalid_id : service_->right_id_;
+                auto child = collect_left ? service_->left_ : service_->right_;
+
+                if (id)
+                {
+                    remote_infos.push_back(
+                        hpx::async<collect_child_ownerships_action<requirement_type>>(
+                            id, child, ref, std::move(part)));
+                }
+                else
+                {
+                    remote_infos.push_back(
+                        data_item_manager::collect_child_ownerships(
+                            child, ref, std::move(part)));
+                }
+            }
+
+            return hpx::dataflow(hpx::launch::sync,
+#if defined(HPX_DEBUG)
+                [missing_ref](auto remote_infos)
+#else
+                [](auto remote_infos)
+#endif
+                {
+                    // Merge infos...
+                    location_info<region_type> info;
+#if defined(HPX_DEBUG)
+                    region_type covered;
+#endif
+
+                    for (auto& fut: remote_infos)
+                    {
+                        auto remote_info = fut.get();
+                        for (auto& part: remote_info.regions)
+                        {
+                            info.add_part(part.first, part.second);
+#if defined(HPX_DEBUG)
+                            covered = region_type::merge(covered, part.second);
+#endif
+                        }
+                    }
+#if defined(HPX_DEBUG)
+                    HPX_ASSERT(covered == missing_ref);
+#endif
+                    return info;
+                },
+                remote_infos);
+        }
+
+        template <typename DataItemReference>
+        hpx::future<location_info<region_type>> collect_child_ownerships(
+            DataItemReference ref, region_type missing)
+        {
+            using data_item_type = typename DataItemReference::data_item_type;
+            using requirement_type = allscale::data_item_requirement<data_item_type>;
+            std::array<region_type, 2> remote_regions;
+#if defined(HPX_DEBUG)
+            region_type missing_ref = missing;
+#endif
+            {
+                std::unique_lock<mutex_type> l(mtx_);
+
+                HPX_ASSERT(allscale::api::core::isSubRegion(missing, full_));
+                // If we are at a leaf, we stop the recursion and return the
+                // location info.
+                if (service_->here_.isLeaf())
+                {
+                    location_info<region_type> info;
+
+                    HPX_ASSERT(!missing.empty());
+                    HPX_ASSERT(region_type::intersect(missing, full_) == missing);
+                    HPX_ASSERT(region_type::difference(missing, full_).empty());
+
+                    full_ = region_type::difference(full_, missing);
+                    HPX_ASSERT(left_.empty());
+                    HPX_ASSERT(right_.empty());
+                    l.unlock();
+                    std::size_t locality_id = service_->here_.getRank();
+                    {
+                        auto& item = data_item_store<DataItem>::lookup(ref.id());
+                        std::unique_lock<mutex_type> ll(item.mtx);
+                        // If the fragment has not been allocated,
+                        // we only had splits there so far, this means,
+                        // we don't need to transfer data
+                        auto& frag = fragment(ref, item, ll);
+                        if (allscale::api::core::isSubRegion(missing, frag.getCoveredRegion()))
+                        {
+                            info.add_part(service_->here_.getRank(), std::move(missing));
+                        }
+#if defined(HPX_DEBUG)
+                        else
+                        {
+
+                            info.add_part(std::size_t(-1), std::move(missing));
+                        }
+#endif
+                    }
+
+
+                    return hpx::make_ready_future(std::move(info));
+                }
+
+//                 HPX_ASSERT(full_ == region_type::merge(left_, right_));
+                // Check left child
+                {
+                    auto part = region_type::intersect(missing, left_);
+                    if (!part.empty())
+                    {
+                        left_ = region_type::difference(left_, part);
+                        full_ = region_type::difference(full_, part);
+                        missing = region_type::difference(missing, part);
+                        HPX_ASSERT(!allscale::api::core::isSubRegion(part, right_));
+                        remote_regions[0] = std::move(part);
+                    }
+                    else
+                    {
+                        remote_regions[0] = region_type();
+                    }
+                }
+                // Check right child
+                if (!missing.empty())
+                {
+                    auto part = region_type::intersect(missing, right_);
+                    if (!part.empty())
+                    {
+                        right_ = region_type::difference(right_, part);
+                        full_ = region_type::difference(full_, part);
+#if defined(HPX_DEBUG)
+                        missing = region_type::difference(missing, part);
+#endif
+                        HPX_ASSERT(!allscale::api::core::isSubRegion(part, left_));
+                        remote_regions[1] = std::move(part);
+                    }
+                    else
+                    {
+                        remote_regions[1] = region_type();
+                    }
+                }
+                else
+                {
+                    remote_regions[1] = region_type();
+                }
+            }
+            HPX_ASSERT(missing.empty());
+
+            std::vector<hpx::future<location_info<region_type>>> remote_infos;
+            remote_infos.reserve(2);
+
+            // First, recurse to right child for better overlap.
+            if (!remote_regions[1].empty())
+            {
+                if (service_->right_id_)
+                {
+                    remote_infos.push_back(
+                        hpx::async<collect_child_ownerships_action<requirement_type>>(
+                            service_->right_id_, service_->right_, ref, std::move(remote_regions[1])));
+                }
+                else
+                {
+                    remote_infos.push_back(
+                        data_item_manager::collect_child_ownerships(
+                            service_->right_, ref, std::move(remote_regions[1])));
+                }
+            }
+            if (!remote_regions[0].empty())
+            {
+                remote_infos.push_back(
+                    data_item_manager::collect_child_ownerships(
+                        service_->left_, ref, std::move(remote_regions[0])));
+            }
+
+            return hpx::dataflow(hpx::launch::sync,
+#if defined(HPX_DEBUG)
+                [missing_ref](auto remote_infos)
+#else
+                [](auto remote_infos)
+#endif
+                {
+                    // Merge infos...
+                    location_info<region_type> info;
+#if defined(HPX_DEBUG)
+                    region_type covered;
+#endif
+
+                    for (auto& fut: remote_infos)
+                    {
+                        auto remote_info = fut.get();
+                        for (auto& part: remote_info.regions)
+                        {
+                            info.add_part(part.first, part.second);
+#if defined(HPX_DEBUG)
+                            covered = region_type::merge(covered, part.second);
+#endif
+                        }
+                    }
+#if defined(HPX_DEBUG)
+                    HPX_ASSERT(covered == missing_ref);
+#endif
+                    return info;
+                },
+                remote_infos);
         }
 
         template <typename Requirement>
@@ -239,27 +605,27 @@ namespace allscale { namespace data_item_manager {
                 }
             }
 
-            // Second look in our cache to speed up lookups
-            for (auto const& cached: location_cache_.regions)
-            {
-                auto part = region_type::intersect(remaining, cached.second);
-                // We got a hit!
-                if (!part.empty())
-                {
-                    // Insert location information...
-                    info.add_part(cached.first, part);
-
-                    // Subtract what we got from what we requested
-                    remaining = region_type::difference(remaining, part);
-
-                    // If the remainder is empty, we got everything covered...
-                    if (remaining.empty())
-                    {
-                        HPX_ASSERT(!info.regions.empty());
-                        return hpx::make_ready_future(info);
-                    }
-                }
-            }
+//             // Second look in our cache to speed up lookups
+//             for (auto const& cached: location_cache_.regions)
+//             {
+//                 auto part = region_type::intersect(remaining, cached.second);
+//                 // We got a hit!
+//                 if (!part.empty())
+//                 {
+//                     // Insert location information...
+//                     info.add_part(cached.first, part);
+//
+//                     // Subtract what we got from what we requested
+//                     remaining = region_type::difference(remaining, part);
+//
+//                     // If the remainder is empty, we got everything covered...
+//                     if (remaining.empty())
+//                     {
+//                         HPX_ASSERT(!info.regions.empty());
+//                         return hpx::make_ready_future(info);
+//                     }
+//                 }
+//             }
 
             // Storage for our remote infos:
             // 0: parent
@@ -368,7 +734,7 @@ namespace allscale { namespace data_item_manager {
                         auto remote_info = fut.get();
                         for (auto& part : remote_info.regions)
                         {
-                            location_cache_.add_part(part.first, part.second);
+//                             location_cache_.add_part(part.first, part.second);
                             info.add_part(part.first, std::move(part.second));
                         }
                     }
@@ -486,6 +852,28 @@ namespace allscale { namespace data_item_manager {
         return runtime::HierarchicalOverlayNetwork::getLocalService<
             index_service<data_item_type>>(addr).get(req.ref).locate(req);
 
+    }
+
+    template <typename DataItemReference, typename Region>
+    hpx::future<location_info<Region>>
+    acquire_ownership_for(runtime::HierarchyAddress const& addr,
+            runtime::HierarchyAddress const& child,
+            DataItemReference const& ref, Region missing)
+    {
+        using data_item_type = typename DataItemReference::data_item_type;
+        return runtime::HierarchicalOverlayNetwork::getLocalService<
+            index_service<data_item_type>>(addr).get(ref).acquire_ownership_for(
+                child, ref, std::move(missing));
+    }
+
+    template <typename DataItemReference, typename Region>
+    hpx::future<location_info<Region>>
+    collect_child_ownerships(runtime::HierarchyAddress const& addr,
+            DataItemReference const& ref, Region region)
+    {
+        using data_item_type = typename DataItemReference::data_item_type;
+        return runtime::HierarchicalOverlayNetwork::getLocalService<
+            index_service<data_item_type>>(addr).get(ref).collect_child_ownerships(ref, std::move(region));
     }
 
     template <typename DataItem>

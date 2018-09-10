@@ -35,7 +35,7 @@ namespace allscale { namespace data_item_manager {
             auto& entry =
                 runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr).get(req.ref);
 
-            return entry.get_missing_region(req.region).empty();
+            return entry.check_write_requirement(req.region);
         }
 
         template <typename Requirement, typename RequirementAllocator>

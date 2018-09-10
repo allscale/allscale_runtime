@@ -43,7 +43,7 @@ namespace allscale { namespace data_item_manager {
         virtual void show() const = 0;
 
         virtual bool check_write_requirements(hierarchy_address const&) const = 0;
-        virtual bool get_missing_regions(hierarchy_address const&) = 0;
+        virtual void get_missing_regions(hierarchy_address const&) = 0;
         virtual void add_allowance(hierarchy_address const&) const= 0;
         virtual void add_allowance_left(hierarchy_address const&)= 0;
         virtual void add_allowance_right(hierarchy_address const&)= 0;
@@ -80,8 +80,8 @@ namespace allscale { namespace data_item_manager {
         {
             std::cout << "Split:\n";
             data_item_manager::show(split_requirements_);
-            std::cout << "Process\n:\n";
-            data_item_manager::show(split_requirements_);
+            std::cout << "Process:\n";
+            data_item_manager::show(process_requirements_);
         }
 
         bool check_write_requirements(hierarchy_address const& addr) const override
@@ -89,9 +89,9 @@ namespace allscale { namespace data_item_manager {
             return data_item_manager::check_write_requirements(addr, process_requirements_);
         }
 
-        bool get_missing_regions(hierarchy_address const& addr) override
+        void get_missing_regions(hierarchy_address const& addr) override
         {
-            return data_item_manager::get_missing_regions(addr, process_requirements_);
+            data_item_manager::get_missing_regions(addr, process_requirements_);
         }
 
         void add_allowance(hierarchy_address const& addr) const

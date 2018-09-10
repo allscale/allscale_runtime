@@ -35,14 +35,19 @@ namespace allscale {
             return {locality_id, id, path.getParentPath()};
         }
 
+        bool is_root() const
+        {
+            return path.isRoot();
+        }
+
         bool is_left() const
         {
-            return path.getPath() & 1 == 0;
+            return (path.getPath() & 1) == 0;
         }
 
         bool is_right() const
         {
-            return path.getPath() & 1 == 1;
+            return (path.getPath() & 1) == 1;
         }
 
         task_id left_child() const
