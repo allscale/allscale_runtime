@@ -354,12 +354,13 @@ namespace allscale {
 
         std::size_t traceTarget(const tree_scheduling_policy& policy, task_id::task_path p) {
 			auto res = policy.get_target(p);
-			while(!res.isLeaf()) {
-				p = p.getLeftChildPath();
-				res = policy.get_target(p);
-			}
-			return res.getRank();
-		}
+            while(!res.isLeaf()) {
+//                 assert_lt(p.getLength(),2*policy.getGranularity());
+                p = p.getLeftChildPath();
+                res = policy.get_target(p);
+            }
+            return res.getRank();
+        }
 
 		void collectPaths(const task_id::task_path& cur, std::vector<task_id::task_path>& res, int depth) {
 			if (depth < 0) return;
@@ -420,31 +421,34 @@ namespace allscale {
 			// walk one step further up
 			cur = parent;
 		}
+
+        HPX_ASSERT(false);
     }
 
     runtime::HierarchyAddress tree_scheduling_policy::get_target(const task_id::task_path& path) const
     {
-		// for roots it is easy
-		if (path.isRoot()) return root_;
+        // get location of parent task
+        auto res = (path.isRoot()) ? root_ : get_target(path.getParentPath());
 
-		// for everything else, we walk recursive
-		auto res = get_target(path.getParentPath());
-
-		// simulate scheduling
-		switch(decide(res,path)) {
-		case schedule_decision::done  : return res;
-		case schedule_decision::stay  : return res;
-		case schedule_decision::left  : return res.getLeftChild();
-		case schedule_decision::right : return res.getRightChild();
-		}
-		assert_fail();
-		return res;
+        // simulate scheduling
+        switch(decide(res,path)) {
+            case schedule_decision::done  : return res;
+            case schedule_decision::stay  : return res;
+            case schedule_decision::left  : return res.getLeftChild();
+            case schedule_decision::right : return res.getRightChild();
+        }
+        assert_fail();
+        return res;
     }
 
     bool tree_scheduling_policy::check_target(runtime::HierarchyAddress const& addr, const task_id::task_path& path) const
     {
         return addr == get_target(path);
     }
+
+    random_scheduling_policy::random_scheduling_policy()
+      : cutoff_level_(allscale::get_num_numa_nodes() * allscale::get_num_localities())
+    {}
 
 
     bool random_scheduling_policy::is_involved(const allscale::runtime::HierarchyAddress& addr, const task_id::task_path& path) const
@@ -458,10 +462,19 @@ namespace allscale {
         std::lock_guard<mutex_type> l(mtx);
         auto r = policy(generator);
 
-        return
-            (r < 0.33) ? schedule_decision::left :
-            (r < 0.66) ? schedule_decision::right :
-            (path.getLength() < 0) ? schedule_decision::stay : (r < 0.33) ? schedule_decision::left : schedule_decision::right;
+        if (r < 0.33)
+            return schedule_decision::left;
+
+        if (r < 0.66)
+            return schedule_decision::right;
+
+        if (path.getLength() < cutoff_level_)
+            return schedule_decision::stay;
+
+        if (r < 0.33)
+            return schedule_decision::left;
+
+        return schedule_decision::right;
     }
 
     bool random_scheduling_policy::check_target(runtime::HierarchyAddress const&, const task_id::task_path&) const
