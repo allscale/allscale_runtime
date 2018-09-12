@@ -298,8 +298,9 @@ namespace allscale
 //                 std::cout << here_ << ' ' << work.name() << "." << id << ": right: " << '\n';
 //                 reqs->show();
                 reqs->add_allowance_right(here_);
-                if (!right_id_)
+                if (!right_id_ && allscale::resilience::rank_running(right_.getRank()))
                 {
+                    allscale::resilience::global_wi_dispatched(work, right_.getRank());
                     runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(right_).
                         schedule_down(std::move(work), std::move(reqs));
                 }
@@ -321,6 +322,8 @@ namespace allscale
         static auto addr = runtime::HierarchyAddress(rank, 0, local_layers - 1);
         static auto &local_scheduler_service =
             runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(addr);
+
+        allscale::monitor::signal(allscale::monitor::work_item_enqueued, work);
 
         local_scheduler_service.schedule(std::move(work));
 //         get().enqueue(work);

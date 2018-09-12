@@ -73,6 +73,7 @@ namespace allscale { namespace components {
         mutex_type spawn_throttle_mtx_;
         std::unordered_map<const char*, treeture_buffer> spawn_throttle_;
 
+        void optimize_locally(work_item const& work);
         bool do_split(work_item const& work, std::size_t local_depth, std::size_t numa_node);
 
         bool collect_counters();
