@@ -264,30 +264,31 @@ namespace allscale { namespace data_item_manager {
 
 #if defined(HPX_DEBUG)
             region_type missing_ref = missing;
-            // Make sure local management is consistent (for the requested part)
-            {
-                std::unique_lock<mutex_type> l(mtx_);
-                if (!(region_type::intersect(full_, missing) ==
-                    region_type::merge(
-                        region_type::intersect(left_, missing),
-                        region_type::intersect(right_, missing)
-                    )))
-                {
-                    std::cerr
-                        << "Node:      " << service_->here_ << '\n'
-                        << "Regions:   " << missing << '\n'
-                        << "Available: " << full_ << '\n'
-                        << "Left:      " << left_ << '\n'
-                        << "Right:     " << right_ << '\n'
-                        << "Merged:    " << region_type::merge(left_, right_) << '\n'
-                        << " -- intersected -- \n"
-                        << "Available: " << region_type::intersect(full_, missing) << '\n'
-                        << "Left:      " << region_type::intersect(left_, missing) << '\n'
-                        << "Right:     " << region_type::intersect(right_, missing) << '\n'
-                        ;
-                    std::abort();
-                }
-            }
+//             // Make sure local management is consistent (for the requested part)
+//             {
+//                 std::unique_lock<mutex_type> l(mtx_);
+//                 if (!(region_type::intersect(full_, missing) ==
+//                     region_type::merge(
+//                         region_type::intersect(left_, missing),
+//                         region_type::intersect(right_, missing)
+//                     )))
+//                 {
+//                     std::cerr
+//                         << __FILE__ << ':' << __LINE__ << ":\n"
+//                         << "Node:      " << service_->here_ << '\n'
+//                         << "Regions:   " << missing << '\n'
+//                         << "Available: " << full_ << '\n'
+//                         << "Left:      " << left_ << '\n'
+//                         << "Right:     " << right_ << '\n'
+//                         << "Merged:    " << region_type::merge(left_, right_) << '\n'
+//                         << " -- intersected -- \n"
+//                         << "Available: " << region_type::intersect(full_, missing) << '\n'
+//                         << "Left:      " << region_type::intersect(left_, missing) << '\n'
+//                         << "Right:     " << region_type::intersect(right_, missing) << '\n'
+//                         ;
+//                     std::abort();
+//                 }
+//             }
 #endif
 
             // Make sure the given child is really a child of this node
@@ -317,7 +318,7 @@ namespace allscale { namespace data_item_manager {
 
                 if (!part.empty())
                 {
-                    HPX_ASSERT(allscale::api::core::isSubRegion(part, full_));
+//                     HPX_ASSERT(allscale::api::core::isSubRegion(part, full_));
                     missing = region_type::difference(missing, part);
 
                     // Remove remaining missing from our ownership list.
@@ -434,7 +435,7 @@ namespace allscale { namespace data_item_manager {
             {
                 std::unique_lock<mutex_type> l(mtx_);
 
-                HPX_ASSERT(allscale::api::core::isSubRegion(missing, full_));
+//                 HPX_ASSERT(allscale::api::core::isSubRegion(missing, full_));
                 // If we are at a leaf, we stop the recursion and return the
                 // location info.
                 if (service_->here_.isLeaf())

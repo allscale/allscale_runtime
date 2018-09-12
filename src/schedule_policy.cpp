@@ -465,15 +465,6 @@ namespace allscale {
         if (r < 0.33)
             return schedule_decision::left;
 
-        if (r < 0.66)
-            return schedule_decision::right;
-
-        if (path.getLength() < cutoff_level_)
-            return schedule_decision::stay;
-
-        if (r < 0.33)
-            return schedule_decision::left;
-
         return schedule_decision::right;
     }
 
