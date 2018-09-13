@@ -51,6 +51,11 @@ namespace allscale { namespace components {
                HPX_ASSERT(false);
            }
 
+	   void toJSON(std::ostream& out) const; 
+	   void init_dashboard_conn();
+	   void shutdown_dashboard_conn();
+	   void sendUpdate();
+
 	   monitor(std::uint64_t rank);
            void init();
            void stop();
@@ -411,6 +416,15 @@ namespace allscale { namespace components {
              long cutoff_level_;
 	     int print_throughput_hm_;
              int print_idle_hm_;
+	     // DASHBOARD CONNECTION VARS
+	     bool dashboard_conn_alive;
+	     int sock;
+	     const char* ENVVAR_DASHBOARD_IP = "ART_DASHBOARD_IP";
+	     const char* ENVVAR_DASHBOARD_PORT = "ART_DASHBOARD_PORT";
+	     const char* DEFAULT_DASHBOARD_IP = "127.0.0.1";
+	     std::string dashboardIP = DEFAULT_DASHBOARD_IP;
+	     int dashboardPort = DEFAULT_DASHBOARD_PORT;	   
+	     int DEFAULT_DASHBOARD_PORT = 1337;
        };
 
 }}
