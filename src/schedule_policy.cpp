@@ -304,8 +304,8 @@ namespace allscale {
 
 		// for development, to estimate quality:
 
-		const bool DEBUG_ = false;
-		if (DEBUG_) {
+		const bool local_DEBUG_ = false;
+		if (local_DEBUG_) {
 			// --- compute new load distribution ---
 			std::vector<float> newEstCosts(numNodes,0);
 			for(std::size_t i=0; i<mapping.size(); i++) {
