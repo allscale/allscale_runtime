@@ -618,7 +618,6 @@ template<> struct to_std_array_type<allscale_type_206> { using type = std::array
 
 /* ------- Function Definitions --------- */
 double IMP_amdados_colon__colon_Bound_double_returns_double(double const& var_0, double const& var_1, double const& var_2) {
-    var_1 <= var_2 ? (void)0 : __assert_fail("vmin <= vmax", "/hpc-scratch/c703429/insieme-dev/allscale_amdados/code/app/include/amdados/app/amdados_utils.h", (uint32_t)55, "T amdados::Bound(const T &, const T &, const T &) [T = double]");
     return std::min(std::max(var_0, var_1), var_2);
 }
 /* ------- Function Definitions --------- */

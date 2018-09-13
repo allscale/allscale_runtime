@@ -196,10 +196,6 @@ template<> struct to_std_array_type<allscale_type_56> { using type = std::array<
 
 /* ------- Function Definitions --------- */
 allscale::treeture<void > allscale_fun_49(hpx::util::tuple<IMP_empty_IMLOC__slash_home_slash_heller_slash_projects_slash_allscale_compiler_slash_api_slash_code_slash_api_slash_include_slash_allscale_slash_api_slash_user_slash_algorithm_slash_async_dot_h_63_3, IMP__Insieme__lambda__slash_home_slash_heller_slash_projects_slash_allscale_compiler_slash_test_slash_data_requirements_slash_scalar_read_only_slash_scalar_read_only_dot_cpp_13_11_allscale_colon__colon_api_colon__colon_user_colon__colon_data_colon__colon_Scalar_lt_int_gt__space__ampersand__void_IMLOC__slash_home_slash_heller_slash_projects_slash_allscale_compiler_slash_test_slash_data_requirements_slash_scalar_read_only_slash_scalar_read_only_dot_cpp_13_11 > const& var_0) {
-    insieme::utils::detail::LazyAssertion var_1 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{(bool)false};
-    if (var_1) {
-        std::cerr << "\nAssertion failed in /home/heller/projects/allscale_compiler/code/../api/code/api/include/allscale/api/user/algorithm/async.h:70 - " << "Should not be reached!";
-    };
     hpx::util::get<1 >(var_0).operator()();
     return ((void)0, allscale::make_ready_treeture());
 }
@@ -240,10 +236,6 @@ bool __wi_allscale_wi_1_can_split::call(hpx::util::tuple<IMP_empty_IMLOC__slash_
 }
 /* ------- Function Definitions --------- */
 void allscale_fun_68(hpx::util::tuple<IMP_empty_IMLOC__slash_home_slash_heller_slash_projects_slash_allscale_compiler_slash_api_slash_code_slash_api_slash_include_slash_allscale_slash_api_slash_user_slash_algorithm_slash_async_dot_h_63_3, IMP__Insieme__lambda__slash_home_slash_heller_slash_projects_slash_allscale_compiler_slash_test_slash_data_requirements_slash_scalar_read_only_slash_scalar_read_only_dot_cpp_13_11_allscale_colon__colon_api_colon__colon_user_colon__colon_data_colon__colon_Scalar_lt_int_gt__space__ampersand__void_IMLOC__slash_home_slash_heller_slash_projects_slash_allscale_compiler_slash_test_slash_data_requirements_slash_scalar_read_only_slash_scalar_read_only_dot_cpp_13_11 > const& var_0) {
-    insieme::utils::detail::LazyAssertion var_1 = (insieme::utils::detail::LazyAssertion const&)insieme::utils::detail::LazyAssertion{(bool)false};
-    if (var_1) {
-        std::cerr << "\nAssertion failed in /home/heller/projects/allscale_compiler/code/../api/code/api/include/allscale/api/user/algorithm/async.h:70 - " << "Should not be reached!";
-    };
     hpx::util::get<1 >(var_0).operator()();
     return (void)0;
 }
