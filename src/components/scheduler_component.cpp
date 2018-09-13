@@ -725,8 +725,16 @@ void scheduler::optimize_locally(work_item const& work)
         std::cout << "Active OS Threads = " <<  total_threads_counted << std::endl;
 #endif
 
-        // this is the place where we take policy specific actions
+#ifdef MEASURE_
+#ifdef ALLSCALE_HAVE_CPUFREQ
+        std::size_t temp_id = work.id().id;
+        if ((temp_id >= period_for_power) &&
+                (temp_id % period_for_power == 0))
+            update_power_consumption(hardware_reconf::read_system_power());
+#endif
+#endif
 
+#ifdef ALLSCALE_HAVE_CPUFREQ
         if (uselopt && !lopt_.isConverged()){
             last_power_usage++;
             current_power_usage = hardware_reconf::read_system_power();
@@ -799,35 +807,19 @@ void scheduler::optimize_locally(work_item const& work)
                     std::cout << "[SCHEDULER|INFO]: Optimizer induced threads to resume to: " << new_threads_target << std::endl;
                     std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << ", target threads = " << act_temp.delta_threads << std::endl;
 #endif
-                    unsigned int resumed_temp = resume_threads(new_threads_target);
-                    //lopt_.setCurrentThreads(lopt_.getCurrentThreads()+resumed_temp);
-                    lopt_.setCurrentThreads(active_threads);
-                }
-
-                // amend frequency if signaled
-                if (act_temp.frequency_idx != -1){
-#ifdef DEBUG_MULTIOBJECTIVE_
-                    std::cout << "[SCHEDULER|INFO]: Optimizer induced frequency scaling to index : " << act_temp.frequency_idx << std::endl;
-#endif
                     fix_allcores_frequencies(act_temp.frequency_idx);
                     lopt_.setCurrentFrequencyIdx(act_temp.frequency_idx);
                 }
             }
         } // uselopt
+#endif
     }
 }
 
 void scheduler::schedule_local(work_item work,
-    std::unique_ptr<data_item_manager::task_requirements_base>&& reqs,
-    runtime::HierarchyAddress const& addr, std::size_t local_depth)
+        std::unique_ptr<data_item_manager::task_requirements_base>&& reqs,
+        runtime::HierarchyAddress const& addr, std::size_t local_depth)
 {
-#ifdef MEASURE_
-    std::size_t temp_id = work.id().id;
-    if (work.id().depth() == 0 && (temp_id >= period_for_power) &&
-            (temp_id % period_for_power == 0))
-        update_power_consumption(hardware_reconf::read_system_power());
-#endif
-
     optimize_locally(work);
 
     nr_tasks_scheduled++;
