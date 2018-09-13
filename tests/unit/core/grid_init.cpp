@@ -258,26 +258,40 @@ struct main_process
                 allscale::access_mode::ReadOnly
             ));
 
-        auto location_infos = hpx::util::unwrap(allscale::data_item_manager::locate(req));
+        std::unique_ptr<allscale::data_item_manager::task_requirements_base> req_ptr(
+            new allscale::data_item_manager::task_requirements<
+                hpx::util::tuple<>,
+                hpx::util::decay<decltype(req)>::type
+            >(hpx::util::tuple<>(), std::move(req))
+        );
 
-        auto lease = hpx::util::unwrap(allscale::data_item_manager::acquire(req,
-            location_infos));
+
+	    auto addr = allscale::runtime::HierarchyAddress::getRootOfNetworkSize(
+                allscale::get_num_numa_nodes(), allscale::get_num_localities());
+
+        // Get to a leave to not confuse the DIM...
+        while (!addr.isLeaf())
+        {
+            addr = addr.getLeftChild();
+        }
+
+        req_ptr->acquire_process(addr).get();
 
         auto ref = allscale::data_item_manager::get(data);
 
         whole_region.scan(
             [&](auto const& pos)
             {
+                HPX_TEST_EQ(ref[pos], pos.x + pos.y);
                 if (ref[pos] != pos.x + pos.y)
                 {
                     std::cout << pos << '\n';
                     std::abort();
                 }
-                HPX_TEST_EQ(ref[pos], pos.x + pos.y);
             }
         );
 
-        allscale::data_item_manager::release(lease);
+        req_ptr->release_process();
 
         return allscale::make_ready_treeture(0);
     }

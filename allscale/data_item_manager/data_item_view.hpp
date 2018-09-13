@@ -3,6 +3,7 @@
 
 #include "allscale/utils/serializer.h"
 
+#include <allscale/data_item_manager/fragment.hpp>
 #include <hpx/util/annotated_function.hpp>
 
 #include <memory>
@@ -16,16 +17,30 @@ namespace allscale { namespace data_item_manager {
     {
         using fragment_type = typename DataItem::fragment_type;
         using region_type = typename DataItem::region_type;
+        using mutex_type = typename data_item_store<DataItem>::data_item_type::mutex_type;
 
         hpx::naming::gid_type id_;
         region_type region_;
+        bool migrate_;
 
         data_item_view() = default;
 
-        data_item_view(hpx::naming::gid_type id, region_type region)
+        data_item_view(hpx::naming::gid_type id, region_type region, bool migrate)
           : id_(std::move(id))
           , region_(std::move(region))
+          , migrate_(migrate)
         {
+#if defined(HPX_DEBUG)
+            auto& item = data_item_store<DataItem>::lookup(id_);
+            {
+                std::unique_lock<mutex_type> ll(item.mtx);
+                HPX_ASSERT(item.fragment);
+
+                auto& frag = *item.fragment;
+
+                HPX_ASSERT(allscale::api::core::isSubRegion(region_, frag.getCoveredRegion()));
+            }
+#endif
         }
 
         template <typename Archive>
@@ -33,17 +48,16 @@ namespace allscale { namespace data_item_manager {
         {
             hpx::util::annotate_function("allscale::data_item_manager::data_item_view::load");
             ar & id_;
-//             hpx::util::high_resolution_timer timer;
             auto & item = data_item_store<DataItem>::lookup(id_);
-            HPX_ASSERT(item.fragment);
             allscale::utils::ArchiveReader reader(ar);
+            {
+                std::unique_lock<mutex_type> ll(item.mtx);
+                HPX_ASSERT(item.fragment);
 
-            item.fragment->insert(reader);
-//             using mutex_type = typename data_item_store<DataItem>::data_item_type::mutex_type;
-//             {
-//                 std::unique_lock<mutex_type> l(item.mtx);
-//                 item.insert_time += timer.elapsed();
-//             }
+                auto& frag = *item.fragment;
+
+                frag.insert(reader);
+            }
         }
 
         template <typename Archive>
@@ -51,18 +65,17 @@ namespace allscale { namespace data_item_manager {
         {
             hpx::util::annotate_function("allscale::data_item_manager::data_item_view::save");
             ar & id_;
-//             hpx::util::high_resolution_timer timer;
             allscale::utils::ArchiveWriter writer(ar);
             auto& item = data_item_store<DataItem>::lookup(id_);
-            HPX_ASSERT(item.fragment);
-            item.fragment->extract(writer, region_);
+            {
+                std::unique_lock<mutex_type> ll(item.mtx);
+                HPX_ASSERT(item.fragment);
 
-//             auto & item = data_item_store<DataItem>::lookup(id_);
-//             using mutex_type = typename data_item_store<DataItem>::data_item_type::mutex_type;
-//             {
-//                 std::unique_lock<mutex_type> l(item.mtx);
-//                 item.extract_time += timer.elapsed();
-//             }
+                auto& frag = *item.fragment;
+                HPX_ASSERT(allscale::api::core::isSubRegion(region_, frag.getCoveredRegion()));
+
+                frag.extract(writer, region_);
+            }
         }
 
         HPX_SERIALIZATION_SPLIT_MEMBER()

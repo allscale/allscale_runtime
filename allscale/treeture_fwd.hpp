@@ -24,7 +24,7 @@ namespace allscale {
     }
 
     struct treeture_init_t {};
-    constexpr treeture_init_t treeture_init;
+    constexpr treeture_init_t treeture_init{};
 }
 
 #endif

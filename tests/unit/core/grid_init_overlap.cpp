@@ -70,7 +70,7 @@ struct grid_init_split {
         auto begin = hpx::util::get<1>(c);
         auto end = hpx::util::get<2>(c);
 
-        std::size_t depth = allscale::this_work_item::get_id().depth();
+        std::size_t depth = allscale::this_work_item::get()->id().depth();
         auto range = allscale::api::user::algorithm::detail::range<coordinate_type>(begin, end);
         auto fragments = allscale::api::user::algorithm::detail::range_spliter<coordinate_type>::split(depth, range);
 

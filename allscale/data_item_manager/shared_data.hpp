@@ -2,6 +2,8 @@
 #ifndef ALLSCALE_DATA_ITEM_MANAGER_SHARED_DATA_HPP
 #define ALLSCALE_DATA_ITEM_MANAGER_SHARED_DATA_HPP
 
+#include <allscale/data_item_manager/data_item_store.hpp>
+
 namespace allscale { namespace data_item_manager {
     template <typename DataItemReference>
     typename DataItemReference::shared_data_type shared_data(DataItemReference const& ref);
@@ -24,11 +26,11 @@ namespace allscale { namespace data_item_manager {
 
         auto& item = data_item_store<data_item_type>::lookup(ref.id());
 
-        boost::shared_lock<mutex_type> l(item.fragment_mtx);
+        std::unique_lock<mutex_type> l(item.mtx);
 
         if (item.shared_data == nullptr)
         {
-            l.unlock();
+            hpx::util::unlock_guard<std::unique_lock<mutex_type>> ul(l);
             std::size_t this_id = hpx::get_locality_id();
             HPX_ASSERT(this_id != 0);
             // FIXME: make resilient
@@ -39,7 +41,7 @@ namespace allscale { namespace data_item_manager {
             );
             shared_data_type res = shared_data_action<DataItemReference>()(target, ref);
             {
-                std::unique_lock<mutex_type> ll(item.fragment_mtx);
+                std::unique_lock<mutex_type> ll(item.mtx);
                 if (item.shared_data == nullptr)
                 {
                     item.shared_data.reset(new shared_data_type(std::move(res)));

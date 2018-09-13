@@ -4,10 +4,6 @@
 
 #include <allscale/treeture.hpp>
 #include <allscale/monitor.hpp>
-#include <allscale/data_item_manager.hpp>
-#include <allscale/data_item_manager/acquire.hpp>
-#include <allscale/data_item_manager/acquire_rank.hpp>
-#include <allscale/data_item_manager/locate.hpp>
 #include <allscale/data_item_requirement.hpp>
 #include <allscale/detail/work_item_impl_base.hpp>
 
@@ -22,20 +18,6 @@
 #include <utility>
 
 namespace allscale { namespace detail {
-	struct set_id {
-		set_id(this_work_item::id& id)
-          :	old_id_(this_work_item::get_id_ptr()) {
-			this_work_item::set_id(id);
-		}
-
-		~set_id() {
-            if (old_id_)
-                this_work_item::set_id(*old_id_);
-		}
-
-		this_work_item::id* old_id_;
-	};
-
     template <typename Archive, typename T>
     auto has_serialize(hpx::traits::detail::wrap_int)
       -> std::false_type;
@@ -66,19 +48,6 @@ namespace allscale { namespace detail {
       : hpx::util::detail::all_of<is_serializable<Ts>...>
     {};
 
-    template <typename Leases, std::size_t... Is>
-    inline void release(hpx::util::detail::pack_c<std::size_t, Is...>, Leases const& leases)
-    {
-        int sequencer[] = {
-            (allscale::data_item_manager::release(hpx::util::get<Is>(leases)), 0)...
-        };
-        (void)sequencer;
-    }
-
-    inline void release(hpx::util::detail::pack_c<std::size_t>, hpx::util::tuple<> const&)
-    {
-    }
-
     template<typename T, typename SharedState>
     inline void set_treeture(treeture<T>& t, SharedState& s) {
         t.set_value(std::move(*s->get_result()));
@@ -103,32 +72,26 @@ namespace allscale { namespace detail {
             is_closure_serializable<Closure>::value;*/
 
         // This ctor is called during serialization...
-        work_item_impl(this_work_item::id const& id, treeture<result_type>&& tres, closure_type&& closure)
+        work_item_impl(task_id const& id, closure_type&& closure)
           : work_item_impl_base(id)
-          , tres_(std::move(tres))
+          , tres_(treeture_init)
           , closure_(std::move(closure))
         {}
 
-        template<typename ...Ts>
-        work_item_impl(treeture<result_type> tres, Ts&&... vs)
-         : tres_(std::move(tres)), closure_(std::forward<Ts>(vs)...)
-        {
-            HPX_ASSERT(tres_.valid());
-        }
+        work_item_impl(task_id const& id, hpx::shared_future<void> dep, closure_type&& closure)
+          : work_item_impl_base(id)
+          , tres_(treeture_init)
+          , closure_(std::move(closure))
+          , dep_(std::move(dep))
+        {}
 
-        work_item_impl(this_work_item::id const& id, hpx::shared_future<void> dep, treeture<result_type>&& tres, closure_type&& closure)
+        // used for serialization...
+        work_item_impl(task_id const& id, hpx::shared_future<void> dep, treeture<result_type> tres, closure_type&& closure)
           : work_item_impl_base(id)
           , tres_(std::move(tres))
           , closure_(std::move(closure))
           , dep_(std::move(dep))
         {}
-
-        template<typename ...Ts>
-        work_item_impl(hpx::shared_future<void> dep, treeture<result_type> tres, Ts&&... vs)
-         : tres_(std::move(tres)), closure_(std::forward<Ts>(vs)...), dep_(std::move(dep))
-        {
-            HPX_ASSERT(tres_.valid());
-        }
 
         std::shared_ptr<work_item_impl> shared_this()
         {
@@ -140,7 +103,12 @@ namespace allscale { namespace detail {
             return WorkItemDescription::name();
         }
 
-        treeture<void> get_treeture() final
+        treeture<void> get_void_treeture() const final
+        {
+            return tres_;
+        }
+
+        treeture<result_type> get_treeture() const
         {
             return tres_;
         }
@@ -183,17 +151,23 @@ namespace allscale { namespace detail {
             return hpx::util::tuple<>();
         }
 
-        template <typename Future, typename Leases>
+        template <typename Future>
         typename std::enable_if<
             hpx::traits::is_future<Future>::value ||
             traits::is_treeture<Future>::value
         >::type
         finalize(
-            std::shared_ptr<work_item_impl> this_, Future && work_res, Leases leases, bool is_split)
+            std::shared_ptr<work_item_impl> this_, Future && work_res, task_requirements&& reqs, bool is_split)
         {
-            if(is_split) monitor::signal(monitor::work_item_split_execution_finished,
-                		            work_item(this_));
-            else monitor::signal(monitor::work_item_process_execution_finished, work_item(this_));
+            if(is_split)
+            {
+                monitor::signal(monitor::work_item_split_execution_finished,
+                    work_item(this_));
+            }
+            else
+            {
+                monitor::signal(monitor::work_item_process_execution_finished, work_item(this_));
+            }
 
 
             typedef typename std::decay<Future>::type work_res_type;
@@ -203,80 +177,88 @@ namespace allscale { namespace detail {
                 = hpx::traits::future_access<work_res_type>::get_shared_state(work_res);
 
             state->set_on_completed(
-                hpx::util::deferred_call([](auto this_, auto state, Leases leases)
+                hpx::util::deferred_call([is_split](auto this_, auto state, task_requirements&& reqs)
                 {
-                    typename hpx::util::detail::make_index_pack<
-                        hpx::util::tuple_size<Leases>::type::value>::type pack;
-                    release(pack, leases);
+                    if(is_split)
+                    {
+                        reqs->release_split();
+                    }
+                    else
+                    {
+                        reqs->release_process();
+                    }
 
-                    set_id si(this_->id_);
+                    this_work_item::set s(*this_);
                     detail::set_treeture(this_->tres_ , state);
                     monitor::signal(monitor::work_item_result_propagated,
                         work_item(std::move(this_)));
                 },
-                std::move(this_), std::move(state), std::move(leases)));
+                std::move(this_), std::move(state), std::move(reqs)));
         }
 
-        template <typename Future, typename Leases>
+        template <typename Future>
         typename std::enable_if<
             !hpx::traits::is_future<Future>::value &&
             !traits::is_treeture<Future>::value
         >::type
         finalize(
-            std::shared_ptr<work_item_impl> this_, Future && work_res, Leases leases, bool is_split)
+            std::shared_ptr<work_item_impl> this_, Future && work_res, task_requirements&& reqs, bool is_split)
         {
-            if(is_split) monitor::signal(monitor::work_item_split_execution_finished,
-                				work_item(this_));
-            else monitor::signal(monitor::work_item_process_execution_finished, work_item(this_));
+            if(is_split)
+            {
+                monitor::signal(monitor::work_item_split_execution_finished,
+                    work_item(this_));
+                reqs->release_split();
+            }
+            else
+            {
+                monitor::signal(monitor::work_item_process_execution_finished, work_item(this_));
+                reqs->release_process();
+            }
 
-
-            typename hpx::util::detail::make_index_pack<
-                hpx::util::tuple_size<Leases>::type::value>::type pack;
-            release(pack, leases);
-
-            set_id si(this_->id_);
+            this_work_item::set s(*this_);
             tres_.set_value(std::forward<Future>(work_res));
             monitor::signal(monitor::work_item_result_propagated,
                 work_item(std::move(this_)));
         }
 
-        template <typename Closure_, typename Leases>
+        template <typename Closure_>
         typename std::enable_if<
             !std::is_same<
                 decltype(WorkItemDescription::process_variant::execute(std::declval<Closure_ const&>())),
                 void
             >::value
         >::type
-		do_process(Leases leases)
+		do_process(task_requirements&& reqs)
         {
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_process_execution_started,
                 work_item(this_));
-            set_id si(this->id_);
+            this_work_item::set s(*this_);
 
             auto work_res =
                 WorkItemDescription::process_variant::execute(closure_);
 
-            finalize(std::move(this_), std::move(work_res), std::move(leases), false);
+            finalize(std::move(this_), std::move(work_res), std::move(reqs), false);
 		}
 
-        template <typename Closure_, typename Leases>
+        template <typename Closure_>
         typename std::enable_if<
             std::is_same<
                 decltype(WorkItemDescription::process_variant::execute(std::declval<Closure_ const&>())),
                 void
             >::value
         >::type
-		do_process(Leases leases)
+		do_process(task_requirements&& reqs)
         {
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_process_execution_started,
                 work_item(this_));
-            set_id si(this->id_);
+            this_work_item::set s(*this_);
 
             WorkItemDescription::process_variant::execute(closure_);
 
-            finalize(std::move(this_), hpx::util::unused_type(), std::move(leases), false);
+            finalize(std::move(this_), hpx::util::unused_type(), std::move(reqs), false);
 		}
 
         template <typename T>
@@ -292,24 +274,22 @@ namespace allscale { namespace detail {
             // null-op as fallback...
         }
 
-        template<typename Leases>
-		void do_split(Leases leases)
+		void do_split(task_requirements&& reqs)
         {
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_split_execution_started, work_item(this_));
 
-            set_id si(this->id_);
+            this_work_item::set s(*this_);
 
             auto work_res =
                 WorkItemDescription::split_variant::execute(closure_);
             set_children(work_res);
 
-            finalize(std::move(this_), std::move(work_res), std::move(leases), true);
+            finalize(std::move(this_), std::move(work_res), std::move(reqs), true);
         }
 
-        template <typename ProcessVariant, typename Leases>
-        void get_deps(executor_type& exec, Leases leases,
-            decltype(&ProcessVariant::template deps<Closure>))
+        template <typename ProcessVariant>
+        void get_deps(executor_type& exec, task_requirements&& reqs, decltype(&ProcessVariant::template deps<Closure>))
         {
             typedef hpx::shared_future<void> deps_type;
 
@@ -328,21 +308,21 @@ namespace allscale { namespace detail {
 
             auto this_ = shared_this();
             state->set_on_completed(
-                [&exec, state = std::move(state), this_ = std::move(this_), leases = std::move(leases)]() mutable
+                [&exec, state = std::move(state), this_ = std::move(this_), reqs = std::move(reqs)]() mutable
                 {
                     void (work_item_impl::*f)(
-                            Leases
+                        task_requirements&&
                     ) = &work_item_impl::do_process<Closure>;
 
                     hpx::parallel::execution::post(
                         exec, hpx::util::annotated_function(
-                            hpx::util::deferred_call(f, std::move(this_), std::move(leases)),
+                            hpx::util::deferred_call(f, std::move(this_), std::move(reqs)),
                             "allscale::work_item::do_process"));
                 });
         }
 
-        template <typename ProcessVariant, typename Leases>
-        void get_deps(executor_type& exec, Leases leases, ...)
+        template <typename ProcessVariant>
+        void get_deps(executor_type& exec, task_requirements&& reqs, ...)
         {
             auto this_ = shared_this();
             if (dep_.valid() && !dep_.is_ready())
@@ -352,15 +332,15 @@ namespace allscale { namespace detail {
                 typename hpx::traits::detail::shared_state_ptr_for<deps_type>::type state
                     = hpx::traits::future_access<deps_type>::get_shared_state(dep_);
                 state->set_on_completed(
-                    [&exec, state = std::move(state), this_ = std::move(this_), leases = std::move(leases)]() mutable
+                    [&exec, state = std::move(state), this_ = std::move(this_), reqs = std::move(reqs)]() mutable
                     {
                         void (work_item_impl::*f)(
-                                Leases
+                            task_requirements&&
                         ) = &work_item_impl::do_process<Closure>;
 
                         hpx::parallel::execution::post(
                             exec, hpx::util::annotated_function(
-                                hpx::util::deferred_call(f, std::move(this_), std::move(leases)),
+                                hpx::util::deferred_call(f, std::move(this_), std::move(reqs)),
                                 "allscale::work_item::do_process"));
                     }
                 );
@@ -368,214 +348,85 @@ namespace allscale { namespace detail {
             else
             {
                 hpx::util::annotate_function("allscale::work_item::do_process_sync");
-                do_process<Closure>(std::move(leases));
+                do_process<Closure>(std::move(reqs));
             }
         }
 
-        hpx::future<std::size_t> process(executor_type& exec, hpx::util::tuple<>&&)
+        void process(executor_type& exec, task_requirements&& reqs)
         {
             hpx::util::annotate_function("allscale::work_item::process");
             get_deps<typename WorkItemDescription::process_variant>(
-                exec, hpx::util::tuple<>(), nullptr);
-            return hpx::make_ready_future(std::size_t(-2));
-        }
-
-        template <typename Reqs>
-        hpx::future<std::size_t> process(executor_type& exec, Reqs&& reqs)
-        {
-            typedef
-                typename hpx::util::decay<decltype(hpx::util::unwrap(std::forward<Reqs>(reqs)))>::type
-                reqs_type;
-            auto this_ = shared_this();
-            return hpx::dataflow(exec,
-                hpx::util::annotated_function(hpx::util::unwrapping([this_ = std::move(this_), &exec](reqs_type reqs) mutable
-                {
-                    this_->template get_deps<typename WorkItemDescription::process_variant>(
-                        exec, std::move(reqs), nullptr);
-                    return std::size_t(-2);
-                }), "allscale::work_item::process::reqs_cont_sync")
-              , std::forward<Reqs>(reqs));
-        }
-
-        hpx::future<std::size_t> process(executor_type& exec, std::size_t this_id) final
-        {
-            HPX_ASSERT(valid());
-
-            auto this_ = shared_this();
-            auto reqs = detail::merge_data_item_reqs(
-                get_requirements<typename WorkItemDescription::process_variant>(nullptr)
-            );
-#if defined(ALLSCALE_DEBUG_DIM)
-            std::string s = this_->name();
-            s += '(';
-            s += this_->id_.name();
-            s += ").process";
-#endif
-
-            return hpx::dataflow(hpx::launch::sync,
-                hpx::util::annotated_function([reqs, this_ = std::move(this_), &exec, this_id](auto locate_future)
-                {
-                    auto infos = hpx::util::unwrap(locate_future);
-                    std::size_t rank = data_item_manager::acquire_rank(reqs, infos,
-                        this_->can_split());
-                    // Write regions are on different localities, need split
-                    if (rank == std::size_t(-1))
-                    {
-                        if (this_->can_split())
-                        {
-                            return hpx::make_ready_future(std::size_t(-1));
-                        }
-                        else
-                        {
-                            std::cerr << "Requesting split for " << this_->name()
-                                << ", but can not split further!\n";
-                            data_item_manager::print_location_info(reqs, infos);
-                            std::abort();
-                        }
-                    }
-                    // Route to different locality
-                    if (rank != std::size_t(-2) && rank != this_id)
-                    {
-                        return hpx::make_ready_future(rank);
-                    }
-#if defined(ALLSCALE_DEBUG_DIM)
-                    std::string s = this_->name();
-                    s += '(';
-                    s += this_->id_.name();
-                    s += ").process";
-                    data_item_manager::log_req(s, reqs);
-#endif
-                    HPX_ASSERT(rank == std::size_t(-2) || rank == this_id);
-                    return this_->process(exec, data_item_manager::acquire(reqs, infos));
-                }, "allscale::work_item::process::locate_continuation"),
-#if defined(ALLSCALE_DEBUG_DIM)
-                data_item_manager::locate(std::move(s), reqs)
-#else
-                data_item_manager::locate(reqs)
-#endif
-            );
+                exec, std::move(reqs), nullptr);
         }
 
         template <typename WorkItemDescription_>
         typename std::enable_if<
-            WorkItemDescription_::split_variant::valid,
-            hpx::future<std::size_t>
-        >::type split(bool sync, hpx::util::tuple<> && reqs, std::size_t this_id)
+            WorkItemDescription_::split_variant::valid
+        >::type split(executor_type& exec, task_requirements&& reqs)
         {
-            if (sync && id().last() % 2 == 1)
+            if (id().is_right())
             {
+                hpx::util::annotate_function("allscale::work_item::do_split_sync");
                 do_split(std::move(reqs));
-                return hpx::make_ready_future(std::size_t(-2));
             }
             else
             {
                 auto this_ = shared_this();
-                return hpx::async([this_ = std::move(this_)]()
-                {
-                    this_->do_split(hpx::util::tuple<>());
-                    return std::size_t(-2);
-                });
-            }
-        }
-
-        template <typename WorkItemDescription_, typename Reqs>
-        typename std::enable_if<
-            WorkItemDescription_::split_variant::valid,
-            hpx::future<std::size_t>
-        >::type split(bool sync, Reqs && reqs, std::size_t this_id)
-        {
-            auto this_ = shared_this();
-#if defined(ALLSCALE_DEBUG_DIM)
-                    std::string s = this_->name();
-                    s += '(';
-                    s += this_->id_.name();
-                    s += ").split";
-#endif
-            auto continuation =
-                hpx::util::annotated_function([reqs, this_ = std::move(this_), this_id](auto locate_future)
-                {
-                    auto infos = hpx::util::unwrap(locate_future);
-                    std::size_t rank = data_item_manager::acquire_rank(reqs, infos,
-                        this_->can_split());
-                    // Write regions are on different localities, need split
-                    if (rank == std::size_t(-1))
-                    {
-                        return hpx::make_ready_future(std::size_t(-1));
-                    }
-                    // Route to different locality
-                    if (rank != std::size_t(-2) && rank != this_id)
-                    {
-                        return hpx::make_ready_future(rank);
-                    }
-                    HPX_ASSERT(rank == std::size_t(-2) || rank == this_id);
-                    typedef
-                        typename hpx::util::decay<decltype(hpx::util::unwrap(data_item_manager::acquire(reqs, infos)))>::type
-                        reqs_type;
-#if defined(ALLSCALE_DEBUG_DIM)
-                    std::string s = this_->name();
-                    s += '(';
-                    s += this_->id_.name();
-                    s += ").split";
-                    data_item_manager::log_req(s, reqs);
-#endif
-                    return hpx::dataflow(hpx::launch::sync,
-                        hpx::util::annotated_function(hpx::util::unwrapping([this_ = std::move(this_)](reqs_type reqs) mutable
+                hpx::parallel::execution::post(
+                    exec, hpx::util::annotated_function(
+                        [this_ = std::move(this_), reqs = std::move(reqs)]() mutable
                         {
-                            HPX_ASSERT(this_->valid());
                             this_->do_split(std::move(reqs));
-                            return std::size_t(-2);
-                        }), "allscale::work_item::reqs_cont_sync")
-                      , data_item_manager::acquire(reqs, infos));
-                }, "allscale::work_item::spli::locate_cont");
-
-            if (sync && id().last() % 2 == 1)
-            {
-                return hpx::dataflow(hpx::launch::sync, std::move(continuation),
-#if defined(ALLSCALE_DEBUG_DIM)
-                    data_item_manager::locate(std::move(s), std::forward<Reqs>(reqs))
-#else
-                    data_item_manager::locate(std::forward<Reqs>(reqs))
-#endif
-                );
-            }
-            else
-            {
-                return hpx::dataflow(std::move(continuation),
-#if defined(ALLSCALE_DEBUG_DIM)
-                    data_item_manager::locate(std::move(s), std::forward<Reqs>(reqs))
-#else
-                    data_item_manager::locate(std::forward<Reqs>(reqs))
-#endif
-                );
+                        },
+                        "allscale::work_item::do_process"));
             }
         }
 
         template <typename WorkItemDescription_>
         typename std::enable_if<
-            WorkItemDescription_::split_variant::valid,
-            hpx::future<std::size_t>
-        >::type split(bool sync, std::size_t this_id)
-        {
-            auto reqs = detail::merge_data_item_reqs(
-                get_requirements<typename WorkItemDescription::split_variant>(nullptr)
-            );
-            return split<WorkItemDescription>(sync, std::move(reqs), this_id);
-        }
-
-        template <typename WorkItemDescription_>
-        typename std::enable_if<
-            !WorkItemDescription_::split_variant::valid,
-            hpx::future<std::size_t>
-        >::type split(bool, std::size_t)
+            !WorkItemDescription_::split_variant::valid
+        >::type split(executor_type&, task_requirements&& reqs)
         {
             throw std::logic_error(
                 "Calling split on a work item without valid split variant");
-            return hpx::make_ready_future(std::size_t(-1));
         }
 
-        hpx::future<std::size_t> split(bool sync, std::size_t this_id) final
+        void split(executor_type& exec, task_requirements&& reqs) final
         {
-            return split<WorkItemDescription>(sync, this_id);
+            split<WorkItemDescription>(exec, std::move(reqs));
+        }
+
+        virtual std::unique_ptr<data_item_manager::task_requirements_base>
+            get_task_requirements() const override
+        {
+            using split_requirements =
+                typename hpx::util::decay<
+                    decltype(
+                        detail::merge_data_item_reqs(
+                            get_requirements<typename WorkItemDescription::split_variant>(nullptr)
+                        )
+                    )
+                >::type;
+
+            using process_requirements =
+                typename hpx::util::decay<
+                    decltype(
+                        detail::merge_data_item_reqs(
+                            get_requirements<typename WorkItemDescription::process_variant>(nullptr)
+                        )
+                    )
+                >::type;
+
+            return std::unique_ptr<data_item_manager::task_requirements_base>(
+                new data_item_manager::task_requirements<split_requirements, process_requirements>(
+                    detail::merge_data_item_reqs(
+                        get_requirements<typename WorkItemDescription::split_variant>(nullptr)
+                    ),
+                    detail::merge_data_item_reqs(
+                        get_requirements<typename WorkItemDescription::process_variant>(nullptr)
+                    )
+                )
+            );
         }
 
         bool enqueue_remote() const final
@@ -597,6 +448,7 @@ namespace allscale { namespace detail {
     serialize(Archive& ar, work_item_impl<WorkItemDescription, Closure>& wi, unsigned)
     {
         ar & wi.id_;
+        ar & wi.num_children;
         ar & wi.tres_;
         ar & wi.closure_;
         ar & wi.dep_;
@@ -625,17 +477,23 @@ namespace allscale { namespace detail {
     {
         typedef work_item_impl<WorkItemDescription, Closure> work_item_type;
 
-        this_work_item::id id;
+        std::uint8_t num_children;
+        task_id id;
         treeture<typename work_item_type::result_type> tres;
         typename work_item_type::closure_type closure;
         hpx::shared_future<void> dep;
 
         ar & id;
+        ar & num_children;
         ar & tres;
         ar & closure;
         ar & dep;
 
-        return new work_item_type(id, std::move(dep), std::move(tres), std::move(closure));
+        auto res = new work_item_type(id, std::move(dep), std::move(tres), std::move(closure));
+
+        res->num_children = num_children;
+
+        return res;
     }
 
     template <typename WorkItemDescription, typename Closure>
