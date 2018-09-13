@@ -30,10 +30,7 @@ namespace allscale {
         // This is used for monitoring...
         std::shared_ptr<allscale::profile> profile;
 
-        task_id parent() const
-        {
-            return {locality_id, id, path.getParentPath()};
-        }
+        task_id parent() const;
 
         bool is_root() const
         {

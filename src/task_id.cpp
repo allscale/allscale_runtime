@@ -4,9 +4,28 @@
 #include <allscale/work_item.hpp>
 
 namespace allscale {
+
+    task_id task_id::parent() const
+    {
+        if (is_root())
+        {
+            auto this_wi = this_work_item::get();
+            if (this_wi == nullptr)
+            {
+                task_id res;
+                res.locality_id = 0;
+                res.id = 0;
+                res.path = task_path::root();
+                return res;
+            }
+            return this_wi->id();
+        }
+        return {locality_id, id, path.getParentPath()};
+    }
+
     task_id task_id::create_root()
     {
-        static std::atomic<std::uint64_t> id(0);
+        static std::atomic<std::uint64_t> id(1);
         task_id res;
         res.locality_id = hpx::get_locality_id();
         res.id = id++;
