@@ -285,7 +285,7 @@ namespace allscale
 
             bool target_left = (d == schedule_decision::left) || (right_ == left_);
 
-            if (target_left)
+            if (target_left || !allscale::resilience::rank_running(right_.getRank()))
             {
 //                 std::cout << here_ << ' ' << work.name() << "." << id << ": left: " << '\n';
 //                 reqs->show();
@@ -298,14 +298,15 @@ namespace allscale
 //                 std::cout << here_ << ' ' << work.name() << "." << id << ": right: " << '\n';
 //                 reqs->show();
                 reqs->add_allowance_right(here_);
+		
                 if (!right_id_ && allscale::resilience::rank_running(right_.getRank()))
                 {
-                    allscale::resilience::global_wi_dispatched(work, right_.getRank());
                     runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(right_).
                         schedule_down(std::move(work), std::move(reqs));
                 }
                 else
-                {
+		{
+		    allscale::resilience::global_wi_dispatched(work, right_.getRank());
                     hpx::apply<schedule_down_global_action>(right_id_, right_, std::move(work), std::move(reqs));
                 }
             }
