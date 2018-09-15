@@ -31,6 +31,11 @@ add_hpx_executable(
   SOURCES amdados/amdados_generated.cpp
   COMPONENT_DEPENDENCIES allscale
 )
+add_hpx_executable(
+  pic_tracer_allscalecc
+  SOURCES pic_tracer.cpp
+  COMPONENT_DEPENDENCIES allscale
+)
 
 add_subdirectory(pfor)
 add_subdirectory(uts)

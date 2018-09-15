@@ -263,6 +263,7 @@ namespace allscale { namespace components {
    void monitor::shutdown_dashboard_conn() {
 	   // send shutdown info
 	   sendUpdate();
+	   close(sock);
    }
 
    double monitor::get_throughput()
