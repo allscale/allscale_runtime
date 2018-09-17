@@ -3,6 +3,7 @@ set(_srcs
     data_requirements_check.cpp
     data_item_store.cpp
     data_item/index_service.cpp
+    dashboard.cpp
     hierarchy.cpp
     monitor.cpp
     resilience.cpp

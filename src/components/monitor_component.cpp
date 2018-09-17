@@ -1,5 +1,6 @@
 #include <allscale/components/monitor.hpp>
 #include <allscale/monitor.hpp>
+#include <allscale/dashboard.hpp>
 
 #include <math.h>
 #include <limits>
@@ -82,7 +83,6 @@ namespace allscale { namespace components {
      , max_split_task(0)
      , min_process_task(0)
      , max_process_task(0)
-     , dashboard_conn_alive(false)
 //#endif
 #ifdef REALTIME_VIZ
      , num_active_tasks_(0)
@@ -153,119 +153,6 @@ namespace allscale { namespace components {
    }
 */
 
-   void monitor::toJSON(std::ostream& out) const {
-	out << "{";
-	out << "\"time\": 1234,";
-	out << "\"type\": \"status\",";
-	out << "\"nodes\": [";
-	out << "{" ;
-	out << "\"id\": 0,";
-
-	// is it normal update or shutdown call update?
-	if (done)
-		out << "\"state\": \"offline\",";
-	else
-		out << "\"state\": \"online\",";
-
-	out << "\"cpu_load\": 0.798,";
-	out << "\"mem_load\": 2423435,";
-	out << "\"total_memory\": 2600000,";
-	out << "\"task_throughput\": 423,";
-	out << "\"weighted_task_througput\": 4.23,";
-	out << "\"network_in\": 232134,";
-	out << "\"network_out\": 14234,";
-	out << "\"idle_rate\": 0.123,";
-	out << "\"owned_data\": []";
-	out << "}";
-	out << "]";
-	out << "}";
-
-   }
-
-   void monitor::sendUpdate() {
-
-	   if (dashboard_conn_alive) {
-		   // create JSON data block
-		   std::stringstream msg;
-		   toJSON(msg);
-
-		   // get as string
-		   auto json = msg.str();
-
-		   //			std::cout << "Sending:\n" << json << "\n\n";
-
-		   // sent to bashboard
-		   auto send = [&](const void* msg, int size) {
-			   if (write(sock,msg,size) != size) {
-				   std::cerr << "Lost dashboard connection, ending status broadcasts.";
-				   return;
-			   }
-		   };
-
-		   // send message size
-		   std::uint64_t msgSizeBE = htobe64(json.length());
-		   send(&msgSizeBE,sizeof(std::uint64_t));
-
-		   // send message
-		   send(json.c_str(),json.length());
-	   }
-
-   }
-
-  void monitor::init_dashboard_conn() {
-
-         // only on master
-	  if (rank_ == 0) {
-		  dashboard_conn_alive = true;
-		  sock = socket(AF_INET, SOCK_STREAM, 0);
-		  if (sock < 0) {
-			  std::cerr << "socket for dashboard couldn't be created ...\n" ;
-			  dashboard_conn_alive = false;
-			  return;
-		  }
-
-		  // get dashboard IP address
-		  std::string dashboardIP = DEFAULT_DASHBOARD_IP;
-		  if (auto ip = std::getenv(ENVVAR_DASHBOARD_IP)) {
-			  dashboardIP = ip;
-		  }
-
-		  // get dashboard port
-		  int dashboardPort = DEFAULT_DASHBOARD_PORT;
-		  if (auto port = std::getenv(ENVVAR_DASHBOARD_PORT)) {
-			  dashboardPort = std::atoi(port);
-		  }
-
-		  // create server address
-		  sockaddr_in serverAddress;
-		  serverAddress.sin_family = AF_INET;
-		  serverAddress.sin_port = htons(dashboardPort);
-		  auto success = inet_pton(AF_INET, dashboardIP.c_str(), &serverAddress.sin_addr);
-		  if (!success) {
-			  std::cerr << "Ignoring dashboard at unsupported address: " << dashboardIP << "\n";
-			  dashboard_conn_alive = false;
-			  return;
-		  }
-
-		  // connect to server
-		  success = connect(sock,reinterpret_cast<sockaddr*>(&serverAddress),sizeof(serverAddress));
-		  if (success < 0) {
-			  std::cerr << "Unable to connect to dashboard server at " << dashboardIP << ":" << dashboardPort << ", reporting disabled.\n";
-			  dashboard_conn_alive = false;
-			  return;
-		  }
-		  // start up reporter thread
-		  //if (!alive) return;
-	  }
-  }
-
-
-   void monitor::shutdown_dashboard_conn() {
-	   // send shutdown info
-	   sendUpdate();
-	   close(sock);
-   }
-
    double monitor::get_throughput()
    {
       std::unique_lock<std::mutex> lock(sampling_mutex);
@@ -323,7 +210,8 @@ namespace allscale { namespace components {
        finished_tasks = 0;
 
        lock.unlock();
-       sendUpdate();
+       // FIXME
+//        sendUpdate();
 
        return true;
    }
@@ -1532,6 +1420,7 @@ namespace allscale { namespace components {
 
       if(rank_ == 0)
       {
+        dashboard::shutdown();
         std::vector<hpx::future<void>> stop_futures;
         typedef allscale::components::monitor::stop_action stop_action;
 
@@ -1556,7 +1445,8 @@ namespace allscale { namespace components {
       {
          std::lock_guard<std::mutex> lk(m_queue);
          done = true;
-	 shutdown_dashboard_conn();
+         // FIXME:
+//          shutdown_dashboard_conn();
       }
 
       cv.notify_one();
@@ -1712,9 +1602,6 @@ namespace allscale { namespace components {
       }
       num_localities_ = allscale::get_num_localities();
 
-
-      // only master tries to init conn
-      init_dashboard_conn();
 
       allscale::monitor::connect(allscale::monitor::work_item_split_execution_started, monitor::global_w_exec_split_start_wrapper);
       allscale::monitor::connect(allscale::monitor::work_item_process_execution_started, monitor::global_w_exec_process_start_wrapper);
@@ -1908,6 +1795,11 @@ namespace allscale { namespace components {
        std::cerr
           << "Monitor component with rank "
           << rank_ << " created!\n";
+
+      if (rank_ == 0)
+      {
+          dashboard::update();
+      }
 
    }
 
