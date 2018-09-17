@@ -40,57 +40,57 @@ namespace allscale { namespace dashboard
     template <typename Archive>
     void node_state::serialize(Archive& ar, unsigned)
     {
-		ar & rank;
-		ar & time;
-		ar & online;
-		ar & active;
-		ar & num_cores;
-		ar & cpu_load;
-		ar & max_frequency;
-		ar & cur_frequency;
-		ar & memory_load;
-		ar & total_memory;
-		ar & task_throughput;
-		ar & weighted_task_throughput;
-		ar & idle_rate;
-		ar & network_in;
-		ar & network_out;
+        ar & rank;
+        ar & time;
+        ar & online;
+        ar & active;
+        ar & num_cores;
+        ar & cpu_load;
+        ar & max_frequency;
+        ar & cur_frequency;
+        ar & memory_load;
+        ar & total_memory;
+        ar & task_throughput;
+        ar & weighted_task_throughput;
+        ar & idle_rate;
+        ar & network_in;
+        ar & network_out;
         ar & ownership;
-		ar & productive_cycles_per_second;
-		ar & cur_power;
-		ar & max_power;
-		ar & speed;
-		ar & efficiency;
-		ar & power;
+        ar & productive_cycles_per_second;
+        ar & cur_power;
+        ar & max_power;
+        ar & speed;
+        ar & efficiency;
+        ar & power;
     }
 
     std::string node_state::to_json() const
     {
         std::string res;
         res += "{\"id\":" + std::to_string(rank) + ',';
-		res += "\"time\":" + std::to_string(time) + ',';
-		res += "\"state\":\"" + (online ? (active ? std::string("active\",") : "stand-by\",") : "offline\"");
-		if (!online) {
-			res += '}';
-			return res;
-		}
-		res += "\"num_cores\":" + std::to_string(num_cores) + ',';
-		res += "\"cpu_load\":" + std::to_string(cpu_load) + ',';
-		res += "\"max_frequency\":" + std::to_string(max_frequency) + ',';
-		res += "\"cur_frequency\":" + std::to_string(cur_frequency) + ',';
-		res += "\"mem_load\":" + std::to_string(memory_load) + ',';
-		res += "\"total_memory\":" + std::to_string(total_memory) + ',';
-		res += "\"task_throughput\":" + std::to_string(task_throughput) + ',';
-		res += "\"weighted_task_througput\":" + std::to_string(weighted_task_throughput) + ',';
-		res += "\"network_in\":" + std::to_string(network_in) + ',';
-		res += "\"network_out\":" + std::to_string(network_out) + ',';
-		res += "\"idle_rate\":" + std::to_string(idle_rate) + ',';
-		res += "\"productive_cycles_per_second\":" + std::to_string(productive_cycles_per_second) + ',';
-		res += "\"cur_power\":" + std::to_string(cur_power) + ',';
-		res += "\"max_power\":" + std::to_string(max_power) + ',';
-		res += "\"speed\":" + std::to_string(speed) + ',';
-		res += "\"efficiency\":" + std::to_string(efficiency) + ',';
-		res += "\"power\":" + std::to_string(power) + ',';
+        res += "\"time\":" + std::to_string(time) + ',';
+        res += "\"state\":\"" + (online ? (active ? std::string("active\",") : "stand-by\",") : "offline\"");
+        if (!online) {
+            res += '}';
+            return res;
+        }
+        res += "\"num_cores\":" + std::to_string(num_cores) + ',';
+        res += "\"cpu_load\":" + std::to_string(cpu_load) + ',';
+        res += "\"max_frequency\":" + std::to_string(max_frequency) + ',';
+        res += "\"cur_frequency\":" + std::to_string(cur_frequency) + ',';
+        res += "\"mem_load\":" + std::to_string(memory_load) + ',';
+        res += "\"total_memory\":" + std::to_string(total_memory) + ',';
+        res += "\"task_throughput\":" + std::to_string(task_throughput) + ',';
+        res += "\"weighted_task_througput\":" + std::to_string(weighted_task_throughput) + ',';
+        res += "\"network_in\":" + std::to_string(network_in) + ',';
+        res += "\"network_out\":" + std::to_string(network_out) + ',';
+        res += "\"idle_rate\":" + std::to_string(idle_rate) + ',';
+        res += "\"productive_cycles_per_second\":" + std::to_string(productive_cycles_per_second) + ',';
+        res += "\"cur_power\":" + std::to_string(cur_power) + ',';
+        res += "\"max_power\":" + std::to_string(max_power) + ',';
+        res += "\"speed\":" + std::to_string(speed) + ',';
+        res += "\"efficiency\":" + std::to_string(efficiency) + ',';
+        res += "\"power\":" + std::to_string(power) + ',';
         res += "\"owned_data\":" + ownership;
         res += '}';
         return res;
@@ -99,18 +99,18 @@ namespace allscale { namespace dashboard
     std::string system_state::to_json() const
     {
         std::string res;
-		res += "{\"type\":\"status\",";
-		res += "\"time\":" + std::to_string(time) + ',';
-		res += "\"speed\":" + std::to_string(speed) + ',';
-		res += "\"efficiency\":" + std::to_string(efficiency) + ',';
-		res += "\"power\":" + std::to_string(power) + ',';
-		res += "\"score\":" + std::to_string(score) + ',';
-		res += "\"nodes\":[";
+        res += "{\"type\":\"status\",";
+        res += "\"time\":" + std::to_string(time) + ',';
+        res += "\"speed\":" + std::to_string(speed) + ',';
+        res += "\"efficiency\":" + std::to_string(efficiency) + ',';
+        res += "\"power\":" + std::to_string(power) + ',';
+        res += "\"score\":" + std::to_string(score) + ',';
+        res += "\"nodes\":[";
         for (auto & node: nodes)
         {
             res += node.to_json() + ',';
         }
-		res.back() = ']';
+        res.back() = ']';
         res += "}";
         return res;
     }
@@ -119,23 +119,23 @@ namespace allscale { namespace dashboard
     template void node_state::serialize<hpx::serialization::output_archive>(hpx::serialization::output_archive& ar, unsigned);
 
     /**
-	 * The name of the environment variable checked for the IP address of the dashboard server.
-	 */
-	constexpr const char* ENVVAR_DASHBOARD_IP = "ALLSCALE_DASHBOARD_IP";
+     * The name of the environment variable checked for the IP address of the dashboard server.
+     */
+    constexpr const char* ENVVAR_DASHBOARD_IP = "ALLSCALE_DASHBOARD_IP";
 
-	/**
-	 * The name of the environment variable checked for the IP port number of the dashboard server.
-	 */
-	constexpr const char* ENVVAR_DASHBOARD_PORT = "ALLSCALE_DASHBOARD_PORT";
+    /**
+     * The name of the environment variable checked for the IP port number of the dashboard server.
+     */
+    constexpr const char* ENVVAR_DASHBOARD_PORT = "ALLSCALE_DASHBOARD_PORT";
 
-	/**
-	 * The default dashboard server IP address.
-	 */
-	constexpr const char* DEFAULT_DASHBOARD_IP = "127.0.0.1";
+    /**
+     * The default dashboard server IP address.
+     */
+    constexpr const char* DEFAULT_DASHBOARD_IP = "127.0.0.1";
 
-	/**
-	 * The default port utilized to connect to the dashboard.
-	 */
+    /**
+     * The default port utilized to connect to the dashboard.
+     */
     constexpr std::uint16_t DEFAULT_DASHBOARD_PORT = 1337;
 
     struct dashboard_client
