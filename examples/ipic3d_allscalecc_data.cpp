@@ -2879,7 +2879,8 @@ void IMP_ipic3d_colon__colon_Universe::store(allscale::utils::ArchiveWriter& var
     var_1.write<allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3u > > >((*this).currentDensity);
 }
 /* ------- Function Definitions --------- */
-IMP_ipic3d_colon__colon_Universe::IMP_ipic3d_colon__colon_Universe() : IMP_ipic3d_colon__colon_Universe(IMP_ipic3d_colon__colon_UniverseProperties{ipic3dUseCaseDipole, allscale::utils::Vector<long, 3 >{(int64_t)1, (int64_t)1, (int64_t)1}, allscale::utils::Vector<double, 3 >{1.0E+0, 1.0E+0, 1.0E+0}, 1.0E+0, 1.0E+0, 0.0E+0, allscale::utils::Vector<double, 3 >{0.0E+0, 0.0E+0, 0.0E+0}, allscale::utils::Vector<double, 3 >{0.0E+0, 0.0E+0, 0.0E+0}, allscale::utils::Vector<double, 3 >{(double)0, (double)0, (double)0}, 100, 100}) { }
+IMP_ipic3d_colon__colon_Universe::IMP_ipic3d_colon__colon_Universe()
+{}
 struct allscale_type_591;
 typedef struct allscale_type_591 allscale_type_591;
 
@@ -2891,7 +2892,13 @@ template<> struct is_allscale_fixed_sized_array<allscale_type_591> : public std:
 template<> struct to_std_array_type<allscale_type_591> { using type = std::array<char,153u>; };
 
 /* ------- Function Definitions --------- */
-IMP_ipic3d_colon__colon_Universe::IMP_ipic3d_colon__colon_Universe(IMP_ipic3d_colon__colon_UniverseProperties const& var_1) : properties(var_1), cells((allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3u > >&&)allscale::runtime::DataItemManager::create<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3u > >(var_1.size)), field((allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_FieldNode, 3u > >&&)allscale::runtime::DataItemManager::create<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_FieldNode, 3u > >(allscale_fun_581(var_1.size, allscale::utils::Vector<long, 3 >{(int64_t)3}))), bcfield((allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_BcFieldCell, 3u > >&&)allscale::runtime::DataItemManager::create<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_BcFieldCell, 3u > >(allscale_fun_581(var_1.size, allscale::utils::Vector<long, 3 >{(int64_t)2}))), currentDensity((allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3u > >&&)allscale::runtime::DataItemManager::create<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3u > >(allscale_fun_581(var_1.size, allscale::utils::Vector<long, 3 >{(int64_t)1}))) {
+IMP_ipic3d_colon__colon_Universe::IMP_ipic3d_colon__colon_Universe(IMP_ipic3d_colon__colon_UniverseProperties const& var_1)
+  : properties(var_1),
+    cells(allscale::runtime::DataItemManager::create<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_Cell, 3u > >(var_1.size)),
+    field(allscale::runtime::DataItemManager::create<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_FieldNode, 3u > >(allscale_fun_581(var_1.size, allscale::utils::Vector<long, 3 >{(int64_t)3}))),
+    bcfield(allscale::runtime::DataItemManager::create<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_BcFieldCell, 3u > >(allscale_fun_581(var_1.size, allscale::utils::Vector<long, 3 >{(int64_t)2}))),
+    currentDensity(allscale::runtime::DataItemManager::create<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3u > >(allscale_fun_581(var_1.size, allscale::utils::Vector<long, 3 >{(int64_t)1})))
+{
 }
 /* ------- Function Definitions --------- */
 struct allscale_type_606;
