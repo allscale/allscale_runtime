@@ -312,8 +312,10 @@ namespace allscale { namespace dashboard
 
         if (!client) return;
 
+        auto start = std::chrono::system_clock::now();
+
         client.get_system_state().then(
-        [&client](hpx::future<std::vector<node_state>> nodes)
+        [&client, start](hpx::future<std::vector<node_state>> nodes)
         {
             system_state state;
 
@@ -325,12 +327,14 @@ namespace allscale { namespace dashboard
             state.nodes = nodes.get();
 
             client.write(state,
-            []()
+            [start]()
             {
                 HPX_ASSERT(hpx::threads::get_self_ptr() == nullptr);
                 // Send next update in 40 millseconds for 25 FPS.
                 using namespace std::chrono_literals;
-                std::this_thread::sleep_for(1s);
+                auto duration = std::chrono::system_clock::now() - start;
+                if (duration < 1s)
+                    std::this_thread::sleep_for(1s - duration);
                 update();
             });
         });
