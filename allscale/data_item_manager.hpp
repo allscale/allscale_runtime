@@ -155,12 +155,11 @@ namespace allscale { namespace data_item_manager {
         typename DataItem::facade_type
         get(const allscale::data_item_reference<DataItem>& ref)
         {
-//             auto hint = ref.getFragmentHint();
-//             if (hint) {
-//                 return hint->mask();
-//             }
-//             return ref.setFragmentHint(&fragment(ref))->mask();
-            return fragment(ref).mask();
+            auto hint = ref.getFragmentHint();
+            if (hint) {
+                return hint->mask();
+            }
+            return ref.setFragmentHint(&fragment(ref))->mask();
         }
 
         template <typename T>

@@ -127,10 +127,12 @@ namespace allscale { namespace data_item_manager {
                     region_type reserved = region_type::merge(frag.getCoveredRegion(), region);
                     // resize fragment...
                     frag.resize(reserved);
+                    // update ownership
+                    if (exclusive)
+                        item.exclusive = region_type::merge(
+                            item.exclusive,
+                            region_type::intersect(frag.getCoveredRegion(), region));
                 }
-                // update ownership
-                if (exclusive)
-                    item.exclusive = region_type::merge(item.exclusive, region_type::intersect(frag.getCoveredRegion(), region));
             }
         }
 
