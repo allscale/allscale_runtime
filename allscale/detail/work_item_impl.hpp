@@ -100,11 +100,11 @@ namespace utils {
 	/**
 	 * Add support for serializing / de-serializing tuples of non-trivial element types.
 	 */
-    template <typename T, typename Enable = void>
+    template <typename T>
     struct tuple_serializer;
 
 	template<typename ... Args>
-	struct tuple_serializer<hpx::util::tuple<Args...>,typename std::enable_if<all_serializable<Args...>::value,void>::type> {
+	struct tuple_serializer<hpx::util::tuple<Args...> > {
 
 		static hpx::util::tuple<Args...> load(ArchiveReader& reader) {
 			return detail::hpx_load_helper<sizeof...(Args),Args...>{}(reader);
@@ -117,7 +117,6 @@ namespace utils {
 			});
 		}
 	};
-
 
 } // end namespace utils
 } // end namespace allscale

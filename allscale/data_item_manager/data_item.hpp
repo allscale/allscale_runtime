@@ -14,6 +14,37 @@
 #include <sstream>
 
 namespace allscale { namespace data_item_manager {
+    namespace detail
+    {
+        template <typename Region>
+        std::string to_json(hpx::naming::gid_type const& id, Region const& region, ...)
+        {
+            return "";
+        }
+
+        template <typename Region, std::size_t Dims = Region::Dimensions>
+        std::string to_json(hpx::naming::gid_type const& id, Region const& region, Region*)
+        {
+            if (region.empty()) return "";
+
+            std::stringstream out;
+            out << "{\"id\" : " << id.get_lsb() << ",";
+            out << "\"type\" : \"" << Dims << "D-Grid\",";
+            out << "\"region\" : [";
+
+            out << allscale::utils::join(",",region.getBoxes(),[](std::ostream& out, const auto& cur){
+                out << "{";
+                out << "\"from\" : " << cur.getMin() << ",";
+                out << "\"to\" : " << cur.getMax();
+                out << "}";
+            });
+
+            out << "]}";
+
+            return out.str();
+        }
+    }
+
     // The data_item represents a fragment of the globally distributed data item
     // It knows about ownership of its own local region, and the ones of it's
     // parents and children for faster lookup. The lookup is organized in a
@@ -35,24 +66,7 @@ namespace allscale { namespace data_item_manager {
                 [this]() -> std::string
                 {
                     std::lock_guard<mutex_type> l(mtx);
-
-                    if (exclusive.empty()) return "";
-
-                    std::stringstream out;
-					out << "{\"id\" : " << id.get_lsb() << ",";
-					out << "\"type\" : \"" << region_type::Dimensions << "D-Grid\",";
-					out << "\"region\" : [";
-
-					out << allscale::utils::join(",",exclusive.getBoxes(),[](std::ostream& out, const auto& cur){
-						out << "{";
-						out << "\"from\" : " << cur.getMin() << ",";
-						out << "\"to\" : " << cur.getMax();
-						out << "}";
-					});
-
-					out << "]}";
-
-                    return out.str();
+                    detail::to_json(id, exclusive, nullptr);
                 });
         }
 
