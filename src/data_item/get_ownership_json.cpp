@@ -23,7 +23,9 @@ namespace allscale { namespace data_item_manager {
         res += '[';
         for(auto& f: registry())
         {
-            res += f() + ',';
+            auto json = f();
+            if (json.empty()) continue;
+            res += json + ',';
         }
 
         if (res.size() == 1)

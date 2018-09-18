@@ -35,6 +35,9 @@ namespace allscale { namespace data_item_manager {
                 [this]() -> std::string
                 {
                     std::lock_guard<mutex_type> l(mtx);
+
+                    if (exclusive.empty()) return "";
+
                     std::stringstream out;
 					out << "{\"id\" : " << id.get_lsb() << ",";
 					out << "\"type\" : \"" << region_type::Dimensions << "D-Grid\",";
