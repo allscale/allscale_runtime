@@ -169,7 +169,7 @@ namespace allscale { namespace data_item_manager {
         }
 
 //         template<typename DataItem>
-// 		void release(const allscale::lease<DataItem>& lease)
+//         void release(const allscale::lease<DataItem>& lease)
 //         {
 // //             if (lease.mode == access_mode::Invalid)
 // //                 return;
@@ -177,7 +177,7 @@ namespace allscale { namespace data_item_manager {
 //         }
 //
 //         template<typename DataItem>
-// 		void release(const std::vector<allscale::lease<DataItem>>& lease)
+//         void release(const std::vector<allscale::lease<DataItem>>& lease)
 //         {
 // //             for(auto const& l: lease)
 // //                 if (l.mode == access_mode::Invalid) return;
@@ -186,10 +186,11 @@ namespace allscale { namespace data_item_manager {
 //         }
 
         template<typename DataItem>
-		void destroy(const data_item_reference<DataItem>& ref)
+        void destroy(const data_item_reference<DataItem>& ref)
         {
 //             data_item_manager_impl<DataItem>::destroy(ref);
         }
+
 }}//end namespace allscale
 
 #define REGISTER_DATAITEMSERVER_DECLARATION(type)                               \

@@ -58,14 +58,13 @@ struct data_item_store
             return *dmp;
 
         {
-            boost::shared_lock<mutex_type> l(mtx);
+            std::unique_lock<mutex_type> ll(mtx);
 
             auto it = store_.find(id);
             if (it == store_.end())
             {
-                l.unlock();
-                std::unique_lock<mutex_type> ll(mtx);
                 dmp = &store_[id];
+                dmp->id = id;
                 detail::tls_cache(id, dmp);
                 return *dmp;
             }

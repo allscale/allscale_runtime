@@ -3,6 +3,7 @@ set(_srcs
     data_requirements_check.cpp
     data_item_store.cpp
     data_item/index_service.cpp
+    data_item/get_ownership_json.cpp
     dashboard.cpp
     hierarchy.cpp
     monitor.cpp

@@ -119,19 +119,18 @@ namespace allscale { namespace data_item_manager {
             auto& item = data_item_store<data_item_type>::lookup(req.ref);
             {
                 std::unique_lock<mutex_type> ll(item.mtx);
+                auto& frag = fragment(req.ref, item, ll);
                 // reserve region...
-                if (!allscale::api::core::isSubRegion(region, item.reserved))
+                if (!allscale::api::core::isSubRegion(region, frag.getCoveredRegion()))
                 {
                     // grow reserved region...
-                    item.reserved = region_type::merge(item.reserved, region);
-
+                    region_type reserved = region_type::merge(frag.getCoveredRegion(), region);
                     // resize fragment...
-                    auto& frag = fragment(req.ref, item, ll);
-                    frag.resize(item.reserved);
+                    frag.resize(reserved);
                 }
                 // update ownership
                 if (exclusive)
-                    item.exclusive = region;
+                    item.exclusive = region_type::merge(item.exclusive, region_type::intersect(frag.getCoveredRegion(), region));
             }
         }
 
@@ -454,6 +453,10 @@ namespace allscale { namespace data_item_manager {
                     {
                         auto& item = data_item_store<DataItem>::lookup(ref.id());
                         std::unique_lock<mutex_type> ll(item.mtx);
+
+                        // Remove exclusive ownership
+                        item.exclusive = region_type::difference(item.exclusive, missing);
+
                         // If the fragment has not been allocated,
                         // we only had splits there so far, this means,
                         // we don't need to transfer data

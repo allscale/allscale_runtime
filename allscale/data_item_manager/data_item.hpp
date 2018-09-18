@@ -2,13 +2,16 @@
 #ifndef ALLSCALE_DATA_ITEM_MANAGER_DATA_ITEM_HPP
 #define ALLSCALE_DATA_ITEM_MANAGER_DATA_ITEM_HPP
 
+#include <allscale/data_item_manager/get_ownership_json.hpp>
 #include <allscale/data_item_manager/location_info.hpp>
 #include <allscale/util/readers_writers_mutex.hpp>
 #include <hpx/lcos/local/spinlock.hpp>
 #include <hpx/runtime/naming/id_type.hpp>
+#include "allscale/utils/printer/join.h"
 
 #include <memory>
 #include <unordered_map>
+#include <sstream>
 
 namespace allscale { namespace data_item_manager {
     // The data_item represents a fragment of the globally distributed data item
@@ -25,28 +28,45 @@ namespace allscale { namespace data_item_manager {
         using fragment_type = typename DataItemType::fragment_type;
         using shared_data_type = typename DataItemType::shared_data_type;
 
-        ~data_item()
+        data_item()
         {
-//             std::cerr << this << " Locate access count: " << locate_access << '\n';
-//             std::cerr << this << " Cache lookup time: " << cache_lookup_time << '\n';
-//             std::cerr << this << " Cache misses: " << cache_miss << '\n';
-//             std::cerr << this << " Cache miss ratio: " << double(cache_miss)/double(locate_access) * 100. << "%\n";
-//             std::cerr << this << " Fragment extract time: " << extract_time << '\n';
-//             std::cerr << this << " Fragment insert time: " << insert_time << '\n';
-//             std::cerr << this << " Intersect time: " << intersect_time << '\n';
-//             std::cerr << this << " Merge time: " << merge_time << '\n';
-//             std::cerr << this << " Difference time: " << difference_time << '\n';
-//             std::cerr << '\n';
+            // Registering callback for ownership reporting to dashboard.
+            register_data_item(
+                [this]() -> std::string
+                {
+                    std::lock_guard<mutex_type> l(mtx);
+                    std::stringstream out;
+					out << "{\"id\" : " << id.get_lsb() << ",";
+					out << "\"type\" : \"" << region_type::Dimensions << "D-Grid\",";
+					out << "\"region\" : [";
+
+					out << allscale::utils::join(",",exclusive.getBoxes(),[](std::ostream& out, const auto& cur){
+						out << "{";
+						out << "\"from\" : " << cur.getMin() << ",";
+						out << "\"to\" : " << cur.getMax();
+						out << "}";
+					});
+
+					out << "]}";
+
+                    return out.str();
+                });
         }
+
+        data_item(data_item const&) = delete;
+        data_item(data_item&&) = delete;
+        data_item& operator=(data_item const&) = delete;
+        data_item& operator=(data_item&&) = delete;
 
         // The mutex which protects this data item from concurrent accesses
         mutex_type mtx;
+
+        hpx::naming::gid_type id;
 
         std::unique_ptr<fragment_type> fragment;
         std::unique_ptr<shared_data_type> shared_data;
 
         region_type exclusive;
-        region_type reserved;
     };
 }}
 

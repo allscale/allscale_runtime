@@ -1,5 +1,6 @@
 
 #include <allscale/dashboard.hpp>
+#include <allscale/data_item_manager/get_ownership_json.hpp>
 
 #include <hpx/include/actions.hpp>
 #include <hpx/lcos/broadcast.hpp>
@@ -27,7 +28,7 @@ namespace allscale { namespace dashboard
         // FIXME: add proper metrics here...
         state.cpu_load = 1./(hpx::get_locality_id() + 1);
 
-        state.ownership = "[]";
+        state.ownership = data_item_manager::get_ownership_json();
 
         return state;
     }
@@ -228,9 +229,9 @@ namespace allscale { namespace dashboard
             buffers[0] = boost::asio::buffer(&m->msg_size, sizeof(std::uint64_t));
             buffers[1] = boost::asio::buffer(m->json.data(), m->json.length());
 
-            std::cout << "Sending -----------------------------------\n";
-            std::cout << m->json << '\n';
-            std::cout << "Sending done ------------------------------\n";
+//             std::cout << "Sending -----------------------------------\n";
+//             std::cout << m->json << '\n';
+//             std::cout << "Sending done ------------------------------\n";
 
             boost::asio::async_write(socket_, buffers,
                 [f = std::move(f), m](boost::system::error_code ec, std::size_t /*length*/)
@@ -326,6 +327,7 @@ namespace allscale { namespace dashboard
             client.write(state,
             []()
             {
+                HPX_ASSERT(hpx::threads::get_self_ptr() == nullptr);
                 // Send next update in 40 millseconds for 25 FPS.
                 using namespace std::chrono_literals;
                 std::this_thread::sleep_for(1s);

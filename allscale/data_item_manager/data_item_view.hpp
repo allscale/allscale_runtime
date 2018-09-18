@@ -75,6 +75,13 @@ namespace allscale { namespace data_item_manager {
                 HPX_ASSERT(allscale::api::core::isSubRegion(region_, frag.getCoveredRegion()));
 
                 frag.extract(writer, region_);
+
+//                 if (migrate_)
+//                 {
+//                     // Remove exclusive ownership
+//                     region_type reserved = region_type::difference(frag.getCoveredRegion(), region_);
+//                     frag.resize(reserved);
+//                 }
             }
         }
 
