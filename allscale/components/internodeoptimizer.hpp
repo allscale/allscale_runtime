@@ -5,10 +5,18 @@
 #include <map>
 #include <cassert>
 
-#define INTERNODE_OPTIMIZER_EXPLORATION_PHASE_STEPS 3u
-#define INTERNODE_OPTIMIZER_EXPLORATION_SOFT_LIMIT 10u
-#define INTERNODE_OPTIMIZER_RANDOM_EVERY 500u
-#define INTERNODE_OPTIMIZER_DEFAULT_FORGET_AFTER 10000u
+#define INO_EXPLORATION_PHASE_STEPS 3u
+#define INO_EXPLORATION_SOFT_LIMIT 10u
+#define INO_RANDOM_EVERY 3u
+#define INO_DEFAULT_FORGET_AFTER 10000u
+
+#define INO_DEBUG_PARETO
+
+#ifdef INO_RANDOM_EVERY
+#if INO_RANDOM_EVERY < 1
+#error INO_RANDOM_EVERY must be a positive number (if its equal to 2, every 3rd balance() will explore)
+#endif
+#endif
 
 namespace allscale
 {
@@ -18,6 +26,8 @@ typedef struct PARETO_ENTRY pareto_entry_t;
 typedef struct INO_KNOBS ino_knobs_t;
 typedef struct INO_KNOBS_CMP ino_knobs_cmp_t;
 typedef struct EXPLORATION exploration_t;
+typedef struct INTERNODE_OPTIMIZER internode_optimizer_t;
+typedef struct NODE_CONFIGURATION node_config_t;
 
 typedef bool(*ParetoEntryComparator)  (const pareto_entry_t &lhs, const pareto_entry_t &rhs);
 
@@ -74,17 +84,17 @@ struct PARETO_ENTRY
     static bool CompareParetoLoad(const struct PARETO_ENTRY &lhs, const struct PARETO_ENTRY &rhs)
     {   
         // VV: Especially for load we're aiming for LARGER values
-        return lhs.average_load() >= rhs.average_load();
+        return lhs.average_load() > rhs.average_load();
     }
 
     static bool CompareParetoTime(const struct PARETO_ENTRY &lhs, const struct PARETO_ENTRY &rhs)
     {   
-        return lhs.average_time() <= rhs.average_time();
+        return lhs.average_time() < rhs.average_time();
     }
 
     static bool CompareParetoEnergy(const struct PARETO_ENTRY &lhs, const struct PARETO_ENTRY &rhs)
     {   
-        return lhs.average_energy() <= rhs.average_energy();
+        return lhs.average_energy() < rhs.average_energy();
     }
 
     bool operator<(const pareto_entry_t &rhs) const {
@@ -162,42 +172,60 @@ struct EXPLORATION
 typedef std::map<struct INO_KNOBS, struct PARETO_ENTRY, struct INO_KNOBS_CMP> cmap_history_t;
 typedef cmap_history_t::const_iterator citer_history_t;
 
-struct internode_optimizer
+struct NODE_CONFIG
 {
-    internode_optimizer(unsigned int nodes,
-                        double target, double leeway,
-                        unsigned int reset_history_every = INTERNODE_OPTIMIZER_DEFAULT_FORGET_AFTER);
 
+};
+
+struct INTERNODE_OPTIMIZER
+{
+    INTERNODE_OPTIMIZER(unsigned int nodes,
+                        double target, double leeway,
+                        unsigned int reset_history_every = INO_DEFAULT_FORGET_AFTER);
+    
+    /*VV: Accepts current state of computational network plus the decision which led
+          to this state. If last_knobs is nullptr and INO has made a choice before
+          it's going to assume that its that choice (c_last_choice) which lead to
+          the current state.
+          
+          It returns a set of configuration knobs. If possible it keeps a log of
+          the effects of last_knobs
+          */
     ino_knobs_t balance(const std::vector<double> &measure_load,
                         const std::vector<double> &measure_time,
-                        const std::vector<double> &measure_energy);
+                        const std::vector<double> &measure_energy,
+                        const ino_knobs_t *previous_decision=nullptr);
+
+    std::map<int, node_config_t> apply_policy(const std::vector<double> &cost) const;
 
     void record_point(const ino_knobs_t &knobs,
-                      const std::vector<double> &measure_load,
-                      const std::vector<double> &measure_time,
-                      const std::vector<double> &measure_energy);
+                    const std::vector<double> &measure_load,
+                    const std::vector<double> &measure_time,
+                    const std::vector<double> &measure_energy);
 
-    void try_forget();
+    /*VV: Utilities*/
+    protected:
+        void try_forget();
 
-    ino_knobs_t get_next_explore();
-    ino_knobs_t get_best();
+        ino_knobs_t get_next_explore();
+        ino_knobs_t get_best();
 
-    void explore_configurations();
+        void explore_configurations();
 
-    ino_knobs_t c_last_choice;
+        ino_knobs_t c_last_choice;
 
-    unsigned int u_nodes, u_min_nodes, u_max_nodes;
-    unsigned int u_choices, u_history_interval, u_history_tick;
-    double d_target, d_leeway;
+        unsigned int u_nodes, u_min_nodes, u_max_nodes;
+        unsigned int u_choices, u_history_interval, u_history_tick;
+        double d_target, d_leeway;
 
 
-    // V: <number_of_nodes, pareto_entry>
+        // V: <number_of_nodes, pareto_entry>
 
-    cmap_history_t v_past;
+        cmap_history_t v_past;
 
-    // VV: Exploration logistics
-    std::vector<exploration_t> v_explore_logistics;
-    std::set<ino_knobs_t, ino_knobs_cmp_t> s_forgotten, s_explore;
+        // VV: Exploration logistics
+        std::vector<exploration_t> v_explore_logistics;
+        std::set<ino_knobs_t, ino_knobs_cmp_t> s_forgotten, s_explore;
 };
 
 } // namespace components

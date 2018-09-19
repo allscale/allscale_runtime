@@ -29,9 +29,9 @@ namespace allscale
 namespace components
 {
 
-internode_optimizer::internode_optimizer(unsigned int nodes,
-                                         double target, double leeway,
-                                         unsigned int reset_history_every)
+internode_optimizer_t::INTERNODE_OPTIMIZER(unsigned int nodes,
+                                           double target, double leeway,
+                                           unsigned int reset_history_every)
     : c_last_choice({0}), u_nodes(nodes), u_choices(0),
       u_history_interval(reset_history_every), u_history_tick(0),
       d_target(target), d_leeway(leeway)
@@ -48,13 +48,17 @@ internode_optimizer::internode_optimizer(unsigned int nodes,
     }
 }
 
-ino_knobs_t internode_optimizer::balance(const std::vector<double> &measure_load,
-                                         const std::vector<double> &measure_time,
-                                         const std::vector<double> &measure_energy)
+ino_knobs_t internode_optimizer_t::balance(const std::vector<double> &measure_load,
+                                           const std::vector<double> &measure_time,
+                                           const std::vector<double> &measure_energy,
+                                           const ino_knobs_t *previous_decision)
 {
-    if (u_choices > 0)
+    if (previous_decision == nullptr && u_choices > 0)
+        previous_decision = &c_last_choice;
+
+    if (previous_decision != nullptr)
     {
-        record_point(c_last_choice,
+        record_point(*previous_decision,
                      // VV: measure_load could take into account cores per node
                      measure_load, measure_energy, measure_time);
     }
@@ -63,7 +67,11 @@ ino_knobs_t internode_optimizer::balance(const std::vector<double> &measure_load
 
     try_forget();
 
-    if ((u_choices < INTERNODE_OPTIMIZER_EXPLORATION_PHASE_STEPS) || (u_choices > 0 && u_choices % INTERNODE_OPTIMIZER_RANDOM_EVERY == 0))
+    if ((u_choices < INO_EXPLORATION_PHASE_STEPS) || ((u_choices > INO_EXPLORATION_PHASE_STEPS)
+#ifdef INO_RANDOM_EVERY
+                                                      && ((u_choices - INO_EXPLORATION_PHASE_STEPS + 1) % (INO_RANDOM_EVERY + 1) == 0))
+#endif
+    )
     {
         // VV: Insert some randomness and observe its effects
         c_last_choice = get_next_explore();
@@ -77,7 +85,7 @@ ino_knobs_t internode_optimizer::balance(const std::vector<double> &measure_load
     return c_last_choice;
 }
 
-ino_knobs_t internode_optimizer::get_next_explore()
+ino_knobs_t internode_optimizer_t::get_next_explore()
 {
     if (s_explore.size() == 0)
         explore_configurations();
@@ -99,7 +107,7 @@ ino_knobs_t internode_optimizer::get_next_explore()
     }
 }
 
-ino_knobs_t internode_optimizer::get_best()
+ino_knobs_t internode_optimizer_t::get_best()
 {
     // VV: Computes the pareto frontier and returns one configuration from it
 
@@ -113,11 +121,11 @@ ino_knobs_t internode_optimizer::get_best()
                                               const ParetoEntryComparator &one,
                                               const ParetoEntryComparator &two) -> bool {
         bool candidate = true;
-        auto it = pareto_frontier.begin();
+        auto it = pareto_frontier.rbegin();
 
-        while (candidate && it != pareto_frontier.end())
+        while (candidate && it != pareto_frontier.rend())
         {
-            candidate = one(entry, *it) && two(entry, *it);
+            candidate = !one(*it, entry) || !two(*it, entry);
             ++it;
         }
 
@@ -141,15 +149,15 @@ ino_knobs_t internode_optimizer::get_best()
         // VV: By definition the best config is part of pareto
         pareto_frontier.insert(*sorted.begin());
 
-        // std::sort(sorted.begin(), sorted.end(), PARETO_ENTRY_CMP_LOAD());
+        ParetoEntryComparator comp1 = comparators[(index + 1) % num_comparators];
+        ParetoEntryComparator comp2 = comparators[(index + 1) % num_comparators];
+
         if (sorted.size())
         {
             auto it = sorted.begin();
             while (it != sorted.end())
             {
-                auto dominate = pareto_eligible(*it,
-                                                comparators[(index + 1) % num_comparators],
-                                                comparators[(index + 2) % num_comparators]);
+                auto dominate = pareto_eligible(*it, comp1, comp2);
                 if (dominate)
                 {
                     pareto_frontier.insert(*it);
@@ -164,6 +172,7 @@ ino_knobs_t internode_optimizer::get_best()
         }
     }
 
+#ifdef INO_DEBUG_PARETO
     for (auto it : pareto_frontier)
     {
         std::cout << "Pareto Frontier [" << it.c_knobs.u_nodes << "]:"
@@ -172,14 +181,14 @@ ino_knobs_t internode_optimizer::get_best()
                   << " " << it.average_energy()
                   << std::endl;
     }
-
+#endif
     return random_element(pareto_frontier.begin(), pareto_frontier.end())->c_knobs;
 }
 
-void internode_optimizer::record_point(const ino_knobs_t &knobs,
-                                       const std::vector<double> &measure_load,
-                                       const std::vector<double> &measure_time,
-                                       const std::vector<double> &measure_energy)
+void internode_optimizer_t::record_point(const ino_knobs_t &knobs,
+                                         const std::vector<double> &measure_load,
+                                         const std::vector<double> &measure_time,
+                                         const std::vector<double> &measure_energy)
 {
     // static unsigned int cheat = 0;
     // cheat += 1u;
@@ -202,13 +211,13 @@ void internode_optimizer::record_point(const ino_knobs_t &knobs,
     }
 }
 
-void internode_optimizer::explore_configurations()
+void internode_optimizer_t::explore_configurations()
 {
-    if (s_explore.size() >= INTERNODE_OPTIMIZER_EXPLORATION_SOFT_LIMIT)
+    if (s_explore.size() >= INO_EXPLORATION_SOFT_LIMIT)
         return;
 
     auto may_find_new = v_explore_logistics.size() > 0 ? true : false;
-    auto remaining = INTERNODE_OPTIMIZER_EXPLORATION_SOFT_LIMIT - s_explore.size();
+    auto remaining = INO_EXPLORATION_SOFT_LIMIT - s_explore.size();
 
     // VV: Generate novel ino_knobs_t
     while (may_find_new && remaining > 0)
@@ -224,7 +233,7 @@ void internode_optimizer::explore_configurations()
             {
                 s_explore.insert(it->get_next());
                 may_find_new |= !(it->b_explored);
-     
+
                 if (--remaining == 0)
                     break;
             }
@@ -259,7 +268,7 @@ void internode_optimizer::explore_configurations()
     }
 }
 
-void internode_optimizer::try_forget()
+void internode_optimizer_t::try_forget()
 {
     auto it = v_past.begin();
 
