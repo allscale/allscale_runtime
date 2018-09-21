@@ -8,6 +8,8 @@
 
 namespace allscale { namespace dashboard
 {
+
+
     struct node_state
     {
         // the node this state is describing

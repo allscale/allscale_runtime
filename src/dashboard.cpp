@@ -1,4 +1,6 @@
 
+#include <allscale/components/monitor.hpp>
+#include <allscale/monitor.hpp>
 #include <allscale/dashboard.hpp>
 #include <allscale/data_item_manager/get_ownership_json.hpp>
 
@@ -14,11 +16,13 @@
 
 #include <boost/asio.hpp>
 
+
 namespace allscale { namespace dashboard
 {
     node_state get_state()
     {
         node_state state;
+        static allscale::components::monitor *monitor_c = &allscale::monitor::get();
 
         state.rank = hpx::get_locality_id();
         state.online = true;
@@ -26,9 +30,19 @@ namespace allscale { namespace dashboard
 
 
         // FIXME: add proper metrics here...
-        state.cpu_load = 1./(hpx::get_locality_id() + 1);
+        state.num_cores = monitor_c->get_num_cpus();
+        state.cpu_load = monitor_c->get_cpu_load();
 
         state.ownership = data_item_manager::get_ownership_json();
+
+        state.total_memory = monitor_c->get_node_total_memory();
+        state.memory_load = monitor_c->get_consumed_memory();
+        state.task_throughput = monitor_c->get_throughput();
+        state.weighted_task_throughput = monitor_c->get_weighted_throughput();
+        state.idle_rate = (monitor_c->get_idle_rate())/100;
+        state.network_in = monitor_c->get_network_in();
+        state.network_out = monitor_c->get_network_out();
+
 
         return state;
     }
@@ -190,6 +204,7 @@ namespace allscale { namespace dashboard
 
             localities_ = hpx::find_all_localities();
             enabled_ = true;
+
             std::cerr << "Dashboard connected to: " << host << ':' << port << '\n';
         }
 
@@ -229,10 +244,11 @@ namespace allscale { namespace dashboard
             buffers[0] = boost::asio::buffer(&m->msg_size, sizeof(std::uint64_t));
             buffers[1] = boost::asio::buffer(m->json.data(), m->json.length());
 
-//             std::cout << "Sending -----------------------------------\n";
-//             std::cout << m->json << '\n';
-//             std::cout << "Sending done ------------------------------\n";
-
+/*
+             std::cout << "Sending -----------------------------------\n";
+             std::cout << m->json << '\n';
+             std::cout << "Sending done ------------------------------\n";
+*/
             boost::asio::async_write(socket_, buffers,
                 [f = std::move(f), m](boost::system::error_code ec, std::size_t /*length*/)
                 {

@@ -8,6 +8,7 @@
 #include <string>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <thread>
 
 #include <boost/format.hpp>
 
@@ -62,7 +63,7 @@ namespace allscale { namespace components {
      , done(false)
      , current_read_queue(0)
      , current_write_queue(0)
-     , sampling_interval_ms(4000)
+     , sampling_interval_ms(2000)
 //     , metric_sampler_(
 //          hpx::util::bind(
 //		&monitor::sample_node,
@@ -83,6 +84,11 @@ namespace allscale { namespace components {
      , max_split_task(0)
      , min_process_task(0)
      , max_process_task(0)
+     , total_memory_(0)
+     , num_cpus_(0)
+     , cpu_load_(0.0)
+     , weighted_sum(0.0)
+     , weighted_throughput(0.0)
 //#endif
 #ifdef REALTIME_VIZ
      , num_active_tasks_(0)
@@ -169,6 +175,14 @@ namespace allscale { namespace components {
    }
 
 
+   double monitor::get_weighted_throughput()
+   {
+      std::unique_lock<std::mutex> lock(sampling_mutex);
+      return weighted_throughput;
+   }
+
+
+
    double monitor::get_idle_rate()
    {
       std::unique_lock<std::mutex> lock(sampling_mutex);
@@ -185,29 +199,117 @@ namespace allscale { namespace components {
    }
 
 
+   unsigned long long monitor::get_node_total_memory()
+   {
+      return total_memory_;
+   }
+
+
+   int monitor::get_num_cpus()
+   {
+     return num_cpus_;
+   }
+
+
+   float monitor::get_cpu_load()
+   {
+      std::unique_lock<std::mutex> lock(sampling_mutex);
+      return cpu_load_;
+   }
+
+   std::uint64_t monitor::get_consumed_memory()
+   {
+      std::unique_lock<std::mutex> lock(sampling_mutex);
+      return resident_memory_;
+   }
+
+
+   std::uint64_t monitor::get_network_out()
+   {
+      std::unique_lock<std::mutex> lock(sampling_mutex);
+      return bytes_sent_;
+   }
+
+
+   std::uint64_t monitor::get_network_in()
+   {
+      std::unique_lock<std::mutex> lock(sampling_mutex);
+      return bytes_recv_;
+   }
+
+
+
    // Additional sampler thread
    bool monitor::sample_node()
    {
        hpx::performance_counters::counter_value idle_value;
+       hpx::performance_counters::counter_value rss_value;
+       hpx::performance_counters::counter_value network_in_value;
+       hpx::performance_counters::counter_value network_out_value;
+
        double rate_value;
+       std::uint64_t memory_value, network_in, network_out;
+       std::uint64_t user_time, nice_time, system_time, idle_time;
+       std::string foo_word;
+
+
+       // Counters
 
        idle_value = hpx::performance_counters::stubs::performance_counter::get_value(
                 hpx::launch::sync, idle_rate_counter_);
 
-       rate_value = idle_value.get_value<double>() * 0.01;
 
+       rss_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                hpx::launch::sync, resident_memory_counter_);
+
+
+       network_out_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                hpx::launch::sync, nsend_counter_);
+
+
+       network_in_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                hpx::launch::sync, nrecv_counter_);
+
+
+       rate_value = idle_value.get_value<double>() * 0.01;
+       memory_value = rss_value.get_value<std::uint64_t>();
+       network_in = network_in_value.get_value<std::uint64_t>();
+       network_out = network_out_value.get_value<std::uint64_t>();
+
+
+       // CPU load
+       if(pstat.is_open()) {
+           pstat.seekg(0, std::ios::beg);
+           pstat >> foo_word >> user_time >> nice_time >> system_time >> idle_time;
+//           std::cerr << "HE llegit " << user_time << " " << nice_time << " " << system_time << " " << idle_time << std::endl;
+       }
+
+
+       // Compute statistics
        std::unique_lock<std::mutex> lock(sampling_mutex);
 
        task_throughput = (double)finished_tasks/((double)sampling_interval_ms/1000);
+       weighted_throughput = weighted_sum/((double)sampling_interval_ms/1000);
        idle_rate_ = rate_value;
+       resident_memory_ = memory_value;
+       bytes_sent_ = network_out;
+       bytes_recv_ = network_in;
 
-//       std::cerr << "NODE " << rank_ << " THROUGHPUT " << task_throughput << " tasks/s "
-//                 << "IDLE RATE " << idle_rate_ << std::endl;
+       std::uint64_t used_time = (user_time - last_user_time) + (nice_time - last_nice_time) + (system_time - last_system_time);
+       cpu_load_ = ((float)used_time / (float)(used_time + (idle_time - last_idle_time))); 
+       last_user_time = user_time; last_nice_time = nice_time; last_system_time = system_time; last_idle_time = idle_time;
+
+/*       std::cerr << "NODE " << rank_ << " THROUGHPUT " << task_throughput << " tasks/s "
+                 << "IDLE RATE " << idle_rate_
+                 << "RESIDENT MEMORY " << resident_memory_ 
+                 << "CPU LOAD " << cpu_load_ << std::endl;
+*/ 
 
        if(print_throughput_hm_) throughput_history.push_back(task_throughput);
        if(print_idle_hm_) idle_rate_history.push_back(idle_rate_);
 
        finished_tasks = 0;
+       weighted_sum = 0.0;
 
        lock.unlock();
        // FIXME
@@ -501,6 +603,9 @@ namespace allscale { namespace components {
          // Update number of finished tasks for throughput calculation
          std::unique_lock<std::mutex> lock(sampling_mutex);
          finished_tasks++;
+          
+         // Update data for weighted throughput 
+         weighted_sum += 1/pow(2, my_wid.depth());
          lock.unlock();
       }
 
@@ -622,6 +727,9 @@ namespace allscale { namespace components {
          // Update number of finished tasks for throughput calculation
          std::unique_lock<std::mutex> lock(sampling_mutex);
          finished_tasks++;
+
+         // Update data for weighted throughput 
+         weighted_sum += 1/pow(2, my_wid.depth());
 	 lock.unlock();
      }
 #ifdef HAVE_EXTRAE
@@ -1454,8 +1562,12 @@ namespace allscale { namespace components {
 
       metric_sampler_->stop();
 
-      // Stop performance counter
+      // Stop performance counters
       hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, idle_rate_counter_);
+      hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, resident_memory_counter_);
+      hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, nsend_counter_);
+      hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, nrecv_counter_);
+
 //      hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, idle_rate_avg_counter_);
 
 
@@ -1744,11 +1856,33 @@ namespace allscale { namespace components {
       execution_init = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
 
 
-      // Create idle rate counters per locality
+      // Read system info
+
+      // Number of available processors
+      num_cpus_ = std::thread::hardware_concurrency();
+
+
+      // Total memory
+      FILE *proc_f = fopen("/proc/meminfo", "r");
+      fscanf(proc_f, "%*s %llu %*s\n", &total_memory_); total_memory_ *= 1000; 
+      fclose(proc_f);
+
+      // Read CPU load
+      pstat.open("/proc/stat", std::ios::in);
+      if(pstat.is_open()) {
+	std::string cpu;
+      
+        pstat >> cpu >> last_user_time >> last_nice_time >> last_system_time >> last_idle_time;
+      }
+      else std::cerr << "Unable to open /proc/stat!\n";
+
+      
+      // Create HPX counters
+      const std::uint32_t prefix = hpx::get_locality_id();
+
+      // Idle rate counter
       static const char * idle_counter_name = "/threads{locality#%d/total}/idle-rate";
 //      static const char * idle_counter_avg_name = "/statistics{/threads{locality#%d/total}/idle-rate}/average@500";
-
-      const std::uint32_t prefix = hpx::get_locality_id();
 
       std::cerr << "Registering counter " << boost::str(boost::format(idle_counter_name) % prefix) << std::endl;
       idle_rate_counter_ = hpx::performance_counters::get_counter(
@@ -1760,6 +1894,34 @@ namespace allscale { namespace components {
 
       hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_rate_counter_);
 //      hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_rate_avg_counter_);
+
+
+      // Memory counter 
+      static const char * memory_counter_name = "/runtime{locality#%d/total}/memory/resident";
+
+      std::cerr << "Registering counter " << boost::str(boost::format(memory_counter_name) % prefix) << std::endl;
+      resident_memory_counter_ = hpx::performance_counters::get_counter(
+                    boost::str(boost::format(memory_counter_name) % prefix));
+
+      hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, resident_memory_counter_);
+
+
+      // Networks counters
+      static const char * network_sent_counter_name = "/data{locality#%d/total}/count/mpi/sent";
+      static const char * network_recv_counter_name = "/data{locality#%d/total}/count/mpi/received";
+
+      std::cerr << "Registering counter " << boost::str(boost::format(network_sent_counter_name) % prefix) << std::endl;
+      nsend_counter_ = hpx::performance_counters::get_counter(
+                    boost::str(boost::format(network_sent_counter_name) % prefix));
+
+      hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, nsend_counter_);
+
+
+      std::cerr << "Registering counter " << boost::str(boost::format(network_recv_counter_name) % prefix) << std::endl;
+      nrecv_counter_ = hpx::performance_counters::get_counter(
+                    boost::str(boost::format(network_recv_counter_name) % prefix));
+      
+      hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, nrecv_counter_);
 
 
       // Create specialised OS-thread to proces profiles and sampler timer
