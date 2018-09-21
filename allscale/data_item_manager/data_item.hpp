@@ -19,17 +19,17 @@ namespace allscale { namespace data_item_manager {
         template <typename Region>
         std::string to_json(hpx::naming::gid_type const& id, Region const& region, ...)
         {
-            return "";
+            return std::string();
         }
 
-        template <typename Region, std::size_t Dims = Region::Dimensions>
-        std::string to_json(hpx::naming::gid_type const& id, Region const& region, Region*)
+        template <typename Region>
+        std::string to_json(hpx::naming::gid_type const& id, Region const& region, decltype(Region::Dimension)*)
         {
-            if (region.empty()) return "";
+            if (region.empty()) return std::string();
 
             std::stringstream out;
             out << "{\"id\" : " << id.get_lsb() << ",";
-            out << "\"type\" : \"" << Dims << "D-Grid\",";
+            out << "\"type\" : \"" << Region::Dimensions << "D-Grid\",";
             out << "\"region\" : [";
 
             out << allscale::utils::join(",",region.getBoxes(),[](std::ostream& out, const auto& cur){
@@ -66,7 +66,7 @@ namespace allscale { namespace data_item_manager {
                 [this]() -> std::string
                 {
                     std::lock_guard<mutex_type> l(mtx);
-                    detail::to_json(id, exclusive, nullptr);
+                    return detail::to_json(id, exclusive, nullptr);
                 });
         }
 

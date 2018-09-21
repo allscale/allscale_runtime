@@ -38,7 +38,7 @@ namespace allscale { namespace data_item_manager {
         }
         for(auto& f: registry_)
         {
-            auto json = f();
+            std::string json = f();
             if (json.empty()) continue;
             res += json + ',';
         }
