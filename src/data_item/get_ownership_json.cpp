@@ -1,7 +1,9 @@
 
 #include <allscale/data_item_manager/get_ownership_json.hpp>
+#include <hpx/lcos/local/spinlock.hpp>
 
 #include <vector>
+#include <mutex>
 
 namespace allscale { namespace data_item_manager {
     namespace {
