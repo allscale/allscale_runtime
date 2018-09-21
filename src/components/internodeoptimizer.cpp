@@ -29,7 +29,7 @@ namespace allscale
 namespace components
 {
 
-internode_optimizer_t::INTERNODE_OPTIMIZER(unsigned int nodes,
+internode_optimizer_t::internode_optimizer_t(unsigned int nodes,
                                            double target, double leeway,
                                            unsigned int reset_history_every)
     : c_last_choice({0}), u_nodes(nodes), u_choices(0),
