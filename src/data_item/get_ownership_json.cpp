@@ -10,10 +10,18 @@ namespace allscale { namespace data_item_manager {
             static std::vector<std::function<std::string()>> registry_;
             return registry_;
         }
+        using mutex_type = hpx::lcos::local::spinlock;
+
+        mutex_type& registry_mtx()
+        {
+            static mutex_type mtx;
+            return mtx;
+        }
     }
 
     void register_data_item(std::function<std::string()>&& f)
     {
+        std::lock_guard<mutex_type> l(registry_mtx());
         registry().push_back(f);
     }
 
@@ -21,7 +29,12 @@ namespace allscale { namespace data_item_manager {
     {
         std::string res;
         res += '[';
-        for(auto& f: registry())
+        std::vector<std::function<std::string()>> registry_;
+        {
+            std::lock_guard<mutex_type> l(registry_mtx());
+            registry_ = registry();
+        }
+        for(auto& f: registry_)
         {
             auto json = f();
             if (json.empty()) continue;
