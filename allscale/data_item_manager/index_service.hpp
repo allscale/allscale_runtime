@@ -203,6 +203,13 @@ namespace allscale { namespace data_item_manager {
                 right_ = region_type::difference(right_, missing);
             }
             add_full(missing);
+
+            // If we are at the root, just return an empty loc info...
+            if (service_->is_root_)
+            {
+                location_info<region_type> info;
+                return hpx::make_ready_future(std::move(info));
+            }
 #if defined(HPX_DEBUG)
             HPX_ASSERT(!missing.empty());
             auto cont =
@@ -221,6 +228,7 @@ namespace allscale { namespace data_item_manager {
                     }
                     return info;
                 };
+
 
             if (service_->parent_id_)
             {
@@ -354,6 +362,17 @@ namespace allscale { namespace data_item_manager {
             if (!missing.empty())
             {
                 HPX_ASSERT(!service_->is_root_);
+                // If we are at the root, just return an empty loc info, this means
+                // the part can be safely allocated at the destination
+                if (service_->is_root_)
+                {
+                    location_info<region_type> info;
+#if defined(HPX_DEBUG)
+                    info.add_part(std::size_t(-1), missing);
+#endif
+
+                    return hpx::make_ready_future(std::move(info));
+                }
                 if (service_->parent_id_)
                 {
                     remote_infos.push_back(

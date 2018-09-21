@@ -68,7 +68,7 @@ namespace allscale { namespace data_item_manager {
                 if(!missing.empty())
                 {
                     HPX_ASSERT(req.allowance.empty());
-                    HPX_ASSERT(addr.isLeaf());
+//                     HPX_ASSERT(addr.isLeaf());
                     // Acquire ownership
                     return hpx::dataflow(hpx::launch::sync,
                         [req, addr](hpx::future<location_info> infof) ->hpx::future<void>
