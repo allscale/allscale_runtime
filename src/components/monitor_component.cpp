@@ -89,6 +89,8 @@ namespace allscale { namespace components {
      , cpu_load_(0.0)
      , weighted_sum(0.0)
      , weighted_throughput(0.0)
+     , bytes_sent_(0)
+     , bytes_recv_(0)
 //#endif
 #ifdef REALTIME_VIZ
      , num_active_tasks_(0)
@@ -244,37 +246,59 @@ namespace allscale { namespace components {
    {
        hpx::performance_counters::counter_value idle_value;
        hpx::performance_counters::counter_value rss_value;
-       hpx::performance_counters::counter_value network_in_value;
-       hpx::performance_counters::counter_value network_out_value;
+       hpx::performance_counters::counter_value network_in_mpi_value;
+       hpx::performance_counters::counter_value network_out_mpi_value;
+       hpx::performance_counters::counter_value network_in_tcp_value;
+       hpx::performance_counters::counter_value network_out_tcp_value;
+
 
        double rate_value;
-       std::uint64_t memory_value, network_in, network_out;
+       std::uint64_t memory_value = 0, network_in_mpi = 0, network_out_mpi = 0;
+       std::uint64_t network_in_tcp = 0, network_out_tcp = 0;
        std::uint64_t user_time, nice_time, system_time, idle_time;
        std::string foo_word;
 
 
        // Counters
 
-       idle_value = hpx::performance_counters::stubs::performance_counter::get_value(
-                hpx::launch::sync, idle_rate_counter_);
+       if(rate_counter_registered_)
+          idle_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                   hpx::launch::sync, idle_rate_counter_);
 
 
-       rss_value = hpx::performance_counters::stubs::performance_counter::get_value(
-                hpx::launch::sync, resident_memory_counter_);
+       if(memory_counter_registered_)
+          rss_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                   hpx::launch::sync, resident_memory_counter_);
 
 
-       network_out_value = hpx::performance_counters::stubs::performance_counter::get_value(
-                hpx::launch::sync, nsend_counter_);
+       if(network_mpi_counters_registered_) {
+          network_out_mpi_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                   hpx::launch::sync, nsend_mpi_counter_);
+
+          network_in_mpi_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                   hpx::launch::sync, nrecv_mpi_counter_);
+       }
 
 
-       network_in_value = hpx::performance_counters::stubs::performance_counter::get_value(
-                hpx::launch::sync, nrecv_counter_);
+       if(network_tcp_counters_registered_) {
+          network_out_tcp_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                   hpx::launch::sync, nsend_tcp_counter_);
+
+          network_in_tcp_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                   hpx::launch::sync, nrecv_tcp_counter_);
+       }
 
 
-       rate_value = idle_value.get_value<double>() * 0.01;
-       memory_value = rss_value.get_value<std::uint64_t>();
-       network_in = network_in_value.get_value<std::uint64_t>();
-       network_out = network_out_value.get_value<std::uint64_t>();
+       if(rate_counter_registered_) rate_value = idle_value.get_value<double>() * 0.01;
+       if(memory_counter_registered_) memory_value = rss_value.get_value<std::uint64_t>();
+       if(network_mpi_counters_registered_) {
+	  network_in_mpi = network_in_mpi_value.get_value<std::uint64_t>();
+          network_out_mpi = network_out_mpi_value.get_value<std::uint64_t>();
+       }
+       if(network_tcp_counters_registered_) {
+          network_in_tcp = network_in_tcp_value.get_value<std::uint64_t>();
+          network_out_tcp = network_out_tcp_value.get_value<std::uint64_t>();
+       }
 
 
        // CPU load
@@ -292,8 +316,8 @@ namespace allscale { namespace components {
        weighted_throughput = weighted_sum/((double)sampling_interval_ms/1000);
        idle_rate_ = rate_value;
        resident_memory_ = memory_value;
-       bytes_sent_ = network_out;
-       bytes_recv_ = network_in;
+       bytes_sent_ = network_out_mpi + network_out_tcp;
+       bytes_recv_ = network_in_mpi + network_out_tcp;
 
        std::uint64_t used_time = (user_time - last_user_time) + (nice_time - last_nice_time) + (system_time - last_system_time);
        cpu_load_ = ((float)used_time / (float)(used_time + (idle_time - last_idle_time))); 
@@ -1563,10 +1587,22 @@ namespace allscale { namespace components {
       metric_sampler_->stop();
 
       // Stop performance counters
-      hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, idle_rate_counter_);
-      hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, resident_memory_counter_);
-      hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, nsend_counter_);
-      hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, nrecv_counter_);
+      if(rate_counter_registered_)
+         hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, idle_rate_counter_);
+
+      if(memory_counter_registered_)
+         hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, resident_memory_counter_);
+
+      if(network_mpi_counters_registered_) {
+         hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, nsend_mpi_counter_);
+         hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, nrecv_mpi_counter_);
+      }
+
+      if(network_tcp_counters_registered_) {
+         hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, nsend_tcp_counter_);
+         hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, nrecv_tcp_counter_);
+      }
+
 
 //      hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, idle_rate_avg_counter_);
 
@@ -1882,46 +1918,96 @@ namespace allscale { namespace components {
 
       // Idle rate counter
       static const char * idle_counter_name = "/threads{locality#%d/total}/idle-rate";
-//      static const char * idle_counter_avg_name = "/statistics{/threads{locality#%d/total}/idle-rate}/average@500";
 
-      std::cerr << "Registering counter " << boost::str(boost::format(idle_counter_name) % prefix) << std::endl;
-      idle_rate_counter_ = hpx::performance_counters::get_counter(
-              boost::str(boost::format(idle_counter_name) % prefix));
 
-//      std::cerr << "Registering counter " << boost::str(boost::format(idle_counter_avg_name) % prefix) << std::endl;
-//      idle_rate_avg_counter_ = hpx::performance_counters::get_counter(
-//              boost::str(boost::format(idle_counter_avg_name) % prefix));
+      try {
+         std::cerr << "Registering counter " << boost::str(boost::format(idle_counter_name) % prefix) << std::endl;
+         idle_rate_counter_ = hpx::performance_counters::get_counter(
+                 boost::str(boost::format(idle_counter_name) % prefix));
 
-      hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_rate_counter_);
-//      hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_rate_avg_counter_);
-
+         hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_rate_counter_);
+         rate_counter_registered_ = 1;
+      }
+      catch(const std::exception& e) {
+         std::cerr << "Failed to register counter " << boost::str(boost::format(idle_counter_name) % prefix) << std::endl;
+         rate_counter_registered_ = 0;
+      }
 
       // Memory counter 
       static const char * memory_counter_name = "/runtime{locality#%d/total}/memory/resident";
 
-      std::cerr << "Registering counter " << boost::str(boost::format(memory_counter_name) % prefix) << std::endl;
-      resident_memory_counter_ = hpx::performance_counters::get_counter(
-                    boost::str(boost::format(memory_counter_name) % prefix));
+      try {
+         std::cerr << "Registering counter " << boost::str(boost::format(memory_counter_name) % prefix) << std::endl;
+         resident_memory_counter_ = hpx::performance_counters::get_counter(
+                       boost::str(boost::format(memory_counter_name) % prefix));
 
-      hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, resident_memory_counter_);
+         hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, resident_memory_counter_);
+         memory_counter_registered_ = 1;
+      }
+      catch(const std::exception& e) {
+	 std::cerr << "Failed to register counter " << boost::str(boost::format(memory_counter_name) % prefix) << std::endl;
+         memory_counter_registered_ = 0;
+      }
+
+      // Network counters
+      static const char * network_sent_mpi_counter_name = "/data{locality#%d/total}/count/mpi/sent";
+      static const char * network_recv_mpi_counter_name = "/data{locality#%d/total}/count/mpi/received";
+      static const char * network_sent_tcp_counter_name = "/data{locality#%d/total}/count/tcp/sent";
+      static const char * network_recv_tcp_counter_name = "/data{locality#%d/total}/count/tcp/received";
 
 
-      // Networks counters
-      static const char * network_sent_counter_name = "/data{locality#%d/total}/count/mpi/sent";
-      static const char * network_recv_counter_name = "/data{locality#%d/total}/count/mpi/received";
+      try {
+         std::cerr << "Registering counter " << boost::str(boost::format(network_sent_mpi_counter_name) % prefix) << std::endl;
+         nsend_mpi_counter_ = hpx::performance_counters::get_counter(
+                       boost::str(boost::format(network_sent_mpi_counter_name) % prefix));
 
-      std::cerr << "Registering counter " << boost::str(boost::format(network_sent_counter_name) % prefix) << std::endl;
-      nsend_counter_ = hpx::performance_counters::get_counter(
-                    boost::str(boost::format(network_sent_counter_name) % prefix));
+         hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, nsend_mpi_counter_);
+         network_mpi_counters_registered_ = 1;
+      }
+      catch(...) {
+         std::cerr << "Failed to register counter " << boost::str(boost::format(network_sent_mpi_counter_name) % prefix) << std::endl;
+         network_mpi_counters_registered_ = 0;
+      }
 
-      hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, nsend_counter_);
-
-
-      std::cerr << "Registering counter " << boost::str(boost::format(network_recv_counter_name) % prefix) << std::endl;
-      nrecv_counter_ = hpx::performance_counters::get_counter(
-                    boost::str(boost::format(network_recv_counter_name) % prefix));
+      try {
+         std::cerr << "Registering counter " << boost::str(boost::format(network_recv_mpi_counter_name) % prefix) << std::endl;
+         nrecv_mpi_counter_ = hpx::performance_counters::get_counter(
+                       boost::str(boost::format(network_recv_mpi_counter_name) % prefix));
       
-      hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, nrecv_counter_);
+         hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, nrecv_mpi_counter_);
+         network_mpi_counters_registered_ &= 1;
+      }
+      catch(...) {
+         std::cerr << "Failed to register counter " << boost::str(boost::format(network_recv_mpi_counter_name) % prefix) << std::endl;
+         network_mpi_counters_registered_ &= 0;
+      }
+
+
+      try {
+         std::cerr << "Registering counter " << boost::str(boost::format(network_sent_tcp_counter_name) % prefix) << std::endl;
+         nsend_tcp_counter_ = hpx::performance_counters::get_counter(
+                       boost::str(boost::format(network_sent_tcp_counter_name) % prefix));
+
+         hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, nsend_tcp_counter_);
+         network_tcp_counters_registered_ = 1;
+      }
+      catch(...) {
+         std::cerr << "Failed to register counter " << boost::str(boost::format(network_sent_tcp_counter_name) % prefix) << std::endl;
+         network_tcp_counters_registered_ = 0;
+      }
+
+      try {
+         std::cerr << "Registering counter " << boost::str(boost::format(network_recv_tcp_counter_name) % prefix) << std::endl;
+         nrecv_tcp_counter_ = hpx::performance_counters::get_counter(
+                       boost::str(boost::format(network_recv_tcp_counter_name) % prefix));
+
+         hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, nrecv_tcp_counter_);
+         network_tcp_counters_registered_ &= 1;
+      }
+      catch(...) {
+         std::cerr << "Failed to register counter " << boost::str(boost::format(network_recv_tcp_counter_name) % prefix) << std::endl;
+         network_tcp_counters_registered_ &= 0;
+      }
 
 
       // Create specialised OS-thread to proces profiles and sampler timer

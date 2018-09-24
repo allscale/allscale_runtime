@@ -397,17 +397,24 @@ namespace allscale { namespace components {
 
              // Idle rate
              hpx::id_type idle_rate_counter_;
+             int rate_counter_registered_;
              double idle_rate_;
 	     std::vector<double> idle_rate_history;
 
 	     // Memory consumed 
              hpx::id_type resident_memory_counter_;
+             int memory_counter_registered_;
              std::uint64_t resident_memory_;
 
              // Bytes sent/recv  (network)
-             hpx::id_type nsend_counter_;
+             hpx::id_type nsend_mpi_counter_;
+             hpx::id_type nsend_tcp_counter_;
+             hpx::id_type nrecv_mpi_counter_;
+             hpx::id_type nrecv_tcp_counter_;
+             int network_mpi_counters_registered_;
+             int network_tcp_counters_registered_;
+
              std::uint64_t bytes_sent_;
-             hpx::id_type nrecv_counter_;
              std::uint64_t bytes_recv_;
 
              // CPU load
