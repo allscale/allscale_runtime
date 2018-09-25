@@ -834,13 +834,13 @@ namespace allscale { namespace data_item_manager {
             }
         }
 
-        index_service(index_service const& other)
-          : here_(other.here_),
-            parent_(other.parent_),
-            left_(other.left_),
-            right_(other.right_),
-            parent_id_(other.parent_id_),
-            right_id_(other.right_id_),
+        index_service(index_service&& other)
+          : here_(std::move(other.here_)),
+            parent_(std::move(other.parent_)),
+            left_(std::move(other.left_)),
+            right_(std::move(other.right_)),
+            parent_id_(std::move(other.parent_id_)),
+            right_id_(std::move(other.right_id_)),
             is_root_(other.is_root_)
         {
             HPX_ASSERT(other.entries_.empty());
@@ -848,7 +848,7 @@ namespace allscale { namespace data_item_manager {
 
         index_entry<DataItem>& get(hpx::naming::gid_type const& id)
         {
-            std::unique_lock<mutex_type> l(mtx_);
+            std::lock_guard<mutex_type> l(mtx_);
             auto it = entries_.find(id);
             if (it != entries_.end())
             {
