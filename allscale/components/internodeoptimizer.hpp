@@ -217,9 +217,11 @@ struct internode_optimizer_t
     std::map<unsigned int, node_config_t<work_item>> decide_schedule(
         const std::map<unsigned int, std::vector<work_item>> &node_map,
         const std::map<unsigned int, double> &node_loads,
-        const std::map<unsigned int, double> &node_time,
+        const std::map<unsigned int, double> &node_times,
         const ino_knobs_t &ino_knobs,
-        bool distribute_randomly = false) const
+        bool distribute_randomly = false,
+        unsigned int balance_top_N=1,
+        unsigned int balance_bottom_K=1) const
     {
 #warning Currently assumes that node_loads.size() == previous number of nodes
         /* VV: 4 scenarios
@@ -243,11 +245,11 @@ struct internode_optimizer_t
               1. Find top N nodes whose expected time of completion is largest
               2. Find K nodes whose expected time is smallest
               3. If avg(N) - avg(K) < 2*stddev(ALL), don't do anything
-              4. compute new task load = such that 
-                 sum(tasks_of(N) + tasks_of(K)) = num(N)+num(K)
+              4. Scale all times of tasks belonging to N nodes such that
+                 new_time = (time(N) / avg(time(K))) * old_time
               5. Add all tasks in a vector, and randomly distribute them `evenly` among those 
                  N + K nodes
-              6. Resulting load should be close to 1.0
+              6. Resulting load is greater than 1.0 for all N + K nodes
         */
 
         auto new_schedule = std::map<unsigned int, node_config_t<work_item>>();
@@ -317,10 +319,103 @@ struct internode_optimizer_t
         else
         {
             // VV: See point d) above
+            double avg = 0.;
+            std::vector<std::pair<unsigned int, double> > sorted;
 
-            assert(nullptr && "Not implemented");
+            for (auto nt: node_times) {
+                avg += nt.second;
+                sorted.push_back(nt);
+            }
+
+            avg /= node_times.size();
+
+            double stddev = 0.0;
+
+            for (auto nt: node_times ) {
+                double t = nt.second - avg;
+                stddev += t*t;
+            }
+
+            stddev = sqrt(stddev/(node_times.size() - 1));
+
+            auto threshold = stddev * 2;
+
+            auto compare = [](const std::pair<unsigned int, double> &nt1, 
+                             const std::pair<unsigned int, double> &nt2) -> bool 
+            {
+                // VV: descending order
+                return nt1.second > nt2.second;
+            };
+
+            std::sort(sorted.begin(), sorted.end(), compare);
+
+
+            double avg_n = 0.0;
+            auto it = sorted.begin();
+            for (unsigned int i=0u; i<balance_top_N; ++i, ++it)
+            {
+                avg_n += it->second;
+                std::cout << "top_N " << it->first
+                          << " time " << it->second << std::endl;
+            }
+
+            avg_n /= balance_top_N;
+
+            double avg_k = 0.0;
+            
+            auto rit = sorted.rbegin();
+            for (unsigned int i=0u; i<balance_bottom_K; ++i, ++rit)
+            {   
+                avg_k += rit->second;
+
+                std::cout << "bottomK " << rit->first 
+                          << " time " << rit->second << std::endl;
+            }
+            avg_k /= balance_bottom_K;
+
+            std::cout << "avg_n - avg_k = " << 
+                        avg_n << " - " << avg_k << " = " << avg_n - avg_k 
+                        <<  " comp with " << threshold << std::endl;
+            
+
+            // VV: Check if there's enough difference in time to warrant 
+            //     redistribution of tasks among N, K node sets
+            if ( avg_n - avg_k >= threshold )
+            {   
+                unsigned int total = (unsigned int) sorted.size();
+
+                it = sorted.begin();
+                for(unsigned int i=0u;
+                    it != sorted.end(); ++it, ++i )
+                {
+                    if ( i < balance_top_N || i >= total-balance_bottom_K )
+                    {
+                        expected_node_load.push_back(node_load_t(it->first, 0.0));
+
+                        double cost = work_item_load[it->first];
+
+                        if ( i < balance_top_N )
+                        {
+                            cost *= node_times.at(it->first) / avg_k;
+                        }
+
+                        for (const auto wi : node_map.at(it->first))
+                            all_tasks.push_back(std::make_pair(cost, wi));
+                    }
+                    else
+                    {
+                        for (const auto wi : node_map.at(it->first))
+                            new_schedule[it->first].v_work_items.push_back(wi); 
+                    }
+                }
+
+                std::random_device rd;
+                std::mt19937 gen(rd());
+                std::shuffle(all_tasks.begin(), all_tasks.end(), gen);
+            }
         }
 
+        // VV: Partition `all_tasks` to `expected_node_load` nodes "evenly"
         if (expected_node_load.size() > 1)
         {
             // VV: Assign task to least loaded node. (Nodes could be oversubscribed)
