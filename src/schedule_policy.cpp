@@ -193,6 +193,8 @@ namespace allscale {
         int numTasks = (1<<levels);
         std::vector<std::size_t> mapping = getEqualDistribution(N * M,numTasks);
 
+//         std::cerr << "create policy: " << (1<<log2) << "\n";
+
         // convert mapping in decision tree
         return std::unique_ptr<scheduling_policy>(new tree_scheduling_policy(
             runtime::HierarchyAddress::getRootOfNetworkSize(N, M), levels,
@@ -357,7 +359,7 @@ namespace allscale {
             std::vector<float> load(state.size());
             std::transform(state.begin(), state.end(), load.begin(), [](optimizer_state const& s) { return s.load; });
 
-            std::cout << "Load vector: " << load << " - " << mean_s(state) << " / " << variance_s(state) << "\n";
+            std::cerr << "Load vector: " << load << " - " << mean_s(state) << " / " << variance_s(state) << "\n";
             std::cerr << "Est. vector: " << newEstCosts << " - " << mean(newEstCosts) << " / " << variance(newEstCosts) << "\n";
             std::cerr << "Target Load: " << share << "\n";
             std::cerr << "Task shared: " << old_share << "\n";
@@ -370,11 +372,11 @@ namespace allscale {
         }
 
         // create new scheduling policy
-        auto root = old.getPresumedRootAddress();
-        auto log2 = root.getLayer();
+        auto log2 = old.root_.getLayer();
+//         std::cerr << "create rebalance policy: " << (1<<log2) << "\n";
 
         return std::unique_ptr<scheduling_policy>(new tree_scheduling_policy(
-            root, old.granularity_,
+            old.root_, old.granularity_,
             toDecisionTree((1<<log2),new_mapping)));
     }
 

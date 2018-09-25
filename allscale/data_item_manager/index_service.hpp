@@ -600,6 +600,12 @@ namespace allscale { namespace data_item_manager {
                 remote_infos);
         }
 
+        void update_cache(region_type const& missing, std::size_t new_rank)
+        {
+            std::unique_lock<mutex_type> l(mtx_);
+            location_cache_.update(new_rank, missing);
+        }
+
         template <typename Requirement>
         hpx::future<location_info<region_type>> locate(Requirement const& req)
         {
@@ -609,7 +615,6 @@ namespace allscale { namespace data_item_manager {
             HPX_ASSERT(!req.region.empty());
 
             std::unique_lock<mutex_type> l(mtx_);
-            hpx::util::ignore_all_while_checking il;
 
             region_type remaining = req.region;
 
