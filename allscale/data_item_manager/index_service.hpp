@@ -630,27 +630,27 @@ namespace allscale { namespace data_item_manager {
                 }
             }
 
-//             // Second look in our cache to speed up lookups
-//             for (auto const& cached: location_cache_.regions)
-//             {
-//                 auto part = region_type::intersect(remaining, cached.second);
-//                 // We got a hit!
-//                 if (!part.empty())
-//                 {
-//                     // Insert location information...
-//                     info.add_part(cached.first, part);
-//
-//                     // Subtract what we got from what we requested
-//                     remaining = region_type::difference(remaining, part);
-//
-//                     // If the remainder is empty, we got everything covered...
-//                     if (remaining.empty())
-//                     {
-//                         HPX_ASSERT(!info.regions.empty());
-//                         return hpx::make_ready_future(info);
-//                     }
-//                 }
-//             }
+            // Second look in our cache to speed up lookups
+            for (auto const& cached: location_cache_.regions)
+            {
+                auto part = region_type::intersect(remaining, cached.second);
+                // We got a hit!
+                if (!part.empty())
+                {
+                    // Insert location information...
+                    info.add_part(cached.first, part);
+
+                    // Subtract what we got from what we requested
+                    remaining = region_type::difference(remaining, part);
+
+                    // If the remainder is empty, we got everything covered...
+                    if (remaining.empty())
+                    {
+                        HPX_ASSERT(!info.regions.empty());
+                        return hpx::make_ready_future(info);
+                    }
+                }
+            }
 
             // Storage for our remote infos:
             // 0: parent
@@ -759,7 +759,7 @@ namespace allscale { namespace data_item_manager {
                         auto remote_info = fut.get();
                         for (auto& part : remote_info.regions)
                         {
-//                             location_cache_.add_part(part.first, part.second);
+                            location_cache_.add_part(part.first, part.second);
                             info.add_part(part.first, std::move(part.second));
                         }
                     }
