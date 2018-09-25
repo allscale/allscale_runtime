@@ -5,6 +5,9 @@
 #include <map>
 #include <tuple>
 #include <cassert>
+#include <random>
+#include <iterator>
+#include <algorithm>
 
 #define INO_EXPLORATION_PHASE_STEPS 3u
 #define INO_EXPLORATION_SOFT_LIMIT 10u
@@ -45,10 +48,10 @@ struct ino_knobs_cmp_t
 struct pareto_entry_t
 {
     pareto_entry_t(unsigned int at_tick,
-                 ino_knobs_t knobs,
-                 std::vector<double> measure_load,
-                 std::vector<double> measure_time,
-                 std::vector<double> measure_energy)
+                   ino_knobs_t knobs,
+                   std::vector<double> measure_load,
+                   std::vector<double> measure_time,
+                   std::vector<double> measure_energy)
         : u_at_tick(at_tick),
           c_knobs(knobs),
           v_load(measure_load),
@@ -194,8 +197,8 @@ struct node_load_t
 struct internode_optimizer_t
 {
     internode_optimizer_t(unsigned int nodes,
-                        double target, double leeway,
-                        unsigned int reset_history_every = INO_DEFAULT_FORGET_AFTER);
+                          double target, double leeway,
+                          unsigned int reset_history_every = INO_DEFAULT_FORGET_AFTER);
 
     /*VV: Accepts current state of computational network plus the decision which led
           to this state. If last_knobs is nullptr and INO has made a choice before
@@ -214,90 +217,179 @@ struct internode_optimizer_t
     std::map<unsigned int, node_config_t<work_item>> decide_schedule(
         const std::map<unsigned int, std::vector<work_item>> &node_map,
         const std::map<unsigned int, double> &node_loads,
-        const ino_knobs_t &ino_knobs) const
+        const std::map<unsigned int, double> &node_time,
+        const ino_knobs_t &ino_knobs,
+        bool distribute_randomly = false) const
     {
+#warning Currently assumes that node_loads.size() == previous number of nodes
+        /* VV: 4 scenarios
+           a) This is the first time that we're scheduling tasks to nodes
+           b) We are increasing the number of nodes
+           c) We are decreasing the number of nodes
+           d) We are keeping the number of nodes the same
+           
+           Details:
+
+           a) First time scheduling tasks to nodes
+              Assign all tasks to node 0 before running this method, then this is
+              a sub-case of b)
+           b) Increase the number of nodes, and 
+           c) Decrease the number of nodes
+              1. Add all tasks in a vector, and randomly distribute them `evenly` among
+                 new_nodes. 
+              2. The resulting node loads will not be 1.0 (less than 1.0 if increasing
+                 # of nodes, greater than 1.0 if decreasing # of nodes)
+           d) Keep same number of nodes
+              1. Find top N nodes whose expected time of completion is largest
+              2. Find K nodes whose expected time is smallest
+              3. If avg(N) - avg(K) < 2*stddev(ALL), don't do anything
+              4. compute new task load = such that 
+                 sum(tasks_of(N) + tasks_of(K)) = num(N)+num(K)
+              5. Add all tasks in a vector, and randomly distribute them `evenly` among those 
+                 N + K nodes
+              6. Resulting load should be close to 1.0
+        */
+
         auto new_schedule = std::map<unsigned int, node_config_t<work_item>>();
+        unsigned int previous_number_of_nodes = (unsigned int)node_loads.size();
 
         // VV: The average load per task belonging to node <unsigned int>
         std::map<unsigned int, double> work_item_load;
 
-        auto expected_node_load = std::vector<node_load_t>();
+        unsigned int total_tasks = 0u;
 
         for (auto node = node_loads.begin(); node != node_loads.end(); ++node)
         {
-            double task_avg_load = node->second / node_map.at(node->first).size();
+            auto node_tasks = node_map.at(node->first).size();
+            total_tasks += (unsigned int)node_tasks;
+
+            double task_avg_load = node->second / node_tasks;
             // VV: Make sure that the task avg load is not zero.
             task_avg_load = std::max(0.001, task_avg_load);
             work_item_load[node->first] = task_avg_load;
         }
-        unsigned int nodes = std::min((long unsigned int)ino_knobs.u_nodes,
-                                      node_loads.size());
 
-        for (auto i = 0; i < nodes; ++i)
-        {
-            expected_node_load.push_back(node_load_t(i, 0.0));
-            new_schedule[i] = node_config_t<work_item>();
-        }
+        // unsigned int nodes = std::min(ino_knobs.u_nodes, previous_number_of_nodes);
+        unsigned int nodes = ino_knobs.u_nodes;
 
-        if (ino_knobs.u_nodes > 1 && node_loads.size() > 1)
+        // VV: Tasks to be moved to a (possibly) new node
+        std::vector<std::pair<double, work_item>> all_tasks;
+
+        // VV: This vector contains all eligible nodes to receive new tasks,
+        //     and their respective load
+        auto expected_node_load = std::vector<node_load_t>();
+
+        if (previous_number_of_nodes != nodes || distribute_randomly)
         {
-            // VV: Assign task to least loaded node. (Nodes could be oversubscribed)
+            //VV: see points b) and c) above, need to redistribute all tasks to all new_nodes
+
+            // VV: <cost, work_item>
+            all_tasks.reserve(total_tasks);
+
+            // VV: 1. Generate random vector of tasks (and their associated cost)
             for (const auto work_items : node_map)
             {
                 const double cost = work_item_load[work_items.first];
 
                 for (const auto wi : work_items.second)
-                {
-                    if (expected_node_load[0].load > expected_node_load[1].load)
-                    {
-                        auto previous_lowest = expected_node_load[0];
-                        expected_node_load.erase(expected_node_load.begin());
+                    all_tasks.push_back(std::make_pair(cost, wi));
+            }
 
-                        bool updated = false;
-                        for (auto it = expected_node_load.begin();
-                             it != expected_node_load.end();
-                             ++it)
-                        {
-                            if (it->load > previous_lowest.load)
-                            {
-                                updated = true;
-                                expected_node_load.insert(it, previous_lowest);
-                                break;
-                            }
-                        }
+            if ( nodes > 1)
+            {
+                std::random_device rd;
+                std::mt19937 gen(rd());
+                std::shuffle(all_tasks.begin(), all_tasks.end(), gen);
+            }
+            
+            // for (auto cost_wi : all_tasks) {
+            //     std::cout << "Shuffled " << cost_wi.first
+            //               << " -- " << cost_wi.second << std::endl;
+            // }
 
-                        if (updated == false)
-                        {
-                            expected_node_load.push_back(previous_lowest);
-                        }
-                    }
-
-                    expected_node_load[0].load += cost;
-                }
+            // VV: All nodes are eligible to receive tasks, they start with a load of 0.0
+            for (auto i = 0; i < nodes; ++i)
+            {
+                expected_node_load.push_back(node_load_t(i, 0.0));
+                new_schedule[i] = node_config_t<work_item>();
             }
         }
         else
         {
+            // VV: See point d) above
+
+            assert(nullptr && "Not implemented");
+        }
+
+        if (expected_node_load.size() > 1)
+        {
+            // VV: Assign task to least loaded node. (Nodes could be oversubscribed)
+            for (const auto cost_wi : all_tasks)
+            {
+                // cost_wi = <double, wi> (cost and work_item)
+
+                if (expected_node_load[0].load > expected_node_load[1].load)
+                {
+                    auto previous_lowest = expected_node_load[0];
+                    expected_node_load.erase(expected_node_load.begin());
+
+                    bool updated = false;
+                    for (auto it = expected_node_load.begin();
+                         it != expected_node_load.end();
+                         ++it)
+                    {
+                        if (it->load > previous_lowest.load)
+                        {
+                            updated = true;
+                            expected_node_load.insert(it, previous_lowest);
+                            break;
+                        }
+                    }
+
+                    if (updated == false)
+                    {
+                        expected_node_load.push_back(previous_lowest);
+                    }
+                }
+
+                expected_node_load[0].load += cost_wi.first;
+                new_schedule[expected_node_load[0].node].v_work_items.push_back(cost_wi.second);
+            }
+        }
+        else if (expected_node_load.size() == 1)
+        {
             double total_cost = 0.0;
             // VV: Special case for single-node configurations
-            for (const auto work_items : node_map)
+            node_load_t &target_node = expected_node_load.at(0);
+
+            for (const auto cost_wi : all_tasks)
             {
-                const double cost = work_item_load[work_items.first];
-                for (const auto wi : work_items.second)
-                {
-                    total_cost += cost;
-                    new_schedule[0].v_work_items.push_back(wi);
-                }
+                total_cost += cost_wi.first;
+                new_schedule[target_node.node].v_work_items.push_back(cost_wi.second);
             }
-            expected_node_load[0].load = total_cost;
+            target_node.load = total_cost;
         }
-        std::cout << "Target: " << ino_knobs.u_nodes
-                  << " total nodes " << node_loads.size()
-                  << std::endl;
-        for (auto node_load : expected_node_load)
+
+        if (expected_node_load.size())
         {
-            std::cout << "Node " << node_load.node
-                      << " load " << node_load.load << std::endl;
+            std::cout << "Target: " << ino_knobs.u_nodes
+                      << " total nodes " << node_loads.size()
+                      << std::endl;
+            for (auto node_load : expected_node_load)
+            {
+                std::cout << "Node " << node_load.node
+                          << " load " << node_load.load << std::endl;
+            }
+
+            for (auto sched : new_schedule)
+            {
+                std::cout << "Schedule for node " << sched.first << ": ";
+                for (auto wi : sched.second.v_work_items)
+                {
+                    std::cout << wi << " ";
+                }
+                std::cout << std::endl;
+            }
         }
 
         return new_schedule;
