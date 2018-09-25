@@ -3,6 +3,10 @@
 #include <allscale/monitor.hpp>
 #include <allscale/dashboard.hpp>
 #include <allscale/data_item_manager/get_ownership_json.hpp>
+#include <allscale/components/scheduler.hpp>
+#ifdef ALLSCALE_HAVE_CPUFREQ
+#include <allscale/util/hardware_reconf.hpp>
+#endif
 
 #include <hpx/include/actions.hpp>
 #include <hpx/lcos/broadcast.hpp>
@@ -43,6 +47,21 @@ namespace allscale { namespace dashboard
         state.network_in = monitor_c->get_network_in();
         state.network_out = monitor_c->get_network_out();
 
+#ifdef ALLSCALE_HAVE_CPUFREQ
+        float frequency = components::util::hardware_reconf::get_kernel_freq(0);
+        float max_frequency = frequency;//components::util::hardware_reconf::get_frequencies(0).back();;
+#else
+        float frequency = 1.f;
+        float max_frequency = 1.f;
+#endif
+        std::size_t active_cores = scheduler::get().get_active_threads();
+
+        std::size_t used_cycles = (1.f - state.idle_rate) * active_cores * frequency;
+        std::size_t avail_cycles = active_cores * frequency;
+        std::size_t max_cycles = active_cores * max_frequency;
+
+        state.efficiency = used_cycles / float(max_cycles);
+        state.speed = used_cycles / float(avail_cycles);
 
         return state;
     }

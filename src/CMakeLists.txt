@@ -13,6 +13,7 @@ set(_srcs
     task_id.cpp
     this_work_item.cpp
     treeture.cpp
+    optimizer.cpp
     get_num_localities.cpp
     get_num_numa_nodes.cpp
     components/monitor_component.cpp

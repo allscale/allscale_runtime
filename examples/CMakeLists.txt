@@ -36,6 +36,11 @@ add_hpx_executable(
   SOURCES pic_tracer.cpp
   COMPONENT_DEPENDENCIES allscale
 )
+add_hpx_executable(
+  stencil_2d_uneven
+  SOURCES stencil_2d_uneven.cpp
+  COMPONENT_DEPENDENCIES allscale
+)
 
 add_subdirectory(pfor)
 add_subdirectory(uts)

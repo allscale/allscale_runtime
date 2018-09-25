@@ -23,7 +23,7 @@ namespace allscale { namespace data_item_manager {
         }
 
         template <typename Region>
-        std::string to_json(hpx::naming::gid_type const& id, Region const& region, decltype(Region::Dimension)*)
+        std::string to_json(hpx::naming::gid_type const& id, Region const& region, decltype(Region::Dimensions)*)
         {
             if (region.empty()) return std::string();
 
