@@ -57,6 +57,7 @@ namespace allscale
             << "t^" << obj.speed_exponent << " * "
             << "e^" << obj.efficiency_exponent << " * "
             << "p^" << obj.power_exponent;
+        return os;
     }
 
     tuning_objective get_default_objective()

@@ -288,33 +288,33 @@ namespace allscale { namespace components {
            //           /// \returns         Weighted task throughput for the locality
            double get_weighted_throughput();
 
-           /// \brief This function returns the memory consumed by the locality 
-           //           /// \returns         Memory in Kb consumed by the locality 
+           /// \brief This function returns the memory consumed by the locality
+           //           /// \returns         Memory in Kb consumed by the locality
            std::uint64_t get_consumed_memory();
 
-           /// \brief This function returns the bytes sent via network by the locality 
-           //           //           /// \returns   Data sent in bytes by the locality 
+           /// \brief This function returns the bytes sent via network by the locality
+           //           //           /// \returns   Data sent in bytes by the locality
            std::uint64_t get_network_out();
 
-           /// \brief This function returns the bytes received via network by the locality 
-           //           //           //           /// \returns   Data received in bytes by the locality 
+           /// \brief This function returns the bytes received via network by the locality
+           //           //           //           /// \returns   Data received in bytes by the locality
            std::uint64_t get_network_in();
 
 
            // Functions related to system/node metrics
 
-           /// \brief This function returns the total memory of a node 
-           //           /// \returns         Total node memory 
+           /// \brief This function returns the total memory of a node
+           //           /// \returns         Total node memory
            unsigned long long get_node_total_memory();
 
 
-           /// \brief This function returns the number of cpus of a node 
-           //           //           /// \returns     Total number of cpus 
+           /// \brief This function returns the number of cpus of a node
+           //           //           /// \returns     Total number of cpus
            int get_num_cpus();
 
 
-           /// \brief This function returns the cpu load of the node 
-           //           //           /// \returns      Cpu load 
+           /// \brief This function returns the cpu load of the node
+           //           //           /// \returns      Cpu load
            float get_cpu_load();
 
 
@@ -389,7 +389,7 @@ namespace allscale { namespace components {
              std::vector<double> throughput_history;
 
 
-             // weighted task throughput 
+             // weighted task throughput
              double weighted_sum;
              double weighted_throughput;
 
@@ -401,7 +401,7 @@ namespace allscale { namespace components {
              double idle_rate_;
 	     std::vector<double> idle_rate_history;
 
-	     // Memory consumed 
+	     // Memory consumed
              hpx::id_type resident_memory_counter_;
              int memory_counter_registered_;
              std::uint64_t resident_memory_;
@@ -421,9 +421,9 @@ namespace allscale { namespace components {
              std::ifstream pstat;
              std::uint64_t last_user_time, last_nice_time, last_system_time;
              std::uint64_t last_idle_time;
-             float cpu_load_; 
+             float cpu_load_;
 
-             void print_heatmap(char *file_name, std::vector<std::vector<double>> &buffer);
+             void print_heatmap(const char *file_name, std::vector<std::vector<double>> &buffer);
 
 //             hpx::id_type idle_rate_avg_counter_;
 //             double idle_rate_avg_;

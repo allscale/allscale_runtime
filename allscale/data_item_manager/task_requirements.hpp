@@ -76,7 +76,7 @@ namespace allscale { namespace data_item_manager {
           , process_requirements_(std::move(process_requirements))
         {}
 
-        void show() const
+        void show() const final
         {
             std::cout << "Split:\n";
             data_item_manager::show(split_requirements_);
@@ -84,57 +84,76 @@ namespace allscale { namespace data_item_manager {
             data_item_manager::show(process_requirements_);
         }
 
-        bool check_write_requirements(hierarchy_address const& addr) const override
+        bool check_write_requirements(hierarchy_address const& addr) const final
         {
             return data_item_manager::check_write_requirements(addr, process_requirements_);
         }
 
-        void get_missing_regions(hierarchy_address const& addr) override
+        void get_missing_regions(hierarchy_address const& addr) final
         {
             data_item_manager::get_missing_regions(addr, process_requirements_);
         }
 
-        void add_allowance(hierarchy_address const& addr) const
+        void add_allowance(hierarchy_address const& addr) const final
         {
             data_item_manager::add_allowance(addr, process_requirements_);
         }
 
-        void add_allowance_left(hierarchy_address const& addr)
+        void add_allowance_left(hierarchy_address const& addr) final
         {
             data_item_manager::add_allowance_left(addr, process_requirements_);
         }
 
-        void add_allowance_right(hierarchy_address const& addr)
+        void add_allowance_right(hierarchy_address const& addr) final
         {
             data_item_manager::add_allowance_right(addr, process_requirements_);
         }
 
-        hpx::future<void> acquire_split(hierarchy_address const& addr) const
+        hpx::future<void> acquire_split(hierarchy_address const& addr) const final
         {
             return data_item_manager::acquire(addr, split_requirements_);
         }
-        hpx::future<void> acquire_process(hierarchy_address const& addr) const
+        hpx::future<void> acquire_process(hierarchy_address const& addr) const final
         {
             return data_item_manager::acquire(addr, process_requirements_);
         }
 
-        void release_split() const
+        void release_split() const final
         {
             // FIXME
         }
-        void release_process() const
+        void release_process() const final
         {
             // FIXME
         }
 
-        template <typename Archive>
-        void serialize(Archive& ar, unsigned)
+        template <typename, typename> friend
+        struct ::hpx::serialization::detail::register_class_name;
+
+        static std::string hpx_serialization_get_name_impl()
+        {
+            hpx::serialization::detail::register_class_name<
+                task_requirements>::instance.instantiate();
+            return hpx::util::type_id<task_requirements>::typeid_.type_id();
+        }
+
+        std::string hpx_serialization_get_name() const final
+        {
+            return task_requirements::hpx_serialization_get_name_impl();
+        }
+
+        void load(hpx::serialization::input_archive& ar, unsigned n) final
         {
             ar & split_requirements_;
             ar & process_requirements_;
         }
+        void save(hpx::serialization::output_archive& ar, unsigned n) const final
+        {
+            ar & split_requirements_;
+            ar & process_requirements_;
+        }
+        HPX_SERIALIZATION_SPLIT_MEMBER()
 
-        HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE(task_requirements);
     };
 }}
 

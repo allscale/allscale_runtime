@@ -456,7 +456,7 @@ namespace allscale { namespace detail {
             }
         }
 
-        void process(executor_type& exec, task_requirements&& reqs)
+        void process(executor_type& exec, task_requirements&& reqs) final
         {
             hpx::util::annotate_function("allscale::work_item::process");
             get_deps<typename WorkItemDescription::process_variant>(

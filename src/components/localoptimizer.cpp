@@ -221,209 +221,222 @@ void localoptimizer::measureObjective(double iter_time, double power, double thr
   }
 }
 
-actuation localoptimizer::step(){
-  steps_++;
-  actuation act;
-  act.delta_threads=threads_param_;
+actuation localoptimizer::step()
+{
+    steps_++;
+    actuation act;
+    act.delta_threads=threads_param_;
 #ifdef ALLSCALE_HAVE_CPUFREQ
-  act.frequency_idx=frequency_param_;
+    act.frequency_idx=frequency_param_;
 #endif
-  /* random optimization step */
-  if (optmethod_ == random){
-    act.delta_threads = (rand() % max_threads_) - threads_param_;
+    /* random optimization step */
+    if (optmethod_ == random)
+    {
+        act.delta_threads = (rand() % max_threads_) - threads_param_;
 #ifdef ALLSCALE_HAVE_CPUFREQ
-    act.frequency_idx = rand() % frequencies_param_allowed_.size();
-    if (act.frequency_idx == frequency_param_)
-      act.frequency_idx = -1;
+        act.frequency_idx = rand() % frequencies_param_allowed_.size();
+        if (act.frequency_idx == frequency_param_)
+            act.frequency_idx = -1;
 #endif
-  }
+    }
 
-  else if (optmethod_ == allscale){
-  	if (current_objective_idx_ > objectives_.size()-1)
-  		return act;
+    else if (optmethod_ == allscale)
+    {
+        if (current_objective_idx_ > objectives_.size()-1)
+  	    	return act;
 
-
-    if (steps_ < warmup_steps_){
+        if (steps_ < warmup_steps_)
+        {
 
 #ifdef DEBUG_MULTIOBJECTIVE_
-      std::cout << "[LOCALOPTIMIZER|INFO] Optimizer No-OP: either at warm-up or optimizer has completed\n";
+            std::cout << "[LOCALOPTIMIZER|INFO] Optimizer No-OP: either at warm-up or optimizer has completed\n";
 #endif
-      // set some random parametrization to collect at least 3 different
-      // vertices to be used as input to the optimizer
-    	act.delta_threads = rand() % max_threads_;
+            // set some random parametrization to collect at least 3 different
+            // vertices to be used as input to the optimizer
+    	    act.delta_threads = rand() % max_threads_;
 #ifdef ALLSCALE_HAVE_CPUFREQ
-    	act.frequency_idx = rand() % frequencies_param_allowed_.size();
+    	    act.frequency_idx = rand() % frequencies_param_allowed_.size();
 #endif
-      return act;
-    }
+            return act;
+        }
 
-    // iterate over all objectives in decreasing priority
-    objective obj = objectives_[current_objective_idx_];
+        // iterate over all objectives in decreasing priority
+        objective obj = objectives_[current_objective_idx_];
 
-    // initialize optimizer for this objective, if not already done so
-    if (!obj.initialized){
+        // initialize optimizer for this objective, if not already done so
+        if (!obj.initialized)
+        {
 #ifdef DEBUG_MULTIOBJECTIVE_
-      std::cout << "[LOCALOPTIMIZER|INFO] Initializing optimizer for new objective\n";
-	    std::cout << "[LOCALOPTIMIZER|DEBUG] Samples: " << std::flush;
-	    for (auto& sam: obj.samples){
-	      std::cout << sam << "," << std::flush;
-	    }
-	    std::cout << "\n" << std::flush;
+            std::cout << "[LOCALOPTIMIZER|INFO] Initializing optimizer for new objective\n";
+	        std::cout << "[LOCALOPTIMIZER|DEBUG] Samples: " << std::flush;
+	        for (auto& sam: obj.samples)
+            {
+	            std::cout << sam << "," << std::flush;
+	        }
+            std::cout << "\n" << std::flush;
 
-	    std::cout << "[LOCALOPTIMIZER|DEBUG] Thread Param of Samples: " << std::flush;
-	    for (auto& sam: obj.threads_samples){
-	      std::cout << sam << "," << std::flush;
-	    }
-	    std::cout << "\n" << std::flush;
+            std::cout << "[LOCALOPTIMIZER|DEBUG] Thread Param of Samples: " << std::flush;
+            for (auto& sam: obj.threads_samples)
+            {
+                std::cout << sam << "," << std::flush;
+            }
+            std::cout << "\n" << std::flush;
 
 #ifdef ALLSCALE_HAVE_CPUFREQ
-	    std::cout << "[LOCALOPTIMIZER|DEBUG] Freq Param of Samples: " << std::flush;
-	    for (auto& sam: obj.freq_samples){
-	      std::cout << sam << "," << std::flush;
-	    }
-	    std::cout << "\n" << std::flush;
+            std::cout << "[LOCALOPTIMIZER|DEBUG] Freq Param of Samples: " << std::flush;
+            for (auto& sam: obj.freq_samples){
+                std::cout << sam << "," << std::flush;
+            }
+            std::cout << "\n" << std::flush;
 #endif
 #endif
-      int samplenr = obj.samples.size();
+            int samplenr = obj.samples.size();
 #ifdef ALLSCALE_HAVE_CPUFREQ
-      double params[3][2]={
-        {obj.threads_samples[samplenr-1],obj.freq_samples[samplenr-1]},
-        {obj.threads_samples[samplenr-2],obj.freq_samples[samplenr-2]},
-        {obj.threads_samples[samplenr-3],obj.freq_samples[samplenr-3]},
-      };
-      double values[3]={obj.samples[samplenr-1],obj.samples[samplenr-2],obj.samples[samplenr-3]};
+            double params[3][2]={
+                {obj.threads_samples[samplenr-1],obj.freq_samples[samplenr-1]},
+                {obj.threads_samples[samplenr-2],obj.freq_samples[samplenr-2]},
+                {obj.threads_samples[samplenr-3],obj.freq_samples[samplenr-3]},
+            };
+            double values[3]={obj.samples[samplenr-1],obj.samples[samplenr-2],obj.samples[samplenr-3]};
 
-      double constraint_min[]={1,0};
-      double constraint_max[]={(double)max_threads_,
-        (double)frequencies_param_allowed_.size()};
+            double constraint_min[]={1,0};
+            double constraint_max[]={(double)max_threads_,
+                (double)frequencies_param_allowed_.size()};
 
-      nmd.initialize_simplex(params,values,constraint_min,constraint_max);
-      objectives_[current_objective_idx_].initialized=true;
+            nmd.initialize_simplex(params,values,constraint_min,constraint_max);
+            objectives_[current_objective_idx_].initialized=true;
 #endif
-    }
+        }
 
 #ifdef DEBUG_MULTIOBJECTIVE_
-    std::cout << "[LOCALOPTIMIZER|DEBG] Current Optimized Objective =";
-    switch (obj.type){
-      case energy:
-        std::cout << "********** Energy\n" << std::flush;
-        break;
-      case time:
-        std::cout << "&&&&&&&&&& Time\n" << std::flush;
-        break;
-      case resource:
-        std::cout << "oooooooooo Resource\n" << std::flush;
-        break;
-    }
+        std::cout << "[LOCALOPTIMIZER|DEBG] Current Optimized Objective =";
+        switch (obj.type)
+        {
+            case energy:
+                std::cout << "********** Energy\n" << std::flush;
+                break;
+            case time:
+                std::cout << "&&&&&&&&&& Time\n" << std::flush;
+                break;
+            case resource:
+                std::cout << "oooooooooo Resource\n" << std::flush;
+                break;
+        }
+        std::cout << "[LOCALOPTIMIZER|DEBUG] Samples: " << std::flush;
+        for (auto& sam: obj.samples)
+        {
+            std::cout << sam << "," << std::flush;
+        }
+        std::cout << "\n" << std::flush;
 
-    std::cout << "[LOCALOPTIMIZER|DEBUG] Samples: " << std::flush;
-    for (auto& sam: obj.samples){
-      std::cout << sam << "," << std::flush;
-    }
-    std::cout << "\n" << std::flush;
-
-    std::cout << "[LOCALOPTIMIZER|DEBUG] Freq Param of Samples: " << std::flush;
+        std::cout << "[LOCALOPTIMIZER|DEBUG] Freq Param of Samples: " << std::flush;
 #ifdef ALLSCALE_HAVE_CPUFREQ
-    for (auto& sam: obj.freq_samples){
-      std::cout << sam << "," << std::flush;
-    }
-    std::cout << "\n" << std::flush;
+        for (auto& sam: obj.freq_samples)
+        {
+            std::cout << sam << "," << std::flush;
+        }
+        std::cout << "\n" << std::flush;
 #endif
 #endif
 
-    optstepresult nmd_res = nmd.step(obj.samples[0]);
+        optstepresult nmd_res = nmd.step(obj.samples[0]);
 #ifdef DEBUG_MULTIOBJECTIVE_
-    std::cout << "[LOCALOPTIMIZER|DEBUG] Calling NMD Optimizer Step, Param = \n";
-    std::cout << "[LOCALOPTIMIZER|DEBUG] New Vertex to try: ";
-    std::cout << "Threads = " << nmd_res.threads;
+        std::cout << "[LOCALOPTIMIZER|DEBUG] Calling NMD Optimizer Step, Param = \n";
+        std::cout << "[LOCALOPTIMIZER|DEBUG] New Vertex to try: ";
+        std::cout << "Threads = " << nmd_res.threads;
 #ifdef ALLSCALE_HAVE_CPUFREQ
-    std::cout << " Freq Idx = " << nmd_res.freq_idx << std::endl;
+        std::cout << " Freq Idx = " << nmd_res.freq_idx << std::endl;
 #endif
-    std::cout << "Converg Thresh = " << convergence_threshold_ << std::endl;
+        std::cout << "Converg Thresh = " << convergence_threshold_ << std::endl;
 #endif
-
-    if (nmd_res.converged){
-      objectives_[current_objective_idx_].converged = true;
-      objectives_[current_objective_idx_].converged_minimum = nmd.getMinObjective();
-      double* minimization_point = nmd.getMinVertices();
-			objectives_[current_objective_idx_].minimization_params[0]=
-			  minimization_point[0];
-			objectives_[current_objective_idx_].minimization_params[1]=
-			  minimization_point[1];
+        if (nmd_res.converged)
+        {
+            objectives_[current_objective_idx_].converged = true;
+            objectives_[current_objective_idx_].converged_minimum = nmd.getMinObjective();
+            double* minimization_point = nmd.getMinVertices();
+            objectives_[current_objective_idx_].minimization_params[0]=
+                minimization_point[0];
+            objectives_[current_objective_idx_].minimization_params[1]=
+                minimization_point[1];
 #ifdef DEBUG_CONVERGENCE_
-      std::cout << "[LOCALOPTIMIZER|INFO] NMD convergence\n";
-      std::cout << "******************************************" << std::endl;
-      std::cout << "[LOCALOPTIMIZER|INFO] Minimal Objective Value = " <<
-      	objectives_[current_objective_idx_].converged_minimum <<
-      	"Threads = " << minimization_point[0] << "Freq_idx = " << minimization_point[1] <<
-      	 std::endl;
-			std::cout << "******************************************" << std::endl;
+            std::cout << "[LOCALOPTIMIZER|INFO] NMD convergence\n";
+            std::cout << "******************************************" << std::endl;
+            std::cout << "[LOCALOPTIMIZER|INFO] Minimal Objective Value = " <<
+                objectives_[current_objective_idx_].converged_minimum <<
+                "Threads = " << minimization_point[0] << "Freq_idx = " << minimization_point[1] <<
+                std::endl;
+            std::cout << "******************************************" << std::endl;
 #endif
-			act.delta_threads=minimization_point[0];
+            act.delta_threads=minimization_point[0];
 #ifdef ALLSCALE_HAVE_CPUFREQ
-      act.frequency_idx=minimization_point[1];
+            act.frequency_idx=minimization_point[1];
 #endif
-      current_objective_idx_++;
-      if (current_objective_idx_ == objectives_.size()){
-      	converged_=true;
+            current_objective_idx_++;
+            if (current_objective_idx_ == objectives_.size())
+            {
+                converged_=true;
 #ifdef DEBUG_CONVERGENCE_
-      std::cout << "[LOCALOPTIMIZER|INFO] ALL OBJECTIVES HAVE CONVERGED " << std::endl;
+                std::cout << "[LOCALOPTIMIZER|INFO] ALL OBJECTIVES HAVE CONVERGED " << std::endl;
 #endif
-      }
-    }else{
-
-    	// if a higher priority objective starts getting off leeway margin,
-    	// decide convergence of the current param at this parameter point
-    	if (current_objective_idx_>0)
-    		for (int i=0;i<current_objective_idx_;i++){
-    			objective priority_obj=objectives_[i];
-    			double max_leeway_value = priority_obj.converged_minimum +
-    			priority_obj.leeway*(priority_obj.globalmax - priority_obj.converged_minimum);
-    			if (priority_obj.samples[0] > max_leeway_value &&
-    						priority_obj.samples[1] > max_leeway_value){
-			      objectives_[current_objective_idx_].converged = true;
-			      objectives_[current_objective_idx_].converged_minimum = nmd.getMinObjective();
-			      double* minimization_point = nmd.getMinVertices();
-			      objectives_[current_objective_idx_].minimization_params[0]=
-			      	minimization_point[0];
-			      objectives_[current_objective_idx_].minimization_params[1]=
-			      	minimization_point[1];
+            }
+        }
+        else
+        {
+            // if a higher priority objective starts getting off leeway margin,
+            // decide convergence of the current param at this parameter point
+            if (current_objective_idx_>0)
+                for (int i=0;i<current_objective_idx_;i++)
+                {
+                    objective priority_obj=objectives_[i];
+                    double max_leeway_value = priority_obj.converged_minimum +
+                        priority_obj.leeway*(priority_obj.globalmax - priority_obj.converged_minimum);
+                    if (priority_obj.samples[0] > max_leeway_value &&
+                            priority_obj.samples[1] > max_leeway_value)
+                    {
+                        objectives_[current_objective_idx_].converged = true;
+                        objectives_[current_objective_idx_].converged_minimum = nmd.getMinObjective();
+                        double* minimization_point = nmd.getMinVertices();
+                        objectives_[current_objective_idx_].minimization_params[0]=
+                            minimization_point[0];
+                        objectives_[current_objective_idx_].minimization_params[1]=
+                            minimization_point[1];
 
 #ifdef DEBUG_CONVERGENCE_
-			      std::cout << "[LOCALOPTIMIZER|INFO] Leeway convergence\n";
-			      std::cout << "******************************************" << std::endl;
-			      std::cout << "[LOCALOPTIMIZER|INFO] Minimal Objective Value = " <<
-			      	objectives_[current_objective_idx_].converged_minimum <<
-			      	"Threads = " << minimization_point[0] << "Freq_idx = " << minimization_point[1] <<
-			      	 std::endl;
-						std::cout << "******************************************" << std::endl;
+                        std::cout << "[LOCALOPTIMIZER|INFO] Leeway convergence\n";
+                        std::cout << "******************************************" << std::endl;
+                        std::cout << "[LOCALOPTIMIZER|INFO] Minimal Objective Value = " <<
+                            objectives_[current_objective_idx_].converged_minimum <<
+                            "Threads = " << minimization_point[0] << "Freq_idx = " << minimization_point[1] <<
+                            std::endl;
+                        std::cout << "******************************************" << std::endl;
 #endif
-						// find the parameter point that scores the leeway margin value
+                        // find the parameter point that scores the leeway margin value
 						act.delta_threads = (int)priority_obj.minimization_params[0]*
-							(max_leeway_value/priority_obj.converged_minimum);
+                            (max_leeway_value/priority_obj.converged_minimum);
 #ifdef ALLSCALE_HAVE_CPUFREQ
-						act.frequency_idx = (int)priority_obj.minimization_params[1]*
-							(max_leeway_value/priority_obj.converged_minimum);
+                        act.frequency_idx = (int)priority_obj.minimization_params[1]*
+                            (max_leeway_value/priority_obj.converged_minimum);
 #endif
-						//act.delta_threads=minimization_point[0];
-			      //act.frequency_idx=minimization_point[1];
-			      current_objective_idx_++;
-			      if (current_objective_idx_ == objectives_.size()){
-			      	converged_=true;
-			#ifdef DEBUG_CONVERGENCE_
-			      std::cout << "[LOCALOPTIMIZER|INFO] ALL OBJECTIVES HAVE CONVERGED " << std::endl;
-			#endif
-      			}
-			      return act;
-    			}
+                        //act.delta_threads=minimization_point[0];
+			            //act.frequency_idx=minimization_point[1];
+			            current_objective_idx_++;
+			            if (current_objective_idx_ == objectives_.size())
+                        {
+                            converged_=true;
+#ifdef DEBUG_CONVERGENCE_
+                            std::cout << "[LOCALOPTIMIZER|INFO] ALL OBJECTIVES HAVE CONVERGED " << std::endl;
+#endif
+                        }
+                        return act;
+                    }
     		}
-      act.delta_threads=(nmd_res.threads==0)?getCurrentThreads():nmd_res.threads;
+            act.delta_threads=(nmd_res.threads==0)?getCurrentThreads():nmd_res.threads;
 #ifdef ALLSCALE_HAVE_CPUFREQ
-      act.frequency_idx=nmd_res.freq_idx;
+            act.frequency_idx=nmd_res.freq_idx;
 #endif
+        }
     }
     return act;
-  }
 }
 }
 }

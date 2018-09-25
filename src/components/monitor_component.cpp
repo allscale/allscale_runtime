@@ -1153,6 +1153,7 @@ namespace allscale { namespace components {
 
      return idle_avg_value.get_value<double>() * 0.01;
 */
+      return 0.0;
   }
 
   double monitor::get_avg_idle_rate_remote(hpx::id_type locality)
@@ -1162,6 +1163,7 @@ namespace allscale { namespace components {
 
       return f.get();
 */
+      return 0.0;
   }
 
 #ifdef HAVE_PAPI
@@ -1495,7 +1497,7 @@ namespace allscale { namespace components {
 #endif
 
 
-   void monitor::print_heatmap(char *file_name, std::vector<std::vector<double>> &buffer)
+   void monitor::print_heatmap(const char *file_name, std::vector<std::vector<double>> &buffer)
    {
        std::uint64_t max_sample = 0;
        std::ofstream heatmap;
