@@ -273,19 +273,19 @@ namespace allscale { namespace components {
 
        if(network_mpi_counters_registered_) {
           network_out_mpi_value = hpx::performance_counters::stubs::performance_counter::get_value(
-                   hpx::launch::sync, nsend_mpi_counter_);
+                   hpx::launch::sync, nsend_mpi_counter_, true);
 
           network_in_mpi_value = hpx::performance_counters::stubs::performance_counter::get_value(
-                   hpx::launch::sync, nrecv_mpi_counter_);
+                   hpx::launch::sync, nrecv_mpi_counter_, true);
        }
 
 
        if(network_tcp_counters_registered_) {
           network_out_tcp_value = hpx::performance_counters::stubs::performance_counter::get_value(
-                   hpx::launch::sync, nsend_tcp_counter_);
+                   hpx::launch::sync, nsend_tcp_counter_, true);
 
           network_in_tcp_value = hpx::performance_counters::stubs::performance_counter::get_value(
-                   hpx::launch::sync, nrecv_tcp_counter_);
+                   hpx::launch::sync, nrecv_tcp_counter_, true);
        }
 
 
@@ -320,14 +320,14 @@ namespace allscale { namespace components {
        bytes_recv_ = network_in_mpi + network_out_tcp;
 
        std::uint64_t used_time = (user_time - last_user_time) + (nice_time - last_nice_time) + (system_time - last_system_time);
-       cpu_load_ = ((float)used_time / (float)(used_time + (idle_time - last_idle_time))); 
+       cpu_load_ = ((float)used_time / (float)(used_time + (idle_time - last_idle_time)));
        last_user_time = user_time; last_nice_time = nice_time; last_system_time = system_time; last_idle_time = idle_time;
 
 /*       std::cerr << "NODE " << rank_ << " THROUGHPUT " << task_throughput << " tasks/s "
                  << "IDLE RATE " << idle_rate_
-                 << "RESIDENT MEMORY " << resident_memory_ 
+                 << "RESIDENT MEMORY " << resident_memory_
                  << "CPU LOAD " << cpu_load_ << std::endl;
-*/ 
+*/
 
        if(print_throughput_hm_) throughput_history.push_back(task_throughput);
        if(print_idle_hm_) idle_rate_history.push_back(idle_rate_);
@@ -627,8 +627,8 @@ namespace allscale { namespace components {
          // Update number of finished tasks for throughput calculation
          std::unique_lock<std::mutex> lock(sampling_mutex);
          finished_tasks++;
-          
-         // Update data for weighted throughput 
+
+         // Update data for weighted throughput
          weighted_sum += 1/pow(2, my_wid.depth());
          lock.unlock();
       }
@@ -752,7 +752,7 @@ namespace allscale { namespace components {
          std::unique_lock<std::mutex> lock(sampling_mutex);
          finished_tasks++;
 
-         // Update data for weighted throughput 
+         // Update data for weighted throughput
          weighted_sum += 1/pow(2, my_wid.depth());
 	 lock.unlock();
      }
@@ -1900,19 +1900,19 @@ namespace allscale { namespace components {
 
       // Total memory
       FILE *proc_f = fopen("/proc/meminfo", "r");
-      fscanf(proc_f, "%*s %llu %*s\n", &total_memory_); total_memory_ *= 1000; 
+      fscanf(proc_f, "%*s %llu %*s\n", &total_memory_); total_memory_ *= 1000;
       fclose(proc_f);
 
       // Read CPU load
       pstat.open("/proc/stat", std::ios::in);
       if(pstat.is_open()) {
 	std::string cpu;
-      
+
         pstat >> cpu >> last_user_time >> last_nice_time >> last_system_time >> last_idle_time;
       }
       else std::cerr << "Unable to open /proc/stat!\n";
 
-      
+
       // Create HPX counters
       const std::uint32_t prefix = hpx::get_locality_id();
 
@@ -1933,7 +1933,7 @@ namespace allscale { namespace components {
          rate_counter_registered_ = 0;
       }
 
-      // Memory counter 
+      // Memory counter
       static const char * memory_counter_name = "/runtime{locality#%d/total}/memory/resident";
 
       try {
@@ -1973,7 +1973,7 @@ namespace allscale { namespace components {
          std::cerr << "Registering counter " << boost::str(boost::format(network_recv_mpi_counter_name) % prefix) << std::endl;
          nrecv_mpi_counter_ = hpx::performance_counters::get_counter(
                        boost::str(boost::format(network_recv_mpi_counter_name) % prefix));
-      
+
          hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, nrecv_mpi_counter_);
          network_mpi_counters_registered_ &= 1;
       }
