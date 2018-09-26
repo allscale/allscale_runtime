@@ -198,7 +198,7 @@ namespace allscale
 #ifdef ALLSCALE_HAVE_CPUFREQ
             auto options = components::util::hardware_reconf::get_frequencies(0);
 #else
-            auto options = std::vector<float>(1.f);
+            auto options = std::vector<float>(1, 1.f);
 #endif
             auto cur = std::find(options.begin(), options.end(), best_.second);
             HPX_ASSERT(cur != options.end());
