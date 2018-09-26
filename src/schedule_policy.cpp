@@ -319,8 +319,29 @@ namespace allscale {
         std::map<std::size_t, std::vector<std::size_t> > node_map;
         std::map<std::size_t, double> node_loads, node_times;
         
-        auto ino_policy = components::internode_optimizer_t::decide_schedule(node_map, node_loads, node_times, {available_nodes});
+        // VV: Create node_map from mapping
+        std::size_t idx = 0ul;
 
+        for (auto it = mapping.begin(); it != mapping.end(); ++it, ++idx )
+            node_map[*it].push_back(idx);
+        
+        // VV: Create node_loads, and node_times from optimizer_state
+        idx = 0ul;
+        for (const auto &node:state) {
+            node_loads[idx] = node.load;
+            node_times[idx++] = node.avg_time;
+        }
+
+        auto ino_schedule = components::internode_optimizer_t\
+                    ::decide_schedule(node_map, 
+                                      node_loads, 
+                                      node_times, 
+                                      {available_nodes});
+        
+        for (const auto & node_wis:ino_schedule)
+            for (const auto &wi:node_wis.second.v_work_items)
+                new_mapping[wi] = node_wis.first;
+        
         #endif
         // for development, to estimate quality:
 
