@@ -19,17 +19,25 @@
 #include <iostream>
 #include <iomanip>
 
+#define HISTORY_ITERATIONS 10
+
 namespace allscale
 {
     optimizer_state get_optimizer_state()
     {
         float load = 1.f - (monitor::get().get_idle_rate() / 100.);
+
+        float my_time = monitor::get().get_avg_time_last_iterations(HISTORY_ITERATIONS);
+        
+        if (std::isnan(my_time))
+            my_time = 0.f;
+
 #ifdef ALLSCALE_HAVE_CPUFREQ
         float frequency = components::util::hardware_reconf::get_kernel_freq(0);
 #else
         float frequency = 1.f;
 #endif
-        return optimizer_state(load, frequency, scheduler::get().get_active_threads());
+        return optimizer_state(load, frequency, my_time, scheduler::get().get_active_threads());
     }
 
     void optimizer_update_policy(std::vector<optimizer_state> const& state, std::vector<bool> mask)
@@ -254,11 +262,12 @@ namespace allscale
 
                     // compute the load variance
                     optimizer_state avg_state = std::accumulate(
-                        state.begin(), state.end(), optimizer_state(0.0f, 0.f, 0),
+                        state.begin(), state.end(), optimizer_state(0.f, 0.f, 0.f, 0),
                         [this](optimizer_state const& lhs, optimizer_state const& rhs)
                         {
                             return optimizer_state(
                                 (lhs.load + rhs.load) / num_active_nodes_,
+                                (lhs.avg_time + rhs.avg_time) / num_active_nodes_,
                                 (lhs.active_frequency + rhs.active_frequency) / num_active_nodes_,
                                 (lhs.cores_per_node + rhs.cores_per_node) / num_active_nodes_);
                         }

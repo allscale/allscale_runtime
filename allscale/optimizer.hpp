@@ -68,13 +68,18 @@ namespace allscale {
         optimizer_state() : load(1.f), active_frequency(1000.f), cores_per_node(1)
         {}
 
-        optimizer_state(float l, float freq, std::size_t cores)
+        optimizer_state(float l, 
+                        float avg_last_iterations_time, 
+                        float freq,
+                        std::size_t cores)
           : load(l)
+          , avg_time(avg_last_iterations_time)
           , active_frequency(freq)
           , cores_per_node(cores)
         {}
 
         float load;
+        float avg_time;
         float active_frequency;
         std::size_t cores_per_node;
 
@@ -82,6 +87,7 @@ namespace allscale {
         void serialize(Archive& ar, unsigned)
         {
             ar & load;
+            ar & avg_time;
             ar & active_frequency;
             ar & cores_per_node;
         }
