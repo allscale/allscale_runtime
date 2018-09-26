@@ -223,7 +223,6 @@ struct internode_optimizer_t
         unsigned int balance_top_N=1,
         unsigned int balance_bottom_K=1) const
     {
-#warning Currently assumes that node_loads.size() == previous number of nodes
         /* VV: 4 scenarios
            a) This is the first time that we're scheduling tasks to nodes
            b) We are increasing the number of nodes
@@ -465,6 +464,18 @@ struct internode_optimizer_t
             target_node.load = total_cost;
         }
 
+        for (auto it = new_schedule.begin(); it != new_schedule.end();)
+            if ( it->second.v_work_items.size() == 0)
+                it = new_schedule.erase(it);
+            else
+                ++ it;
+        
+        for (auto it = expected_node_load.begin(); it != expected_node_load.end();)
+            if (it->load <= 0.0 )
+                it = expected_node_load.erase(it);
+            else
+                ++ it;
+    
         if (expected_node_load.size())
         {
             std::cout << "Target: " << ino_knobs.u_nodes
