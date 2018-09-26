@@ -306,10 +306,7 @@ namespace allscale
 
             // check whether current node is allowed to make autonomous scheduling decisions
             auto path = work.id().path;
-            if (!is_root_
-                    && policy_.policy_->is_involved(here_, path)
-                    // test that this virtual node has control over all required data
-                    && reqs->check_write_requirements(here_))
+            if (!is_root_)
             {
                 bool is_involved = false;
                 {
@@ -318,7 +315,9 @@ namespace allscale
                     std::lock_guard<mutex_type> l(mtx_);
                     is_involved = policy_.policy_->is_involved(here_, path);
                 }
-                if (is_involved)
+                if (is_involved
+                    // test that this virtual node has control over all required data
+                    && reqs->check_write_requirements(here_))
                 {
 //                 std::cout << here_ << ' ' << work.name() << "." << work.id() << ": shortcut " << '\n';
                     schedule_down(std::move(work), std::move(reqs));
@@ -356,11 +355,38 @@ namespace allscale
 
             // ask the scheduling policy what to do with this task
             // on leaf level, schedule locally
-            schedule_decision d;
+            bool is_involved = false;
+            schedule_decision d = schedule_decision::done;
             {
                 std::lock_guard<mutex_type> l(mtx_);
-                d = here_.isLeaf() ? schedule_decision::stay : policy_.policy_->decide(here_, id.path);
+                is_involved = policy_.policy_->is_involved(here_, id.path);
+                if (is_involved)
+                {
+                    d = policy_.policy_->decide(here_, id.path);
+                }
             }
+
+            // if this is not involved, send task to parent
+            if (!is_involved)
+            {
+                HPX_ASSERT(!is_root_);
+                if (!parent_id_)
+                {
+                    runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(parent_).
+                        schedule(std::move(work));
+                }
+                else
+                {
+                    hpx::apply<schedule_global_action>(parent_id_, parent_, std::move(work));
+                }
+                return;
+            }
+
+            if (here_.isLeaf())
+            {
+                d = schedule_decision::stay;
+            }
+
             HPX_ASSERT(d != schedule_decision::done);
 
             // if it should stay, process it here

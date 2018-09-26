@@ -169,7 +169,7 @@ namespace allscale {
             fillTree(res,task_id::task_path::root(), 0, ceilLog2(num_nodes), 0, num_nodes, &*map.begin(),&*map.end());
 
             // done
-            return std::move(res);
+            return res;
         }
     }
 
@@ -313,7 +313,7 @@ namespace allscale {
         }
         // for development, to estimate quality:
 
-        const bool DEBUG_FLAG = true;
+        const bool DEBUG_FLAG = false;
         if (DEBUG_FLAG) {
             // --- compute new load distribution ---
             std::vector<float> newEstCosts(num_nodes,0);
@@ -420,9 +420,31 @@ namespace allscale {
 
     bool tree_scheduling_policy::is_involved(const allscale::runtime::HierarchyAddress& addr, const task_id::task_path& path) const
     {
-        // only the root node is involved in scheduling the root path
-        if (path.isRoot()) return addr == root_;
+        if (addr == root_) return true;
 
+        // base case - the root path
+        if (path.isRoot())
+        {
+            // trace out the path of the root node
+            auto cur = root_;
+            auto d = schedule_decision::left;
+            while (d != schedule_decision::stay && d != schedule_decision::done && !cur.isLeaf())
+            {
+                // move on one step
+                switch (d = decide(cur, path))
+                {
+                    case schedule_decision::left: cur = cur.getLeftChild(); break;
+                    case schedule_decision::right: cur = cur.getRightChild(); break;
+                    case schedule_decision::stay: /* do nothing */ break;
+                    case schedule_decision::done: /* do nothing */ break;
+                }
+
+                if (cur == addr) return true;
+            }
+
+            // not passed by
+            return false;
+        }
         // TODO: implement this in O(logN) instead of O(logN^2)
 
         // either the given address is involved in the parent or this node
