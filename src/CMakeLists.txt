@@ -13,6 +13,7 @@ set(_srcs
     treeture.cpp
     get_num_localities.cpp
     get_num_numa_nodes.cpp
+    components/internodeoptimizer.cpp
     components/monitor_component.cpp
     components/resilience_component.cpp
     components/scheduler_component.cpp
