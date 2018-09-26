@@ -366,12 +366,11 @@ namespace allscale { namespace data_item_manager {
                 // the part can be safely allocated at the destination
                 if (service_->is_root_)
                 {
-                    location_info<region_type> info;
 #if defined(HPX_DEBUG)
+                    location_info<region_type> info;
                     info.add_part(std::size_t(-1), missing);
+                    remote_infos.push_back(hpx::make_ready_future(std::move(info)));
 #endif
-
-                    return hpx::make_ready_future(std::move(info));
                 }
                 if (service_->parent_id_)
                 {
@@ -393,20 +392,32 @@ namespace allscale { namespace data_item_manager {
             // our child.
             if (!part.empty())
             {
-                auto id = collect_left ? hpx::invalid_id : service_->right_id_;
-                auto child = collect_left ? service_->left_ : service_->right_;
-
-                if (id)
+                if (service_->here_.isLeaf())
                 {
-                    remote_infos.push_back(
-                        hpx::async<collect_child_ownerships_action<requirement_type>>(
-                            id, child, ref, std::move(part)));
+#if defined(HPX_DEBUG)
+                    location_info<region_type> info;
+                    info.add_part(std::size_t(-1), missing);
+                    remote_infos.push_back(hpx::make_ready_future(std::move(info)));
+#endif
+
                 }
                 else
                 {
-                    remote_infos.push_back(
-                        data_item_manager::collect_child_ownerships(
-                            child, ref, std::move(part)));
+                    auto id = collect_left ? hpx::invalid_id : service_->right_id_;
+                    auto child = collect_left ? service_->left_ : service_->right_;
+
+                    if (id)
+                    {
+                        remote_infos.push_back(
+                            hpx::async<collect_child_ownerships_action<requirement_type>>(
+                                id, child, ref, std::move(part)));
+                    }
+                    else
+                    {
+                        remote_infos.push_back(
+                            data_item_manager::collect_child_ownerships(
+                                child, ref, std::move(part)));
+                    }
                 }
             }
 
