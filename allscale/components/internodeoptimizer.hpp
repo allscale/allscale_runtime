@@ -280,7 +280,9 @@ struct internode_optimizer_t
         //     and their respective load
         auto expected_node_load = std::vector<node_load_t>();
 
-        if (previous_number_of_nodes != nodes || distribute_randomly)
+        if (previous_number_of_nodes != nodes 
+            || distribute_randomly 
+            || (node_times.size() < balance_top_N + balance_bottom_K))
         {
             //VV: see points b) and c) above, need to redistribute all tasks to all new_nodes
 
