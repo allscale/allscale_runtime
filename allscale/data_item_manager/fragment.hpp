@@ -30,7 +30,7 @@ namespace allscale { namespace data_item_manager {
     typename DataItem::fragment_type& fragment(const Ref& ref, allscale::data_item_manager::data_item<DataItem>& item)
     {
         using mutex_type = typename data_item_store<DataItem>::data_item_type::mutex_type;
-        boost::shared_lock<mutex_type> l(item.mtx);
+        std::unique_lock<mutex_type> l(item.mtx);
         return fragment(ref, item, l);
     }
 

@@ -2879,7 +2879,9 @@ void IMP_ipic3d_colon__colon_Universe::store(allscale::utils::ArchiveWriter& var
     var_1.write<allscale::runtime::DataItemReference<allscale::api::user::data::Grid<IMP_ipic3d_colon__colon_DensityNode, 3u > > >((*this).currentDensity);
 }
 /* ------- Function Definitions --------- */
-IMP_ipic3d_colon__colon_Universe::IMP_ipic3d_colon__colon_Universe() : IMP_ipic3d_colon__colon_Universe(IMP_ipic3d_colon__colon_UniverseProperties{ipic3dUseCaseDipole, allscale::utils::Vector<long, 3 >{(int64_t)1, (int64_t)1, (int64_t)1}, allscale::utils::Vector<double, 3 >{1.0E+0, 1.0E+0, 1.0E+0}, 1.0E+0, 1.0E+0, 0.0E+0, allscale::utils::Vector<double, 3 >{0.0E+0, 0.0E+0, 0.0E+0}, allscale::utils::Vector<double, 3 >{0.0E+0, 0.0E+0, 0.0E+0}, allscale::utils::Vector<double, 3 >{(double)0, (double)0, (double)0}, 100, 100}) { }
+IMP_ipic3d_colon__colon_Universe::IMP_ipic3d_colon__colon_Universe() : IMP_ipic3d_colon__colon_Universe(IMP_ipic3d_colon__colon_UniverseProperties{ipic3dUseCaseDipole, allscale::utils::Vector<long, 3 >{(int64_t)1, (int64_t)1, (int64_t)1}, allscale::utils::Vector<double, 3 >{1.0E+0, 1.0E+0, 1.0E+0}, 1.0E+0, 1.0E+0, 0.0E+0, allscale::utils::Vector<double, 3 >{0.0E+0, 0.0E+0, 0.0E+0}, allscale::utils::Vector<double, 3 >{0.0E+0, 0.0E+0, 0.0E+0}, allscale::utils::Vector<double, 3 >{(double)0, (double)0, (double)0}, 100, 100})
+{
+}
 struct allscale_type_591;
 typedef struct allscale_type_591 allscale_type_591;
 

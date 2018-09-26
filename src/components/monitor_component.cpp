@@ -1,5 +1,6 @@
 #include <allscale/components/monitor.hpp>
 #include <allscale/monitor.hpp>
+#include <allscale/dashboard.hpp>
 
 #include <math.h>
 #include <limits>
@@ -7,6 +8,7 @@
 #include <string>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <thread>
 
 #include <boost/format.hpp>
 
@@ -61,7 +63,7 @@ namespace allscale { namespace components {
      , done(false)
      , current_read_queue(0)
      , current_write_queue(0)
-     , sampling_interval_ms(4000)
+     , sampling_interval_ms(2000)
 //     , metric_sampler_(
 //          hpx::util::bind(
 //		&monitor::sample_node,
@@ -82,7 +84,13 @@ namespace allscale { namespace components {
      , max_split_task(0)
      , min_process_task(0)
      , max_process_task(0)
-     , dashboard_conn_alive(false)
+     , total_memory_(0)
+     , num_cpus_(0)
+     , cpu_load_(0.0)
+     , weighted_sum(0.0)
+     , weighted_throughput(0.0)
+     , bytes_sent_(0)
+     , bytes_recv_(0)
 //#endif
 #ifdef REALTIME_VIZ
      , num_active_tasks_(0)
@@ -153,119 +161,6 @@ namespace allscale { namespace components {
    }
 */
 
-   void monitor::toJSON(std::ostream& out) const {
-	out << "{";
-	out << "\"time\": 1234,";
-	out << "\"type\": \"status\",";
-	out << "\"nodes\": [";
-	out << "{" ;
-	out << "\"id\": 0,";
-
-	// is it normal update or shutdown call update?
-	if (done)
-		out << "\"state\": \"offline\",";
-	else
-		out << "\"state\": \"online\",";
-
-	out << "\"cpu_load\": 0.798,";
-	out << "\"mem_load\": 2423435,";
-	out << "\"total_memory\": 2600000,";
-	out << "\"task_throughput\": 423,";
-	out << "\"weighted_task_througput\": 4.23,";
-	out << "\"network_in\": 232134,";
-	out << "\"network_out\": 14234,";
-	out << "\"idle_rate\": 0.123,";
-	out << "\"owned_data\": []";
-	out << "}";
-	out << "]";
-	out << "}";
-
-   }
-
-   void monitor::sendUpdate() {
-
-	   if (dashboard_conn_alive) {
-		   // create JSON data block
-		   std::stringstream msg;
-		   toJSON(msg);
-
-		   // get as string
-		   auto json = msg.str();
-
-		   //			std::cout << "Sending:\n" << json << "\n\n";
-
-		   // sent to bashboard
-		   auto send = [&](const void* msg, int size) {
-			   if (write(sock,msg,size) != size) {
-				   std::cerr << "Lost dashboard connection, ending status broadcasts.";
-				   return;
-			   }
-		   };
-
-		   // send message size
-		   std::uint64_t msgSizeBE = htobe64(json.length());
-		   send(&msgSizeBE,sizeof(std::uint64_t));
-
-		   // send message
-		   send(json.c_str(),json.length());
-	   }
-
-   }
-
-  void monitor::init_dashboard_conn() {
-
-         // only on master
-	  if (rank_ == 0) {
-		  dashboard_conn_alive = true;
-		  sock = socket(AF_INET, SOCK_STREAM, 0);
-		  if (sock < 0) {
-			  std::cerr << "socket for dashboard couldn't be created ...\n" ;
-			  dashboard_conn_alive = false;
-			  return;
-		  }
-
-		  // get dashboard IP address
-		  std::string dashboardIP = DEFAULT_DASHBOARD_IP;
-		  if (auto ip = std::getenv(ENVVAR_DASHBOARD_IP)) {
-			  dashboardIP = ip;
-		  }
-
-		  // get dashboard port
-		  int dashboardPort = DEFAULT_DASHBOARD_PORT;
-		  if (auto port = std::getenv(ENVVAR_DASHBOARD_PORT)) {
-			  dashboardPort = std::atoi(port);
-		  }
-
-		  // create server address
-		  sockaddr_in serverAddress;
-		  serverAddress.sin_family = AF_INET;
-		  serverAddress.sin_port = htons(dashboardPort);
-		  auto success = inet_pton(AF_INET, dashboardIP.c_str(), &serverAddress.sin_addr);
-		  if (!success) {
-			  std::cerr << "Ignoring dashboard at unsupported address: " << dashboardIP << "\n";
-			  dashboard_conn_alive = false;
-			  return;
-		  }
-
-		  // connect to server
-		  success = connect(sock,reinterpret_cast<sockaddr*>(&serverAddress),sizeof(serverAddress));
-		  if (success < 0) {
-			  std::cerr << "Unable to connect to dashboard server at " << dashboardIP << ":" << dashboardPort << ", reporting disabled.\n";
-			  dashboard_conn_alive = false;
-			  return;
-		  }
-		  // start up reporter thread
-		  //if (!alive) return;
-	  }
-  }
-
-
-   void monitor::shutdown_dashboard_conn() {
-	   // send shutdown info
-	   sendUpdate();
-	   close(sock);
-   }
-
    double monitor::get_throughput()
    {
       std::unique_lock<std::mutex> lock(sampling_mutex);
@@ -280,6 +175,14 @@ namespace allscale { namespace components {
 
       return f.get();
    }
+
+
+   double monitor::get_weighted_throughput()
+   {
+      std::unique_lock<std::mutex> lock(sampling_mutex);
+      return weighted_throughput;
+   }
+
 
 
    double monitor::get_idle_rate()
@@ -298,32 +201,143 @@ namespace allscale { namespace components {
    }
 
 
+   unsigned long long monitor::get_node_total_memory()
+   {
+      return total_memory_;
+   }
+
+
+   int monitor::get_num_cpus()
+   {
+     return num_cpus_;
+   }
+
+
+   float monitor::get_cpu_load()
+   {
+      std::unique_lock<std::mutex> lock(sampling_mutex);
+      return cpu_load_;
+   }
+
+   std::uint64_t monitor::get_consumed_memory()
+   {
+      std::unique_lock<std::mutex> lock(sampling_mutex);
+      return resident_memory_;
+   }
+
+
+   std::uint64_t monitor::get_network_out()
+   {
+      std::unique_lock<std::mutex> lock(sampling_mutex);
+      return bytes_sent_;
+   }
+
+
+   std::uint64_t monitor::get_network_in()
+   {
+      std::unique_lock<std::mutex> lock(sampling_mutex);
+      return bytes_recv_;
+   }
+
+
+
    // Additional sampler thread
    bool monitor::sample_node()
    {
        hpx::performance_counters::counter_value idle_value;
+       hpx::performance_counters::counter_value rss_value;
+       hpx::performance_counters::counter_value network_in_mpi_value;
+       hpx::performance_counters::counter_value network_out_mpi_value;
+       hpx::performance_counters::counter_value network_in_tcp_value;
+       hpx::performance_counters::counter_value network_out_tcp_value;
+
+
        double rate_value;
+       std::uint64_t memory_value = 0, network_in_mpi = 0, network_out_mpi = 0;
+       std::uint64_t network_in_tcp = 0, network_out_tcp = 0;
+       std::uint64_t user_time, nice_time, system_time, idle_time;
+       std::string foo_word;
 
-       idle_value = hpx::performance_counters::stubs::performance_counter::get_value(
-                hpx::launch::sync, idle_rate_counter_);
 
-       rate_value = idle_value.get_value<double>() * 0.01;
+       // Counters
 
+       if(rate_counter_registered_)
+          idle_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                   hpx::launch::sync, idle_rate_counter_);
+
+
+       if(memory_counter_registered_)
+          rss_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                   hpx::launch::sync, resident_memory_counter_);
+
+
+       if(network_mpi_counters_registered_) {
+          network_out_mpi_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                   hpx::launch::sync, nsend_mpi_counter_, true);
+
+          network_in_mpi_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                   hpx::launch::sync, nrecv_mpi_counter_, true);
+       }
+
+
+       if(network_tcp_counters_registered_) {
+          network_out_tcp_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                   hpx::launch::sync, nsend_tcp_counter_, true);
+
+          network_in_tcp_value = hpx::performance_counters::stubs::performance_counter::get_value(
+                   hpx::launch::sync, nrecv_tcp_counter_, true);
+       }
+
+
+       if(rate_counter_registered_) rate_value = idle_value.get_value<double>() * 0.01;
+       if(memory_counter_registered_) memory_value = rss_value.get_value<std::uint64_t>();
+       if(network_mpi_counters_registered_) {
+	  network_in_mpi = network_in_mpi_value.get_value<std::uint64_t>();
+          network_out_mpi = network_out_mpi_value.get_value<std::uint64_t>();
+       }
+       if(network_tcp_counters_registered_) {
+          network_in_tcp = network_in_tcp_value.get_value<std::uint64_t>();
+          network_out_tcp = network_out_tcp_value.get_value<std::uint64_t>();
+       }
+
+
+       // CPU load
+       if(pstat.is_open()) {
+           pstat.seekg(0, std::ios::beg);
+           pstat >> foo_word >> user_time >> nice_time >> system_time >> idle_time;
+//           std::cerr << "HE llegit " << user_time << " " << nice_time << " " << system_time << " " << idle_time << std::endl;
+       }
+
+
+       // Compute statistics
        std::unique_lock<std::mutex> lock(sampling_mutex);
 
        task_throughput = (double)finished_tasks/((double)sampling_interval_ms/1000);
+       weighted_throughput = weighted_sum/((double)sampling_interval_ms/1000);
        idle_rate_ = rate_value;
+       resident_memory_ = memory_value;
+       bytes_sent_ = network_out_mpi + network_out_tcp;
+       bytes_recv_ = network_in_mpi + network_out_tcp;
 
-//       std::cerr << "NODE " << rank_ << " THROUGHPUT " << task_throughput << " tasks/s "
-//                 << "IDLE RATE " << idle_rate_ << std::endl;
+       std::uint64_t used_time = (user_time - last_user_time) + (nice_time - last_nice_time) + (system_time - last_system_time);
+       cpu_load_ = ((float)used_time / (float)(used_time + (idle_time - last_idle_time)));
+       last_user_time = user_time; last_nice_time = nice_time; last_system_time = system_time; last_idle_time = idle_time;
+
+/*       std::cerr << "NODE " << rank_ << " THROUGHPUT " << task_throughput << " tasks/s "
+                 << "IDLE RATE " << idle_rate_
+                 << "RESIDENT MEMORY " << resident_memory_
+                 << "CPU LOAD " << cpu_load_ << std::endl;
+*/
 
        if(print_throughput_hm_) throughput_history.push_back(task_throughput);
        if(print_idle_hm_) idle_rate_history.push_back(idle_rate_);
 
        finished_tasks = 0;
+       weighted_sum = 0.0;
 
        lock.unlock();
-       sendUpdate();
+       // FIXME
+//        sendUpdate();
 
        return true;
    }
@@ -613,6 +627,9 @@ namespace allscale { namespace components {
          // Update number of finished tasks for throughput calculation
          std::unique_lock<std::mutex> lock(sampling_mutex);
          finished_tasks++;
+
+         // Update data for weighted throughput
+         weighted_sum += 1/pow(2, my_wid.depth());
          lock.unlock();
       }
 
@@ -734,6 +751,9 @@ namespace allscale { namespace components {
          // Update number of finished tasks for throughput calculation
          std::unique_lock<std::mutex> lock(sampling_mutex);
          finished_tasks++;
+
+         // Update data for weighted throughput
+         weighted_sum += 1/pow(2, my_wid.depth());
 	 lock.unlock();
      }
 #ifdef HAVE_EXTRAE
@@ -1133,6 +1153,7 @@ namespace allscale { namespace components {
 
      return idle_avg_value.get_value<double>() * 0.01;
 */
+      return 0.0;
   }
 
   double monitor::get_avg_idle_rate_remote(hpx::id_type locality)
@@ -1142,6 +1163,7 @@ namespace allscale { namespace components {
 
       return f.get();
 */
+      return 0.0;
   }
 
 #ifdef HAVE_PAPI
@@ -1475,7 +1497,7 @@ namespace allscale { namespace components {
 #endif
 
 
-   void monitor::print_heatmap(char *file_name, std::vector<std::vector<double>> &buffer)
+   void monitor::print_heatmap(const char *file_name, std::vector<std::vector<double>> &buffer)
    {
        std::uint64_t max_sample = 0;
        std::ofstream heatmap;
@@ -1532,6 +1554,7 @@ namespace allscale { namespace components {
 
       if(rank_ == 0)
       {
+        dashboard::shutdown();
         std::vector<hpx::future<void>> stop_futures;
         typedef allscale::components::monitor::stop_action stop_action;
 
@@ -1556,7 +1579,8 @@ namespace allscale { namespace components {
       {
          std::lock_guard<std::mutex> lk(m_queue);
          done = true;
-	 shutdown_dashboard_conn();
+         // FIXME:
+//          shutdown_dashboard_conn();
       }
 
       cv.notify_one();
@@ -1564,8 +1588,24 @@ namespace allscale { namespace components {
 
       metric_sampler_->stop();
 
-      // Stop performance counter
-      hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, idle_rate_counter_);
+      // Stop performance counters
+      if(rate_counter_registered_)
+         hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, idle_rate_counter_);
+
+      if(memory_counter_registered_)
+         hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, resident_memory_counter_);
+
+      if(network_mpi_counters_registered_) {
+         hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, nsend_mpi_counter_);
+         hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, nrecv_mpi_counter_);
+      }
+
+      if(network_tcp_counters_registered_) {
+         hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, nsend_tcp_counter_);
+         hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, nrecv_tcp_counter_);
+      }
+
+
 //      hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, idle_rate_avg_counter_);
 
 
@@ -1713,9 +1753,6 @@ namespace allscale { namespace components {
       num_localities_ = allscale::get_num_localities();
 
 
-      // only master tries to init conn
-      init_dashboard_conn();
-
       allscale::monitor::connect(allscale::monitor::work_item_split_execution_started, monitor::global_w_exec_split_start_wrapper);
       allscale::monitor::connect(allscale::monitor::work_item_process_execution_started, monitor::global_w_exec_process_start_wrapper);
       allscale::monitor::connect(allscale::monitor::work_item_split_execution_finished, monitor::global_w_exec_split_finish_wrapper);
@@ -1857,22 +1894,122 @@ namespace allscale { namespace components {
       execution_init = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
 
 
-      // Create idle rate counters per locality
-      static const char * idle_counter_name = "/threads{locality#%d/total}/idle-rate";
-//      static const char * idle_counter_avg_name = "/statistics{/threads{locality#%d/total}/idle-rate}/average@500";
+      // Read system info
 
+      // Number of available processors
+      num_cpus_ = std::thread::hardware_concurrency();
+
+
+      // Total memory
+      FILE *proc_f = fopen("/proc/meminfo", "r");
+      fscanf(proc_f, "%*s %llu %*s\n", &total_memory_); total_memory_ *= 1000;
+      fclose(proc_f);
+
+      // Read CPU load
+      pstat.open("/proc/stat", std::ios::in);
+      if(pstat.is_open()) {
+	std::string cpu;
+
+        pstat >> cpu >> last_user_time >> last_nice_time >> last_system_time >> last_idle_time;
+      }
+      else std::cerr << "Unable to open /proc/stat!\n";
+
+
+      // Create HPX counters
       const std::uint32_t prefix = hpx::get_locality_id();
 
-      std::cerr << "Registering counter " << boost::str(boost::format(idle_counter_name) % prefix) << std::endl;
-      idle_rate_counter_ = hpx::performance_counters::get_counter(
-              boost::str(boost::format(idle_counter_name) % prefix));
+      // Idle rate counter
+      static const char * idle_counter_name = "/threads{locality#%d/total}/idle-rate";
 
-//      std::cerr << "Registering counter " << boost::str(boost::format(idle_counter_avg_name) % prefix) << std::endl;
-//      idle_rate_avg_counter_ = hpx::performance_counters::get_counter(
-//              boost::str(boost::format(idle_counter_avg_name) % prefix));
 
-      hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_rate_counter_);
-//      hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_rate_avg_counter_);
+      try {
+         std::cerr << "Registering counter " << boost::str(boost::format(idle_counter_name) % prefix) << std::endl;
+         idle_rate_counter_ = hpx::performance_counters::get_counter(
+                 boost::str(boost::format(idle_counter_name) % prefix));
+
+         hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_rate_counter_);
+         rate_counter_registered_ = 1;
+      }
+      catch(const std::exception& e) {
+         std::cerr << "Failed to register counter " << boost::str(boost::format(idle_counter_name) % prefix) << std::endl;
+         rate_counter_registered_ = 0;
+      }
+
+      // Memory counter
+      static const char * memory_counter_name = "/runtime{locality#%d/total}/memory/resident";
+
+      try {
+         std::cerr << "Registering counter " << boost::str(boost::format(memory_counter_name) % prefix) << std::endl;
+         resident_memory_counter_ = hpx::performance_counters::get_counter(
+                       boost::str(boost::format(memory_counter_name) % prefix));
+
+         hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, resident_memory_counter_);
+         memory_counter_registered_ = 1;
+      }
+      catch(const std::exception& e) {
+	 std::cerr << "Failed to register counter " << boost::str(boost::format(memory_counter_name) % prefix) << std::endl;
+         memory_counter_registered_ = 0;
+      }
+
+      // Network counters
+      static const char * network_sent_mpi_counter_name = "/data{locality#%d/total}/count/mpi/sent";
+      static const char * network_recv_mpi_counter_name = "/data{locality#%d/total}/count/mpi/received";
+      static const char * network_sent_tcp_counter_name = "/data{locality#%d/total}/count/tcp/sent";
+      static const char * network_recv_tcp_counter_name = "/data{locality#%d/total}/count/tcp/received";
+
+
+      try {
+         std::cerr << "Registering counter " << boost::str(boost::format(network_sent_mpi_counter_name) % prefix) << std::endl;
+         nsend_mpi_counter_ = hpx::performance_counters::get_counter(
+                       boost::str(boost::format(network_sent_mpi_counter_name) % prefix));
+
+         hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, nsend_mpi_counter_);
+         network_mpi_counters_registered_ = 1;
+      }
+      catch(...) {
+         std::cerr << "Failed to register counter " << boost::str(boost::format(network_sent_mpi_counter_name) % prefix) << std::endl;
+         network_mpi_counters_registered_ = 0;
+      }
+
+      try {
+         std::cerr << "Registering counter " << boost::str(boost::format(network_recv_mpi_counter_name) % prefix) << std::endl;
+         nrecv_mpi_counter_ = hpx::performance_counters::get_counter(
+                       boost::str(boost::format(network_recv_mpi_counter_name) % prefix));
+
+         hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, nrecv_mpi_counter_);
+         network_mpi_counters_registered_ &= 1;
+      }
+      catch(...) {
+         std::cerr << "Failed to register counter " << boost::str(boost::format(network_recv_mpi_counter_name) % prefix) << std::endl;
+         network_mpi_counters_registered_ &= 0;
+      }
+
+
+      try {
+         std::cerr << "Registering counter " << boost::str(boost::format(network_sent_tcp_counter_name) % prefix) << std::endl;
+         nsend_tcp_counter_ = hpx::performance_counters::get_counter(
+                       boost::str(boost::format(network_sent_tcp_counter_name) % prefix));
+
+         hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, nsend_tcp_counter_);
+         network_tcp_counters_registered_ = 1;
+      }
+      catch(...) {
+         std::cerr << "Failed to register counter " << boost::str(boost::format(network_sent_tcp_counter_name) % prefix) << std::endl;
+         network_tcp_counters_registered_ = 0;
+      }
+
+      try {
+         std::cerr << "Registering counter " << boost::str(boost::format(network_recv_tcp_counter_name) % prefix) << std::endl;
+         nrecv_tcp_counter_ = hpx::performance_counters::get_counter(
+                       boost::str(boost::format(network_recv_tcp_counter_name) % prefix));
+
+         hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, nrecv_tcp_counter_);
+         network_tcp_counters_registered_ &= 1;
+      }
+      catch(...) {
+         std::cerr << "Failed to register counter " << boost::str(boost::format(network_recv_tcp_counter_name) % prefix) << std::endl;
+         network_tcp_counters_registered_ &= 0;
+      }
 
 
       // Create specialised OS-thread to proces profiles and sampler timer
@@ -1908,6 +2045,11 @@ namespace allscale { namespace components {
        std::cerr
           << "Monitor component with rank "
           << rank_ << " created!\n";
+
+      if (rank_ == 0)
+      {
+          dashboard::update();
+      }
 
    }
 

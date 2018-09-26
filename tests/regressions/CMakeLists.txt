@@ -10,6 +10,7 @@ set(tests
   cmd_options_optimized_optimized.insieme.seq
   cmd_options_unoptimized_unoptimized.insieme.seq
   fib_eager_fib_eager.insieme.seq
+  manual_specification
   #grid_stencil.insieme.seq
   #grid_stencil_2d_particles.insieme.seq
   insieme-src-195b1d7e

@@ -1416,7 +1416,7 @@ void scheduler::update_power_consumption(std::size_t power_sample) {
     return;
   }
 
-  if ((power_sample >= 0) && (power_sample <= 10000)){
+  if (power_sample <= 10000){
     meas_power_count++;
     meas_power_sum+=power_sample;
     if (power_sample > meas_power_max)

@@ -39,7 +39,7 @@ namespace allscale
                     >;
 
             auto wi = std::make_shared<work_item_type>(id, deps.dep_,
-                        hpx::util::make_tuple(detail::futurize_if(std::forward<Ts>(vs))...));
+                hpx::util::make_tuple(detail::futurize_if(std::forward<Ts>(vs))...));
 
             allscale::treeture<result_type> tres = wi->get_treeture();
 

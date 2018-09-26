@@ -109,14 +109,12 @@ namespace allscale {
         }
 
         fragment_type* getFragmentHint() const {
-            return nullptr;
-//             return cache.load(std::memory_order_acquire);
+            return cache.load(std::memory_order_acquire);
         }
 
         fragment_type* setFragmentHint(fragment_type* hint) const {
-            return nullptr;
-//             cache.exchange(hint, std::memory_order_acq_rel);
-//             return hint;
+            cache.exchange(hint, std::memory_order_acq_rel);
+            return hint;
         }
 
     private:

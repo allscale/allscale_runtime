@@ -3,6 +3,8 @@ set(_srcs
     data_requirements_check.cpp
     data_item_store.cpp
     data_item/index_service.cpp
+    data_item/get_ownership_json.cpp
+    dashboard.cpp
     hierarchy.cpp
     monitor.cpp
     resilience.cpp
@@ -11,6 +13,7 @@ set(_srcs
     task_id.cpp
     this_work_item.cpp
     treeture.cpp
+    optimizer.cpp
     get_num_localities.cpp
     get_num_numa_nodes.cpp
     components/internodeoptimizer.cpp

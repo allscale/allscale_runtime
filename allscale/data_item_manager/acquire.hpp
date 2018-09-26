@@ -10,6 +10,7 @@
 #include <allscale/data_item_manager/data_item_view.hpp>
 #include <allscale/data_item_manager/location_info.hpp>
 
+#include <hpx/lcos/broadcast.hpp>
 #include <hpx/util/annotated_function.hpp>
 
 #include <hpx/plugins/parcel/coalescing_message_handler_registration.hpp>
@@ -37,6 +38,26 @@ namespace allscale { namespace data_item_manager {
                 decltype(&transfer<DataItemType>),
                 &transfer<DataItemType>,
                 transfer_action<DataItemType>
+            >::type
+        {};
+
+        template <typename DataItemType>
+        void update_cache(hpx::naming::gid_type id, typename DataItemType::region_type missing, std::size_t new_rank)
+        {
+            runtime::HierarchicalOverlayNetwork::forAllLocal<index_service<DataItemType>>(
+                [&](index_service<DataItemType>& is)
+                {
+                    is.get(id).update_cache(missing, new_rank);
+                }
+            );
+        }
+
+        template <typename DataItemType>
+        struct update_cache_action
+          : hpx::actions::make_direct_action<
+                decltype(&update_cache<DataItemType>),
+                &update_cache<DataItemType>,
+                update_cache_action<DataItemType>
             >::type
         {};
 
@@ -68,10 +89,14 @@ namespace allscale { namespace data_item_manager {
                 if(!missing.empty())
                 {
                     HPX_ASSERT(req.allowance.empty());
-                    HPX_ASSERT(addr.isLeaf());
+
+                    hpx::future<void> update_cache =
+                        hpx::lcos::broadcast<update_cache_action<data_item_type>>(
+                            hpx::find_all_localities(), req.ref.id(), missing, addr.getRank());
+//                     HPX_ASSERT(addr.isLeaf());
                     // Acquire ownership
                     return hpx::dataflow(hpx::launch::sync,
-                        [req, addr](hpx::future<location_info> infof) ->hpx::future<void>
+                        [req, addr](hpx::future<location_info> infof, hpx::future<void> cache_update) ->hpx::future<void>
                         {
                             auto info = infof.get();
                             if (info.regions.empty()) return hpx::make_ready_future();
@@ -98,7 +123,7 @@ namespace allscale { namespace data_item_manager {
                             return hpx::when_all(transfers);
                             // Do transfer...
                         },
-                        entry.acquire_ownership(req, missing));
+                        entry.acquire_ownership(req, missing), update_cache);
                 }
 
                 // All requirements should be fulfilled now.

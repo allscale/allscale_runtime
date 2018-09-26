@@ -3,6 +3,7 @@
 #define ALLSCALE_SCHEDULER_HPP
 
 #include <hpx/config.hpp>
+#include <allscale/optimizer.hpp>
 
 #include <hpx/lcos/local/spinlock.hpp>
 #include <hpx/hpx_init.hpp>
@@ -37,6 +38,8 @@ namespace allscale
         scheduler(std::size_t rank);
 
         static std::size_t rank();
+
+        static void update_policy(std::vector<optimizer_state> const& state, std::vector<bool> mask);
 
         static void schedule(work_item&& work);
         static components::scheduler* run(std::size_t rank);

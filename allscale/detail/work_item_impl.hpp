@@ -6,6 +6,7 @@
 #include <allscale/monitor.hpp>
 #include <allscale/data_item_requirement.hpp>
 #include <allscale/detail/work_item_impl_base.hpp>
+#include <allscale/utils/serializer/tuple.h>
 
 #include <hpx/include/serialization.hpp>
 #include <hpx/include/parallel_execution.hpp>
@@ -16,6 +17,109 @@
 
 #include <memory>
 #include <utility>
+
+namespace allscale {
+namespace utils {
+	namespace detail {
+
+        namespace detail {
+
+            template<std::size_t Pos>
+            struct tuple_for_each_helper {
+                template<typename Op, typename ... Args>
+                void operator()(const Op& op, hpx::util::tuple<Args...>& tuple) {
+                    tuple_for_each_helper<Pos-1>()(op,tuple);
+                    op(hpx::util::get<Pos-1>(tuple));
+                }
+                template<typename Op, typename ... Args>
+                void operator()(const Op& op, const hpx::util::tuple<Args...>& tuple) {
+                    tuple_for_each_helper<Pos-1>()(op,tuple);
+                    op(hpx::util::get<Pos-1>(tuple));
+                }
+            };
+
+            template<>
+            struct tuple_for_each_helper<0> {
+                template<typename Op, typename ... Args>
+                void operator()(const Op&, const hpx::util::tuple<Args...>&) {
+                    // nothing
+                }
+            };
+
+        }
+
+        /**
+         * A utility to apply an operator on all elements of a tuple in order.
+         *
+         * @param tuple the (mutable) tuple
+         * @param op the operator to be applied
+         */
+        template<typename Op, typename ... Args>
+        void forEach(hpx::util::tuple<Args...>& tuple, const Op& op) {
+            detail::tuple_for_each_helper<sizeof...(Args)>()(op,tuple);
+        }
+
+        /**
+         * A utility to apply an operator on all elements of a tuple in order.
+         *
+         * @param tuple the (constant) tuple
+         * @param op the operator to be applied
+         */
+        template<typename Op, typename ... Args>
+        void forEach(const hpx::util::tuple<Args...>& tuple, const Op& op) {
+            detail::tuple_for_each_helper<sizeof...(Args)>()(op,tuple);
+        }
+
+		// a utility assisting in loading non-trivial tuples from stream
+
+		template<std::size_t pos, typename ... Args>
+		struct hpx_load_helper {
+
+			using inner = hpx_load_helper<pos-1,Args...>;
+
+			template<typename ... Cur>
+			hpx::util::tuple<Args...> operator()(ArchiveReader& in, Cur&& ... cur) const {
+				using cur_t = std::remove_reference_t<decltype(hpx::util::get<sizeof...(Cur)>(std::declval<hpx::util::tuple<Args...>>()))>;
+				return inner{}(in,std::move(cur)...,in.read<cur_t>());
+			}
+
+		};
+
+		template<typename ... Args>
+		struct hpx_load_helper<0,Args...> {
+
+            hpx::util::tuple<Args...> operator()(ArchiveReader&, Args&& ... args) const {
+				return hpx::util::make_tuple(std::move(args)...);
+			}
+
+		};
+
+	}
+
+
+	/**
+	 * Add support for serializing / de-serializing tuples of non-trivial element types.
+	 */
+    template <typename T>
+    struct tuple_serializer;
+
+	template<typename ... Args>
+	struct tuple_serializer<hpx::util::tuple<Args...> > {
+
+		static hpx::util::tuple<Args...> load(ArchiveReader& reader) {
+			return detail::hpx_load_helper<sizeof...(Args),Args...>{}(reader);
+		}
+
+
+		static void store(ArchiveWriter& writer, const hpx::util::tuple<Args...>& value) {
+            allscale::utils::detail::forEach(value,[&](const auto& cur){
+				writer.write(cur);
+			});
+		}
+	};
+
+} // end namespace utils
+} // end namespace allscale
 
 namespace allscale { namespace detail {
     template <typename Archive, typename T>
@@ -352,7 +456,7 @@ namespace allscale { namespace detail {
             }
         }
 
-        void process(executor_type& exec, task_requirements&& reqs)
+        void process(executor_type& exec, task_requirements&& reqs) final
         {
             hpx::util::annotate_function("allscale::work_item::process");
             get_deps<typename WorkItemDescription::process_variant>(
@@ -441,26 +545,34 @@ namespace allscale { namespace detail {
         hpx::shared_future<void> dep_;
     };
 
-    template <typename Archive, typename WorkItemDescription, typename Closure>
+    template <typename WorkItemDescription, typename Closure>
+    void serialize(hpx::serialization::input_archive& ar, work_item_impl<WorkItemDescription, Closure>& wi, unsigned)
+    {
+        HPX_ASSERT(false);
+    }
+
+    template <typename WorkItemDescription, typename Closure>
     typename std::enable_if<
         work_item_impl<WorkItemDescription, Closure>::is_serializable
     >::type
-    serialize(Archive& ar, work_item_impl<WorkItemDescription, Closure>& wi, unsigned)
+    serialize(hpx::serialization::output_archive& ar, work_item_impl<WorkItemDescription, Closure>& wi, unsigned)
     {
+        typedef work_item_impl<WorkItemDescription, Closure> work_item_type;
+        using closure_type = typename work_item_type::closure_type;
         ar & wi.id_;
         ar & wi.num_children;
         ar & wi.tres_;
-        ar & wi.closure_;
+        allscale::utils::ArchiveWriter writer(ar);
+        allscale::utils::tuple_serializer<closure_type>::store(writer, wi.closure_);
         ar & wi.dep_;
     }
 
-    template <typename Archive, typename WorkItemDescription, typename Closure>
+    template <typename WorkItemDescription, typename Closure>
     typename std::enable_if<
         !work_item_impl<WorkItemDescription, Closure>::is_serializable
     >::type
-    serialize(Archive&, work_item_impl<WorkItemDescription, Closure>&, unsigned)
+    serialize(hpx::serialization::output_archive&, work_item_impl<WorkItemDescription, Closure>&, unsigned)
     {
-
         std::cerr << "Attempt to serialize non serializable work_item: " <<
             WorkItemDescription::name() << "\n";
         std::abort();
@@ -476,17 +588,18 @@ namespace allscale { namespace detail {
         work_item_impl<WorkItemDescription, Closure>* /*unused*/)
     {
         typedef work_item_impl<WorkItemDescription, Closure> work_item_type;
+        using closure_type = typename work_item_type::closure_type;
 
         std::uint8_t num_children;
         task_id id;
         treeture<typename work_item_type::result_type> tres;
-        typename work_item_type::closure_type closure;
         hpx::shared_future<void> dep;
 
         ar & id;
         ar & num_children;
         ar & tres;
-        ar & closure;
+        allscale::utils::ArchiveReader reader(ar);
+        closure_type closure = allscale::utils::tuple_serializer<closure_type>::load(reader);
         ar & dep;
 
         auto res = new work_item_type(id, std::move(dep), std::move(tres), std::move(closure));

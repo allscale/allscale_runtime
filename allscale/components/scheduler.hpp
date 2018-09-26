@@ -59,6 +59,11 @@ namespace allscale { namespace components {
 
         std::uint64_t rank_;
 
+        std::size_t get_active_threads() const
+        {
+            return active_threads;
+        }
+
     private:
 
         std::size_t get_num_numa_nodes();

@@ -119,19 +119,20 @@ namespace allscale { namespace data_item_manager {
             auto& item = data_item_store<data_item_type>::lookup(req.ref);
             {
                 std::unique_lock<mutex_type> ll(item.mtx);
+                auto& frag = fragment(req.ref, item, ll);
                 // reserve region...
-                if (!allscale::api::core::isSubRegion(region, item.reserved))
+                if (!allscale::api::core::isSubRegion(region, frag.getCoveredRegion()))
                 {
                     // grow reserved region...
-                    item.reserved = region_type::merge(item.reserved, region);
-
+                    region_type reserved = region_type::merge(frag.getCoveredRegion(), region);
                     // resize fragment...
-                    auto& frag = fragment(req.ref, item, ll);
-                    frag.resize(item.reserved);
+                    frag.resize(reserved);
+                    // update ownership
+                    if (exclusive)
+                        item.exclusive = region_type::merge(
+                            item.exclusive,
+                            region_type::intersect(frag.getCoveredRegion(), region));
                 }
-                // update ownership
-                if (exclusive)
-                    item.exclusive = region;
             }
         }
 
@@ -202,6 +203,13 @@ namespace allscale { namespace data_item_manager {
                 right_ = region_type::difference(right_, missing);
             }
             add_full(missing);
+
+            // If we are at the root, just return an empty loc info...
+            if (service_->is_root_)
+            {
+                location_info<region_type> info;
+                return hpx::make_ready_future(std::move(info));
+            }
 #if defined(HPX_DEBUG)
             HPX_ASSERT(!missing.empty());
             auto cont =
@@ -220,6 +228,7 @@ namespace allscale { namespace data_item_manager {
                     }
                     return info;
                 };
+
 
             if (service_->parent_id_)
             {
@@ -353,6 +362,17 @@ namespace allscale { namespace data_item_manager {
             if (!missing.empty())
             {
                 HPX_ASSERT(!service_->is_root_);
+                // If we are at the root, just return an empty loc info, this means
+                // the part can be safely allocated at the destination
+                if (service_->is_root_)
+                {
+                    location_info<region_type> info;
+#if defined(HPX_DEBUG)
+                    info.add_part(std::size_t(-1), missing);
+#endif
+
+                    return hpx::make_ready_future(std::move(info));
+                }
                 if (service_->parent_id_)
                 {
                     remote_infos.push_back(
@@ -454,6 +474,10 @@ namespace allscale { namespace data_item_manager {
                     {
                         auto& item = data_item_store<DataItem>::lookup(ref.id());
                         std::unique_lock<mutex_type> ll(item.mtx);
+
+                        // Remove exclusive ownership
+                        item.exclusive = region_type::difference(item.exclusive, missing);
+
                         // If the fragment has not been allocated,
                         // we only had splits there so far, this means,
                         // we don't need to transfer data
@@ -576,6 +600,12 @@ namespace allscale { namespace data_item_manager {
                 remote_infos);
         }
 
+        void update_cache(region_type const& missing, std::size_t new_rank)
+        {
+            std::unique_lock<mutex_type> l(mtx_);
+            location_cache_.update(new_rank, missing);
+        }
+
         template <typename Requirement>
         hpx::future<location_info<region_type>> locate(Requirement const& req)
         {
@@ -585,7 +615,6 @@ namespace allscale { namespace data_item_manager {
             HPX_ASSERT(!req.region.empty());
 
             std::unique_lock<mutex_type> l(mtx_);
-            hpx::util::ignore_all_while_checking il;
 
             region_type remaining = req.region;
 
@@ -606,27 +635,27 @@ namespace allscale { namespace data_item_manager {
                 }
             }
 
-//             // Second look in our cache to speed up lookups
-//             for (auto const& cached: location_cache_.regions)
-//             {
-//                 auto part = region_type::intersect(remaining, cached.second);
-//                 // We got a hit!
-//                 if (!part.empty())
-//                 {
-//                     // Insert location information...
-//                     info.add_part(cached.first, part);
-//
-//                     // Subtract what we got from what we requested
-//                     remaining = region_type::difference(remaining, part);
-//
-//                     // If the remainder is empty, we got everything covered...
-//                     if (remaining.empty())
-//                     {
-//                         HPX_ASSERT(!info.regions.empty());
-//                         return hpx::make_ready_future(info);
-//                     }
-//                 }
-//             }
+            // Second look in our cache to speed up lookups
+            for (auto const& cached: location_cache_.regions)
+            {
+                auto part = region_type::intersect(remaining, cached.second);
+                // We got a hit!
+                if (!part.empty())
+                {
+                    // Insert location information...
+                    info.add_part(cached.first, part);
+
+                    // Subtract what we got from what we requested
+                    remaining = region_type::difference(remaining, part);
+
+                    // If the remainder is empty, we got everything covered...
+                    if (remaining.empty())
+                    {
+                        HPX_ASSERT(!info.regions.empty());
+                        return hpx::make_ready_future(info);
+                    }
+                }
+            }
 
             // Storage for our remote infos:
             // 0: parent
@@ -735,7 +764,7 @@ namespace allscale { namespace data_item_manager {
                         auto remote_info = fut.get();
                         for (auto& part : remote_info.regions)
                         {
-//                             location_cache_.add_part(part.first, part.second);
+                            location_cache_.add_part(part.first, part.second);
                             info.add_part(part.first, std::move(part.second));
                         }
                     }
@@ -810,13 +839,13 @@ namespace allscale { namespace data_item_manager {
             }
         }
 
-        index_service(index_service const& other)
-          : here_(other.here_),
-            parent_(other.parent_),
-            left_(other.left_),
-            right_(other.right_),
-            parent_id_(other.parent_id_),
-            right_id_(other.right_id_),
+        index_service(index_service&& other)
+          : here_(std::move(other.here_)),
+            parent_(std::move(other.parent_)),
+            left_(std::move(other.left_)),
+            right_(std::move(other.right_)),
+            parent_id_(std::move(other.parent_id_)),
+            right_id_(std::move(other.right_id_)),
             is_root_(other.is_root_)
         {
             HPX_ASSERT(other.entries_.empty());
@@ -824,7 +853,7 @@ namespace allscale { namespace data_item_manager {
 
         index_entry<DataItem>& get(hpx::naming::gid_type const& id)
         {
-            std::unique_lock<mutex_type> l(mtx_);
+            std::lock_guard<mutex_type> l(mtx_);
             auto it = entries_.find(id);
             if (it != entries_.end())
             {
