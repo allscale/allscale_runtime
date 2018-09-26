@@ -29,12 +29,12 @@ namespace components
 
 struct ino_knobs_t
 {
-    ino_knobs_t(unsigned int nodes)
+    ino_knobs_t(std::size_t nodes)
         : u_nodes(nodes)
     {
     }
 
-    unsigned int u_nodes;
+    std::size_t u_nodes;
 };
 
 struct ino_knobs_cmp_t
@@ -47,7 +47,7 @@ struct ino_knobs_cmp_t
 
 struct pareto_entry_t
 {
-    pareto_entry_t(unsigned int at_tick,
+    pareto_entry_t(std::size_t at_tick,
                    ino_knobs_t knobs,
                    std::vector<double> measure_load,
                    std::vector<double> measure_time,
@@ -147,7 +147,7 @@ struct pareto_entry_t
         return false;
     }
 
-    unsigned int u_at_tick;
+    std::size_t u_at_tick;
     ino_knobs_t c_knobs;
     std::vector<double> v_load, v_time, v_energy;
 };
@@ -156,7 +156,7 @@ typedef bool (*ParetoEntryComparator)(const pareto_entry_t &lhs, const pareto_en
 
 struct exploration_t
 {
-    exploration_t(unsigned int nodes)
+    exploration_t(std::size_t nodes)
         : u_nodes(nodes), b_explored(false)
     {
     }
@@ -167,7 +167,7 @@ struct exploration_t
         b_explored = true;
         return ino_knobs_t(u_nodes);
     }
-    unsigned int u_nodes;
+    std::size_t u_nodes;
     bool b_explored;
 };
 
@@ -186,19 +186,19 @@ struct node_config_t
 
 struct node_load_t
 {
-    node_load_t(unsigned int node, double load) : node(node), load(load){
+    node_load_t(std::size_t node, double load) : node(node), load(load){
 
                                                               };
 
-    unsigned int node;
+    std::size_t node;
     double load;
 };
 
 struct internode_optimizer_t
 {
-    internode_optimizer_t(unsigned int nodes,
+    internode_optimizer_t(std::size_t nodes,
                           double target, double leeway,
-                          unsigned int reset_history_every = INO_DEFAULT_FORGET_AFTER);
+                          std::size_t reset_history_every = INO_DEFAULT_FORGET_AFTER);
 
     /*VV: Accepts current state of computational network plus the decision which led
           to this state. If last_knobs is nullptr and INO has made a choice before
@@ -214,14 +214,14 @@ struct internode_optimizer_t
                         const ino_knobs_t *previous_decision = nullptr);
 
     template <typename work_item>
-    std::map<unsigned int, node_config_t<work_item>> decide_schedule(
-        const std::map<unsigned int, std::vector<work_item>> &node_map,
-        const std::map<unsigned int, double> &node_loads,
-        const std::map<unsigned int, double> &node_times,
+    static std::map<std::size_t, node_config_t<work_item>> decide_schedule(
+        const std::map<std::size_t, std::vector<work_item>> &node_map,
+        const std::map<std::size_t, double> &node_loads,
+        const std::map<std::size_t, double> &node_times,
         const ino_knobs_t &ino_knobs,
         bool distribute_randomly = false,
-        unsigned int balance_top_N=1,
-        unsigned int balance_bottom_K=1) const
+        std::size_t balance_top_N=1,
+        std::size_t balance_bottom_K=1)
     {
         /* VV: 4 scenarios
            a) This is the first time that we're scheduling tasks to nodes
@@ -251,18 +251,18 @@ struct internode_optimizer_t
               6. Resulting load is greater than 1.0 for all N + K nodes
         */
 
-        auto new_schedule = std::map<unsigned int, node_config_t<work_item>>();
-        unsigned int previous_number_of_nodes = (unsigned int)node_loads.size();
+        auto new_schedule = std::map<std::size_t, node_config_t<work_item>>();
+        std::size_t previous_number_of_nodes = (std::size_t)node_loads.size();
 
-        // VV: The average load per task belonging to node <unsigned int>
-        std::map<unsigned int, double> work_item_load;
+        // VV: The average load per task belonging to node <std::size_t>
+        std::map<std::size_t, double> work_item_load;
 
-        unsigned int total_tasks = 0u;
+        std::size_t total_tasks = 0u;
 
         for (auto node = node_loads.begin(); node != node_loads.end(); ++node)
         {
             auto node_tasks = node_map.at(node->first).size();
-            total_tasks += (unsigned int)node_tasks;
+            total_tasks += (std::size_t)node_tasks;
 
             double task_avg_load = node->second / node_tasks;
             // VV: Make sure that the task avg load is not zero.
@@ -270,8 +270,8 @@ struct internode_optimizer_t
             work_item_load[node->first] = task_avg_load;
         }
 
-        // unsigned int nodes = std::min(ino_knobs.u_nodes, previous_number_of_nodes);
-        unsigned int nodes = ino_knobs.u_nodes;
+        // std::size_t nodes = std::min(ino_knobs.u_nodes, previous_number_of_nodes);
+        std::size_t nodes = ino_knobs.u_nodes;
 
         // VV: Tasks to be moved to a (possibly) new node
         std::vector<std::pair<double, work_item>> all_tasks;
@@ -319,7 +319,7 @@ struct internode_optimizer_t
         {
             // VV: See point d) above
             double avg = 0.;
-            std::vector<std::pair<unsigned int, double> > sorted;
+            std::vector<std::pair<std::size_t, double> > sorted;
 
             for (auto nt: node_times) {
                 avg += nt.second;
@@ -339,8 +339,8 @@ struct internode_optimizer_t
 
             auto threshold = stddev * 2;
 
-            auto compare = [](const std::pair<unsigned int, double> &nt1, 
-                             const std::pair<unsigned int, double> &nt2) -> bool 
+            auto compare = [](const std::pair<std::size_t, double> &nt1, 
+                             const std::pair<std::size_t, double> &nt2) -> bool 
             {
                 // VV: descending order
                 return nt1.second > nt2.second;
@@ -351,7 +351,7 @@ struct internode_optimizer_t
 
             double avg_n = 0.0;
             auto it = sorted.begin();
-            for (unsigned int i=0u; i<balance_top_N; ++i, ++it)
+            for (std::size_t i=0u; i<balance_top_N; ++i, ++it)
             {
                 avg_n += it->second;
                 std::cout << "top_N " << it->first
@@ -363,7 +363,7 @@ struct internode_optimizer_t
             double avg_k = 0.0;
             
             auto rit = sorted.rbegin();
-            for (unsigned int i=0u; i<balance_bottom_K; ++i, ++rit)
+            for (std::size_t i=0u; i<balance_bottom_K; ++i, ++rit)
             {   
                 avg_k += rit->second;
 
@@ -381,10 +381,10 @@ struct internode_optimizer_t
             //     redistribution of tasks among N, K node sets
             if ( avg_n - avg_k >= threshold )
             {   
-                unsigned int total = (unsigned int) sorted.size();
+                std::size_t total = (std::size_t) sorted.size();
 
                 it = sorted.begin();
-                for(unsigned int i=0u;
+                for(std::size_t i=0u;
                     it != sorted.end(); ++it, ++i )
                 {
                     if ( i < balance_top_N || i >= total-balance_bottom_K )
@@ -517,8 +517,8 @@ struct internode_optimizer_t
 
     ino_knobs_t c_last_choice;
 
-    unsigned int u_nodes, u_min_nodes, u_max_nodes;
-    unsigned int u_choices, u_history_interval, u_history_tick;
+    std::size_t u_nodes, u_min_nodes, u_max_nodes;
+    std::size_t u_choices, u_history_interval, u_history_tick;
     double d_target, d_leeway;
 
     // VV: <number_of_nodes, pareto_entry>

@@ -29,9 +29,9 @@ namespace allscale
 namespace components
 {
 
-internode_optimizer_t::internode_optimizer_t(unsigned int nodes,
+internode_optimizer_t::internode_optimizer_t(std::size_t nodes,
                                            double target, double leeway,
-                                           unsigned int reset_history_every)
+                                           std::size_t reset_history_every)
     : c_last_choice({0}), u_nodes(nodes), u_choices(0),
       u_history_interval(reset_history_every), u_history_tick(0),
       d_target(target), d_leeway(leeway)
@@ -39,7 +39,7 @@ internode_optimizer_t::internode_optimizer_t(unsigned int nodes,
     u_min_nodes = ceil(d_target * u_nodes);
     u_max_nodes = ceil((d_target + d_leeway) * u_nodes);
 
-    u_min_nodes = std::max(1u, u_min_nodes);
+    u_min_nodes = std::max(1ul, u_min_nodes);
     u_max_nodes = std::min(u_nodes, u_max_nodes);
 
     for (auto n = u_min_nodes; n < u_max_nodes + 1; ++n)

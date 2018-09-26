@@ -1,10 +1,12 @@
 
 #include <allscale/schedule_policy.hpp>
-
+#include <allscale/components/internodeoptimizer.hpp>
 #include "allscale/utils/assert.h"
 #include "allscale/utils/printer/vectors.h"
 
 #include <iostream>
+
+// #define OLD_BALANCE
 
 namespace allscale {
     namespace {
@@ -283,12 +285,14 @@ namespace allscale {
         if (available_nodes < 1) available_nodes = 1;
 
         float share = total_costs / available_nodes;
+        std::vector<std::size_t> new_mapping(mapping.size());
 
+        #ifdef OLD_BALANCE
         float cur_costs = 0;
         float next_goal = share;
         std::size_t cur_node = 0;
         while(!mask[cur_node]) cur_node++;
-        std::vector<std::size_t> new_mapping(mapping.size());
+
         for(std::size_t i=0; i<mapping.size(); i++)
         {
             // compute next costs
@@ -311,6 +315,13 @@ namespace allscale {
             new_mapping[i] = cur_node;
             cur_costs = next_costs;
         }
+        #else
+        std::map<std::size_t, std::vector<std::size_t> > node_map;
+        std::map<std::size_t, double> node_loads, node_times;
+        
+        auto ino_policy = components::internode_optimizer_t::decide_schedule(node_map, node_loads, node_times, {available_nodes});
+
+        #endif
         // for development, to estimate quality:
 
         const bool DEBUG_FLAG = true;
