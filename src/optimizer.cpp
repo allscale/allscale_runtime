@@ -28,7 +28,7 @@ namespace allscale
         float load = 1.f - (monitor::get().get_idle_rate() / 100.);
 
         float my_time = monitor::get().get_avg_time_last_iterations(HISTORY_ITERATIONS);
-        
+
         if (std::isnan(my_time))
             my_time = 0.f;
 
@@ -266,12 +266,18 @@ namespace allscale
                         [this](optimizer_state const& lhs, optimizer_state const& rhs)
                         {
                             return optimizer_state(
-                                (lhs.load + rhs.load) / num_active_nodes_,
-                                (lhs.avg_time + rhs.avg_time) / num_active_nodes_,
-                                (lhs.active_frequency + rhs.active_frequency) / num_active_nodes_,
-                                (lhs.cores_per_node + rhs.cores_per_node) / num_active_nodes_);
+                                (lhs.load + rhs.load),
+                                (lhs.avg_time + rhs.avg_time),
+                                (lhs.active_frequency + rhs.active_frequency),
+                                (lhs.cores_per_node + rhs.cores_per_node));
                         }
                     );
+
+                    // VV: Make sure to divide by num_active_nodes_ just once after accumulating
+                    avg_state.load /= num_active_nodes_;
+                    avg_state.avg_time /= num_active_nodes_;
+                    avg_state.active_frequency /= num_active_nodes_;
+                    avg_state.cores_per_node /= num_active_nodes_;
 
                     float sum_dist = 0.f;
                     for(std::size_t i=0; i<num_active_nodes_; i++)
