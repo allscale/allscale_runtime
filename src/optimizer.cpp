@@ -38,8 +38,8 @@ namespace allscale
     }
 }
 
-HPX_PLAIN_ACTION(allscale::get_optimizer_state, allscale_get_optimizer_state_action);
-HPX_PLAIN_ACTION(allscale::optimizer_update_policy, allscale_optimizer_update_policy_action);
+HPX_PLAIN_DIRECT_ACTION(allscale::get_optimizer_state, allscale_get_optimizer_state_action);
+HPX_PLAIN_DIRECT_ACTION(allscale::optimizer_update_policy, allscale_optimizer_update_policy_action);
 
 namespace allscale
 {
