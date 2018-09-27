@@ -428,16 +428,9 @@ namespace allscale
         {
 //                 HPX_ASSERT(reqs->check_write_requirements(here_));
 
-            if (here_.isLeaf())
-            {
-                // add granted allowances
-                reqs->add_allowance(here_);
-//                 std::cout << here_ << ' ' << work.name() << "." << id << ": local: " << '\n';
-//                 reqs->show();
-                scheduler::get().schedule_local(
-                    std::move(work), std::move(reqs), here_);
+            if (scheduler::get().schedule_local(
+                std::move(work), std::move(reqs), here_))
                 return;
-            }
 
 //             std::cout << here_ << ' ' << work.name() << "." << id << ": left: " << '\n';
 //             reqs->show();

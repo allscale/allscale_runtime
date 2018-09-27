@@ -50,7 +50,7 @@ namespace allscale { namespace components {
 //         void enqueue(work_item work);
 //         void enqueue_local(work_item work, bool force_split, bool sync);
 
-        void schedule_local(work_item work,
+        bool schedule_local(work_item work,
             std::unique_ptr<data_item_manager::task_requirements_base>&& deps,
             runtime::HierarchyAddress const& addr);
 
