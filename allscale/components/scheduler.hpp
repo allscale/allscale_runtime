@@ -52,7 +52,7 @@ namespace allscale { namespace components {
 
         void schedule_local(work_item work,
             std::unique_ptr<data_item_manager::task_requirements_base>&& deps,
-            runtime::HierarchyAddress const& addr, std::size_t local_depth);
+            runtime::HierarchyAddress const& addr);
 
 
         void stop();
@@ -79,7 +79,7 @@ namespace allscale { namespace components {
         std::unordered_map<const char*, treeture_buffer> spawn_throttle_;
 
         void optimize_locally(work_item const& work);
-        bool do_split(work_item const& work, std::size_t local_depth, std::size_t numa_node);
+        bool do_split(work_item const& work, std::size_t numa_node);
 
         bool collect_counters();
         //try to suspend resource_step threads, return number of threads which received a new suspend order;

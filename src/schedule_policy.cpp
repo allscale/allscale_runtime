@@ -537,14 +537,27 @@ namespace allscale {
 
     bool random_scheduling_policy::is_involved(const allscale::runtime::HierarchyAddress& addr, const task_id::task_path& path) const
     {
-        return policy(generator) < 0.2;
+        return true; // every node may be involved
     }
 
     schedule_decision random_scheduling_policy::decide(runtime::HierarchyAddress const& addr, const task_id::task_path& path) const
     {
+		// spread up tasks on root level, to avoid strong biases in task distribution depending on root decision
+		if (path.getLength() < 3)
+            return schedule_decision::stay;
+
         auto r = policy(generator);
 
         if (r < 0.33)
+            return schedule_decision::left;
+
+        if (r < 0.66)
+            return schedule_decision::right;
+
+        if (path.getLength() < cutoff_level_)
+            return schedule_decision::stay;
+
+        if (r < 0.83)
             return schedule_decision::left;
 
         return schedule_decision::right;
