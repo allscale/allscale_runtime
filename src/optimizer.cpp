@@ -40,16 +40,16 @@ optimizer_state get_optimizer_state()
 #ifdef ALLSCALE_HAVE_CPUFREQ
     float frequency = components::util::hardware_reconf::get_kernel_freq(0);
     auto current = components::util::hardware_reconf::read_system_energy();
-    
+
     this_energy = current - last_energy;
     last_energy = read;
 #else
     float frequency = 1.f;
 #endif
-    return optimizer_state(load, 
-                           my_time, 
+    return optimizer_state(load,
+                           my_time,
                            this_energy,
-                           frequency, 
+                           frequency,
                            scheduler::get().get_active_threads());
 }
 
@@ -59,10 +59,8 @@ void optimizer_update_policy(std::vector<optimizer_state> const &state, std::vec
 }
 
 void optimizer_update_policy_ino(const std::vector<std::size_t> &new_mapping)
-{   
-    std::cerr << "!!!  "  << getpid()  << std::endl << std::flush;
+{
     scheduler::apply_new_mapping(new_mapping);
-    std::cerr << "!!! DONE "  << getpid()  << std::endl << std::flush;
 }
 
 } // namespace allscale
@@ -145,12 +143,12 @@ float estimate_power(float frequency)
 }
 
 global_optimizer::global_optimizer()
-    : num_active_nodes_(allscale::get_num_localities()), best_(0, 1.f), best_score_(0.0f), active_(true), objective_(get_default_objective()), localities_(hpx::find_all_localities()), 
+    : num_active_nodes_(allscale::get_num_localities()), best_(0, 1.f), best_score_(0.0f), active_(true), objective_(get_default_objective()), localities_(hpx::find_all_localities()),
     f_resource_max(-1.0f), f_resource_leeway(-1.0f),
     u_balance_every(10)
 {
     char *const c_policy = std::getenv("ALLSCALE_SCHEDULING_POLICY");
-    
+
     if (strncasecmp(c_policy, "ino", 3) == 0 )
     {
         char *const c_resource_max = std::getenv("ALLSCALE_RESOURCE_MAX");
@@ -159,17 +157,17 @@ global_optimizer::global_optimizer()
 
         if ( c_balance_every )
             u_balance_every = (std::size_t) atoi(c_balance_every);
-        
+
         if ( !c_resource_leeway )
             f_resource_leeway = 0.25f;
         else
             f_resource_leeway = atof(c_resource_leeway);
-        
+
         if (!c_resource_max)
             f_resource_max = 0.75f;
         else
             f_resource_max = atof(c_resource_max);
-        
+
         o_ino = allscale::components::internode_optimizer_t(localities_.size(),
                                                             (double) f_resource_max,
                                                             (double) f_resource_leeway,
@@ -316,7 +314,7 @@ hpx::future<void> global_optimizer::balance(bool tuned)
 
                 // compute the load variance
                 optimizer_state avg_state = std::accumulate(
-                    state.begin(), state.begin() + num_active_nodes_, 
+                    state.begin(), state.begin() + num_active_nodes_,
                         optimizer_state(0.f, 0.f, 0ull, 0.f, 0),
                     [this](optimizer_state const &lhs, optimizer_state const &rhs) {
                         return optimizer_state(
@@ -396,11 +394,11 @@ hpx::future<void> global_optimizer::balance_ino(const std::vector<std::size_t> &
                     return std::max(curr_max, s.avg_time);
                 };
 
-                float max_time = std::accumulate(state.begin()+1, 
-                                                state.end(), 
+                float max_time = std::accumulate(state.begin()+1,
+                                                state.end(),
                                                 state.begin()->avg_time,
                                                 get_max_avg_time);
-                
+
                 if (max_time  < 0.1f ) {
                     max_time = 0.1f;
                 }
@@ -433,7 +431,7 @@ hpx::future<void> global_optimizer::balance_ino(const std::vector<std::size_t> &
                 auto node = state.begin();
                 for (idx=0ul; idx<=num_active_nodes_; ++idx, ++node)
                 {
-                    
+
                     node_loads[idx] = node->load;
                     node_times[idx++] = node->avg_time;
 
@@ -443,7 +441,7 @@ hpx::future<void> global_optimizer::balance_ino(const std::vector<std::size_t> &
                 }
 
                 auto knobs = o_ino.get_node_configuration(ino_loads,
-                                                          ino_times, 
+                                                          ino_times,
                                                           ino_energies);
 
                 num_active_nodes_ = knobs.u_nodes;
