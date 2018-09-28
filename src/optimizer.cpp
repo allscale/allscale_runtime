@@ -386,6 +386,9 @@ hpx::future<void> global_optimizer::balance(bool tuned)
 
 hpx::future<void> global_optimizer::balance_ino(const std::vector<std::size_t> &old_mapping)
 {
+    /*VV: Compute the new ino_knobs (i.e. number of Nodes), then assign tasks to
+          nodes and broadcast the scheduling information to all nodes.
+    */
     return hpx::lcos::broadcast<allscale_get_optimizer_state_action>(localities_)
         .then(
             [this, old_mapping](hpx::future<std::vector<optimizer_state> > future_state) {
@@ -431,7 +434,6 @@ hpx::future<void> global_optimizer::balance_ino(const std::vector<std::size_t> &
                 auto node = state.begin();
                 for (idx=0ul; idx<=num_active_nodes_; ++idx, ++node)
                 {
-
                     node_loads[idx] = node->load;
                     node_times[idx++] = node->avg_time;
 

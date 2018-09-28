@@ -313,7 +313,7 @@ namespace allscale
 
             if (policy_.value_ == replacable_policy::ino && work.id().is_root())
             {
-                if (work_items_scheduled > 0 && (work_items_scheduled % optimizer_.u_balance_every == 0))
+                if (work_items_scheduled % optimizer_.u_balance_every == 0)
                 {
                     tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(*policy_.policy_);
                     optimizer_.balance_ino(old.task_distribution_mapping());
