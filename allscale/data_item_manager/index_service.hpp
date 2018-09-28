@@ -196,20 +196,13 @@ namespace allscale { namespace data_item_manager {
         hpx::future<location_info<region_type>>
         acquire_ownership(Requirement const& req, region_type const& missing)
         {
+            HPX_ASSERT(service_->here_.isLeaf());
             {
                 std::lock_guard<mutex_type> l(mtx_);
+                HPX_ASSERT(region_type::intersect(full_, missing).empty());
                 full_ = region_type::merge(full_, missing);
-                left_ = region_type::difference(left_, missing);
-                right_ = region_type::difference(right_, missing);
             }
-            add_full(missing);
 
-            // If we are at the root, just return an empty loc info...
-            if (service_->is_root_)
-            {
-                location_info<region_type> info;
-                return hpx::make_ready_future(std::move(info));
-            }
 #if defined(HPX_DEBUG)
             HPX_ASSERT(!missing.empty());
             auto cont =
@@ -314,36 +307,30 @@ namespace allscale { namespace data_item_manager {
 
                 if (collect_left)
                 {
+                    HPX_ASSERT(service_->right_ == child);
                     HPX_ASSERT(region_type::intersect(right_, missing).empty());
-                    part = region_type::intersect(missing, left_);
-                    right_ = region_type::merge(right_, missing);
+                    region_type left = region_type::difference(left_, missing);
+                    if (!left.empty())
+                    {
+                        part = region_type::intersect(missing, left);
+                        // Add the new ownerhsip info
+                        right_ = region_type::merge(right_, part);
+                        left_ = region_type::difference(left_, part);
+                        missing = region_type::difference(missing, part);
+                    }
                 }
                 else
                 {
+                    HPX_ASSERT(service_->left_ == child);
                     HPX_ASSERT(region_type::intersect(left_, missing).empty());
-                    part = region_type::intersect(missing, right_);
-                    left_ = region_type::merge(left_, missing);
-                }
-
-                if (!part.empty())
-                {
-//                     HPX_ASSERT(allscale::api::core::isSubRegion(part, full_));
-                    missing = region_type::difference(missing, part);
-
-                    // Remove remaining missing from our ownership list.
-                    left_ = region_type::difference(left_, part);
-                    right_ = region_type::difference(right_, part);
-
-                    // Add the new ownerhsip info
-                    // collect left means, we came from a right child, as such,
-                    // the missing part is now owned by the right child and vice versa
-                    if (collect_left)
+                    region_type right = region_type::difference(right_, missing);
+                    if (!right.empty())
                     {
-                        right_ = region_type::merge(right_, part);
-                    }
-                    else
-                    {
+                        part = region_type::intersect(missing, right);
+                        // Add the new ownerhsip info
                         left_ = region_type::merge(left_, part);
+                        right_ = region_type::difference(right_, part);
+                        missing = region_type::difference(missing, part);
                     }
                 }
 
@@ -362,16 +349,6 @@ namespace allscale { namespace data_item_manager {
             if (!missing.empty())
             {
                 HPX_ASSERT(!service_->is_root_);
-                // If we are at the root, just return an empty loc info, this means
-                // the part can be safely allocated at the destination
-                if (service_->is_root_)
-                {
-#if defined(HPX_DEBUG)
-                    location_info<region_type> info;
-                    info.add_part(std::size_t(-1), missing);
-                    remote_infos.push_back(hpx::make_ready_future(std::move(info)));
-#endif
-                }
                 if (service_->parent_id_)
                 {
                     remote_infos.push_back(
@@ -392,32 +369,21 @@ namespace allscale { namespace data_item_manager {
             // our child.
             if (!part.empty())
             {
-                if (service_->here_.isLeaf())
-                {
-#if defined(HPX_DEBUG)
-                    location_info<region_type> info;
-                    info.add_part(std::size_t(-1), missing);
-                    remote_infos.push_back(hpx::make_ready_future(std::move(info)));
-#endif
+                HPX_ASSERT(!service_->here_.isLeaf());
+                auto id = collect_left ? hpx::invalid_id : service_->right_id_;
+                auto new_child = collect_left ? service_->left_ : service_->right_;
 
+                if (id)
+                {
+                    remote_infos.push_back(
+                        hpx::async<collect_child_ownerships_action<requirement_type>>(
+                            id, new_child, ref, std::move(part)));
                 }
                 else
                 {
-                    auto id = collect_left ? hpx::invalid_id : service_->right_id_;
-                    auto child = collect_left ? service_->left_ : service_->right_;
-
-                    if (id)
-                    {
-                        remote_infos.push_back(
-                            hpx::async<collect_child_ownerships_action<requirement_type>>(
-                                id, child, ref, std::move(part)));
-                    }
-                    else
-                    {
-                        remote_infos.push_back(
-                            data_item_manager::collect_child_ownerships(
-                                child, ref, std::move(part)));
-                    }
+                    remote_infos.push_back(
+                        data_item_manager::collect_child_ownerships(
+                            new_child, ref, std::move(part)));
                 }
             }
 
@@ -551,6 +517,7 @@ namespace allscale { namespace data_item_manager {
                     remote_regions[1] = region_type();
                 }
             }
+
             HPX_ASSERT(missing.empty());
 
             std::vector<hpx::future<location_info<region_type>>> remote_infos;

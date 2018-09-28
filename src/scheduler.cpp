@@ -280,8 +280,6 @@ namespace allscale
 
         void schedule(work_item work)
         {
-            auto reqs = work.get_task_requirements();
-
             if (policy_.value_ == replacable_policy::dynamic &&
                 work.id().is_root() && work.id().id > 0 && (work.id().id % 10 == 0))
             {
@@ -294,6 +292,7 @@ namespace allscale
                 optimizer_.balance(true);
             }
 
+            auto reqs = work.get_task_requirements();
             if (!work.enqueue_remote())
             {
                 reqs->get_missing_regions(here_);
@@ -366,6 +365,7 @@ namespace allscale
             // if this is not involved, send task to parent
             if (!is_involved)
             {
+                reqs->add_allowance(here_);
                 HPX_ASSERT(!is_root_);
                 if (!parent_id_)
                 {
@@ -428,15 +428,25 @@ namespace allscale
         {
 //                 HPX_ASSERT(reqs->check_write_requirements(here_));
 
-            if (scheduler::get().schedule_local(
-                std::move(work), std::move(reqs), here_))
+//             std::cout << here_ << ' ' << work.name() << "." << work.id() << ": local: " << '\n';
+//             reqs->show();
+            reqs->add_allowance(here_);
+            auto res = scheduler::get().schedule_local(
+                std::move(work), std::move(reqs), here_);
+            if (!res.first.valid())
+            {
+                HPX_ASSERT(res.second == nullptr);
                 return;
+            }
 
+            std::cerr << "schedule_local descent to left...\n";
+
+            HPX_ASSERT(!here_.isLeaf());
 //             std::cout << here_ << ' ' << work.name() << "." << id << ": left: " << '\n';
 //             reqs->show();
-            reqs->add_allowance_left(here_);
+            res.second->add_allowance_left(here_);
             runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(left_).
-                schedule_local(std::move(work), std::move(reqs));
+                schedule_local(std::move(res.first), std::move(res.second));
         }
     };
 

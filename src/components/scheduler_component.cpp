@@ -816,7 +816,7 @@ void scheduler::optimize_locally(work_item const& work)
     }
 }
 
-bool scheduler::schedule_local(work_item work,
+std::pair<work_item, std::unique_ptr<data_item_manager::task_requirements_base>> scheduler::schedule_local(work_item work,
         std::unique_ptr<data_item_manager::task_requirements_base>&& reqs,
         runtime::HierarchyAddress const& addr)
 {
@@ -826,10 +826,8 @@ bool scheduler::schedule_local(work_item work,
 
     std::size_t numa_node = addr.getNumaNode();
 
-
     if (do_split(work, numa_node))
     {
-        reqs->add_allowance(addr);
         if (!work.can_split()) {
             std::cerr << "split for " << work.name() << "(" << work.id()
                 << ") requested but can't split further\n";
@@ -848,12 +846,11 @@ bool scheduler::schedule_local(work_item work,
                 auto &exec = executors_[numa_node];
                 work.split(exec, std::move(reqs));
             });
-        return true;
+        return std::make_pair(work_item(), std::unique_ptr<data_item_manager::task_requirements_base>());
     }
     else
     {
-        if (!addr.isLeaf()) return false;
-        reqs->add_allowance(addr);
+        if (!addr.isLeaf()) return std::make_pair(std::move(work), std::move(reqs));
 
         hpx::future<void> acquired = reqs->acquire_process(addr);
         typename hpx::traits::detail::shared_state_ptr_for<
@@ -877,7 +874,7 @@ bool scheduler::schedule_local(work_item work,
                     "allscale::work_item::process"));
         });
 
-        return true;
+        return std::make_pair(work_item(), std::unique_ptr<data_item_manager::task_requirements_base>());
     }
 }
 
