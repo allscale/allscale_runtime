@@ -284,6 +284,7 @@ namespace allscale
 
         void apply_new_mapping(const std::vector<std::size_t> &new_mapping)
         {
+            std::lock_guard<mutex_type> l(mtx_);
             policy_.policy_ = tree_scheduling_policy::from_mapping(*policy_.policy_,
                                                                     new_mapping);
         }
