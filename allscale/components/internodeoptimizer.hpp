@@ -9,18 +9,26 @@
 #include <iterator>
 #include <algorithm>
 
+
 #define INO_EXPLORATION_PHASE_STEPS 3u
 #define INO_EXPLORATION_SOFT_LIMIT 10u
 #define INO_RANDOM_EVERY 3u
 #define INO_DEFAULT_FORGET_AFTER 10000u
 
 #define INO_DEBUG_PARETO
+#define INO_DEBUG_DECIDE_SCHEDULE
+
+#if defined(INO_DEBUG_PARETO) || defined(INO_DEBUG_DECIDE_SCHEDULE)
+#include <iostream>
+#endif
 
 #ifdef INO_RANDOM_EVERY
 #if INO_RANDOM_EVERY < 1
 #error INO_RANDOM_EVERY must be a positive number (if its equal to 2, every 3rd balance() will explore)
 #endif
 #endif
+
+// #define CAN_SHUFFLE
 
 namespace allscale
 {
@@ -49,9 +57,9 @@ struct pareto_entry_t
 {
     pareto_entry_t(std::size_t at_tick,
                    ino_knobs_t knobs,
-                   std::vector<double> measure_load,
-                   std::vector<double> measure_time,
-                   std::vector<double> measure_energy)
+                   std::vector<float> measure_load,
+                   std::vector<float> measure_time,
+                   std::vector<float> measure_energy)
         : u_at_tick(at_tick),
           c_knobs(knobs),
           v_load(measure_load),
@@ -62,17 +70,17 @@ struct pareto_entry_t
         // std::aggregate(<vector>.begin(), <vector>.end(), 0.0) / nodes
     }
 
-    double average_load() const
+    float average_load() const
     {
         return std::accumulate(v_load.begin(), v_load.end(), 0.0) / c_knobs.u_nodes;
     }
 
-    double average_time() const
+    float average_time() const
     {
         return std::accumulate(v_time.begin(), v_time.end(), 0.0) / c_knobs.u_nodes;
     }
 
-    double average_energy() const
+    float average_energy() const
     {
         return std::accumulate(v_energy.begin(), v_energy.end(), 0.0) / c_knobs.u_nodes;
     }
@@ -149,7 +157,7 @@ struct pareto_entry_t
 
     std::size_t u_at_tick;
     ino_knobs_t c_knobs;
-    std::vector<double> v_load, v_time, v_energy;
+    std::vector<float> v_load, v_time, v_energy;
 };
 
 typedef bool (*ParetoEntryComparator)(const pareto_entry_t &lhs, const pareto_entry_t &rhs);
@@ -186,38 +194,45 @@ struct node_config_t
 
 struct node_load_t
 {
-    node_load_t(std::size_t node, double load) : node(node), load(load){
+    node_load_t(std::size_t node, float load) : node(node), load(load){
 
                                                               };
 
     std::size_t node;
-    double load;
+    float load;
 };
 
 struct internode_optimizer_t
-{
+{   
+    internode_optimizer_t():
+        u_nodes(0), d_target(-1.), d_leeway(-1), u_history_interval(0),
+        c_last_choice({0})
+    {
+
+    }
+
     internode_optimizer_t(std::size_t nodes,
-                          double target, double leeway,
+                          float target, float leeway,
                           std::size_t reset_history_every = INO_DEFAULT_FORGET_AFTER);
 
     /*VV: Accepts current state of computational network plus the decision which led
           to this state. If last_knobs is nullptr and INO has made a choice before
-          it's going to assume that its that choice (c_last_choice) which lead to
+          it's going to assume that it's that choice (c_last_choice) which lead to
           the current state.
           
           It returns a set of configuration knobs. If possible it keeps a log of
           the effects of last_knobs
           */
-    ino_knobs_t balance(const std::vector<double> &measure_load,
-                        const std::vector<double> &measure_time,
-                        const std::vector<double> &measure_energy,
-                        const ino_knobs_t *previous_decision = nullptr);
+    ino_knobs_t get_node_configuration(const std::vector<float> &measure_load,
+                                       const std::vector<float> &measure_time,
+                                       const std::vector<float> &measure_energy,
+                                       const ino_knobs_t *previous_decision = nullptr);
 
     template <typename work_item>
     static std::map<std::size_t, node_config_t<work_item>> decide_schedule(
         const std::map<std::size_t, std::vector<work_item>> &node_map,
-        const std::map<std::size_t, double> &node_loads,
-        const std::map<std::size_t, double> &node_times,
+        const std::map<std::size_t, float> &node_loads,
+        const std::map<std::size_t, float> &node_times,
         const ino_knobs_t &ino_knobs,
         bool distribute_randomly = false,
         std::size_t balance_top_N=1,
@@ -255,7 +270,7 @@ struct internode_optimizer_t
         std::size_t previous_number_of_nodes = (std::size_t)node_loads.size();
 
         // VV: The average load per task belonging to node <std::size_t>
-        std::map<std::size_t, double> work_item_load;
+        std::map<std::size_t, float> work_item_load;
 
         std::size_t total_tasks = 0u;
 
@@ -264,9 +279,9 @@ struct internode_optimizer_t
             auto node_tasks = node_map.at(node->first).size();
             total_tasks += (std::size_t)node_tasks;
 
-            double task_avg_load = node->second / node_tasks;
+            float task_avg_load = node->second / node_tasks;
             // VV: Make sure that the task avg load is not zero.
-            task_avg_load = std::max(0.001, task_avg_load);
+            task_avg_load = std::max(0.001f, task_avg_load);
             work_item_load[node->first] = task_avg_load;
         }
 
@@ -274,7 +289,7 @@ struct internode_optimizer_t
         std::size_t nodes = ino_knobs.u_nodes;
 
         // VV: Tasks to be moved to a (possibly) new node
-        std::vector<std::pair<double, work_item>> all_tasks;
+        std::vector<std::pair<float, work_item>> all_tasks;
 
         // VV: This vector contains all eligible nodes to receive new tasks,
         //     and their respective load
@@ -292,21 +307,23 @@ struct internode_optimizer_t
             // VV: 1. Generate random vector of tasks (and their associated cost)
             for (const auto work_items : node_map)
             {
-                const double cost = work_item_load[work_items.first];
+                const float cost = work_item_load[work_items.first];
 
                 for (const auto wi : work_items.second)
                     all_tasks.push_back(std::make_pair(cost, wi));
             }
 
+            #ifdef CAN_SHUFFLE
             if ( nodes > 1)
             {
                 std::random_device rd;
                 std::mt19937 gen(rd());
                 std::shuffle(all_tasks.begin(), all_tasks.end(), gen);
             }
+            #endif
             
             // for (auto cost_wi : all_tasks) {
-            //     std::cout << "Shuffled " << cost_wi.first
+            //     std::cerr << "Shuffled " << cost_wi.first
             //               << " -- " << cost_wi.second << std::endl;
             // }
 
@@ -320,8 +337,8 @@ struct internode_optimizer_t
         else
         {
             // VV: See point d) above
-            double avg = 0.;
-            std::vector<std::pair<std::size_t, double> > sorted;
+            float avg = 0.;
+            std::vector<std::pair<std::size_t, float> > sorted;
 
             for (auto nt: node_times) {
                 avg += nt.second;
@@ -330,19 +347,20 @@ struct internode_optimizer_t
 
             avg /= node_times.size();
 
-            double stddev = 0.0;
+            float stddev_sq = 0.0;
 
             for (auto nt: node_times ) {
-                double t = nt.second - avg;
-                stddev += t*t;
+                float t = nt.second - avg;
+                stddev_sq += t*t;
             }
 
-            stddev = sqrt(stddev/(node_times.size() - 1));
+            stddev_sq = stddev_sq/(node_times.size() - 1);
 
-            auto threshold = stddev * 2;
+            // VV: This is equivalent to checking for stddev * 2
+            auto threshold = stddev_sq * 1.41421356237;
 
-            auto compare = [](const std::pair<std::size_t, double> &nt1, 
-                             const std::pair<std::size_t, double> &nt2) -> bool 
+            auto compare = [](const std::pair<std::size_t, float> &nt1, 
+                             const std::pair<std::size_t, float> &nt2) -> bool 
             {
                 // VV: descending order
                 return nt1.second > nt2.second;
@@ -350,38 +368,41 @@ struct internode_optimizer_t
 
             std::sort(sorted.begin(), sorted.end(), compare);
 
-
-            double avg_n = 0.0;
+            float avg_n = 0.0;
             auto it = sorted.begin();
             for (std::size_t i=0u; i<balance_top_N; ++i, ++it)
             {
                 avg_n += it->second;
-                std::cout << "top_N " << it->first
-                          << " time " << it->second << std::endl;
+                // std::cerr << "top_N " << it->first
+                //           << " time " << it->second << std::endl;
             }
 
             avg_n /= balance_top_N;
 
-            double avg_k = 0.0;
+            float avg_k = 0.0;
             
             auto rit = sorted.rbegin();
             for (std::size_t i=0u; i<balance_bottom_K; ++i, ++rit)
             {   
                 avg_k += rit->second;
 
-                std::cout << "bottomK " << rit->first 
-                          << " time " << rit->second << std::endl;
+                // std::cerr << "bottomK " << rit->first 
+                //           << " time " << rit->second << std::endl;
             }
             avg_k /= balance_bottom_K;
 
-            std::cout << "avg_n - avg_k = " << 
+            #ifdef INO_DEBUG_DECIDE_SCHEDULE
+            std::cerr << "avg_n - avg_k = " << 
                         avg_n << " - " << avg_k << " = " << avg_n - avg_k 
                         <<  " comp with " << threshold << std::endl;
-            
+            #endif
 
             // VV: Check if there's enough difference in time to warrant 
             //     redistribution of tasks among N, K node sets
-            if ( avg_n - avg_k >= threshold )
+            auto diff = avg_n - avg_k;
+            diff *= diff;
+
+            if ( diff >= threshold && threshold > 0.01f )
             {   
                 std::size_t total = (std::size_t) sorted.size();
 
@@ -393,7 +414,7 @@ struct internode_optimizer_t
                     {
                         expected_node_load.push_back(node_load_t(it->first, 0.0));
 
-                        double cost = work_item_load[it->first];
+                        float cost = work_item_load[it->first];
 
                         if ( i < balance_top_N )
                         {
@@ -422,7 +443,7 @@ struct internode_optimizer_t
             // VV: Assign task to least loaded node. (Nodes could be oversubscribed)
             for (const auto cost_wi : all_tasks)
             {
-                // cost_wi = <double, wi> (cost and work_item)
+                // cost_wi = <float, wi> (cost and work_item)
 
                 if (expected_node_load[0].load > expected_node_load[1].load)
                 {
@@ -454,7 +475,7 @@ struct internode_optimizer_t
         }
         else if (expected_node_load.size() == 1)
         {
-            double total_cost = 0.0;
+            float total_cost = 0.0;
             // VV: Special case for single-node configurations
             node_load_t &target_node = expected_node_load.at(0);
 
@@ -477,36 +498,38 @@ struct internode_optimizer_t
                 it = expected_node_load.erase(it);
             else
                 ++ it;
-    
+
+        #ifdef INO_DEBUG_DECIDE_SCHEDULE
         if (expected_node_load.size())
         {
-            std::cout << "Target: " << ino_knobs.u_nodes
+            std::cerr << "Target: " << ino_knobs.u_nodes
                       << " total nodes " << node_loads.size()
                       << std::endl;
             for (auto node_load : expected_node_load)
             {
-                std::cout << "Node " << node_load.node
+                std::cerr << "Node " << node_load.node
                           << " load " << node_load.load << std::endl;
             }
 
             for (auto sched : new_schedule)
             {
-                std::cout << "Schedule for node " << sched.first << ": ";
+                std::cerr << "Schedule for node " << sched.first << ": ";
                 for (auto wi : sched.second.v_work_items)
                 {
-                    std::cout << wi << " ";
+                    std::cerr << wi << " ";
                 }
-                std::cout << std::endl;
+                std::cerr << std::endl;
             }
         }
+        #endif
 
         return new_schedule;
     }
 
     void record_point(const ino_knobs_t &knobs,
-                      const std::vector<double> &measure_load,
-                      const std::vector<double> &measure_time,
-                      const std::vector<double> &measure_energy);
+                      const std::vector<float> &measure_load,
+                      const std::vector<float> &measure_time,
+                      const std::vector<float> &measure_energy);
 
     /*VV: Utilities*/
   protected:
@@ -521,7 +544,7 @@ struct internode_optimizer_t
 
     std::size_t u_nodes, u_min_nodes, u_max_nodes;
     std::size_t u_choices, u_history_interval, u_history_tick;
-    double d_target, d_leeway;
+    float d_target, d_leeway;
 
     // VV: <number_of_nodes, pareto_entry>
 

@@ -1,7 +1,7 @@
 #include <cmath>
 #include <iostream>
 #include <algorithm>
-#include "allscale/components/internodeoptimizer.hpp"
+#include <allscale/components/internodeoptimizer.hpp>
 
 // https://stackoverflow.com/a/6943003
 template <typename I>
@@ -30,7 +30,7 @@ namespace components
 {
 
 internode_optimizer_t::internode_optimizer_t(std::size_t nodes,
-                                           double target, double leeway,
+                                           float target, float leeway,
                                            std::size_t reset_history_every)
     : c_last_choice({0}), u_nodes(nodes), u_choices(0),
       u_history_interval(reset_history_every), u_history_tick(0),
@@ -48,10 +48,11 @@ internode_optimizer_t::internode_optimizer_t(std::size_t nodes,
     }
 }
 
-ino_knobs_t internode_optimizer_t::balance(const std::vector<double> &measure_load,
-                                           const std::vector<double> &measure_time,
-                                           const std::vector<double> &measure_energy,
-                                           const ino_knobs_t *previous_decision)
+ino_knobs_t 
+internode_optimizer_t::get_node_configuration(const std::vector<float> &measure_load,
+                                              const std::vector<float> &measure_time,
+                                              const std::vector<float> &measure_energy,
+                                              const ino_knobs_t *previous_decision)
 {
     if (previous_decision == nullptr && u_choices > 0)
         previous_decision = &c_last_choice;
@@ -186,9 +187,9 @@ ino_knobs_t internode_optimizer_t::get_best()
 }
 
 void internode_optimizer_t::record_point(const ino_knobs_t &knobs,
-                                         const std::vector<double> &measure_load,
-                                         const std::vector<double> &measure_time,
-                                         const std::vector<double> &measure_energy)
+                                         const std::vector<float> &measure_load,
+                                         const std::vector<float> &measure_time,
+                                         const std::vector<float> &measure_energy)
 {
     // static unsigned int cheat = 0;
     // cheat += 1u;
@@ -205,9 +206,9 @@ void internode_optimizer_t::record_point(const ino_knobs_t &knobs,
     {
         // VV: Already used this in the past, update it and record the new history tick
         it->second.u_at_tick = u_history_tick;
-        it->second.v_load = std::vector<double>(measure_load);
-        it->second.v_time = std::vector<double>(measure_time);
-        it->second.v_energy = std::vector<double>(measure_energy);
+        it->second.v_load = std::vector<float>(measure_load);
+        it->second.v_time = std::vector<float>(measure_time);
+        it->second.v_energy = std::vector<float>(measure_energy);
     }
 }
 

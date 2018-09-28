@@ -3,7 +3,7 @@
 #define ALLSCALE_OPTIMIZER_HPP
 
 #include <allscale/get_num_localities.hpp>
-
+#include <allscale/components/internodeoptimizer.hpp>
 #include <hpx/lcos/future.hpp>
 #include <hpx/traits/is_bitwise_serializable.hpp>
 
@@ -70,16 +70,19 @@ namespace allscale {
 
         optimizer_state(float l, 
                         float avg_last_iterations_time, 
+                        unsigned long long energy,
                         float freq,
                         std::size_t cores)
           : load(l)
           , avg_time(avg_last_iterations_time)
+          , energy(energy)
           , active_frequency(freq)
           , cores_per_node(cores)
         {}
 
         float load;
         float avg_time;
+        unsigned long long energy;
         float active_frequency;
         std::size_t cores_per_node;
 
@@ -108,7 +111,9 @@ namespace allscale {
         }
 
         hpx::future<void> balance(bool);
+        hpx::future<void> balance_ino(const std::vector<std::size_t> &old_mapping);
 
+        std::size_t u_balance_every;
     private:
         void tune(std::vector<optimizer_state> const& state);
 
@@ -126,6 +131,10 @@ namespace allscale {
 
         tuning_objective objective_;
         std::vector<hpx::id_type> localities_;
+
+        float f_resource_max, f_resource_leeway;
+
+        components::internode_optimizer_t o_ino;
     };
 }
 

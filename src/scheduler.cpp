@@ -153,6 +153,12 @@ namespace allscale
                 static_,
                 dynamic,
                 tuned,
+                /* VV: This is for the multi-objective InterNode-Optimizer (INO)
+                 * ALLSCALE_SCHEDULING_POLICY = ino
+                 * ALLSCALE_RESOURCE_MAX = (0.0, 1.0) // maximum allowed resources to use
+                 * ALLSCALE_RESOURCE_LEEWAY = (0.0, 1.0) // extra percentage allowed to explore
+                 */
+                ino,
                 random
             };
 
@@ -181,6 +187,12 @@ namespace allscale
                             allscale::get_num_numa_nodes(), allscale::get_num_localities())
                     };
                 }
+                if (strncasecmp("ino", env, 3) == 0)
+                    return {
+                        replacable_policy::ino,
+                        tree_scheduling_policy::create_uniform(
+                            allscale::get_num_numa_nodes(), allscale::get_num_localities())
+                    };
                 if (env == std::string("tuned"))
                 {
                     return {
@@ -270,6 +282,12 @@ namespace allscale
             }
         }
 
+        void apply_new_mapping(const std::vector<std::size_t> &new_mapping)
+        {
+            policy_.policy_ = tree_scheduling_policy::from_mapping(*policy_.policy_,
+                                                                    new_mapping);
+        }
+
         void update_policy(std::vector<optimizer_state> const& state, std::vector<bool> mask)
         {
             std::lock_guard<mutex_type> l(mtx_);
@@ -280,6 +298,8 @@ namespace allscale
 
         void schedule(work_item work)
         {
+            static std::size_t work_items_scheduled = 0;
+
             auto reqs = work.get_task_requirements();
 
             if (policy_.value_ == replacable_policy::dynamic &&
@@ -293,6 +313,19 @@ namespace allscale
             {
                 optimizer_.balance(true);
             }
+
+            if (policy_.value_ == replacable_policy::ino && work.id().is_root())
+            {
+                if (work_items_scheduled > 0 && (work_items_scheduled % optimizer_.u_balance_every == 0))
+                {   
+                    tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(*policy_.policy_);
+                    optimizer_.balance_ino(old.task_distribution_mapping());
+                } else {
+                    std::cerr << "Too few steps to balance" << std::endl;
+                }
+            }
+
+            work_items_scheduled ++;     
 
             if (!work.enqueue_remote())
             {
@@ -469,6 +502,16 @@ namespace allscale
             [&](scheduler_service& sched)
             {
                 sched.update_policy(state, mask);
+            }
+        );
+    }
+
+    void scheduler::apply_new_mapping(const std::vector<std::size_t> &new_mapping)
+    {
+        runtime::HierarchicalOverlayNetwork::forAllLocal<scheduler_service>(
+            [&](scheduler_service& sched)
+            {
+                sched.apply_new_mapping(new_mapping);
             }
         );
     }

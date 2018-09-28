@@ -41,6 +41,8 @@ namespace allscale
 
         static void update_policy(std::vector<optimizer_state> const& state, std::vector<bool> mask);
 
+        static void apply_new_mapping(const std::vector<std::size_t> &new_mapping);
+
         static void schedule(work_item&& work);
         static components::scheduler* run(std::size_t rank);
         static void stop();

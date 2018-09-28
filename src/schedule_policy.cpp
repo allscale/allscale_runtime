@@ -1,12 +1,9 @@
 
 #include <allscale/schedule_policy.hpp>
-#include <allscale/components/internodeoptimizer.hpp>
 #include "allscale/utils/assert.h"
 #include "allscale/utils/printer/vectors.h"
 
 #include <iostream>
-
-// #define OLD_BALANCE
 
 namespace allscale {
     namespace {
@@ -287,11 +284,11 @@ namespace allscale {
         float share = total_costs / available_nodes;
         std::vector<std::size_t> new_mapping(mapping.size());
 
-        #ifdef OLD_BALANCE
         float cur_costs = 0;
         float next_goal = share;
         std::size_t cur_node = 0;
         while(!mask[cur_node]) cur_node++;
+        std::map<std::size_t, std::vector<std::size_t> > new_schedule;
 
         for(std::size_t i=0; i<mapping.size(); i++)
         {
@@ -314,35 +311,18 @@ namespace allscale {
             // else, just add current task to current node
             new_mapping[i] = cur_node;
             cur_costs = next_costs;
-        }
-        #else
-        std::map<std::size_t, std::vector<std::size_t> > node_map;
-        std::map<std::size_t, double> node_loads, node_times;
-        
-        // VV: Create node_map from mapping
-        std::size_t idx = 0ul;
-
-        for (auto it = mapping.begin(); it != mapping.end(); ++it, ++idx )
-            node_map[*it].push_back(idx);
-        
-        // VV: Create node_loads, and node_times from optimizer_state
-        idx = 0ul;
-        for (const auto &node:state) {
-            node_loads[idx] = node.load;
-            node_times[idx++] = node.avg_time;
+            new_schedule[cur_node].push_back(i);
         }
 
-        auto ino_schedule = components::internode_optimizer_t\
-                    ::decide_schedule(node_map, 
-                                      node_loads, 
-                                      node_times, 
-                                      {available_nodes});
-        
-        for (const auto & node_wis:ino_schedule)
-            for (const auto &wi:node_wis.second.v_work_items)
-                new_mapping[wi] = node_wis.first;
-        
-        #endif
+        for (const auto &sched : new_schedule)
+            {
+                std::cerr << "Schedule for node " << sched.first << ": ";
+                for (const auto &wi : sched.second)
+                {
+                    std::cerr << wi << " ";
+                }
+                std::cerr << std::endl;
+            }
         // for development, to estimate quality:
 
         const bool DEBUG_FLAG = false;
@@ -405,11 +385,27 @@ namespace allscale {
 
         // create new scheduling policy
         auto log2 = old.root_.getLayer();
-//         std::cerr << "create rebalance policy: " << (1<<log2) << "\n";
+        //         std::cerr << "create rebalance policy: " << (1<<log2) << "\n";
 
         return std::unique_ptr<scheduling_policy>(new tree_scheduling_policy(
             old.root_, old.granularity_,
             toDecisionTree((1<<log2),new_mapping)));
+    }
+
+    std::unique_ptr<scheduling_policy> 
+    tree_scheduling_policy::from_mapping(const scheduling_policy& old_base, 
+                                        const std::vector<std::size_t> &mapping)
+    {
+        tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(old_base);
+        auto log2 = old.root_.getLayer();
+        
+        return std::unique_ptr<scheduling_policy>(
+                new tree_scheduling_policy(
+                                            old.root_, 
+                                            old.granularity_,
+                                            toDecisionTree((1<<log2),mapping)
+                                        )
+                );
     }
 
     namespace {
