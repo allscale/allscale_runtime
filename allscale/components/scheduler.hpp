@@ -128,7 +128,7 @@ namespace allscale { namespace components {
         std::atomic<std::size_t> current_;
 
         // This is the depth where we don't want to split anymore...
-        std::vector<std::size_t> depth_cut_off_;
+        std::size_t depth_cut_off_;
 
         // resources tracking
         std::size_t os_thread_count; // initial (max) resources
