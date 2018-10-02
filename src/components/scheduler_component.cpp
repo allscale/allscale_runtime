@@ -195,25 +195,23 @@ void scheduler::init() {
   rp_ = &hpx::resource::get_partitioner();
   topo_ = &hpx::threads::get_topology();
 
-  depth_cut_off_.resize(get_num_numa_nodes());
   std::size_t num_cores = 0;
-  for(std::size_t i = 0; i < depth_cut_off_.size(); ++i)
+  for(std::size_t i = 0; i < allscale::get_num_numa_nodes(); ++i)
   {
       num_cores += get_num_numa_cores(i) + 1;
   }
-  for(std::size_t i = 0; i < depth_cut_off_.size(); ++i)
+  if (num_cores == 1) depth_cut_off_ = 1;
+  else
   {
-      if (num_cores == 1) depth_cut_off_[i] = 1;
-      else
-      {
-          depth_cut_off_[i] =
-            std::ceil(
-                std::log2(
-                    num_cores * allscale::get_num_localities()
-                )
-            );
-      }
+      depth_cut_off_ =
+        std::ceil(
+//             std::pow(num_cores + allscale::get_num_localities() + allscale::get_num_numa_nodes(), 1.5)
+            std::log2(
+                num_cores * allscale::get_num_localities()
+            )
+        );
   }
+  std::cerr << "Depth cut off: " << depth_cut_off_ << "\n";
 
   // Reading user provided options in terms of desired optimization objectives
   std::string input_objective_str =
@@ -889,7 +887,7 @@ bool scheduler::do_split(work_item const &w, std::size_t numa_node) {
     // Check if we reached the required depth
     // FIXME: make the cut off runtime configurable...
     // FIXME:!!!!!!!
-    if (w.id().depth() < depth_cut_off_[numa_node]) {
+    if (w.id().depth() < depth_cut_off_) {
 //         std::cout << "
       // FIXME: add more elaborate splitting criterions
       return true;
@@ -1068,10 +1066,10 @@ unsigned int scheduler::suspend_threads(std::size_t suspendthreads) {
   // Setting the default thread depths of the NUMA domain
   {
       std::size_t num_cores = get_num_numa_cores(pool_idx) - suspend_threads.size();
-      if (num_cores == 1) depth_cut_off_[pool_idx] = 1;
+      if (num_cores == 1) depth_cut_off_ = 1;
       else
       {
-          depth_cut_off_[pool_idx] =
+          depth_cut_off_ =
             std::lround(
                 std::log2(
                     std::pow(num_cores + allscale::get_num_localities() + allscale::get_num_numa_nodes(), 1.5)
@@ -1252,10 +1250,10 @@ unsigned int scheduler::resume_threads(std::size_t resumethreads) {
   // Setting the default thread depths of the NUMA domain
   {
       std::size_t num_cores = get_num_numa_cores(pool_idx) - resume_threads.size();
-      if (num_cores == 1) depth_cut_off_[pool_idx] = 1;
+      if (num_cores == 1) depth_cut_off_ = 1;
       else
       {
-          depth_cut_off_[pool_idx] =
+          depth_cut_off_ =
             std::lround(
                 std::log2(
                     std::pow(num_cores + allscale::get_num_localities() + allscale::get_num_numa_nodes(), 1.5)
