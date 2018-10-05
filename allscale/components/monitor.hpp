@@ -293,12 +293,31 @@ namespace allscale { namespace components {
            std::uint64_t get_consumed_memory();
 
            /// \brief This function returns the bytes sent via network by the locality
-           //           //           /// \returns   Data sent in bytes by the locality
+           //           /// \returns   Data sent in bytes by the locality
            std::uint64_t get_network_out();
 
            /// \brief This function returns the bytes received via network by the locality
-           //           //           //           /// \returns   Data received in bytes by the locality
+           //           /// \returns   Data received in bytes by the locality
            std::uint64_t get_network_in();
+
+           /// \brief This function returns the current frequency for the CPU cpuid
+           //            /// \returns  Current frequency of cpuid 
+	   std::uint64_t get_current_freq(int cpuid);
+
+   
+           /// \brief This function returns the min frequency for the CPU cpuid
+           //            /// \returns  Min frequency of cpuid 
+           std::uint64_t get_min_freq(int cpuid);
+
+
+           /// \brief This function returns the max frequency for the CPU cpuid
+           //            /// \returns  Max frequency of cpuid 
+           std::uint64_t get_max_freq(int cpuid);
+
+
+           /// \brief This function returns the available frequencies for the CPU cpuid
+           //            /// \returns  Available frequencies for cpuid 
+	   std::vector<std::uint64_t> get_available_freqs(int cpuid);
 
 
            // Functions related to system/node metrics
@@ -334,6 +353,9 @@ namespace allscale { namespace components {
              unsigned long long total_memory_;
 
              int num_cpus_;
+             std::map<int, std::vector<std::uint64_t>> cpu_frequencies;
+             void get_cpus_info();
+
 
              // Monitor neighbours
 //             hpx::id_type left_;
@@ -422,6 +444,7 @@ namespace allscale { namespace components {
              std::uint64_t last_user_time, last_nice_time, last_system_time;
              std::uint64_t last_idle_time;
              float cpu_load_;
+
 
              void print_heatmap(const char *file_name, std::vector<std::vector<double>> &buffer);
 

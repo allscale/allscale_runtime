@@ -226,6 +226,62 @@ namespace allscale { namespace components {
    }
 
 
+   std::uint64_t monitor::get_current_freq(int cpuid)
+   {
+      static const char * file_name = "/sys/devices/system/cpu/cpu%d/cpufreq/scaling_cur_freq";
+      std::uint64_t freq_in_KHz = 0;
+
+      std::ifstream file(boost::str(boost::format(file_name) % cpuid));
+
+      if(!file) {
+	 std::cerr << "Cannot read frequency from /sys/devices for CPU " << cpuid << std::endl;
+	 return 0;
+      }
+
+      file >> freq_in_KHz;
+
+      file.close();
+      return freq_in_KHz;
+   }
+
+
+   std::uint64_t monitor::get_min_freq(int cpuid)
+   {
+      std::map<int, std::vector<std::uint64_t>>::iterator it;
+
+      it = cpu_frequencies.find(cpuid);
+      if(it != cpu_frequencies.end()) 
+	 return (it->second).front();
+      else 
+	 return 0;
+   }
+
+
+   std::uint64_t monitor::get_max_freq(int cpuid)
+   {
+      std::map<int, std::vector<std::uint64_t>>::iterator it;
+
+      it = cpu_frequencies.find(cpuid);
+      if(it != cpu_frequencies.end())
+         return (it->second).back();
+      else
+         return 0;
+   }
+
+
+   std::vector<std::uint64_t> monitor::get_available_freqs(int cpuid)
+   {
+      std::map<int, std::vector<std::uint64_t>>::iterator it;
+
+      it = cpu_frequencies.find(cpuid);
+      if(it != cpu_frequencies.end())
+         return it->second;
+      else
+         return std::vector<std::uint64_t>();
+   }
+
+
+
    std::uint64_t monitor::get_network_out()
    {
       std::unique_lock<std::mutex> lock(sampling_mutex);
@@ -239,6 +295,64 @@ namespace allscale { namespace components {
       return bytes_recv_;
    }
 
+
+
+   // Reading cpu info from system
+   void monitor::get_cpus_info()
+   {
+      static const char * avail_freq_filename = "/sys/devices/system/cpu/cpu%d/cpufreq/scaling_available_frequencies";
+      static const char * min_freq_filename = "/sys/devices/system/cpu/cpu%d/cpufreq/scaling_min_freq";
+      static const char * max_freq_filename = "/sys/devices/system/cpu/cpu%d/cpufreq/scaling_max_freq";
+
+      std::uint64_t freq_in_KHz = 0;
+      std::vector<std::uint64_t> freqs;
+
+      num_cpus_ = std::thread::hardware_concurrency();
+
+
+      for(int i = 0; i < num_cpus_; i++) {
+	 std::ifstream avail_freq_file(boost::str(boost::format(avail_freq_filename) % i));
+     
+
+         if(!avail_freq_file) {     // File not available, get min and max via the other two files
+
+//            std::cerr << "Warning: Cannot read avail frequencies from /sys/devices/system/cpu for CPU " 
+//                      << i 
+//                      << ". Looking into scaling_min_freq and scaling_max_freq files\n";
+
+            std::ifstream min_freq_file(boost::str(boost::format(min_freq_filename) % i));   
+
+	    if(!min_freq_file) {
+		std::cerr << "Warning: Cannot read min frequency from /sys/devices/system/cpu for CPU " << i << std::endl;
+                freq_in_KHz = 0; 
+	    }
+	    else min_freq_file >> freq_in_KHz;
+
+            freqs.push_back(freq_in_KHz); 
+
+            std::ifstream max_freq_file(boost::str(boost::format(max_freq_filename) % i));    
+         
+            if(!max_freq_file) {
+                std::cerr << "Warning: Cannot read max frequency from /sys/devices/system/cpu for CPU " << i << std::endl;
+                freq_in_KHz = 0;
+            }
+	    else max_freq_file >> freq_in_KHz;
+
+            freqs.push_back(freq_in_KHz);
+
+            cpu_frequencies.insert( std::pair<int, std::vector<std::uint64_t>>(i, freqs) );
+            freqs.clear();
+         }
+         else {      // Read the values from the file and put them in the vector of freqs
+	    while(avail_freq_file >> freq_in_KHz) 
+		freqs.push_back(freq_in_KHz);
+            
+            cpu_frequencies.insert( std::pair<int, std::vector<std::uint64_t>>(i, freqs) );
+            freqs.clear();
+         }
+      }
+
+   }
 
 
    // Additional sampler thread
@@ -305,7 +419,6 @@ namespace allscale { namespace components {
        if(pstat.is_open()) {
            pstat.seekg(0, std::ios::beg);
            pstat >> foo_word >> user_time >> nice_time >> system_time >> idle_time;
-//           std::cerr << "HE llegit " << user_time << " " << nice_time << " " << system_time << " " << idle_time << std::endl;
        }
 
 
@@ -1896,9 +2009,8 @@ namespace allscale { namespace components {
 
       // Read system info
 
-      // Number of available processors
-      num_cpus_ = std::thread::hardware_concurrency();
-
+      // CPUs available and frequencies 
+      get_cpus_info();
 
       // Total memory
       FILE *proc_f = fopen("/proc/meminfo", "r");
