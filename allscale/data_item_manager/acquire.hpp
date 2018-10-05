@@ -71,6 +71,7 @@ namespace allscale { namespace data_item_manager {
             using mutex_type = typename data_item_store<data_item_type>::data_item_type::mutex_type;
 
             HPX_ASSERT(addr.getRank() == hpx::get_locality_id());
+            HPX_ASSERT(addr.isLeaf());
 
             HPX_ASSERT(!req.region.empty());
 

@@ -38,8 +38,8 @@ namespace allscale
     }
 }
 
-HPX_PLAIN_ACTION(allscale::get_optimizer_state, allscale_get_optimizer_state_action);
-HPX_PLAIN_ACTION(allscale::optimizer_update_policy, allscale_optimizer_update_policy_action);
+HPX_PLAIN_DIRECT_ACTION(allscale::get_optimizer_state, allscale_get_optimizer_state_action);
+HPX_PLAIN_DIRECT_ACTION(allscale::optimizer_update_policy, allscale_optimizer_update_policy_action);
 
 namespace allscale
 {
@@ -258,11 +258,12 @@ namespace allscale
                         [this](optimizer_state const& lhs, optimizer_state const& rhs)
                         {
                             return optimizer_state(
-                                (lhs.load + rhs.load) / num_active_nodes_,
+                                (lhs.load + rhs.load),
                                 (lhs.active_frequency + rhs.active_frequency) / num_active_nodes_,
                                 (lhs.cores_per_node + rhs.cores_per_node) / num_active_nodes_);
                         }
                     );
+                    avg_state.load = avg_state.load / num_active_nodes_;
 
                     float sum_dist = 0.f;
                     for(std::size_t i=0; i<num_active_nodes_; i++)

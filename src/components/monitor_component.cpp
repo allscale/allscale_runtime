@@ -1,6 +1,7 @@
 #include <allscale/components/monitor.hpp>
 #include <allscale/monitor.hpp>
 #include <allscale/dashboard.hpp>
+#include <allscale/get_num_numa_nodes.hpp>
 
 #include <math.h>
 #include <limits>
@@ -125,7 +126,7 @@ namespace allscale { namespace components {
 
      std::unique_lock<std::mutex> lock(counter_mutex_);
 
-     idle_rate_ = idle_value.get_value<double>() * 0.01;
+     idle_rate_ = (idle_value.get_value<double>() * 0.01) / get_num_numa_nodes();
      resident_memory_ = rss_value.get_value<double>() * 1e-6;
 
      data_file << sample_id_++ << "\t" << num_active_tasks_ << "\t"
@@ -403,7 +404,7 @@ namespace allscale { namespace components {
        }
 
 
-       if(rate_counter_registered_) rate_value = idle_value.get_value<double>() * 0.01;
+       if(rate_counter_registered_) rate_value = (idle_value.get_value<double>() * 0.01) / get_num_numa_nodes();
        if(memory_counter_registered_) memory_value = rss_value.get_value<std::uint64_t>();
        if(network_mpi_counters_registered_) {
 	  network_in_mpi = network_in_mpi_value.get_value<std::uint64_t>();
