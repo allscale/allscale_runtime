@@ -159,7 +159,8 @@ namespace allscale
                  * ALLSCALE_RESOURCE_LEEWAY = (0.0, 1.0) // extra percentage allowed to explore
                  */
                 ino,
-                random
+                random,
+                truly_random
             };
 
             policy_value value_;
@@ -206,6 +207,13 @@ namespace allscale
                     return {
                         replacable_policy::random,
                         std::unique_ptr<scheduling_policy>(new random_scheduling_policy())
+                    };
+                }
+                if ( env == std::string("truly_random") ) {
+                    return  {
+                        replacable_policy::truly_random,
+                        tree_scheduling_policy::create_uniform(
+                            allscale::get_num_numa_nodes(), allscale::get_num_localities())
                     };
                 }
             }
@@ -299,7 +307,6 @@ namespace allscale
 
         void schedule(work_item work)
         {
-            static std::size_t work_items_scheduled = 0;
             if (policy_.value_ == replacable_policy::dynamic &&
                 work.id().is_root() && work.id().id > 0 && (work.id().id % 10 == 0))
             {
@@ -314,7 +321,7 @@ namespace allscale
 
             if (policy_.value_ == replacable_policy::ino && work.id().is_root())
             {
-                if (work_items_scheduled % optimizer_.u_balance_every == 0)
+                if (optimizer_.may_rebalance())
                 {
                     tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(*policy_.policy_);
                     optimizer_.balance_ino(old.task_distribution_mapping());
@@ -323,7 +330,13 @@ namespace allscale
                 }
             }
 
-            work_items_scheduled ++;
+            if (policy_.value_ == replacable_policy::truly_random && work.id().is_root())
+            {
+                if (optimizer_.may_rebalance()) {
+                    tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(*policy_.policy_);
+                    optimizer_.decide_random_mapping(old.task_distribution_mapping());
+                }
+            }
 
             auto reqs = work.get_task_requirements();
             if (!work.enqueue_remote())

@@ -145,7 +145,7 @@ float estimate_power(float frequency)
 global_optimizer::global_optimizer()
     : num_active_nodes_(allscale::get_num_localities()), best_(0, 1.f), best_score_(0.0f), active_(true), objective_(get_default_objective()), localities_(hpx::find_all_localities()),
     f_resource_max(-1.0f), f_resource_leeway(-1.0f),
-    u_balance_every(10)
+    u_balance_every(10), u_steps_till_rebalance(u_balance_every)
 {
     char *const c_policy = std::getenv("ALLSCALE_SCHEDULING_POLICY");
 
@@ -172,6 +172,13 @@ global_optimizer::global_optimizer()
                                                             (double) f_resource_max,
                                                             (double) f_resource_leeway,
                                                             INO_DEFAULT_FORGET_AFTER);
+    } else if ( strncasecmp(c_policy, "truly_random", 12) == 0 ) {
+        char *const c_balance_every = std::getenv("ALLSCALE_TRULY_RANDOM_BALANCE_EVERY");
+
+        if ( c_balance_every ) {
+            u_balance_every = (std::size_t) atoi(c_balance_every);
+            u_steps_till_rebalance = u_balance_every;
+        }
     }
 }
 
@@ -384,11 +391,53 @@ hpx::future<void> global_optimizer::balance(bool tuned)
             });
 }
 
+bool global_optimizer::may_rebalance()
+{
+    if (u_steps_till_rebalance) {
+        u_steps_till_rebalance --;
+        return false;
+    }
+
+    return true;
+}
+
+hpx::future<void> global_optimizer::decide_random_mapping(const std::vector<std::size_t> &old_mapping)
+{
+    auto num_localities = localities_.size();
+
+    auto get_random_node = [num_localities] () -> std::size_t {
+        static std::random_device rd;
+        static std::mt19937 rng(rd()); 
+        static std::uniform_int_distribution<std::size_t> random_uid(0, num_localities-1);
+        return random_uid(rng);
+    };
+    
+    u_steps_till_rebalance = u_balance_every;
+
+    return hpx::lcos::broadcast<allscale_get_optimizer_state_action>(localities_)
+        .then(
+            [this, old_mapping, get_random_node](hpx::future<std::vector<optimizer_state> > future_state) {
+                auto new_mapping = std::vector<std::size_t>(old_mapping.size(), 0ul);
+                std::transform(new_mapping.begin(), new_mapping.end(), new_mapping.begin(),
+                [get_random_node](std::size_t dummy) -> std::size_t {
+                    return get_random_node();
+                });
+                std::cerr << "New random schedule: (every " << u_balance_every << ") ";
+                for ( const auto & wi:new_mapping )
+                    std::cerr << wi << ' ';
+                std::cerr << std::endl;
+
+                hpx::lcos::broadcast_apply<allscale_optimizer_update_policy_action_ino>(localities_, new_mapping);
+            }
+        );
+}
+
 hpx::future<void> global_optimizer::balance_ino(const std::vector<std::size_t> &old_mapping)
 {
     /*VV: Compute the new ino_knobs (i.e. number of Nodes), then assign tasks to
           nodes and broadcast the scheduling information to all nodes.
     */
+    u_steps_till_rebalance = u_balance_every;
     return hpx::lcos::broadcast<allscale_get_optimizer_state_action>(localities_)
         .then(
             [this, old_mapping](hpx::future<std::vector<optimizer_state> > future_state) {

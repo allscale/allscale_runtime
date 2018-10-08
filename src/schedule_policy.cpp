@@ -451,28 +451,21 @@ namespace allscale {
         if (addr == root_) return true;
 
         // base case - the root path
-        if (path.isRoot())
-        {
-            // trace out the path of the root node
-            auto cur = root_;
-            auto d = schedule_decision::left;
-            while (d != schedule_decision::stay && d != schedule_decision::done && !cur.isLeaf())
-            {
-                // move on one step
-                switch (d = decide(cur, path))
-                {
-                    case schedule_decision::left: cur = cur.getLeftChild(); break;
-                    case schedule_decision::right: cur = cur.getRightChild(); break;
-                    case schedule_decision::stay: /* do nothing */ break;
-                    case schedule_decision::done: /* do nothing */ break;
-                }
+        // VV: Applying hotfix from https://goedis.dps.uibk.ac.at/herbert.jordan/allscale_runtime_prototype/commit/a066742294564642a89cbb92af1f86c61fb25b82
 
-                if (cur == addr) return true;
-            }
+        if (path.isRoot()) {
 
-            // not passed by
-            return false;
-        }
+			switch(decide(root_,path)) {
+			case (schedule_decision::stay)  : return false;
+			case (schedule_decision::left)  : return addr == root_.getLeftChild();
+			case (schedule_decision::right) : return addr == root_.getRightChild();
+			default: return false;
+			}
+
+			// not passed by
+			return false;
+		}
+
         // TODO: implement this in O(logN) instead of O(logN^2)
 
         // either the given address is involved in the parent or this node
@@ -490,7 +483,7 @@ namespace allscale {
         auto cur = path;
         while(true) {
             // for the root path, the decision is clear
-            if (cur.isRoot()) return tree_.get(cur);
+            if (cur.isRoot()) return (root_ == addr) ? tree_.get(cur) : schedule_decision::stay;
 
             // see whether the addressed node is the node targeted by the parent path
             auto parent = cur.getParentPath();
@@ -507,8 +500,20 @@ namespace allscale {
 
     runtime::HierarchyAddress tree_scheduling_policy::get_target(const task_id::task_path& path) const
     {
+        // VV: Applying hotfix from https://goedis.dps.uibk.ac.at/herbert.jordan/allscale_runtime_prototype/commit/a066742294564642a89cbb92af1f86c61fb25b82
+        // special case: root path
+		if (path.isRoot()) {
+
+			// determine target node of root task
+			switch(decide(root_,path)) {
+			case schedule_decision::left : return root_.getLeftChild();
+			case schedule_decision::right : return root_.getRightChild();
+			default: return root_;
+			}
+		}
+
         // get location of parent task
-        auto res = (path.isRoot()) ? root_ : get_target(path.getParentPath());
+        auto res = get_target(path.getParentPath());
 
         // simulate scheduling
         switch(decide(res,path)) {

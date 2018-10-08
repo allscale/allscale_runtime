@@ -112,9 +112,13 @@ namespace allscale {
 
         hpx::future<void> balance(bool);
         hpx::future<void> balance_ino(const std::vector<std::size_t> &old_mapping);
+        hpx::future<void> decide_random_mapping(const std::vector<std::size_t> &old_mapping);
+
+        bool may_rebalance();
 
         std::size_t u_balance_every;
     private:
+        std::size_t u_steps_till_rebalance;
         void tune(std::vector<optimizer_state> const& state);
 
         std::size_t num_active_nodes_;
