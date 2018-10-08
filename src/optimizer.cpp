@@ -23,6 +23,8 @@
 
 #define HISTORY_ITERATIONS 10
 
+#define TRULY_RANDOM_DEBUG
+
 namespace allscale
 {
 optimizer_state get_optimizer_state()
@@ -405,13 +407,43 @@ hpx::future<void> global_optimizer::decide_random_mapping(const std::vector<std:
 {
     auto num_localities = localities_.size();
 
+    // VV: Simulate random nodes leaving/joining the computation
+    static auto exclude = std::vector<std::size_t>();
+    exclude.clear();
+
     auto get_random_node = [num_localities] () -> std::size_t {
         static std::random_device rd;
         static std::mt19937 rng(rd()); 
         static std::uniform_int_distribution<std::size_t> random_uid(0, num_localities-1);
-        return random_uid(rng);
+
+        std::size_t ret = 0ul;
+        std::vector<std::size_t>::const_iterator iter;
+
+        do {
+            ret = random_uid(rng);
+            iter = std::find(exclude.begin(), exclude.end(), ret);
+        } while ( iter != exclude.end() );
+        
+        return ret;
     };
     
+    auto how_many_to_exclude = get_random_node();
+
+    if ( how_many_to_exclude < num_localities ) {
+        #ifdef TRULY_RANDOM_DEBUG
+        std::cerr << "Will exclude " << how_many_to_exclude << " out of " << num_localities << std::endl;
+        #endif
+
+        for (auto i=0ul; i<how_many_to_exclude; ++i) {
+            auto new_exclude = get_random_node();
+            exclude.push_back(new_exclude);
+
+            #ifdef TRULY_RANDOM_DEBUG
+            std::cerr << "Excluded: " << new_exclude << std::endl;
+            #endif
+        }
+    }
+
     u_steps_till_rebalance = u_balance_every;
 
     return hpx::lcos::broadcast<allscale_get_optimizer_state_action>(localities_)
@@ -422,10 +454,13 @@ hpx::future<void> global_optimizer::decide_random_mapping(const std::vector<std:
                 [get_random_node](std::size_t dummy) -> std::size_t {
                     return get_random_node();
                 });
+                
+                #ifdef TRULY_RANDOM_DEBUG
                 std::cerr << "New random schedule: (every " << u_balance_every << ") ";
                 for ( const auto & wi:new_mapping )
                     std::cerr << wi << ' ';
                 std::cerr << std::endl;
+                #endif
 
                 hpx::lcos::broadcast_apply<allscale_optimizer_update_policy_action_ino>(localities_, new_mapping);
             }
