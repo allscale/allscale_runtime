@@ -184,7 +184,7 @@ namespace allscale {
 
     struct random_scheduling_policy : scheduling_policy
     {
-        random_scheduling_policy();
+        random_scheduling_policy(runtime::HierarchyAddress const& root);
 
         // --- the main interface for the scheduler ---
 
@@ -207,6 +207,7 @@ namespace allscale {
 
     private:
         std::size_t cutoff_level_;
+        runtime::HierarchyAddress root_;
 
         mutable std::uniform_real_distribution<> policy;
         mutable std::random_device generator;

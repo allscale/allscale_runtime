@@ -822,6 +822,9 @@ std::pair<work_item, std::unique_ptr<data_item_manager::task_requirements_base>>
 
     std::size_t numa_node = addr.getNumaNode();
 
+    if (!addr.isLeaf()) return std::make_pair(std::move(work), std::move(reqs));
+    reqs->add_allowance(addr);
+
     if (do_split(work, numa_node))
     {
         if (!work.can_split()) {
@@ -846,8 +849,6 @@ std::pair<work_item, std::unique_ptr<data_item_manager::task_requirements_base>>
     }
     else
     {
-        if (!addr.isLeaf()) return std::make_pair(std::move(work), std::move(reqs));
-
         hpx::future<void> acquired = reqs->acquire_process(addr);
         typename hpx::traits::detail::shared_state_ptr_for<
             hpx::future<void>>::type const &state =

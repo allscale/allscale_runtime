@@ -30,8 +30,8 @@ namespace allscale
     void schedule_down_global(runtime::HierarchyAddress addr, work_item work, std::unique_ptr<data_item_manager::task_requirements_base> reqs);
 }
 
-HPX_PLAIN_DIRECT_ACTION(allscale::schedule_global, schedule_global_action);
-HPX_PLAIN_DIRECT_ACTION(allscale::schedule_down_global, schedule_down_global_action);
+HPX_PLAIN_ACTION(allscale::schedule_global, schedule_global_action);
+HPX_PLAIN_ACTION(allscale::schedule_down_global, schedule_down_global_action);
 
 namespace allscale
 {
@@ -193,7 +193,9 @@ namespace allscale
                 {
                     return {
                         replacable_policy::random,
-                        std::unique_ptr<scheduling_policy>(new random_scheduling_policy())
+                        std::unique_ptr<scheduling_policy>(new random_scheduling_policy(
+                            runtime::HierarchyAddress::getRootOfNetworkSize(allscale::get_num_numa_nodes(), allscale::get_num_localities()))
+                        )
                     };
                 }
             }
@@ -309,7 +311,7 @@ namespace allscale
                     // test that this virtual node is allowed to interfere with the scheduling
                     // of this task
                     std::lock_guard<mutex_type> l(mtx_);
-                    is_involved = policy_.policy_->is_involved(here_, path);
+                    is_involved = policy_.policy_->is_involved(here_, (path.isRoot() ? path : path.getParentPath()));
                 }
                 if (is_involved
                     // test that this virtual node has control over all required data
@@ -365,7 +367,6 @@ namespace allscale
             // if this is not involved, send task to parent
             if (!is_involved)
             {
-                reqs->add_allowance(here_);
                 HPX_ASSERT(!is_root_);
                 if (!parent_id_)
                 {
@@ -430,7 +431,6 @@ namespace allscale
 
 //             std::cout << here_ << ' ' << work.name() << "." << work.id() << ": local: " << '\n';
 //             reqs->show();
-            reqs->add_allowance(here_);
             auto res = scheduler::get().schedule_local(
                 std::move(work), std::move(reqs), here_);
             if (!res.first.valid())
@@ -438,8 +438,6 @@ namespace allscale
                 HPX_ASSERT(res.second == nullptr);
                 return;
             }
-
-            std::cerr << "schedule_local descent to left...\n";
 
             HPX_ASSERT(!here_.isLeaf());
 //             std::cout << here_ << ' ' << work.name() << "." << id << ": left: " << '\n';

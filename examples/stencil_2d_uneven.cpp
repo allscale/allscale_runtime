@@ -269,8 +269,16 @@ IMP_allscale_colon__colon_api_colon__colon_user_colon__colon_algorithm_colon__co
 }
 /* ------- Function Definitions --------- */
 int32_t allscale_fun_5(int32_t var_0, char** var_1) {
-    const int32_t var_2 = 3000;
-    const int32_t var_3 = 100;
+    int32_t var_2 = 5000;
+    int32_t var_3 = 100;
+    if (var_0 > 1)
+    {
+        var_2 = std::stoi(var_1[1]);
+    }
+    if (var_0 > 2)
+    {
+        var_3 = std::stoi(var_1[2]);
+    }
     allscale::runtime::DataItemReference<allscale::api::user::data::Grid<int32_t, 2u > > var_4 = allscale::runtime::DataItemManager::create<allscale::api::user::data::Grid<int32_t, 2u > >(allscale::utils::Vector<long, 2 >{(int64_t)var_2, (int64_t)var_2});
     allscale::runtime::DataItemReference<allscale::api::user::data::Grid<int32_t, 2u > > var_5 = allscale::runtime::DataItemManager::create<allscale::api::user::data::Grid<int32_t, 2u > >(allscale::utils::Vector<long, 2 >{(int64_t)var_2, (int64_t)var_2});
 

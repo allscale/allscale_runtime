@@ -498,14 +498,18 @@ namespace allscale {
         return addr == get_target(path);
     }
 
-    random_scheduling_policy::random_scheduling_policy()
-      : cutoff_level_(allscale::get_num_numa_nodes() * allscale::get_num_localities())
+    random_scheduling_policy::random_scheduling_policy(const allscale::runtime::HierarchyAddress& root)
+      : cutoff_level_(allscale::get_num_numa_nodes() * allscale::get_num_localities()), root_(root)
     {}
 
 
     bool random_scheduling_policy::is_involved(const allscale::runtime::HierarchyAddress& addr, const task_id::task_path& path) const
     {
-        return true; // every node may be involved
+        // The root is always involved
+        if (addr == root_) return true;
+
+        // check wether task has been decomposed sufficiently for the current level
+        return int(path.getLength()) - 3 >= int(root_.getLayer()) - int(addr.getLayer());
     }
 
     schedule_decision random_scheduling_policy::decide(runtime::HierarchyAddress const& addr, const task_id::task_path& path) const
@@ -514,18 +518,13 @@ namespace allscale {
 		if (path.getLength() < 3)
             return schedule_decision::stay;
 
-        auto r = policy(generator);
-
-        if (r < 0.33)
-            return schedule_decision::left;
-
-        if (r < 0.66)
-            return schedule_decision::right;
-
-        if (path.getLength() < cutoff_level_)
+        if (int(path.getLength()) - 3 >= int(root_.getLayer()) - int(addr.getLayer()))
+        {
             return schedule_decision::stay;
+        }
 
-        if (r < 0.83)
+        auto r = policy(generator);
+        if (r < 0.5)
             return schedule_decision::left;
 
         return schedule_decision::right;

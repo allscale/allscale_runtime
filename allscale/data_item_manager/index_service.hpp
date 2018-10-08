@@ -203,6 +203,16 @@ namespace allscale { namespace data_item_manager {
                 full_ = region_type::merge(full_, missing);
             }
 
+            // Special case when we only have one node...
+            if (service_->is_root_)
+            {
+                location_info<region_type> info;
+#if defined(HPX_DEBUG)
+                info.add_part(std::size_t(-1), missing);
+#endif
+                return hpx::make_ready_future(std::move(info));
+            }
+
 #if defined(HPX_DEBUG)
             HPX_ASSERT(!missing.empty());
             auto cont =
@@ -309,28 +319,54 @@ namespace allscale { namespace data_item_manager {
                 {
                     HPX_ASSERT(service_->right_ == child);
                     HPX_ASSERT(region_type::intersect(right_, missing).empty());
-                    region_type left = region_type::difference(left_, missing);
-                    if (!left.empty())
-                    {
-                        part = region_type::intersect(missing, left);
-                        // Add the new ownerhsip info
-                        right_ = region_type::merge(right_, part);
-                        left_ = region_type::difference(left_, part);
-                        missing = region_type::difference(missing, part);
-                    }
+                    part = region_type::intersect(missing, left_);
+                    right_ = region_type::merge(right_, missing);
+//                     region_type left = region_type::difference(left_, missing);
+//                     if (!left.empty())
+//                     {
+//                         part = region_type::intersect(missing, left);
+//                         // Add the new ownerhsip info
+//                         right_ = region_type::merge(right_, part);
+//                         left_ = region_type::difference(left_, part);
+//                         missing = region_type::difference(missing, part);
+//                     }
                 }
                 else
                 {
                     HPX_ASSERT(service_->left_ == child);
                     HPX_ASSERT(region_type::intersect(left_, missing).empty());
-                    region_type right = region_type::difference(right_, missing);
-                    if (!right.empty())
+                    part = region_type::intersect(missing, right_);
+                    left_ = region_type::merge(left_, missing);
+//                     region_type right = region_type::difference(right_, missing);
+//                     if (!right.empty())
+//                     {
+//                         part = region_type::intersect(missing, right);
+//                         // Add the new ownerhsip info
+//                         left_ = region_type::merge(left_, part);
+//                         right_ = region_type::difference(right_, part);
+//                         missing = region_type::difference(missing, part);
+//                     }
+                }
+
+                if (!part.empty())
+                {
+//                     HPX_ASSERT(allscale::api::core::isSubRegion(part, full_));
+                    missing = region_type::difference(missing, part);
+
+                    // Remove remaining missing from our ownership list.
+                    left_ = region_type::difference(left_, part);
+                    right_ = region_type::difference(right_, part);
+
+                    // Add the new ownerhsip info
+                    // collect left means, we came from a right child, as such,
+                    // the missing part is now owned by the right child and vice versa
+                    if (collect_left)
                     {
-                        part = region_type::intersect(missing, right);
-                        // Add the new ownerhsip info
+                        right_ = region_type::merge(right_, part);
+                    }
+                    else
+                    {
                         left_ = region_type::merge(left_, part);
-                        right_ = region_type::difference(right_, part);
-                        missing = region_type::difference(missing, part);
                     }
                 }
 
@@ -348,20 +384,30 @@ namespace allscale { namespace data_item_manager {
             // If we haven't covered everything, we need to descend to our parent
             if (!missing.empty())
             {
-                HPX_ASSERT(!service_->is_root_);
-                if (service_->parent_id_)
+                if (service_->is_root_)
                 {
-                    remote_infos.push_back(
-                        hpx::async<acquire_ownership_for_action<requirement_type>>(
-                            service_->parent_id_, service_->parent_, service_->here_,
-                            ref, std::move(missing)));
+#if defined(HPX_DEBUG)
+                    location_info<region_type> info;
+                    info.add_part(std::size_t(-1), missing);
+                    remote_infos.push_back(hpx::make_ready_future(std::move(info)));
+#endif
                 }
                 else
                 {
-                    remote_infos.push_back(
-                        data_item_manager::acquire_ownership_for(
-                            service_->parent_, service_->here_,
-                            ref, std::move(missing)));
+                    if (service_->parent_id_)
+                    {
+                        remote_infos.push_back(
+                            hpx::async<acquire_ownership_for_action<requirement_type>>(
+                                service_->parent_id_, service_->parent_, service_->here_,
+                                ref, std::move(missing)));
+                    }
+                    else
+                    {
+                        remote_infos.push_back(
+                            data_item_manager::acquire_ownership_for(
+                                service_->parent_, service_->here_,
+                                ref, std::move(missing)));
+                    }
                 }
             }
 
