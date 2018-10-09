@@ -75,14 +75,12 @@ namespace allscale
             }
         }
 
-//         std::cerr << "  Scheduling is using " << numa_domains.size() << " NUMA Domains\n";
         rp.set_default_pool_name("allscale-numa-0");
 
         std::size_t domain = 0;
         for (auto& numa: numa_domains)
         {
             std::string pool_name = "allscale-numa-" + std::to_string(domain);
-//             std::cerr << "  Creating \"" << pool_name << "\" thread pool:\n";
 
             rp.create_thread_pool(pool_name,
                 [domain, enable_elasticity](hpx::threads::policies::callback_notifier& notifier,
@@ -103,10 +101,10 @@ namespace allscale
                     hpx::threads::policies::scheduler_mode mode =
                         hpx::threads::policies::scheduler_mode::delay_exit;
 
-                    if (domain == 0)
-                        mode = hpx::threads::policies::scheduler_mode(
-                            hpx::threads::policies::scheduler_mode::do_background_work
-                          | mode);
+                    mode = hpx::threads::policies::scheduler_mode(
+                        hpx::threads::policies::scheduler_mode::do_background_work
+                      | mode);
+
                     if(enable_elasticity)
                         mode = hpx::threads::policies::scheduler_mode(
                             hpx::threads::policies::scheduler_mode::enable_elasticity
@@ -124,24 +122,12 @@ namespace allscale
             {
                 for (auto& pu: core.pus())
                 {
-//                     if (skip && core.pus().size() > 1 && resilience::enabled())
-//                     {
-//                         std::cerr << "    Using PU " << pu.id() << " for performing backups\n";
-//                         rp.add_resource(pu, "resilience");
-//                         skip = false;
-//                     }
-//                     else
-//                     {
-//                         std::cerr << "    Adding PU " << pu.id() << '\n';
                         rp.add_resource(pu, pool_name);
-//                     }
                 }
             }
 
             ++domain;
         }
-
-//         std::cerr << "===============================================================================\n";
     }
 
     namespace {
