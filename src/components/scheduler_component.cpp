@@ -39,18 +39,45 @@ namespace components {
 scheduler::scheduler(std::uint64_t rank)
     : rank_(rank), initialized_(false), stopped_(false),
       os_thread_count(hpx::get_os_thread_count()),
-      active_threads(os_thread_count), current_avg_iter_time(0.0),
-      sampling_interval(10), enable_factor(1.01), disable_factor(1.01),
-      growing(true), min_threads(1), max_resource(0), max_time(0), max_power(0),
-      current_power_usage(0), last_power_usage(0),
-      power_sum(0), power_count(0),lopt_(),uselopt(false),nr_tasks_scheduled(0),
-      nr_opt_steps(0)
+      active_threads(os_thread_count),
+      enable_factor(1.01),
+      disable_factor(1.01),
+      growing(true),
+      min_threads(1),
+      max_resource(0),
+      max_time(0),
+      max_power(0),
+      current_power_usage(0),
+      last_power_usage(0),
+      power_sum(0),
+      power_count(0)
 
 #if defined(ALLSCALE_HAVE_CPUFREQ)
       ,
       target_freq_found(false)
 #endif
+      ,
+      resource_step(1),
+      target_resource_found(false),
+      sampling_interval(10),
+      current_avg_iter_time(0.0),
+      multi_objectives(false),
+      time_requested(false),
+      resource_requested(false),
+      energy_requested(false),
+      time_leeway(1.0),
+      resource_leeway(1.0),
+      energy_leeway(1.0),
+      period_for_time(10),
+      period_for_resource(10),
+      period_for_power(20),
+      nr_tasks_scheduled(0)
 
+#if defined(MEASURE_MANUAL_)
+      ,
+      param_osthreads_(1),param_locked_frequency_idx_(0),fixed_frequency_(0)
+
+#endif
 #if defined(MEASURE_)
       ,
       meas_active_threads_sum(0), meas_active_threads_count(0),
@@ -58,17 +85,9 @@ scheduler::scheduler(std::uint64_t rank)
       meas_power_min(0), meas_power_max(0),
       min_iter_time(0), max_iter_time(0)
 #endif
-
-#if defined(MEASURE_MANUAL_)
       ,
-      param_osthreads_(1),param_locked_frequency_idx_(0),fixed_frequency_(0)
-
-#endif
-      ,
-      target_resource_found(false), resource_step(1), multi_objectives(false),
-      time_requested(false), resource_requested(false), energy_requested(false),
-      time_leeway(1.0), resource_leeway(1.0), energy_leeway(1.0),
-      period_for_time(10), period_for_resource(10), period_for_power(20)
+      nr_opt_steps(0),
+      uselopt(false)
   {
   allscale_monitor = &allscale::monitor::get();
   thread_times.resize(hpx::get_os_thread_count());
@@ -177,8 +196,6 @@ void scheduler::init() {
 
   std::vector<objectiveType> objectives_priorities;
   int objectives_priority_idx=0;
-
-  std::size_t num_localities = allscale::get_num_localities();
 
   std::unique_lock<mutex_type> l(resize_mtx_);
   hpx::util::ignore_while_checking<std::unique_lock<mutex_type>> il(&l);
@@ -504,8 +521,8 @@ void scheduler::initialize_cpu_frequencies() {
 
 #ifdef MEASURE_
 #ifdef ALLSCALE_HAVE_CPUFREQ
-  unsigned long temp_transition_latency=hardware_reconf::get_cpu_transition_latency(1);
 #ifdef DEBUG_INIT_
+  unsigned long temp_transition_latency=hardware_reconf::get_cpu_transition_latency(1);
   if (temp_transition_latency==0)
     std::cout << "[INFO] Transition Latency Unavailable" <<
       "\n" << std::flush;
@@ -562,8 +579,8 @@ void scheduler::initialize_cpu_frequencies() {
 
   topo = hardware_reconf::read_hw_topology();
   // first reinitialize to a normal setup
-  for (int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id++) {
-    int res = hardware_reconf::set_freq_policy(cpu_id, policy);
+  for (unsigned int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id++) {
+    hardware_reconf::set_freq_policy(cpu_id, policy);
 #ifdef DEBUG_INIT_
     std::cout << "cpu_id " << cpu_id << " back to on-demand. ret=  " << res
               << "\n"
@@ -576,7 +593,7 @@ void scheduler::initialize_cpu_frequencies() {
   policy.min = min_freq;
   policy.max = max_freq;
 
-  for (int cpu_id = 0; cpu_id < topo.num_logical_cores;
+  for (unsigned int cpu_id = 0; cpu_id < topo.num_logical_cores;
        cpu_id += topo.num_hw_threads) {
     int res = hardware_reconf::set_freq_policy(cpu_id, policy);
     if (res) {
@@ -606,7 +623,7 @@ void scheduler::initialize_cpu_frequencies() {
 
 #ifdef ALLSCALE_HAVE_CPUFREQ
         if (!cpufreq_cpu_exists(pu_num)) {
-          int res = hardware_reconf::set_frequency(pu_num, 1, cpu_freqs[0]);
+          hardware_reconf::set_frequency(pu_num, 1, cpu_freqs[0]);
 #ifdef DEBUG_INIT_
           std::cout << "Setting cpu " << pu_num << " to freq  " << cpu_freqs[0]
                     << ", (ret= " << res << ")\n"
@@ -654,7 +671,7 @@ void scheduler::initialize_cpu_frequencies() {
 
 #ifdef ALLSCALE_USE_CORE_OFFLINING
   // offline unused cpus
-  for (int cpu_id = 0; cpu_id < topo.num_logical_cores;
+  for (unsigned int cpu_id = 0; cpu_id < topo.num_logical_cores;
        cpu_id += topo.num_hw_threads) {
     bool found_it = false;
     for (std::size_t i = 0; i != thread_pools_.size(); i++) {
@@ -787,19 +804,19 @@ void scheduler::optimize_locally(work_item const& work)
                 */
 
                 if (act_temp.delta_threads < active_threads){
-                    int new_threads_target = (int)active_threads - act_temp.delta_threads;
 #ifdef DEBUG_MULTIOBJECTIVE_
+                    int new_threads_target = (int)active_threads - act_temp.delta_threads;
                     std::cout << "[SCHEDULER|INFO]: Optimizer induced threads to suspend: " << new_threads_target << std::endl;
                     std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << ", target threads = " << act_temp.delta_threads << std::endl;
 #endif
-                    unsigned int suspended_temp = suspend_threads(new_threads_target);
+                    //unsigned int suspended_temp = suspend_threads(new_threads_target);
                     //lopt_.setCurrentThreads(lopt_.getCurrentThreads()-suspended_temp);
 
                     lopt_.setCurrentThreads(active_threads);
                 }
                 else if (act_temp.delta_threads > active_threads){
-                    int new_threads_target = act_temp.delta_threads - (int)active_threads;
 #ifdef DEBUG_MULTIOBJECTIVE_
+                    int new_threads_target = act_temp.delta_threads - (int)active_threads;
                     std::cout << "[SCHEDULER|INFO]: Optimizer induced threads to resume to: " << new_threads_target << std::endl;
                     std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << ", target threads = " << act_temp.delta_threads << std::endl;
 #endif
@@ -1019,10 +1036,9 @@ unsigned int scheduler::suspend_threads(std::size_t suspendthreads) {
   }
 
   // what threads are blocked
-  auto blocked_os_threads = active_mask ^ initial_masks_[pool_idx];
+//   auto blocked_os_threads = active_mask ^ initial_masks_[pool_idx];
 
   // fill a vector of PUs to suspend
-  int threads_suspended = 0;
   std::vector<std::size_t> suspend_threads;
   std::size_t thread_count = thread_pools_[pool_idx]->get_os_thread_count();
   suspend_threads.reserve(thread_count);
@@ -1328,7 +1344,7 @@ void scheduler::fix_allcores_frequencies(int frequency_idx){
   policy.min = min_freq;
   policy.max = max_freq;
 
-  for (int cpu_id = 0; cpu_id < topo.num_logical_cores;
+  for (unsigned int cpu_id = 0; cpu_id < topo.num_logical_cores;
        cpu_id += topo.num_hw_threads) {
     int res = hardware_reconf::set_freq_policy(cpu_id, policy);
     if (res) {
@@ -1356,6 +1372,7 @@ void scheduler::fix_allcores_frequencies(int frequency_idx){
         if (!cpufreq_cpu_exists(pu_num)) {
           //int res = hardware_reconf::set_frequency(pu_num, 1, cpu_freqs[cpu_freqs[.size()-1]]);
           int res = hardware_reconf::set_frequency(pu_num, 1, cpu_freqs[frequency_idx]);
+          (void)res;
 #if defined(MEASURE_MANUAL_)
           fixed_frequency_ = cpu_freqs[frequency_idx];
 #endif

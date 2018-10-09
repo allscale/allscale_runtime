@@ -34,6 +34,10 @@ endif()
 
 add_hpx_component(allscale SOURCES ${_srcs} COMPONENT_DEPENDENCIES iostreams)
 
+target_compile_options(allscale_component PUBLIC -Wno-error=parentheses)
+target_compile_options(allscale_component PUBLIC -Wno-error=return-type)
+target_compile_options(allscale_component PUBLIC -Wno-error=sign-compare)
+
 if(CPUFREQ_FOUND)
     target_link_libraries(allscale_component ${CPUFREQ_LIBRARIES})
     target_include_directories(allscale_component PUBLIC ${CPUFREQ_INCLUDE_DIRS})

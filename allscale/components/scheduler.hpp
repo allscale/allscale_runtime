@@ -211,8 +211,8 @@ namespace allscale { namespace components {
         /* Power/Energy measured metrics */
         unsigned long long meas_power_sum; // cumulative sum of power consumption measured (in Watts)
         unsigned long long meas_power_count; // number of times power consumption has been sampled
-        int meas_power_min; // minimum system power measurement throughout execution in Watts
-        int meas_power_max; // maximum system power measurement throughout execution in Watts
+        std::size_t meas_power_min; // minimum system power measurement throughout execution in Watts
+        std::size_t meas_power_max; // maximum system power measurement throughout execution in Watts
 
         /* Execution time measured metrics */
         double min_iter_time; // minimum iteration time measured throughout execution

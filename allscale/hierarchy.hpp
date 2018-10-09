@@ -35,7 +35,7 @@ namespace runtime {
 		layer_t layer;
 
 	public:
-        static std::size_t numaCutOff;
+        static HPX_EXPORT std::size_t numaCutOff;
 
 		// creates a new address targeting the given rank on the given node
 		HierarchyAddress(std::size_t rank = 0, std::size_t numa_node = 0, layer_t layer = 0)
@@ -86,7 +86,7 @@ namespace runtime {
 		/**
 		 * Obtains the root node of a network of the given size.
 		 */
-		static HierarchyAddress getRootOfNetworkSize(std::size_t numa_size, std::size_t size);
+		static HPX_EXPORT HierarchyAddress getRootOfNetworkSize(std::size_t numa_size, std::size_t size);
 
 		// --- navigation ---
 
@@ -165,17 +165,17 @@ namespace runtime {
 		}
 
 		// add printer support
-		friend std::ostream& operator<<(std::ostream&, const HierarchyAddress&);
+		friend HPX_EXPORT std::ostream& operator<<(std::ostream&, const HierarchyAddress&);
 
 		// --- utilities ---
 
 		// computes the number of layers present on the given rank within a network of the given size
-		static layer_t getLayersOn(std::size_t rank, std::size_t numa_node, std::size_t numa_size, std::size_t size);
+		static HPX_EXPORT layer_t getLayersOn(std::size_t rank, std::size_t numa_node, std::size_t numa_size, std::size_t size);
 
 	private:
 
 		// tests whether the given rank/layer combination is valid
-		bool check() const;
+        HPX_EXPORT bool check() const;
 
 	};
 
@@ -198,7 +198,6 @@ namespace runtime {
 			// start up services
             std::size_t num_numa_nodes = allscale::get_num_numa_nodes();
             std::size_t num_localities = allscale::get_num_localities();
-            std::size_t num_services_global = num_numa_nodes * num_localities;
 
             std::size_t locality_id = hpx::get_locality_id();
 

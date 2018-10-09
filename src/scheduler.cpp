@@ -30,8 +30,8 @@ namespace allscale
     void schedule_down_global(runtime::HierarchyAddress addr, work_item work, std::unique_ptr<data_item_manager::task_requirements_base> reqs);
 }
 
-HPX_PLAIN_ACTION(allscale::schedule_global, schedule_global_action);
-HPX_PLAIN_ACTION(allscale::schedule_down_global, schedule_down_global_action);
+HPX_PLAIN_DIRECT_ACTION(allscale::schedule_global, schedule_global_action);
+HPX_PLAIN_DIRECT_ACTION(allscale::schedule_down_global, schedule_down_global_action);
 
 namespace allscale
 {
@@ -79,7 +79,6 @@ namespace allscale
         rp.set_default_pool_name("allscale-numa-0");
 
         std::size_t domain = 0;
-        bool skip = true;
         for (auto& numa: numa_domains)
         {
             std::string pool_name = "allscale-numa-" + std::to_string(domain);
@@ -238,8 +237,8 @@ namespace allscale
         {}
 
         scheduler_service(runtime::HierarchyAddress here)
-          : here_(here)
-          , policy_(create_policy())
+          : policy_(create_policy())
+          , here_(here)
           , root_(runtime::HierarchyAddress::getRootOfNetworkSize(
                 allscale::get_num_numa_nodes(), allscale::get_num_localities()
                 ))

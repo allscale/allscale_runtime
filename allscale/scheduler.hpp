@@ -37,20 +37,20 @@ namespace allscale
         scheduler() { HPX_ASSERT(false); }
         scheduler(std::size_t rank);
 
-        static std::size_t rank();
+        static HPX_EXPORT std::size_t rank();
 
-        static void update_policy(std::vector<optimizer_state> const& state, std::vector<bool> mask);
+        static HPX_EXPORT void update_policy(std::vector<optimizer_state> const& state, std::vector<bool> mask);
 
-        static void schedule(work_item&& work);
-        static components::scheduler* run(std::size_t rank);
-        static void stop();
+        static HPX_EXPORT void schedule(work_item&& work);
+        static HPX_EXPORT components::scheduler* run(std::size_t rank);
+        static HPX_EXPORT void stop();
         static components::scheduler* get_ptr();
 
         static components::scheduler & get();
     private:
 
         typedef hpx::lcos::local::spinlock mutex_type;
-        static void partition_resources(hpx::resource::partitioner& rp);
+        static HPX_EXPORT void partition_resources(hpx::resource::partitioner& rp);
 
         std::shared_ptr<components::scheduler> component_;
     };

@@ -19,6 +19,9 @@ namespace allscale {
         std::uint64_t id;
         task_path path;
 
+        // This is used for monitoring...
+        std::shared_ptr<allscale::profile> profile;
+
         template <typename Archive>
         void serialize(Archive& ar, unsigned)
         {
@@ -26,9 +29,6 @@ namespace allscale {
             ar & id;
             ar & path;
         }
-
-        // This is used for monitoring...
-        std::shared_ptr<allscale::profile> profile;
 
         task_id parent() const;
 
@@ -49,12 +49,12 @@ namespace allscale {
 
         task_id left_child() const
         {
-            return {locality_id, id, path.getLeftChildPath()};
+            return {locality_id, id, path.getLeftChildPath(), nullptr};
         }
 
         task_id right_child() const
         {
-            return {locality_id, id, path.getRightChildPath()};
+            return {locality_id, id, path.getRightChildPath(), nullptr};
         }
 
         std::size_t depth() const
@@ -110,8 +110,8 @@ namespace allscale {
 
         friend std::string to_string(task_id const& id);
 
-        static task_id create_root();
-        static task_id create_child();
+        static HPX_EXPORT task_id create_root();
+        static HPX_EXPORT task_id create_child();
 
     };
 }

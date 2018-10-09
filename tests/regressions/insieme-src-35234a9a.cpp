@@ -83,8 +83,8 @@ allscale::treeture<void > allscale_fun_24(allscale::runtime::dependencies const&
 }
 /* ------- Function Definitions --------- */
 int32_t IMP_main(int32_t var_0, char** var_1) {
-    int32_t var_2;
-    int32_t var_3;
+    int32_t var_2 = 0;
+    int32_t var_3 = 0;
     IMP___anon_tagtype__slash_tmp_slash_srcd1630c9c_dot_cpp_8_17_int_int__ampersand__void_IMLOC__slash_tmp_slash_srcd1630c9c_dot_cpp_8_17 var_4 = INS_INIT(IMP___anon_tagtype__slash_tmp_slash_srcd1630c9c_dot_cpp_8_17_int_int__ampersand__void_IMLOC__slash_tmp_slash_srcd1630c9c_dot_cpp_8_17){var_2, var_3};
     allscale::runtime::make_prec_operation<int32_t, void >(INS_INIT(hpx::util::tuple<IMP___anon_tagtype__slash_tmp_slash_srcd1630c9c_dot_cpp_8_17_int_int__ampersand__void_IMLOC__slash_tmp_slash_srcd1630c9c_dot_cpp_8_17 >){(IMP___anon_tagtype__slash_tmp_slash_srcd1630c9c_dot_cpp_8_17_int_int__ampersand__void_IMLOC__slash_tmp_slash_srcd1630c9c_dot_cpp_8_17 const&)var_4}, &allscale_fun_24)(1).wait();
     return 0;

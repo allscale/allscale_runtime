@@ -17,15 +17,15 @@ namespace allscale { namespace components { namespace util {
     ///  ... A class that provides a wrapper for cpufreq APIs and utility functions
     ///      to read sysfs values ...
     ////////////////////////////////////////////////////////////////////////////////////
-    struct hardware_reconf
+    struct HPX_EXPORT hardware_reconf
     {
         typedef hpx::lcos::local::spinlock mutex_type;
 
         struct hw_topology
         {
-            int num_physical_cores;
-            int num_logical_cores;
-            int num_hw_threads;
+            unsigned int num_physical_cores;
+            unsigned int num_logical_cores;
+            unsigned int num_hw_threads;
         };
 
 

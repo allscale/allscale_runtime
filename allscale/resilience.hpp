@@ -14,8 +14,8 @@ namespace allscale {
     }
     struct resilience
     {
-        static components::resilience* run(std::size_t rank);
-        static void stop();
+        static HPX_EXPORT components::resilience* run(std::size_t rank);
+        static HPX_EXPORT void stop();
         static components::resilience *get_ptr();
         static components::resilience &get();
         static std::pair<hpx::shared_future<hpx::id_type>, uint64_t> get_protectee();

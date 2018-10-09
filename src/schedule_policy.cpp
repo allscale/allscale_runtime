@@ -234,7 +234,7 @@ namespace allscale {
         std::size_t num_nodes = state.size();
 
         // test that all load values are positive
-        HPX_ASSERT(std::all_of(state.begin(), state.end(), [](optimizer_state const& state) { return state.load >= 0.0; }));
+        HPX_ASSERT(std::all_of(state.begin(), state.end(), [](optimizer_state const& state) { return state.load >= 0.0f; }));
 
         // count number of tasks per node
         std::vector<int> old_share(num_nodes,0);

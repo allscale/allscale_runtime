@@ -47,6 +47,7 @@ namespace allscale { namespace data_item_manager {
             hpx::util::detail::pack_c<std::size_t, Is...>)
         {
             int sequencer[] = {0, (detail::get_missing_regions(addr, hpx::util::get<Is>(reqs)), 0)...};
+            (void)sequencer;
         }
     }
 

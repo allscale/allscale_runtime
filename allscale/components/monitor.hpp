@@ -194,7 +194,7 @@ namespace allscale { namespace components {
            /// \param i         [in] iteration number
            ///
            /// \returns         iteration time
-           double get_iteration_time(int i);
+           double get_iteration_time(std::size_t i);
 
 
            /// \brief This function returns the execution time for the last iteration
@@ -301,22 +301,22 @@ namespace allscale { namespace components {
            std::uint64_t get_network_in();
 
            /// \brief This function returns the current frequency for the CPU cpuid
-           //            /// \returns  Current frequency of cpuid 
+           //            /// \returns  Current frequency of cpuid
 	   std::uint64_t get_current_freq(int cpuid);
 
-   
+
            /// \brief This function returns the min frequency for the CPU cpuid
-           //            /// \returns  Min frequency of cpuid 
+           //            /// \returns  Min frequency of cpuid
            std::uint64_t get_min_freq(int cpuid);
 
 
            /// \brief This function returns the max frequency for the CPU cpuid
-           //            /// \returns  Max frequency of cpuid 
+           //            /// \returns  Max frequency of cpuid
            std::uint64_t get_max_freq(int cpuid);
 
 
            /// \brief This function returns the available frequencies for the CPU cpuid
-           //            /// \returns  Available frequencies for cpuid 
+           //            /// \returns  Available frequencies for cpuid
 	   std::vector<std::uint64_t> get_available_freqs(int cpuid);
 
 

@@ -16,8 +16,8 @@ namespace allscale { namespace data_item_manager {
 
     namespace detail
     {
-        void tls_cache(hpx::naming::gid_type const& id, void *);
-        void *tls_cache(hpx::naming::gid_type const& id);
+        HPX_EXPORT void tls_cache(hpx::naming::gid_type const& id, void *);
+        HPX_EXPORT void *tls_cache(hpx::naming::gid_type const& id);
 
         template <typename DataItem>
         DataItem* tls_cache(hpx::naming::gid_type const& id)

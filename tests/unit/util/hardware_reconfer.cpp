@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
     HPX_TEST(energy > 0);
 
     energy = hardware_reconf::read_system_energy("non-existent-file");
-    HPX_TEST_EQ(energy, 0);
+    HPX_TEST_EQ(energy, 0u);
 
     target_freq = max_freq;
     unsigned int target_cpu_count = 4;

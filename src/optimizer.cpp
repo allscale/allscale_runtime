@@ -23,7 +23,7 @@ namespace allscale
 {
     optimizer_state get_optimizer_state()
     {
-        float load = 1.f - (monitor::get().get_idle_rate() / 100.);
+        float load = 1.f - float(monitor::get().get_idle_rate() / 100.);
 #ifdef ALLSCALE_HAVE_CPUFREQ
         float frequency = components::util::hardware_reconf::get_kernel_freq(0);
 #else
@@ -283,7 +283,7 @@ namespace allscale
                     // -- Step 2: if stable, adjust number of nodes and clock speed
 
                     // if stable enough, allow meta-optimizer to manage load
-                    if (tuned && var < 0.01)
+                    if (tuned && var < 0.01f)
                     {
                         // adjust number of nodes and CPU frequency
                         tune(state);

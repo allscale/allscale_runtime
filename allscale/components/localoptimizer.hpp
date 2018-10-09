@@ -65,24 +65,25 @@ namespace allscale { namespace components {
     struct actuation{
        /* number of threads to resume (>0) or suspend (<0). If set to zero,
           number of threads will stay unchanged. */
-       int delta_threads;
+       unsigned int delta_threads;
 
 #if defined(ALLSCALE_HAVE_CPUFREQ)
         /* index to the global cpu-supported frequencies vector pointing to
            the new frequency to be set. If set to -1, frequency will stay
            unchanged */
-       int frequency_idx;
+       unsigned int frequency_idx;
 #endif
     };
 
     struct localoptimizer
     {
         localoptimizer()
-            :current_objective_idx_(0),nmd(0.01),
+            :nmd(0.01),
 #if defined(ALLSCALE_HAVE_CPUFREQ)
             frequency_param_(0),
 #endif
-            converged_(false){
+            current_objective_idx_(0),converged_(false)
+    {
             if (optmethod_==random)
                 srand (std::time(NULL));
             }
@@ -211,7 +212,7 @@ namespace allscale { namespace components {
         /***** optimization state variables ******/
 
         /* index to the _objectives vector of currently optimized objective */
-        short int current_objective_idx_;
+        unsigned short int current_objective_idx_;
 
         /* number of times the optimizer step() has been invoked, this is for
            init and housekeeping purposes */
@@ -221,7 +222,7 @@ namespace allscale { namespace components {
         parameterType current_param_;
 
         /* initial warm-up steps */
-        const int warmup_steps_=3;
+        const unsigned int warmup_steps_=3;
 
         /* maximum number of optimization steps allowed */
         const int max_steps_=100;

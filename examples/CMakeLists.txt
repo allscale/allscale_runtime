@@ -16,11 +16,11 @@ add_hpx_executable(
 #  SOURCES stencil_2d_pfor.cpp
 #  COMPONENT_DEPENDENCIES allscale
 #)
-add_hpx_executable(
-  ipic3d_allscalecc
-  SOURCES ipic3d_allscalecc.cpp
-  COMPONENT_DEPENDENCIES allscale
-)
+# add_hpx_executable(
+#   ipic3d_allscalecc
+#   SOURCES ipic3d_allscalecc.cpp
+#   COMPONENT_DEPENDENCIES allscale
+# )
 add_hpx_executable(
   ipic3d_allscalecc_data
   SOURCES ipic3d_allscalecc_data.cpp

@@ -25,8 +25,12 @@ namespace allscale {
 namespace components {
 
 localoptimizer::localoptimizer(std::list<objective> targetobjectives)
-  :objectives_((int)targetobjectives.size()),steps_(0),param_changes_(0),
-  current_param_(thread),nmd(0.01),converged_(false)
+  : objectives_((int)targetobjectives.size()),
+    nmd(0.01),
+    param_changes_(0),
+    steps_(0),
+    current_param_(thread),
+    converged_(false)
   {
     for (objective o : targetobjectives) {
       //std::cout << o.type << "," << o.leeway << "," << o.priority << '\n';
@@ -242,7 +246,7 @@ actuation localoptimizer::step()
 
     else if (optmethod_ == allscale)
     {
-        if (current_objective_idx_ > objectives_.size()-1)
+        if (current_objective_idx_ > objectives_.size())
   	    	return act;
 
         if (steps_ < warmup_steps_)

@@ -23,7 +23,7 @@ namespace allscale {
         right = 3        // < send to right child
     };
 
-    std::ostream& operator<<(std::ostream&, schedule_decision);
+    HPX_EXPORT std::ostream& operator<<(std::ostream&, schedule_decision);
 
     // An abstract base class for scheduling policies...
     struct scheduling_policy
@@ -59,13 +59,13 @@ namespace allscale {
 
         decision_tree() {}
 
-        decision_tree(std::uint64_t num_nodes);
+        HPX_EXPORT decision_tree(std::uint64_t num_nodes);
 
         // updates a decision for a given path
-        void set(task_id::task_path const& path, schedule_decision decision);
+        HPX_EXPORT void set(task_id::task_path const& path, schedule_decision decision);
 
         // retrieves the decision for a given path
-        schedule_decision get(task_id::task_path const& path) const;
+        HPX_EXPORT schedule_decision get(task_id::task_path const& path) const;
 
         // --- serialization support ---
         template <typename Archive>
@@ -99,7 +99,7 @@ namespace allscale {
          * @param N the number of nodes to distribute work on
          * @param granularity the negative exponent of the acceptable load imbalance; e.g. 0 => 2^0 = 100%, 5 => 2^-5 = 3.125%
          */
-        static std::unique_ptr<scheduling_policy> create_uniform(int N, int M, int granularity);
+        static HPX_EXPORT std::unique_ptr<scheduling_policy> create_uniform(int N, int M, int granularity);
 
         /**
          * Creates a scheduling policy distributing work uniformly among the given number of nodes. The
@@ -107,7 +107,7 @@ namespace allscale {
          *
          * @param N the number of nodes to distribute work on
          */
-        static std::unique_ptr<scheduling_policy> create_uniform(int N, int M);
+        static HPX_EXPORT std::unique_ptr<scheduling_policy> create_uniform(int N, int M);
 
         /**
          * Creates an updated load balancing policy based on a given policy and a measured load distribution.
@@ -117,7 +117,7 @@ namespace allscale {
          * @param loadDistribution the load distribution measured, utilized for weighting tasks. Ther must be one entry per node,
          *             no entry must be negative.
          */
-        static std::unique_ptr<scheduling_policy> create_rebalanced(const scheduling_policy& old, const std::vector<optimizer_state>& load, std::vector<bool> const& mask);
+        static HPX_EXPORT std::unique_ptr<scheduling_policy> create_rebalanced(const scheduling_policy& old, const std::vector<optimizer_state>& load, std::vector<bool> const& mask);
 
         // --- observer ---
 
@@ -132,7 +132,7 @@ namespace allscale {
         }
 
         // retrieves the task distribution pattern this tree is realizing
-        std::vector<std::size_t> task_distribution_mapping() const;
+        HPX_EXPORT std::vector<std::size_t> task_distribution_mapping() const;
 
 
         // --- the main interface for the scheduler ---
@@ -154,7 +154,7 @@ namespace allscale {
         /**
          * Computes the target address a task with the given path should be forwarded to.
          */
-        runtime::HierarchyAddress get_target(const task_id::task_path& path) const;
+        HPX_EXPORT runtime::HierarchyAddress get_target(const task_id::task_path& path) const;
 
         bool check_target(runtime::HierarchyAddress const& addr, const task_id::task_path& path) const;
 

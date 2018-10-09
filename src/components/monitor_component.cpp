@@ -51,19 +51,24 @@ namespace allscale { namespace components {
 
 
    monitor::monitor(std::uint64_t rank)
-     : num_localities_(0)
-     , rank_(rank)
+     : rank_(rank)
+     , num_localities_(0)
      , enable_monitor(true)
-     , output_profile_table_(0)
-     , output_treeture_(0)
-     , output_iteration_trees_(0)
-     , print_throughput_hm_(0)
-     , print_idle_hm_(0)
-     , collect_papi_(0)
-     , cutoff_level_(0)
-     , done(false)
+     , total_memory_(0)
+     , num_cpus_(0)
      , current_read_queue(0)
      , current_write_queue(0)
+     , done(false)
+//#ifdef WI_STATS
+     , total_split_time(0)
+     , total_process_time(0)
+     , num_split_tasks(0)
+     , num_process_tasks(0)
+     , min_split_task(0)
+     , max_split_task(0)
+     , min_process_task(0)
+     , max_process_task(0)
+     , finished_tasks(0)
      , sampling_interval_ms(2000)
 //     , metric_sampler_(
 //          hpx::util::bind(
@@ -75,23 +80,11 @@ namespace allscale { namespace components {
 //          false
 //       )
      , task_throughput(0)
-     , finished_tasks(0)
-//#ifdef WI_STATS
-     , total_split_time(0)
-     , total_process_time(0)
-     , num_split_tasks(0)
-     , num_process_tasks(0)
-     , min_split_task(0)
-     , max_split_task(0)
-     , min_process_task(0)
-     , max_process_task(0)
-     , total_memory_(0)
-     , num_cpus_(0)
-     , cpu_load_(0.0)
      , weighted_sum(0.0)
      , weighted_throughput(0.0)
      , bytes_sent_(0)
      , bytes_recv_(0)
+     , cpu_load_(0.0)
 //#endif
 #ifdef REALTIME_VIZ
      , num_active_tasks_(0)
@@ -108,6 +101,13 @@ namespace allscale { namespace components {
           true
        )
 #endif
+     , output_profile_table_(0)
+     , output_treeture_(0)
+     , output_iteration_trees_(0)
+     , collect_papi_(0)
+     , cutoff_level_(0)
+     , print_throughput_hm_(0)
+     , print_idle_hm_(0)
     {
 
     }
@@ -251,9 +251,9 @@ namespace allscale { namespace components {
       std::map<int, std::vector<std::uint64_t>>::iterator it;
 
       it = cpu_frequencies.find(cpuid);
-      if(it != cpu_frequencies.end()) 
+      if(it != cpu_frequencies.end())
 	 return (it->second).front();
-      else 
+      else
 	 return 0;
    }
 
@@ -313,26 +313,26 @@ namespace allscale { namespace components {
 
       for(int i = 0; i < num_cpus_; i++) {
 	 std::ifstream avail_freq_file(boost::str(boost::format(avail_freq_filename) % i));
-     
+
 
          if(!avail_freq_file) {     // File not available, get min and max via the other two files
 
-//            std::cerr << "Warning: Cannot read avail frequencies from /sys/devices/system/cpu for CPU " 
-//                      << i 
+//            std::cerr << "Warning: Cannot read avail frequencies from /sys/devices/system/cpu for CPU "
+//                      << i
 //                      << ". Looking into scaling_min_freq and scaling_max_freq files\n";
 
-            std::ifstream min_freq_file(boost::str(boost::format(min_freq_filename) % i));   
+            std::ifstream min_freq_file(boost::str(boost::format(min_freq_filename) % i));
 
 	    if(!min_freq_file) {
 		std::cerr << "Warning: Cannot read min frequency from /sys/devices/system/cpu for CPU " << i << std::endl;
-                freq_in_KHz = 0; 
+                freq_in_KHz = 0;
 	    }
 	    else min_freq_file >> freq_in_KHz;
 
-            freqs.push_back(freq_in_KHz); 
+            freqs.push_back(freq_in_KHz);
 
-            std::ifstream max_freq_file(boost::str(boost::format(max_freq_filename) % i));    
-         
+            std::ifstream max_freq_file(boost::str(boost::format(max_freq_filename) % i));
+
             if(!max_freq_file) {
                 std::cerr << "Warning: Cannot read max frequency from /sys/devices/system/cpu for CPU " << i << std::endl;
                 freq_in_KHz = 0;
@@ -345,9 +345,9 @@ namespace allscale { namespace components {
             freqs.clear();
          }
          else {      // Read the values from the file and put them in the vector of freqs
-	    while(avail_freq_file >> freq_in_KHz) 
+	    while(avail_freq_file >> freq_in_KHz)
 		freqs.push_back(freq_in_KHz);
-            
+
             cpu_frequencies.insert( std::pair<int, std::vector<std::uint64_t>>(i, freqs) );
             freqs.clear();
          }
@@ -1231,7 +1231,7 @@ namespace allscale { namespace components {
 
    double monitor::get_SD_work_item_times(std::uint32_t num_work_items)
    {
-      double std = 0.0;
+//       double std = 0.0;
 
       //First get the mean
       double mean = get_avg_work_item_times(num_work_items);
@@ -1311,11 +1311,11 @@ namespace allscale { namespace components {
 
 #endif
 
-   double monitor::get_iteration_time(int i)
+   double monitor::get_iteration_time(std::size_t i)
    {
       std::lock_guard<mutex_type> lock(history_mutex);
 
-      if(i < 0 || i >= history->iteration_time.size()) return 0.0;
+      if(i >= history->iteration_time.size()) return 0.0;
       else return history->iteration_time[i];
    }
 
@@ -1469,7 +1469,7 @@ namespace allscale { namespace components {
    void monitor::print_treeture(std::string filename, std::string root, double total_tree_time,
                                         profile_map& global_stats, dependency_graph& g)
    {
-      double excl_elapsed, incl_elapsed;
+//       double excl_elapsed, incl_elapsed;
       std::ofstream myfile;
 
       myfile.open(filename.c_str());
@@ -1647,8 +1647,8 @@ namespace allscale { namespace components {
    void monitor::stop() {
 
       std::vector<hpx::future<void>> stop_futures;
-      std::size_t const os_threads = hpx::get_os_thread_count();
-      std::size_t self = hpx::get_worker_thread_num();
+//       std::size_t const os_threads = hpx::get_os_thread_count();
+//       std::size_t self = hpx::get_worker_thread_num();
 
 
       if(!enable_monitor) return;
@@ -1673,7 +1673,7 @@ namespace allscale { namespace components {
         typedef allscale::components::monitor::stop_action stop_action;
 
 	std::vector< std::size_t> ids;
-        for(int i = 1; i < hpx::get_num_localities().get(); i++)
+        for(std::size_t i = 1; i < hpx::get_num_localities().get(); i++)
         {
            hpx::future<hpx::id_type> locality_future =
                hpx::find_from_basename("allscale/monitor", i);
@@ -1750,7 +1750,7 @@ namespace allscale { namespace components {
       if(output_profile_table_ || output_treeture_ || output_iteration_trees_) {
 
         // Compute work item stats from profiles map
-        double e_time, i_time, children_mean_time, children_sd;
+//         double e_time, i_time, children_mean_time, children_sd;
         profile_map my_local_stats, global_stats;
         dependency_graph global_graph;
 
@@ -1964,7 +1964,7 @@ namespace allscale { namespace components {
      if(const char* env_p = std::getenv("MONITOR_PAPI")) {
 #ifdef HAVE_PAPI
         collect_papi_ = 1;
- 	std::string counter_names(env_p);
+        std::string counter_names(env_p);
         static const char *counter_set_name = "/papi{locality#%d/worker-thread#%d}/%s";
         const std::uint32_t prefix = hpx::get_locality_id();
         std::size_t const os_threads = hpx::get_os_thread_count();
@@ -1997,6 +1997,7 @@ namespace allscale { namespace components {
 	     num_tokens++;
         }
 #else
+        (void)env_p;
         std::cerr << "Var. MONITOR_PAPI defined but code compiled without PAPI support!" << std::endl;
 #endif
      }
@@ -2010,7 +2011,7 @@ namespace allscale { namespace components {
 
       // Read system info
 
-      // CPUs available and frequencies 
+      // CPUs available and frequencies
       get_cpus_info();
 
       // Total memory

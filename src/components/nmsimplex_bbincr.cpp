@@ -2,7 +2,7 @@
  * nmsimplex_bbincr.c **
  * Author : Kostas Katrinis
  * kostas.katrinis@gmail.com
- * 
+ *
  * Extension of Michael F. Hutt implementation
  * of Nelder Mead Simplex search for black box,
  * incremental use (e.g. for sampled objective
@@ -14,8 +14,8 @@
 //#define NMD_DEBUG_ 1
 //#define NMD_INFO_ 1
 
-/* create the initial simplex 
-  
+/* create the initial simplex
+
    vector<doubl
 
  */
@@ -24,7 +24,7 @@ namespace allscale { namespace components {
 
 //NelderMead::NelderMead(double (*objfunc)(double[]),double eps){
 NelderMead::NelderMead(double eps){
-  
+
   EPSILON=eps;
 #ifdef NMD_INFO_
   std::cout << "[NelderMead|INFO] Initial Convergence Threshold set is " << EPSILON << std::endl;
@@ -33,15 +33,15 @@ NelderMead::NelderMead(double eps){
   state_ = start;
 
   /* dynamically allocate arrays */
-  
+
   /* allocate the rows of the arrays */
   v =  (double **) malloc ((n+1) * sizeof(double *));
   f =  (double *) malloc ((n+1) * sizeof(double));
   vr = (double *) malloc (n * sizeof(double));
-  ve = (double *) malloc (n * sizeof(double));  
-  vc = (double *) malloc (n * sizeof(double));  
-  vm = (double *) malloc (n * sizeof(double));  
-  
+  ve = (double *) malloc (n * sizeof(double));
+  vc = (double *) malloc (n * sizeof(double));
+  vm = (double *) malloc (n * sizeof(double));
+
   /* allocate the columns of the arrays */
   for (i=0;i<=n;i++) {
     v[i] = (double *) malloc (n * sizeof(double));
@@ -52,8 +52,6 @@ void NelderMead::my_constraints(double x[])
 {
   // round to integer and bring again with allowable margins
   // todo fix: generalize
-  int i;
-
   if (x[0] < constraint_min[0] || x[0] > constraint_max[0]){
     x[0] = (constraint_min[0] + constraint_max[0])/2;
   }
@@ -70,7 +68,7 @@ void NelderMead::my_constraints(double x[])
 void NelderMead::initialize_simplex(double params[][2], double values[], double constraint_min[],double constraint_max[])
 {
   int i,j;
-	
+
   for (i=0;i<=n;i++) {
     for (j=0;j<n;j++) {
   	  v[i][j] = params[i][j];
@@ -105,7 +103,7 @@ void NelderMead::print_iteration()
   //printf("Iteration %d\n",itr);
   for (j=0;j<=n;j++) {
     std::cout << "[NelderMead DEBUG] Vertex-" << j+1 << "=(";
-    for (i=0;i<n;i++) {    
+    for (i=0;i<n;i++) {
       //printf("%f %f\n\n",v[j][i],f[j]);
       std::cout << v[j][i];
       if (i<n-1)
@@ -125,7 +123,7 @@ int NelderMead::vg_index()
 {
   int j;
   int vg=0;
-  
+
   for (j=0;j<=n;j++) {
     if (f[j] > f[vg]) {
       vg = j;
@@ -140,7 +138,7 @@ int NelderMead::vs_index()
 {
   int j;
   int vs=0;
-    
+
   for (j=0;j<=n;j++) {
     if (f[j] < f[vs]) {
       vs = j;
@@ -154,7 +152,7 @@ int NelderMead::vs_index()
 int NelderMead::vh_index()
 {
   int j;
-  
+
   for (j=0;j<=n;j++) {
     if (f[j] > f[vh] && f[j] < f[vg]) {
       vh = j;
@@ -169,7 +167,7 @@ void NelderMead::centroid()
 {
   int j,m;
   double cent;
-  
+
   for (j=0;j<=n-1;j++) {
     cent=0.0;
     for (m=0;m<=n;m++) {
@@ -187,7 +185,7 @@ optstepresult NelderMead::step(double param)
   res.threads=0;
   res.freq_idx=-1;
   switch (state_){
-        
+
     /** ITERATION START **/
     case start:
       itr++;
@@ -195,7 +193,7 @@ optstepresult NelderMead::step(double param)
       std::cout << "[NelderMead DEBUG] State = Start" << std::endl;
       print_initial_simplex();
 #endif
-      // todo: implement here the simplex initialization, currently this is 
+      // todo: implement here the simplex initialization, currently this is
       // done in the constructor
 
       /* find the index of the largest value (W) */
@@ -203,10 +201,10 @@ optstepresult NelderMead::step(double param)
 
       /* find the index of the smallest value (B) */
       vs = vs_index();
-        
+
       /* find the index of the second largest value (G) */
       vh = vh_index();
-        
+
       /* calculate the centroid */
       centroid();
 
@@ -216,16 +214,16 @@ optstepresult NelderMead::step(double param)
         /*
         std::cout << "vm[" << j << "]=" << vm[j] << std::endl;
         std::cout << "v[vg" << j << "]=" << v[vg][j] << std::endl;
-        std::cout << "ALPHA=" << ALPHA << std::endl;        
+        std::cout << "ALPHA=" << ALPHA << std::endl;
         */
         vr[j] = vm[j]+ALPHA*(vm[j]-v[vg][j]);
       }
       my_constraints(vr);
 #ifdef NMD_DEBUG_
-      std::cout << "[NelderMead DEBUG] Reflection Parameter = (" 
+      std::cout << "[NelderMead DEBUG] Reflection Parameter = ("
                 << vr[0] << "," << vr[1] << ")"
                 << std::endl;
-#endif      
+#endif
       // enter reflection state
       state_=reflection;
       res.threads=vr[0];
@@ -237,7 +235,7 @@ optstepresult NelderMead::step(double param)
 
     /** This state is entered when we have received a sample of the objective
      ** function at the reflection vertex
-     **/ 
+     **/
     case reflection:
 #ifdef NMD_DEBUG_
       std::cout << "[NelderMead DEBUG] State = Reflection" << std::endl;
@@ -255,7 +253,7 @@ optstepresult NelderMead::step(double param)
           state_=start;
           break;
         }
-      
+
         /* investigate a step further through expansion in this direction */
         else{
           for (j=0;j<=n-1;j++) {
@@ -263,13 +261,13 @@ optstepresult NelderMead::step(double param)
             ve[j] = vm[j]+GAMMA*(vr[j]-vm[j]);
           }
 #ifdef NMD_DEBUG_
-      std::cout << "[NelderMead DEBUG] Expansion Parameter = (" 
+      std::cout << "[NelderMead DEBUG] Expansion Parameter = ("
                 << ve[0] << "," << ve[1] << ")"
                 << std::endl;
 #endif
           my_constraints(ve);
           // enter the state waiting for a sampled value of the objective function
-          // at the expansion vertex      
+          // at the expansion vertex
           state_=expansion;
           res.threads=ve[0];
           res.freq_idx=ve[1];
@@ -292,13 +290,13 @@ optstepresult NelderMead::step(double param)
 	          vc[j] = vm[j]+BETA*(vr[j]-vm[j]);
 	        }
 #ifdef NMD_DEBUG_
-      std::cout << "[NelderMead DEBUG] Contraction Parameter = (" 
+      std::cout << "[NelderMead DEBUG] Contraction Parameter = ("
                 << vc[0] << "," << vc[1] << ")"
                 << std::endl;
 #endif
           my_constraints(vc);
           // enter the state waiting for a sampled value of the objective function
-          // at the outside contraction vertex      
+          // at the outside contraction vertex
           state_=contraction;
           res.threads=vc[0];
           res.freq_idx=vc[1];
@@ -310,40 +308,40 @@ optstepresult NelderMead::step(double param)
 	          vc[j] = vm[j]-BETA*(vm[j]-v[vg][j]);
 	        }
 #ifdef NMD_DEBUG_
-      std::cout << "[NelderMead DEBUG] Contraction Parameter = (" 
+      std::cout << "[NelderMead DEBUG] Contraction Parameter = ("
                 << vc[0] << "," << vc[1] << ")"
                 << std::endl;
-#endif   
+#endif
 	        my_constraints(vc);
           state_=contraction;
           res.threads=vc[0];
-          res.freq_idx=vc[1];       
-          break;	        
+          res.freq_idx=vc[1];
+          break;
         }
-        
+
 
     /** EXPANSION **/
 
     /** This state is entered when we have received a sample of the objective
      ** function at the expansion vertex
-     **/ 
+     **/
     case expansion:
 #ifdef NMD_DEBUG_
       std::cout << "[NelderMead DEBUG] State = Expansion" << std::endl;
 #endif
       fe=param;
-      //fe = objfunc(ve);	
+      //fe = objfunc(ve);
       if (fe < f[vs]) { // if f(E)<f(B)
   	    for (j=0;j<=n-1;j++) { // replace W with E
   	      v[vg][j] = ve[j];
   	    }
-  	    f[vg] = fe; 
+  	    f[vg] = fe;
       }
       else {
   	    for (j=0;j<=n-1;j++) { // replace W with E
   	      v[vg][j] = vr[j];
   	    }
-  	    f[vg] = fr; 
+  	    f[vg] = fr;
       }
       updateObjectives();
       state_=start;
@@ -353,7 +351,7 @@ optstepresult NelderMead::step(double param)
 
     /** This state is entered when we have received a sample of the objective
      ** function at the contraction vertex
-     **/ 
+     **/
     case contraction:
 #ifdef NMD_DEBUG_
       std::cout << "[NelderMead|DEBUG] State = Contraction" << std::endl;
@@ -376,14 +374,14 @@ optstepresult NelderMead::step(double param)
 	        }
 	      }
       }
-      updateObjectives();      
+      updateObjectives();
       state_=start;
       break;
     }
   }
-		
+
   /* print out the value at each iteration */
-#ifdef NMD_DEBUG_  
+#ifdef NMD_DEBUG_
   print_iteration();
 #endif
   res.converged=testConvergence();
@@ -403,7 +401,7 @@ bool NelderMead::testConvergence(){
   }
   s = sqrt(s);
   s = s /favg; // normalization step
-#ifdef NMD_INFO_  
+#ifdef NMD_INFO_
   std::cout << "[NelderMead|INFO] Convergence Ratio is " << s << std::endl;
   std::cout << "[NelderMead|INFO] Convergence Threshold set is " << EPSILON << std::endl;
 #endif
@@ -416,28 +414,28 @@ bool NelderMead::testConvergence(){
   }
 }
 
-void NelderMead::updateObjectives(){  
+void NelderMead::updateObjectives(){
   /* re-evaluate all the vertices */
 	/*for (j=0;j<=n;j++) {
 	  f[j] = objfunc(v[j]);
 	}
   */
-	
+
 	/* find the index of the largest value */
 	vg = vg_index();
-	
+
 	/* find the index of the smallest value */
 	vs = vs_index();
-	
+
 	/* find the index of the second largest value */
 	vh = vh_index();
 
   my_constraints(v[vg]);
 
 	//f[vg] = objfunc(v[vg]);
-	
+
 	my_constraints(v[vh]);
-        
+
   //f[vh] = objfunc(v[vh]);
 }
 
@@ -446,8 +444,8 @@ void NelderMead::updateObjectives(){
 /*
 
 std::vector<double> NelderMead::minimum(){
-  
-  
+
+
   free(f);
   free(vr);
   free(ve);

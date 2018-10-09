@@ -102,7 +102,7 @@ namespace allscale { namespace components {
             rank_running_.resize(num_localities, true);
         }
 
-        for(int i = 0; i < num_localities; i++)
+        for(std::size_t i = 0; i < num_localities; i++)
         {
            hpx::shared_future<hpx::id_type> locality_future =
                hpx::find_from_basename("allscale/resilience", i);
@@ -134,8 +134,6 @@ namespace allscale { namespace components {
         protectees_protectee_ = localities[left_left_id];
         protectees_protectee_rank_ = left_left_id;
         thread_safe_printer("Resilience component started. Protecting "+std::to_string(protectee_rank_)+"\n");
-
-        auto & service = hpx::get_thread_pool("io_pool")->get_io_service();
 
         failure_detection_loop_async();
     }

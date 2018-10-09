@@ -194,18 +194,12 @@ namespace allscale { namespace data_item_manager {
 
 #define REGISTER_DATAITEMSERVER_DECLARATION(type)                               \
 /**/
-//     HPX_REGISTER_ACTION_DECLARATION(                                            \
-//         allscale::data_item_manager::detail::transfer_action<type>,             \
-//         HPX_PP_CAT(transfer_action_, type))                                     \
 /**/
 
 #define REGISTER_DATAITEMSERVER(type)                                           \
     static allscale::data_item_manager::auto_registration<type>                 \
         HPX_PP_CAT(index_service_, type);                                       \
 /**/
-//     HPX_REGISTER_ACTION(                                                        \
-//         allscale::data_item_manager::detail::transfer_action<type>,             \
-//         HPX_PP_CAT(transfer_action_, type))                                     \
 /**/
 
 #endif

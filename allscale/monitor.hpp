@@ -34,13 +34,13 @@ namespace allscale {
             std::function<void(work_item const&)>
             event_function;
 
-        static components::monitor* run(std::size_t rank);
+        static HPX_EXPORT components::monitor* run(std::size_t rank);
         static void connect(event e, event_function f);
         static void disconnect(event e, event_function f);
-        static void signal(event e, work_item const& w);
+        static HPX_EXPORT void signal(event e, work_item const& w);
         static components::monitor & get();
         static components::monitor *get_ptr();
-        static void stop();
+        static HPX_EXPORT void stop();
 
     private:
 //        static std::shared_ptr<components::monitor> & get_ptr();

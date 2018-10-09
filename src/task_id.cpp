@@ -20,7 +20,7 @@ namespace allscale {
             }
             return this_wi->id();
         }
-        return {locality_id, id, path.getParentPath()};
+        return {locality_id, id, path.getParentPath(), nullptr};
     }
 
     task_id task_id::create_root()

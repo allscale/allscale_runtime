@@ -50,15 +50,14 @@ namespace allscale { namespace components { namespace util {
     {
         int res = 0;
 	//	hardware_reconf::hw_topology topo = read_hw_topology();
-        unsigned int max_cpu_id = initial_topo.num_logical_cores;
         unsigned int hw_threads = initial_topo.num_hw_threads;
-	for (int cpu_id = min_cpu; cpu_id < min_cpu + (max_cpu * hw_threads); cpu_id += hw_threads)
+        for (unsigned int cpu_id = min_cpu; cpu_id < min_cpu + (max_cpu * hw_threads); cpu_id += hw_threads)
         {
 	    // cpu exists
-	    if (!cpufreq_cpu_exists(cpu_id))
-		{
-		    res = cpufreq_set_frequency(cpu_id, target_frequency);
-		}
+            if (!cpufreq_cpu_exists(cpu_id))
+            {
+                res = cpufreq_set_frequency(cpu_id, target_frequency);
+            }
         }
 
         return res;
@@ -77,18 +76,18 @@ namespace allscale { namespace components { namespace util {
 
         std::unique_lock<mutex_type> l(hardware_reconf::freq_mtx_);
         unsigned int target_freq_idx = 0;
-        for (int cpu_id = 0; cpu_id < max_cpu_id; cpu_id += hw_threads)
+        for (unsigned int cpu_id = 0; cpu_id < max_cpu_id; cpu_id += hw_threads)
         {
             unsigned long hw_freq = get_hardware_freq(cpu_id);
-            for (int freq_idx = 0; freq_idx < all_freqs.size(); freq_idx++)
+            for (unsigned int freq_idx = 0; freq_idx < all_freqs.size(); freq_idx++)
             {
                 if (hw_freq == all_freqs[freq_idx])
                 {
                     if ( !dec )
                     {
-                        if ( freq_idx - freq_step >= 0 )
+                        if ( freq_idx >= freq_step )
                             target_freq_idx = freq_idx - freq_step;
-                        else if ( freq_idx >0 && freq_idx - freq_step < 0 )
+                        else if ( freq_idx < freq_step )
                             target_freq_idx = 0;
 
                         cpufreq_set_frequency(cpu_id, all_freqs[target_freq_idx]);
@@ -138,7 +137,7 @@ namespace allscale { namespace components { namespace util {
     void hardware_reconf::set_frequencies_bulk(unsigned int num_cpus, unsigned long target_frequency)
     {
         int res = 0;
-        int count = 0;
+        unsigned int count = 0;
 
         //hardware_reconf::hw_topology topo = read_hw_topology();
         unsigned int max_cpu_id = initial_topo.num_logical_cores;

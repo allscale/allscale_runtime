@@ -14,8 +14,8 @@
 #include <unordered_map>
 
 namespace allscale { namespace data_item_manager {
-    void register_index_service(std::function<void(runtime::HierarchicalOverlayNetwork &)> f);
-    void init_index_services(runtime::HierarchicalOverlayNetwork& hierarchy);
+    HPX_EXPORT void register_index_service(std::function<void(runtime::HierarchicalOverlayNetwork &)> f);
+    HPX_EXPORT void init_index_services(runtime::HierarchicalOverlayNetwork& hierarchy);
 
     template <typename DataItem>
     struct index_service;
@@ -493,7 +493,6 @@ namespace allscale { namespace data_item_manager {
                     HPX_ASSERT(left_.empty());
                     HPX_ASSERT(right_.empty());
                     l.unlock();
-                    std::size_t locality_id = service_->here_.getRank();
                     {
                         auto& item = data_item_store<DataItem>::lookup(ref.id());
                         std::unique_lock<mutex_type> ll(item.mtx);
