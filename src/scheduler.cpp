@@ -296,7 +296,8 @@ namespace allscale
                     // test that this virtual node is allowed to interfere with the scheduling
                     // of this task
                     std::lock_guard<mutex_type> l(mtx_);
-                    is_involved = policy_.policy_->is_involved(here_, (path.isRoot() ? path : path.getParentPath()));
+//                     is_involved = policy_.policy_->is_involved(here_, (path.isRoot() ? path : path.getParentPath()));
+                    is_involved = policy_.policy_->is_involved(here_, path);
                 }
                 if (is_involved
                     // test that this virtual node has control over all required data
@@ -352,6 +353,7 @@ namespace allscale
             // if this is not involved, send task to parent
             if (!is_involved)
             {
+                reqs->add_allowance(here_);
                 HPX_ASSERT(!is_root_);
                 if (!parent_id_)
                 {

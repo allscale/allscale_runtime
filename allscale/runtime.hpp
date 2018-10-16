@@ -31,7 +31,7 @@
 #include <hpx/util/invoke_fused.hpp>
 #include <hpx/util/unused.hpp>
 #include <hpx/util/unwrap.hpp>
-#include <hpx/lcos/local/dataflow.hpp>
+#include <hpx/lcos/dataflow.hpp>
 #include <hpx/lcos/barrier.hpp>
 
 #include <boost/program_options.hpp>
