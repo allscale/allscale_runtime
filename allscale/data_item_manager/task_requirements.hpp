@@ -12,6 +12,7 @@
 
 #include <hpx/lcos/future.hpp>
 #include <hpx/util/assert.hpp>
+#include <hpx/util/debug/demangle_helper.hpp>
 
 namespace allscale { namespace data_item_manager {
     template <typename SplitRequirements, typename ProcessRequirements>
@@ -134,7 +135,7 @@ namespace allscale { namespace data_item_manager {
         {
             hpx::serialization::detail::register_class_name<
                 task_requirements>::instance.instantiate();
-            return hpx::util::type_id<task_requirements>::typeid_.type_id();
+            return hpx::util::debug::type_id<task_requirements>::typeid_.type_id();
         }
 
         std::string hpx_serialization_get_name() const final
