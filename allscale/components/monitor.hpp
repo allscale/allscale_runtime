@@ -338,6 +338,7 @@ namespace allscale { namespace components {
 
 
            private:
+             typedef hpx::lcos::local::spinlock mutex_type;
 
              // MONITOR MANAGEMENT
              // Measuring total execution time
@@ -347,6 +348,8 @@ namespace allscale { namespace components {
              std::uint64_t rank_, execution_init;
 
              std::uint64_t num_localities_;
+             mutex_type init_mutex;
+             bool initialized = false;
              bool enable_monitor;
 
              // System parameters
@@ -361,7 +364,6 @@ namespace allscale { namespace components {
 //             hpx::id_type left_;
 //             hpx::id_type right_;
 
-             typedef hpx::lcos::local::spinlock mutex_type;
              mutex_type work_map_mutex;
 
              // Performance profiles per work item ID

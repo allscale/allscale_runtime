@@ -26,8 +26,8 @@ namespace allscale { namespace dashboard
     node_state get_state()
     {
         node_state state;
-        static allscale::components::monitor *monitor_c = &allscale::monitor::get();
-
+        allscale::components::monitor *monitor_c = &allscale::monitor::get();
+//
         state.rank = hpx::get_locality_id();
         state.online = true;
         state.active = true;

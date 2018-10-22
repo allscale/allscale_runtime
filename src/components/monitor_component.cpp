@@ -1852,6 +1852,10 @@ namespace allscale { namespace components {
    }
 
    void monitor::init() {
+    std::unique_lock<mutex_type> l(init_mutex);
+    if (initialized) return;
+    hpx::util::ignore_while_checking<std::unique_lock<mutex_type>> il(&l);
+
 //      bool enable_signals = true;
       if(const char* env_p = std::getenv("ALLSCALE_MONITOR"))
       {
@@ -1861,8 +1865,8 @@ namespace allscale { namespace components {
 
       if(!enable_monitor)
       {
-	 std::cout << "Monitor component disabled!\n";
-	 return;
+         std::cout << "Monitor component disabled!\n";
+         return;
       }
       num_localities_ = allscale::get_num_localities();
 
@@ -2155,6 +2159,10 @@ namespace allscale { namespace components {
       // Init historical data
       history = std::make_shared<allscale::historical_data>();
 
+      hpx::register_with_basename("allscale/monitor", this->get_id(), rank_).get();
+
+
+      initialized = true;
 
        std::cerr
           << "Monitor component with rank "

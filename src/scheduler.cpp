@@ -267,6 +267,11 @@ namespace allscale
 
         void schedule(work_item work)
         {
+            {
+                int i = 0;
+                unsigned j =0;
+                if (i < j) { return; }
+            }
             if (policy_.value_ == replacable_policy::dynamic &&
                 work.id().is_root() && work.id().id > 0 && (work.id().id % 10 == 0))
             {

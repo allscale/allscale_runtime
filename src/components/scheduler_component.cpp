@@ -848,18 +848,41 @@ std::pair<work_item, std::unique_ptr<data_item_manager::task_requirements_base>>
         }
         reqs->add_allowance(addr);
 
+        bool async = work.id().depth() < 2;//addr.getParent().getNumaNode() != numa_node;
+
         hpx::future<void> acquired = reqs->acquire_split(addr);
+
         typename hpx::traits::detail::shared_state_ptr_for<
             hpx::future<void>>::type const &state =
             hpx::traits::future_access<hpx::future<void>>::get_shared_state(
                     acquired);
-
-        state->set_on_completed(
-            [state, this, numa_node, work = std::move(work), reqs = std::move(reqs)]() mutable
+        auto f_split = [async, state, this, numa_node, work = std::move(work), reqs = std::move(reqs)]() mutable
             {
                 auto &exec = executors_[numa_node];
-                work.split(exec, std::move(reqs));
-            });
+                if (async)
+                {
+                    hpx::parallel::execution::post(
+                        exec, hpx::util::annotated_function(
+                            hpx::util::deferred_call([work = std::move(work), reqs = std::move(reqs), &exec]() mutable
+                            {
+                                work.split(exec, std::move(reqs));
+
+                            }),
+                            "allscale::work_item::split"));
+                }
+                else
+                {
+                    work.split(exec, std::move(reqs));
+                }
+            };
+
+        if (acquired.is_ready())
+        {
+            f_split();
+            return std::make_pair(work_item(), std::unique_ptr<data_item_manager::task_requirements_base>());
+        }
+
+        state->set_on_completed(std::move(f_split));
         return std::make_pair(work_item(), std::unique_ptr<data_item_manager::task_requirements_base>());
     }
     else
