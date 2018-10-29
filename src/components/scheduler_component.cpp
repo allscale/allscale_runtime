@@ -90,7 +90,7 @@ scheduler::scheduler(std::uint64_t rank)
       uselopt(false)
   {
   allscale_monitor = &allscale::monitor::get();
-  thread_times.resize(hpx::get_os_thread_count());
+  thread_times.resize(os_thread_count);
 
 #ifdef DEBUG_
   std::cout << "DEBUG_ is defined" << std::endl << std::flush;
@@ -120,7 +120,7 @@ std::size_t scheduler::get_num_numa_nodes() {
     numa_nodes = topo_->get_number_of_sockets();
   std::vector<hpx::threads::mask_type> node_masks(numa_nodes);
 
-  std::size_t num_os_threads = hpx::get_os_thread_count();
+  std::size_t num_os_threads = os_thread_count;
   for (std::size_t num_thread = 0; num_thread != num_os_threads; ++num_thread) {
     std::size_t pu_num = rp_->get_pu_num(num_thread);
     std::size_t numa_node = topo_->get_numa_node_number(pu_num);
@@ -164,7 +164,7 @@ std::size_t scheduler::get_num_numa_cores(std::size_t domain) {
   std::vector<hpx::threads::mask_type> node_masks(numa_nodes);
 
   std::size_t res = 0;
-  std::size_t num_os_threads = hpx::get_os_thread_count();
+  std::size_t num_os_threads = os_thread_count;
   for (std::size_t num_thread = 0; num_thread != num_os_threads; num_thread++) {
     std::size_t pu_num = rp_->get_pu_num(num_thread);
     std::size_t numa_node = topo_->get_numa_node_number(pu_num);
@@ -197,6 +197,8 @@ void scheduler::init() {
   std::vector<objectiveType> objectives_priorities;
   int objectives_priority_idx=0;
 
+  std::size_t num_localities = allscale::get_num_localities();
+
   std::unique_lock<mutex_type> l(resize_mtx_);
   hpx::util::ignore_while_checking<std::unique_lock<mutex_type>> il(&l);
   if (initialized_)
@@ -212,21 +214,16 @@ void scheduler::init() {
   rp_ = &hpx::resource::get_partitioner();
   topo_ = &hpx::threads::get_topology();
 
-  std::size_t num_cores = 0;
-  for(std::size_t i = 0; i < allscale::get_num_numa_nodes(); ++i)
-  {
-      num_cores += get_num_numa_cores(i) + 1;
-  }
-  if (num_cores == 1) depth_cut_off_ = 1;
-  else
-  {
-      depth_cut_off_ =
-        std::ceil(
-            std::log2(
-                num_cores * allscale::get_num_localities()
-            )
-        );
-  }
+  std::size_t num_cores = os_thread_count;
+
+  depth_cut_off_ =
+    std::ceil(
+        std::log2(
+            (num_cores + 2) * allscale::get_num_localities()
+        )
+    );
+
+//   std::cout << "init: " << num_cores << " " << allscale::get_num_localities() << " " << depth_cut_off_ << '\n';
 
   // Reading user provided options in terms of desired optimization objectives
   std::string input_objective_str =
@@ -375,6 +372,9 @@ void scheduler::init() {
   auto const &numa_domains = rp_->numa_domains();
   executors_.reserve(numa_domains.size());
   thread_pools_.reserve(numa_domains.size());
+  numa_start = runtime::HierarchyAddress::getLayersOn(0, num_localities);
+  numa_depth = std::floor(std::log2(numa_domains.size()));
+//   std::cout << "got numa depth: " << numa_depth << '\n';
 
   for (std::size_t domain = 0; domain < numa_domains.size(); ++domain) {
     std::string pool_name;
@@ -837,7 +837,8 @@ std::pair<work_item, std::unique_ptr<data_item_manager::task_requirements_base>>
 
     nr_tasks_scheduled++;
 
-    std::size_t numa_node = addr.getNumaNode();
+    // FIXME!!!!
+    std::size_t numa_node = work.id().numa_node(numa_depth, numa_start);
 
     if (do_split(work, numa_node))
     {
@@ -876,12 +877,6 @@ std::pair<work_item, std::unique_ptr<data_item_manager::task_requirements_base>>
                 }
             };
 
-        if (acquired.is_ready())
-        {
-            f_split();
-            return std::make_pair(work_item(), std::unique_ptr<data_item_manager::task_requirements_base>());
-        }
-
         state->set_on_completed(std::move(f_split));
         return std::make_pair(work_item(), std::unique_ptr<data_item_manager::task_requirements_base>());
     }
@@ -889,6 +884,17 @@ std::pair<work_item, std::unique_ptr<data_item_manager::task_requirements_base>>
     {
         if (!addr.isLeaf()) return std::make_pair(std::move(work), std::move(reqs));
         reqs->add_allowance(addr);
+
+
+//         {
+//             static hpx::lcos::local::spinlock mtx;
+//             mtx.lock();
+//             std::cout << work.name() << " " << work.id() << " " << addr << " "
+//                 << runtime::HierarchyAddress::getLayersOn(0, num)
+//                 << " " << numa_node << " " << depth_cut_off_ << '\n';
+//             mtx.unlock();
+//         }
+
 
         hpx::future<void> acquired = reqs->acquire_process(addr);
         typename hpx::traits::detail::shared_state_ptr_for<
@@ -927,7 +933,8 @@ bool scheduler::do_split(work_item const &w, std::size_t numa_node) {
     // Check if we reached the required depth
     // FIXME: make the cut off runtime configurable...
     // FIXME:!!!!!!!
-    if (w.id().depth() < depth_cut_off_) {
+    if (w.id().depth() < depth_cut_off_)
+    {
 //         std::cout << "
       // FIXME: add more elaborate splitting criterions
       return true;
@@ -1104,28 +1111,13 @@ unsigned int scheduler::suspend_threads(std::size_t suspendthreads) {
 
   // Setting the default thread depths of the NUMA domain
   {
-      std::size_t num_cores = 0;
-      for(std::size_t i = 0; i < allscale::get_num_numa_nodes(); ++i)
-      {
-          if (i == pool_idx)
-          {
-              num_cores = get_num_numa_cores(pool_idx) - suspend_threads.size() + 1;
-          }
-          else
-          {
-              num_cores += get_num_numa_cores(i) + 1;
-          }
-      }
-      if (num_cores == 1) depth_cut_off_ = 1;
-      else
-      {
-          depth_cut_off_ =
-            std::ceil(
-                std::log2(
-                    num_cores * allscale::get_num_localities()
-                )
-            );
-      }
+      std::size_t num_cores = hpx::get_os_thread_count() - suspend_threads.size();
+      depth_cut_off_ =
+        std::ceil(
+            std::log2(
+                (num_cores + 2) * allscale::get_num_localities()
+            )
+        );
   }
 #ifdef MEASURE_
   update_active_osthreads(-1 * suspend_threads.size());
@@ -1299,28 +1291,13 @@ unsigned int scheduler::resume_threads(std::size_t resumethreads) {
   }
   // Setting the default thread depths of the NUMA domain
   {
-      std::size_t num_cores = 0;
-      for(std::size_t i = 0; i < allscale::get_num_numa_nodes(); ++i)
-      {
-          if (i == pool_idx)
-          {
-              num_cores = get_num_numa_cores(pool_idx) + resume_threads.size() + 1;
-          }
-          else
-          {
-              num_cores += get_num_numa_cores(i) + 1;
-          }
-      }
-      if (num_cores == 1) depth_cut_off_ = 1;
-      else
-      {
-          depth_cut_off_ =
-            std::ceil(
-                std::log2(
-                    num_cores * allscale::get_num_localities()
-                )
-            );
-      }
+      std::size_t num_cores = hpx::get_os_thread_count() + resume_threads.size();
+      depth_cut_off_ =
+        std::ceil(
+            std::log2(
+                (num_cores + 2) * allscale::get_num_localities()
+            )
+        );
   }
 #ifdef MEASURE_
   update_active_osthreads(resume_threads.size());

@@ -98,8 +98,10 @@ namespace allscale { namespace dashboard
 
     struct system_state
     {
+        HPX_EXPORT system_state();
+
         // the time this state was recorded
-        std::uint64_t time;
+        std::uint64_t time = 0;
 
         // -- multi-objective metrics --
 
@@ -111,6 +113,8 @@ namespace allscale { namespace dashboard
 
         // current power usage / max power usage on all nodes \in [0..1]
         float power = 0;
+
+        std::string policy;
 
         // the overall system-wide score of the objective function
         float score = 0;
@@ -124,6 +128,7 @@ namespace allscale { namespace dashboard
     };
 
     void update();
+    void get_commands();
     void shutdown();
 }}
 

@@ -22,6 +22,7 @@
 #include <allscale/work_item_stats.hpp>
 #include <allscale/util/graph_colouring.hpp>
 #include <allscale/historical_data.hpp>
+#include <allscale/task_times.hpp>
 
 
 #include <hpx/include/components.hpp>
@@ -45,6 +46,7 @@ namespace allscale { namespace components {
        struct HPX_COMPONENT_EXPORT monitor
 	 : hpx::components::component_base<monitor>
        {
+             typedef hpx::lcos::local::spinlock mutex_type;
 
            monitor()
            {
@@ -63,6 +65,14 @@ namespace allscale { namespace components {
 //           hpx::id_type get_left_neighbour() { return left_; }
 //           hpx::id_type get_right_neighbour() { return right_; }
 
+           mutex_type task_times_mtx_;
+           task_times task_times_;
+           task_times last_task_times_;
+           std::chrono::high_resolution_clock::time_point last_task_times_sample_;
+
+           void add_task_time(task_id::task_path const& path, task_times::time_t const& time);
+
+           task_times get_task_times();
 
            /////////////////////////////////////////////////////////////////////////////////////
            ///                       Performance Data Introspection
@@ -336,9 +346,9 @@ namespace allscale { namespace components {
            //           //           /// \returns      Cpu load
            float get_cpu_load();
 
+         double get_avg_task_duration();
 
            private:
-             typedef hpx::lcos::local::spinlock mutex_type;
 
              // MONITOR MANAGEMENT
              // Measuring total execution time
@@ -350,7 +360,9 @@ namespace allscale { namespace components {
              std::uint64_t num_localities_;
              mutex_type init_mutex;
              bool initialized = false;
+            public:
              bool enable_monitor;
+            private:
 
              // System parameters
              unsigned long long total_memory_;
@@ -453,12 +465,12 @@ namespace allscale { namespace components {
 //             hpx::id_type idle_rate_avg_counter_;
 //             double idle_rate_avg_;
 
-#ifdef REALTIME_VIZ
              // REALTIME VIZ
 	     std::mutex counter_mutex_;
 	     std::uint64_t num_active_tasks_;
 	     std::uint64_t total_tasks_;
 	     double total_task_duration_;
+#ifdef REALTIME_VIZ
 
              hpx::id_type idle_rate_counter_;
              double idle_rate_;
@@ -470,7 +482,6 @@ namespace allscale { namespace components {
 	     unsigned long long int sample_id_;
 
              bool sample_task_stats();
-             double get_avg_task_duration();
 #endif
 
              // HISTORICAL DATA

@@ -20,7 +20,7 @@ namespace allscale {
             }
             return this_wi->id();
         }
-        return {locality_id, id, path.getParentPath(), nullptr};
+        return {locality_id, id, path.getParentPath(), 0, std::uint8_t(-1), nullptr};
     }
 
     task_id task_id::create_root()
@@ -59,7 +59,7 @@ namespace allscale {
     {
         std::stringstream ss;
 
-        ss << id;
+        ss << id << '(' << id.path.getPath() << ',' << id.path.getLength() << ')';
 
         return ss.str();
     }

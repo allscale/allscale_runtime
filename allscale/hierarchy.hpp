@@ -29,17 +29,14 @@ namespace runtime {
 
 		// the addressed rank
         std::size_t rank;
-        std::size_t numa_node;
 
 		// the addressed layer
 		layer_t layer;
 
 	public:
-        static HPX_EXPORT std::size_t numaCutOff;
-
 		// creates a new address targeting the given rank on the given node
-		HierarchyAddress(std::size_t rank = 0, std::size_t numa_node = 0, layer_t layer = 0)
-          : rank(rank), numa_node(numa_node), layer(layer) {
+		HierarchyAddress(std::size_t rank = 0, layer_t layer = 0)
+          : rank(rank), layer(layer) {
 			// assert that the provided combination is valid
 			assert_true(check());
 		}
@@ -50,10 +47,6 @@ namespace runtime {
 		std::size_t getRank() const {
 			return rank;
 		}
-
-        std::size_t getNumaNode() const {
-            return numa_node;
-        }
 
 		// obtains the layer on the hosting node this address is referencing
 		layer_t getLayer() const {
@@ -77,8 +70,7 @@ namespace runtime {
 
 		// determines whether this node is the right child of its parent
 		bool isRightChild() const {
-            return getParent().getRightChild() == *this;
-// 			return rank & (1<<layer);
+			return rank & (1<<layer);
 		}
 
 		// --- factories ---
@@ -86,7 +78,7 @@ namespace runtime {
 		/**
 		 * Obtains the root node of a network of the given size.
 		 */
-		static HPX_EXPORT HierarchyAddress getRootOfNetworkSize(std::size_t numa_size, std::size_t size);
+		static HPX_EXPORT HierarchyAddress getRootOfNetworkSize(std::size_t size);
 
 		// --- navigation ---
 
@@ -95,12 +87,7 @@ namespace runtime {
 		 */
 		HierarchyAddress getParent() const {
 			// computes the address of the parent (always possible)
-            if (layer < numaCutOff)
-            {
-                return {rank, numa_node & ~(1 << (layer)), layer+1 };
-            }
-
-			return { rank & ~(1<<(layer - numaCutOff)), 0, layer+1 };
+			return { rank & ~(1<<layer), layer+1 };
 		}
 
 		/**
@@ -118,7 +105,7 @@ namespace runtime {
 		HierarchyAddress getLeftChild() const {
 			// computes the address of the left child
 			assert_true(isVirtualNode());
-			return { rank, numa_node, layer-1 };
+			return { rank, layer-1 };
 		}
 
 		/**
@@ -128,20 +115,13 @@ namespace runtime {
 		HierarchyAddress getRightChild() const {
 			// computes the address of the right child
 			assert_true(isVirtualNode());
-            if (layer <= numaCutOff)
-            {
-                return {rank, numa_node + (1<<(layer - 1)), layer-1 };
-            }
-
-            assert_true(layer != 0);
-
-			return { rank+(1<<(layer - 1 - numaCutOff)), 0, layer-1 };
+			return { rank+(1<<(layer-1)), layer-1 };
 		}
 
 		// --- operators ---
 
 		bool operator==(const HierarchyAddress& other) const {
-			return rank == other.rank && layer == other.layer && numa_node == other.numa_node;
+			return rank == other.rank && layer == other.layer;
 		}
 
 		bool operator!=(const HierarchyAddress& other) const {
@@ -149,19 +129,19 @@ namespace runtime {
 		}
 
 		bool operator<(const HierarchyAddress& other) const {
-            return std::tie(rank, numa_node, layer) < std::tie(other.rank, other.numa_node, other.layer);
+            return std::tie(rank, layer) < std::tie(other.rank, other.layer);
 		}
 
         bool operator>(const HierarchyAddress& other) const {
-            return std::tie(rank, numa_node, layer) > std::tie(other.rank, other.numa_node, other.layer);
+            return std::tie(rank, layer) > std::tie(other.rank, other.layer);
 		}
 
         bool operator>=(const HierarchyAddress& other) const {
-            return std::tie(rank, numa_node, layer) >= std::tie(other.rank, other.numa_node, other.layer);
+            return std::tie(rank, layer) >= std::tie(other.rank, other.layer);
 		}
 
         bool operator<=(const HierarchyAddress& other) const {
-            return std::tie(rank, numa_node, layer) <= std::tie(other.rank, other.numa_node, other.layer);
+            return std::tie(rank, layer) <= std::tie(other.rank, other.layer);
 		}
 
 		// add printer support
@@ -170,7 +150,7 @@ namespace runtime {
 		// --- utilities ---
 
 		// computes the number of layers present on the given rank within a network of the given size
-		static HPX_EXPORT layer_t getLayersOn(std::size_t rank, std::size_t numa_node, std::size_t numa_size, std::size_t size);
+		static HPX_EXPORT layer_t getLayersOn(std::size_t rank, std::size_t size);
 
 	private:
 
@@ -188,7 +168,7 @@ namespace runtime {
 	class HierarchyService {
 
 		// the locally running services (one instance for each layer)
-        std::vector<std::vector<Service>> services;
+		std::vector<Service> services;
 
 	public:
 
@@ -196,43 +176,36 @@ namespace runtime {
 		template<typename ... Args>
 		void init(const Args& ... args) {
 			// start up services
-            std::size_t num_numa_nodes = allscale::get_num_numa_nodes();
             std::size_t num_localities = allscale::get_num_localities();
 
             std::size_t locality_id = hpx::get_locality_id();
 
-            // Calculate the total number of local services
-            services.resize(num_numa_nodes);
-            for (std::size_t numa_node = 0; numa_node != num_numa_nodes; ++numa_node)
-            {
-                auto numServices = HierarchyAddress::getLayersOn(
-                    locality_id, numa_node, num_numa_nodes, num_localities);
+            auto numServices = HierarchyAddress::getLayersOn(locality_id,num_localities);
 
-                services[numa_node].reserve(numServices);
-                for(layer_t i=0; i< numServices; i++)
-                {
-                    services[numa_node].emplace_back(
-                        HierarchyAddress(locality_id, numa_node, i), args...);
-                }
+            // Calculate the total number of local services
+            services.reserve(num_localities);
+            for(layer_t i=0; i< numServices; i++)
+            {
+                services.emplace_back(
+                    HierarchyAddress(locality_id, i), args...);
             }
 
             hpx::lcos::barrier::synchronize();
 		}
 
 		// retrieves a service instance
-		Service& get(std::size_t numa_node, layer_t layer) {
-			assert_lt(numa_node,services.size());
-			assert_lt(layer,services[numa_node].size());
-			return services[numa_node][layer];
+		Service& get(layer_t layer) {
+			assert_lt(layer,services.size());
+			return services[layer];
 		}
 
 		// applies an operation on all local services
 		template<typename Op>
-		void forAll(const Op& op) {
-			for(auto& numa_services : services) {
-                for(auto& cur : numa_services) {
-                    op(cur);
-                }
+		void forAll(const Op& op)
+        {
+			for(auto& cur : services)
+            {
+                op(cur);
 			}
 		}
 
@@ -262,7 +235,7 @@ namespace runtime {
 		 */
 		HierarchyAddress getRootAddress() const {
 			return HierarchyAddress::getRootOfNetworkSize(
-                allscale::get_num_numa_nodes(), allscale::get_num_localities());
+                allscale::get_num_localities());
 		}
 
 		/**
@@ -277,11 +250,10 @@ namespace runtime {
 		 * Obtains a reference to a locally running service instance.
 		 */
 		template<typename S>
-		static S& getLocalService(HierarchyAddress const& addr)
+		static S& getLocalService(layer_t layer = 0)
         {
-            assert_eq(addr.getRank(), hpx::get_locality_id());
             auto& s = getService<S>();
-			return s.get(addr.getNumaNode(), addr.getLayer());
+			return s.get(layer);
 		}
 
 		/**

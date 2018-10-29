@@ -12,6 +12,8 @@ typedef hpx::components::component<allscale::components::monitor> monitor_compon
 HPX_REGISTER_COMPONENT(monitor_component)
 
 namespace allscale {
+    bool monitor::enabled = false;
+
     components::monitor* monitor::run(std::size_t rank)
     {
         return get_ptr();
@@ -52,6 +54,12 @@ namespace allscale {
         }
     }
 
+    void monitor::add_task_time(task_id::task_path const& path, task_times::time_t const& time)
+    {
+        if (enabled)
+            get().add_task_time(path, time);
+    }
+
     components::monitor &monitor::get()
     {
         HPX_ASSERT(get_ptr());
@@ -68,6 +76,7 @@ namespace allscale {
             res = m.component_.get();
         }
         res->init();
+        enabled = res->enable_monitor;
         return res;
     }
 

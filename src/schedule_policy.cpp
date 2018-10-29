@@ -91,19 +91,24 @@ namespace allscale {
     }
 
     namespace {
-        std::vector<std::size_t> getEqualDistribution(int numNodes, int numTasks) {
+        std::vector<std::size_t> getEqualDistribution(std::vector<bool> const& mask, int numTasks) {
             std::vector<std::size_t> res(numTasks);
 
             // fill it with an even load task distribution
+            std::size_t numNodes = std::count(mask.begin(), mask.end(), true);
             int share = numTasks / numNodes;
             int remainder = numTasks % numNodes;
             int c = 0;
+            int l = 0;
             for(int i=0; i<numNodes; i++) {
+                if (!mask[i]) continue;
+
                 for(int j=0; j<share; j++) {
                     res[c++] = i;
                 }
-                if (i<remainder) {
+                if (l<remainder) {
                     res[c++] = i;
+                    l++;
                 }
             }
             assert_eq(c,numTasks);
@@ -180,25 +185,36 @@ namespace allscale {
      * @param N the number of nodes to distribute work on
      * @param granularity the negative exponent of the acceptable load imbalance; e.g. 0 => 2^0 = 100%, 5 => 2^-5 = 3.125%
      */
-    std::unique_ptr<scheduling_policy> tree_scheduling_policy::create_uniform(int N, int M, int granularity)
+    std::unique_ptr<scheduling_policy> tree_scheduling_policy::create_uniform(std::vector<bool> const& mask, int granularity)
     {
         // some sanity checks
-        assert_lt(0,N * M);
+        assert_lt(0, std::count(mask.begin(), mask.end(), true));
 
         // compute number of levels to be scheduled
-        auto log2 = ceilLog2(N * M);
+        auto log2 = ceilLog2(mask.size());
         auto levels = std::max(log2,granularity);
 
         // create initial task to node mapping
         int numTasks = (1<<levels);
-        std::vector<std::size_t> mapping = getEqualDistribution(N * M,numTasks);
+        std::vector<std::size_t> mapping = getEqualDistribution(mask,numTasks);
 
 //         std::cerr << "create policy: " << (1<<log2) << "\n";
 
         // convert mapping in decision tree
         return std::unique_ptr<scheduling_policy>(new tree_scheduling_policy(
-            runtime::HierarchyAddress::getRootOfNetworkSize(N, M), levels,
+            runtime::HierarchyAddress::getRootOfNetworkSize(mask.size()), levels,
             toDecisionTree((1<<log2),mapping)));
+    }
+
+    std::unique_ptr<scheduling_policy> tree_scheduling_policy::create_uniform(std::vector<bool> const& mask)
+    {
+        return create_uniform(mask, std::max(ceilLog2(mask.size())+3,5));
+    }
+
+    std::unique_ptr<scheduling_policy> tree_scheduling_policy::create_uniform(int N, int granularity)
+    {
+        std::vector<bool> mask(N, true);
+        return create_uniform(mask, granularity);
     }
 
     /**
@@ -207,9 +223,69 @@ namespace allscale {
      *
      * @param N the number of nodes to distribute work on
      */
-    std::unique_ptr<scheduling_policy> tree_scheduling_policy::create_uniform(int N, int M)
+    std::unique_ptr<scheduling_policy> tree_scheduling_policy::create_uniform(int N)
     {
-        return create_uniform(N, M, std::max(ceilLog2(N * M)+3,5));
+        std::vector<bool> mask(N, true);
+        return create_uniform(mask, std::max(ceilLog2(N)+3,5));
+    }
+
+    namespace {
+
+        std::unique_ptr<scheduling_policy> rebalance_tasks(tree_scheduling_policy const& old, const std::vector<float>& task_costs, std::vector<bool> const& mask)
+        {
+            // check input...
+            std::size_t mapping_size = 1 << old.get_granularity();
+            HPX_ASSERT(mapping_size == task_costs.size());
+
+            std::size_t num_nodes = mask.size();
+
+            // --- redistributing costs ---
+
+            // get number of available nodes
+            std::size_t available_nodes = 0;
+            for (bool x : mask) if (x) available_nodes++;
+
+            // if there is really non available, force it to at least one
+            if (available_nodes == 0) available_nodes = 1;
+
+            float total_costs = std::accumulate(task_costs.begin(), task_costs.end(), 0.0f);
+            float share = total_costs / available_nodes;
+
+            float cur_costs = 0;
+            float next_goal = share;
+
+            std::size_t cur_node = 0;
+            while (!mask[cur_node]) cur_node++;
+
+            std::vector<std::size_t> new_mapping(mapping_size);
+            for (std::size_t i = 0; i < mapping_size; ++i)
+            {
+                // compute next costs
+                auto next_costs = cur_costs + task_costs[i];
+
+                // if we cross a boundary
+                if (cur_node < num_nodes - 1)
+                {
+                    if (std::abs(cur_costs - next_goal) < std::abs(next_goal - next_costs))
+                    {
+                        cur_node++;
+                        while (!mask[cur_node]) cur_node++;
+                        next_goal += share;
+                    }
+                }
+
+                new_mapping[i] = cur_node;
+                cur_costs = next_costs;
+            }
+
+            // create new scheduling policy
+            auto log2 = old.root().getLayer();
+
+            return std::unique_ptr<scheduling_policy>(new tree_scheduling_policy(
+                old.root(), old.get_granularity(),
+                toDecisionTree((1<<log2),new_mapping)));
+        }
+
     }
 
     /**
@@ -220,7 +296,13 @@ namespace allscale {
      * @param loadDistribution the load distribution measured, utilized for weighting tasks. Ther must be one entry per node,
      *             no entry must be negative.
      */
-    std::unique_ptr<scheduling_policy> tree_scheduling_policy::create_rebalanced(const scheduling_policy& old_base, const std::vector<optimizer_state>& state, std::vector<bool> const& mask)
+    std::unique_ptr<scheduling_policy> tree_scheduling_policy::create_rebalanced(const scheduling_policy& old_base, const std::vector<float>& state)
+    {
+        std::vector<bool> mask(state.size(), true);
+        return create_rebalanced(old_base, state, mask);
+    }
+
+    std::unique_ptr<scheduling_policy> tree_scheduling_policy::create_rebalanced(const scheduling_policy& old_base, const std::vector<float>& state, std::vector<bool> const& mask)
     {
         tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(old_base);
 
@@ -234,7 +316,7 @@ namespace allscale {
         std::size_t num_nodes = state.size();
 
         // test that all load values are positive
-        HPX_ASSERT(std::all_of(state.begin(), state.end(), [](optimizer_state const& state) { return state.load >= 0.0f; }));
+        HPX_ASSERT(std::all_of(state.begin(), state.end(), [](float load) { return load >= 0.0f; }));
 
         // count number of tasks per node
         std::vector<int> old_share(num_nodes,0);
@@ -247,7 +329,7 @@ namespace allscale {
 
         // compute average costs for tasks (default value)
         float sum = 0.f;
-        for(const auto& cur : state) sum += cur.load;
+        for(const auto& cur : state) sum += cur;
         float avg = sum / mapping.size();
 
         // average costs per task on node
@@ -260,7 +342,7 @@ namespace allscale {
             }
             else
             {
-                costs[i] = state[i].load/old_share[i];
+                costs[i] = state[i]/old_share[i];
             }
         }
 
@@ -270,114 +352,40 @@ namespace allscale {
         for(std::size_t i=0; i < mapping.size(); i++)
         {
             task_costs[i] = costs[mapping[i]];
-            total_costs += task_costs[i];
         }
 
-        // --- redistributing costs ---
+        return rebalance_tasks(old, task_costs, mask);
+    }
 
-        // get number of now available nodes
-        std::size_t available_nodes = 0;
-        for(bool x : mask) if (x) available_nodes++;
-
-        // if there is really none, make it at least one
-        if (available_nodes < 1) available_nodes = 1;
-
-        float share = total_costs / available_nodes;
-
-        float cur_costs = 0;
-        float next_goal = share;
-        std::size_t cur_node = 0;
-        while(!mask[cur_node]) cur_node++;
-        std::vector<std::size_t> new_mapping(mapping.size());
-        for(std::size_t i=0; i<mapping.size(); i++)
+    namespace {
+        void sample_task_costs(task_times const& times, task_id::task_path cur, std::size_t depth, std::vector<float>& res)
         {
-            // compute next costs
-            auto next_costs = cur_costs + task_costs[i];
-
-            // if we cross a boundary
-            if (cur_node < (num_nodes-1))
+            // if we are deep enough...
+            if (cur.getLength() == depth)
             {
-                // decide whether to switch to next node
-                if (std::abs(cur_costs-next_goal) < std::abs(next_goal-next_costs))
-                {
-                    // stopping here is closer to the target
-                    cur_node++;
-                    while(!mask[cur_node]) cur_node++;
-                    next_goal += share;
-                }
+                res[cur.getPath()] = times.get_time(cur);
+                return;
             }
 
-            // else, just add current task to current node
-            new_mapping[i] = cur_node;
-            cur_costs = next_costs;
+            // otherwise, process left and right
+            sample_task_costs(times, cur.getLeftChildPath(), depth, res);
+            sample_task_costs(times, cur.getRightChildPath(), depth, res);
         }
-        // for development, to estimate quality:
+    }
 
-        const bool DEBUG_FLAG = false;
-        if (DEBUG_FLAG) {
-            // --- compute new load distribution ---
-            std::vector<float> newEstCosts(num_nodes,0);
-            for(std::size_t i=0; i<mapping.size(); i++) {
-                newEstCosts[new_mapping[i]] += costs[mapping[i]];
-            }
+    std::unique_ptr<scheduling_policy> tree_scheduling_policy::create_rebalanced(const scheduling_policy& old_base, task_times const& times, std::vector<bool> const& mask)
+    {
+        tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(old_base);
 
-            // compute initial load imbalance variance
-            auto mean = [](const std::vector<float>& v)->float {
-                float s = 0;
-                for(const auto& cur : v) {
-                    s += cur;
-                }
-                return s / v.size();
-            };
-            auto variance = [&](const std::vector<float>& v)->float {
-                float m = mean(v);
-                float s = 0;
-                for(const auto& cur : v) {
-                    auto d = cur - m;
-                    s += d*d;
-                }
-                return s / (v.size()-1);
-            };
+        // extract task cost vector...
+        std::size_t mapping_size = 1 << old.get_granularity();
+        std::vector<float> task_costs(mapping_size);
 
-            auto mean_s = [](const std::vector<optimizer_state>& v)->float {
-                float s = 0;
-                for(const auto& cur : v) {
-                    s += cur.load;
-                }
-                return s / v.size();
-            };
-            auto variance_s = [&](const std::vector<optimizer_state>& v)->float {
-                float m = mean_s(v);
-                float s = 0;
-                for(const auto& cur : v) {
-                    auto d = cur.load - m;
-                    s += d*d;
-                }
-                return s / (v.size()-1);
-            };
+        // sample measured times
+        sample_task_costs(times, task_id::task_path::root(), old.get_granularity(), task_costs);
 
-            std::vector<float> load(state.size());
-            std::transform(state.begin(), state.end(), load.begin(), [](optimizer_state const& s) { return s.load; });
-
-            std::cerr << "Load vector: " << load << " - " << mean_s(state) << " / " << variance_s(state) << "\n";
-            std::cerr << "Est. vector: " << newEstCosts << " - " << mean(newEstCosts) << " / " << variance(newEstCosts) << "\n";
-            std::cerr << "Target Load: " << share << "\n";
-            std::cerr << "Task shared: " << old_share << "\n";
-            std::cerr << "Node costs:  " << costs << "\n";
-            std::cerr << "Task costs:  " << task_costs << "\n";
-            std::cerr << "In-distribution:  " << mapping << "\n";
-            std::cerr << "Out-distribution: " << new_mapping << "\n";
-            std::cerr << toDecisionTree((1<<old.getPresumedRootAddress().getLayer()),new_mapping) << "\n";
-            std::cerr << "\n";
-        }
-
-        // create new scheduling policy
-        auto log2 = old.root_.getLayer();
-//         std::cerr << "create rebalance policy: " << (1<<log2) << "\n";
-
-        return std::unique_ptr<scheduling_policy>(new tree_scheduling_policy(
-            old.root_, old.granularity_,
-            toDecisionTree((1<<log2),new_mapping)));
+        // compute new schedule
+        return rebalance_tasks(old, task_costs, mask);
     }
 
     namespace {
@@ -425,21 +433,12 @@ namespace allscale {
         // base case - the root path
         if (path.isRoot())
         {
-            // trace out the path of the root node
-            auto cur = root_;
-            auto d = schedule_decision::left;
-            while (d != schedule_decision::stay && d != schedule_decision::done && !cur.isLeaf())
+			switch(decide(root_,path))
             {
-                // move on one step
-                switch (d = decide(cur, path))
-                {
-                    case schedule_decision::left: cur = cur.getLeftChild(); break;
-                    case schedule_decision::right: cur = cur.getRightChild(); break;
-                    case schedule_decision::stay: /* do nothing */ break;
-                    case schedule_decision::done: /* do nothing */ break;
-                }
-
-                if (cur == addr) return true;
+                case schedule_decision::stay: return false;
+                case schedule_decision::left: return addr == root_.getLeftChild();
+                case schedule_decision::right: return addr == root_.getRightChild();
+                default: return false;
             }
 
             // not passed by
@@ -462,7 +461,7 @@ namespace allscale {
         auto cur = path;
         while(true) {
             // for the root path, the decision is clear
-            if (cur.isRoot()) return tree_.get(cur);
+            if (cur.isRoot()) return (root_ == addr) ? tree_.get(cur) : schedule_decision::stay;
 
             // see whether the addressed node is the node targeted by the parent path
             auto parent = cur.getParentPath();
@@ -479,8 +478,19 @@ namespace allscale {
 
     runtime::HierarchyAddress tree_scheduling_policy::get_target(const task_id::task_path& path) const
     {
+        // special case: root path
+        if (path.isRoot())
+        {
+            switch(decide(root_, path))
+            {
+                case schedule_decision::left : return root_.getLeftChild();
+                case schedule_decision::right : return root_.getRightChild();
+                default: return root_;
+            }
+        }
+
         // get location of parent task
-        auto res = (path.isRoot()) ? root_ : get_target(path.getParentPath());
+        auto res = get_target(path.getParentPath());
 
         // simulate scheduling
         switch(decide(res,path)) {
@@ -499,7 +509,7 @@ namespace allscale {
     }
 
     random_scheduling_policy::random_scheduling_policy(const allscale::runtime::HierarchyAddress& root)
-      : cutoff_level_(allscale::get_num_numa_nodes() * allscale::get_num_localities()), root_(root)
+      : cutoff_level_(allscale::get_num_localities()), root_(root)
     {}
 
 
@@ -509,7 +519,7 @@ namespace allscale {
         if (addr == root_) return true;
 
         // check wether task has been decomposed sufficiently for the current level
-        return int(path.getLength()) - 3 >= int(root_.getLayer()) - int(addr.getLayer());
+		return int(path.getLength()) - 3 >= int(root_.getLayer()) - int(addr.getLayer());
     }
 
     schedule_decision random_scheduling_policy::decide(runtime::HierarchyAddress const& addr, const task_id::task_path& path) const
@@ -518,12 +528,14 @@ namespace allscale {
 		if (path.getLength() < 3)
             return schedule_decision::stay;
 
-        if (int(path.getLength()) - 3 >= int(root_.getLayer()) - int(addr.getLayer()))
+		if (int(path.getLength() - 3 == int(root_.getLayer()) - int(addr.getLayer())))
         {
+//         std::cout << "wtf??\n";
             return schedule_decision::stay;
         }
 
         auto r = policy(generator);
+//         std::cout << r << "\n";
         if (r < 0.5)
             return schedule_decision::left;
 

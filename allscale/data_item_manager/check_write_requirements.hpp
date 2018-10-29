@@ -33,7 +33,7 @@ namespace allscale { namespace data_item_manager {
 
 
             auto& entry =
-                runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr).get(req.ref);
+                runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr.getLayer()).get(req.ref);
 
             return entry.check_write_requirement(req.region);
         }

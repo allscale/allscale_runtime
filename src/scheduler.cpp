@@ -28,13 +28,35 @@ namespace allscale
 
     void schedule_global(runtime::HierarchyAddress addr, work_item work);
     void schedule_down_global(runtime::HierarchyAddress addr, work_item work, std::unique_ptr<data_item_manager::task_requirements_base> reqs);
+
+    void toggle_node_broadcast(std::size_t locality_id);
+    void set_policy_broadcast(std::string policy);
 }
 
 HPX_PLAIN_DIRECT_ACTION(allscale::schedule_global, schedule_global_action);
 HPX_PLAIN_DIRECT_ACTION(allscale::schedule_down_global, schedule_down_global_action);
+HPX_PLAIN_DIRECT_ACTION(allscale::toggle_node_broadcast, toggle_node_action);
+HPX_PLAIN_DIRECT_ACTION(allscale::set_policy_broadcast, set_policy_action);
 
 namespace allscale
 {
+    scheduler::mutex_type scheduler::active_mtx_;
+    bool scheduler::active_ = true;
+    bool scheduler::active()
+    {
+        std::lock_guard<mutex_type> l(active_mtx_);
+        return active_;
+    }
+
+    void scheduler::toggle_active(bool toggle)
+    {
+        std::lock_guard<mutex_type> l(active_mtx_);
+        if (toggle)
+            active_ = !active_;
+        else
+            active_ = true;
+    }
+
     void scheduler::partition_resources(hpx::resource::partitioner& rp)
     {
         auto const& numa_domains = rp.numa_domains();
@@ -143,53 +165,72 @@ namespace allscale
 
             policy_value value_;
             std::unique_ptr<scheduling_policy> policy_;
+
+            std::string policy()
+            {
+                switch (value_)
+                {
+                    case static_:
+                        return "uniform";
+                    case dynamic:
+                        return "balanced";
+                    case tuned:
+                        return "tuned";
+                    case random:
+                        return "random";
+                    default:
+                        return "unknown";
+                }
+            }
         };
+
+        replacable_policy create_policy(std::string const& policy)
+        {
+            if (policy == "uniform")
+            {
+                return {
+                    replacable_policy::static_,
+                    tree_scheduling_policy::create_uniform(allscale::get_num_localities())
+                };
+            }
+            if (policy == "balanced")
+            {
+                return {
+                    replacable_policy::dynamic,
+                    tree_scheduling_policy::create_uniform(allscale::get_num_localities())
+                };
+            }
+            if (policy == "tuned")
+            {
+                return {
+                    replacable_policy::tuned,
+                    tree_scheduling_policy::create_uniform(allscale::get_num_localities())
+                };
+            }
+            if (policy == "random")
+            {
+                return {
+                    replacable_policy::random,
+                    std::unique_ptr<scheduling_policy>(new random_scheduling_policy(
+                        runtime::HierarchyAddress::getRootOfNetworkSize(allscale::get_num_localities()))
+                    )
+                };
+            }
+
+            return {
+                replacable_policy::static_,
+                tree_scheduling_policy::create_uniform(allscale::get_num_localities())
+            };
+        }
 
         replacable_policy create_policy()
         {
             char * env = std::getenv("ALLSCALE_SCHEDULING_POLICY");
             if (env)
             {
-                if (env == std::string("uniform"))
-                {
-                    return {
-                        replacable_policy::static_,
-                        tree_scheduling_policy::create_uniform(
-                            allscale::get_num_numa_nodes(), allscale::get_num_localities())
-                    };
-                }
-                if (env == std::string("dynamic"))
-                {
-                    return {
-                        replacable_policy::dynamic,
-                        tree_scheduling_policy::create_uniform(
-                            allscale::get_num_numa_nodes(), allscale::get_num_localities())
-                    };
-                }
-                if (env == std::string("tuned"))
-                {
-                    return {
-                        replacable_policy::tuned,
-                        tree_scheduling_policy::create_uniform(
-                            allscale::get_num_numa_nodes(), allscale::get_num_localities())
-                    };
-                }
-                if (env == std::string("random"))
-                {
-                    return {
-                        replacable_policy::random,
-                        std::unique_ptr<scheduling_policy>(new random_scheduling_policy(
-                            runtime::HierarchyAddress::getRootOfNetworkSize(allscale::get_num_numa_nodes(), allscale::get_num_localities()))
-                        )
-                    };
-                }
+                return create_policy(env);
             }
-
-            return {
-                replacable_policy::static_,
-                tree_scheduling_policy::create_uniform(
-                    allscale::get_num_numa_nodes(), allscale::get_num_localities())
-            };
+            return create_policy("uniform");
         }
     }
 
@@ -199,6 +240,7 @@ namespace allscale
         using mutex_type = hpx::lcos::local::spinlock;
         mutex_type mtx_;
         replacable_policy policy_;
+        std::vector<bool> mask_;
         runtime::HierarchyAddress here_;
         runtime::HierarchyAddress root_;
         runtime::HierarchyAddress parent_;
@@ -211,6 +253,7 @@ namespace allscale
 
         scheduler_service(scheduler_service&& other)
           : policy_(std::move(other.policy_))
+          , mask_(std::move(other.mask_))
           , here_(std::move(other.here_))
           , root_(std::move(other.root_))
           , parent_(std::move(other.parent_))
@@ -224,10 +267,10 @@ namespace allscale
 
         scheduler_service(runtime::HierarchyAddress here)
           : policy_(create_policy())
+          , mask_(allscale::get_num_localities(), true)
           , here_(here)
-          , root_(runtime::HierarchyAddress::getRootOfNetworkSize(
-                allscale::get_num_numa_nodes(), allscale::get_num_localities()
-                ))
+          , root_(
+                runtime::HierarchyAddress::getRootOfNetworkSize(allscale::get_num_localities()))
           , parent_(here_.getParent())
           , is_root_(here_ == root_)
         {
@@ -257,22 +300,49 @@ namespace allscale
             }
         }
 
-        void update_policy(std::vector<optimizer_state> const& state, std::vector<bool> mask)
+        std::string policy()
+        {
+            return policy_.policy();
+        }
+
+        void toggle_node(std::size_t locality_id)
+        {
+            std::lock_guard<mutex_type> l(mtx_);
+            mask_[locality_id] = !mask_[locality_id];
+
+            if (policy_.value_ == replacable_policy::random)
+            {
+                policy_.value_ = replacable_policy::static_;
+                policy_.policy_ = tree_scheduling_policy::create_uniform(mask_);
+            }
+            else
+            {
+                policy_.policy_ = tree_scheduling_policy::create_uniform(mask_);
+            }
+        }
+
+        void set_policy(std::string policy)
+        {
+            auto pol = create_policy(policy);
+            {
+                std::lock_guard<mutex_type> l(mtx_);
+                mask_ = std::vector<bool>(mask_.size(), true);
+                policy_ = std::move(pol);
+            }
+        }
+
+        void update_policy(task_times const& times, std::vector<bool> const& mask)
         {
             std::lock_guard<mutex_type> l(mtx_);
             if (!(policy_.value_ == replacable_policy::dynamic || policy_.value_ == replacable_policy::tuned)) return;
 
-            policy_.policy_ = tree_scheduling_policy::create_rebalanced(*policy_.policy_, state, mask);
+            mask_ = mask;
+            policy_.policy_ = tree_scheduling_policy::create_rebalanced(*policy_.policy_, times, mask_);
         }
 
         void schedule(work_item work)
         {
-            {
-                int i = 0;
-                unsigned j =0;
-                if (i < j) { return; }
-            }
-            if (policy_.value_ == replacable_policy::dynamic &&
+            if (is_root_ && policy_.value_ == replacable_policy::dynamic &&
                 work.id().is_root() && work.id().id > 0 && (work.id().id % 10 == 0))
             {
                 optimizer_.balance(false);
@@ -301,17 +371,26 @@ namespace allscale
                     // test that this virtual node is allowed to interfere with the scheduling
                     // of this task
                     std::lock_guard<mutex_type> l(mtx_);
-//                     is_involved = policy_.policy_->is_involved(here_, (path.isRoot() ? path : path.getParentPath()));
-                    is_involved = policy_.policy_->is_involved(here_, path);
+                    is_involved = (path.isRoot()) ? is_root_ : policy_.policy_->is_involved(here_, path.getParentPath());
+//                     is_involved = policy_.policy_->is_involved(here_, path);
                 }
                 if (is_involved
                     // test that this virtual node has control over all required data
                     && reqs->check_write_requirements(here_))
                 {
-//                 std::cout << here_ << ' ' << work.name() << "." << work.id() << ": shortcut " << '\n';
+//                     std::cout << here_ << ' ' << work.name() << "." << work.id() << ": shortcut " << '\n';
                     schedule_down(std::move(work), std::move(reqs));
                     return;
                 }
+            }
+
+            bool unallocated = reqs->get_missing_regions(here_);
+            // If there are unallocated allowances still to process, do so
+            if (unallocated)
+            {
+//                 std::cout << "unallocated...\n";
+                schedule_down(std::move(work), std::move(reqs));
+                return;
             }
 
             // if we are not the root, we need to propagate to our parent...
@@ -319,7 +398,7 @@ namespace allscale
             {
                 if (!parent_id_)
                 {
-                    runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(parent_).
+                    runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(parent_.getLayer()).
                         schedule(std::move(work));
                 }
                 else
@@ -329,7 +408,6 @@ namespace allscale
                 return;
             }
 
-            reqs->get_missing_regions(here_);
             schedule_down(std::move(work), std::move(reqs));
             return;
         }
@@ -358,11 +436,10 @@ namespace allscale
             // if this is not involved, send task to parent
             if (!is_involved)
             {
-                reqs->add_allowance(here_);
                 HPX_ASSERT(!is_root_);
                 if (!parent_id_)
                 {
-                    runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(parent_).
+                    runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(parent_.getLayer()).
                         schedule(std::move(work));
                 }
                 else
@@ -372,15 +449,10 @@ namespace allscale
                 return;
             }
 
-            if (here_.isLeaf())
-            {
-                d = schedule_decision::stay;
-            }
-
             HPX_ASSERT(d != schedule_decision::done);
 
             // if it should stay, process it here
-            if (d == schedule_decision::stay)
+            if (d == schedule_decision::stay || here_.isLeaf())
             {
                 schedule_local(std::move(work), std::move(reqs));
                 return;
@@ -393,7 +465,7 @@ namespace allscale
 //                 std::cout << here_ << ' ' << work.name() << "." << id << ": left: " << '\n';
 //                 reqs->show();
                 reqs->add_allowance_left(here_);
-                runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(left_).
+                runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(left_.getLayer()).
                     schedule_down(std::move(work), std::move(reqs));
             }
             else
@@ -402,16 +474,10 @@ namespace allscale
 //                 reqs->show();
                 reqs->add_allowance_right(here_);
 
-                if (!right_id_ && allscale::resilience::rank_running(right_.getRank()))
-                {
-                    runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(right_).
-                        schedule_down(std::move(work), std::move(reqs));
-                }
-                else
-                {
-                    allscale::resilience::global_wi_dispatched(work, right_.getRank());
-                    hpx::apply<schedule_down_global_action>(right_id_, right_, std::move(work), std::move(reqs));
-                }
+                HPX_ASSERT(right_id_);
+
+                allscale::resilience::global_wi_dispatched(work, right_.getRank());
+                hpx::apply<schedule_down_global_action>(right_id_, right_, std::move(work), std::move(reqs));
             }
             return;
         }
@@ -435,7 +501,8 @@ namespace allscale
 //             std::cout << here_ << ' ' << work.name() << "." << id << ": left: " << '\n';
 //             reqs->show();
             res.second->add_allowance_left(here_);
-            runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(left_).
+            HPX_ASSERT(left_.getLayer() == here_.getLayer()-1);
+            runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(left_.getLayer()).
                 schedule_local(std::move(res.first), std::move(res.second));
         }
     };
@@ -443,12 +510,8 @@ namespace allscale
     void scheduler::schedule(work_item&& work)
     {
         // Calculate our local root address ...
-        static auto rank = get().rank_;
-        static auto local_layers = runtime::HierarchyAddress::getLayersOn(
-            rank, 0, allscale::get_num_numa_nodes(),  allscale::get_num_localities());
-        static auto addr = runtime::HierarchyAddress(rank, 0, local_layers - 1);
-        static auto &local_scheduler_service =
-            runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(addr);
+        auto &local_scheduler_service =
+            runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>();
 
         allscale::monitor::signal(allscale::monitor::work_item_enqueued, work);
 
@@ -456,25 +519,70 @@ namespace allscale
 //         get().enqueue(work);
     }
 
-    void scheduler::update_policy(std::vector<optimizer_state> const& state, std::vector<bool> mask)
+    void toggle_node_broadcast(std::size_t locality_id)
     {
         runtime::HierarchicalOverlayNetwork::forAllLocal<scheduler_service>(
             [&](scheduler_service& sched)
             {
-                sched.update_policy(state, mask);
+                sched.toggle_node(locality_id);
+            }
+        );
+
+        if (hpx::get_locality_id() == locality_id)
+        {
+            scheduler::toggle_active();
+        }
+    }
+
+    hpx::future<void> scheduler::toggle_node(std::size_t locality_id)
+    {
+        return hpx::lcos::broadcast<toggle_node_action>(hpx::find_all_localities(),
+            locality_id);
+    }
+
+    void set_policy_broadcast(std::string policy)
+    {
+        runtime::HierarchicalOverlayNetwork::forAllLocal<scheduler_service>(
+            [&](scheduler_service& sched)
+            {
+                sched.set_policy(policy);
+            }
+        );
+        // This sets the state to active again...
+        scheduler::toggle_active(false);
+    }
+
+    hpx::future<void> scheduler::set_policy(std::string policy)
+    {
+        return hpx::lcos::broadcast<set_policy_action>(hpx::find_all_localities(),
+            policy);
+    }
+
+    std::string scheduler::policy()
+    {
+        return runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>().
+            policy();
+    }
+
+    void scheduler::update_policy(task_times const& times, std::vector<bool> mask)
+    {
+        runtime::HierarchicalOverlayNetwork::forAllLocal<scheduler_service>(
+            [&](scheduler_service& sched)
+            {
+                sched.update_policy(times, mask);
             }
         );
     }
 
     void schedule_global(runtime::HierarchyAddress addr, work_item work)
     {
-        runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(addr).
+        runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(addr.getLayer()).
             schedule(std::move(work));
     }
 
     void schedule_down_global(runtime::HierarchyAddress addr, work_item work, std::unique_ptr<data_item_manager::task_requirements_base> reqs)
     {
-        runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(addr).
+        runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(addr.getLayer()).
             schedule_down(std::move(work), std::move(reqs));
     }
 
@@ -485,7 +593,6 @@ namespace allscale
 
     components::scheduler* scheduler::run(std::size_t rank)
     {
-        runtime::HierarchyAddress::numaCutOff = std::ceil(std::log2(allscale::get_num_numa_nodes()));
         runtime::HierarchicalOverlayNetwork hierarchy;
 
         hierarchy.installService<scheduler_service>();

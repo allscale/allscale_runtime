@@ -102,6 +102,7 @@ namespace allscale { namespace components {
             rank_running_.resize(num_localities, true);
         }
 
+        localities.reserve(num_localities);
         for(std::size_t i = 0; i < num_localities; i++)
         {
            hpx::shared_future<hpx::id_type> locality_future =

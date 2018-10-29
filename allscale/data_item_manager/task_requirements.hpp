@@ -44,7 +44,7 @@ namespace allscale { namespace data_item_manager {
         virtual void show() const = 0;
 
         virtual bool check_write_requirements(hierarchy_address const&) const = 0;
-        virtual void get_missing_regions(hierarchy_address const&) = 0;
+        virtual bool get_missing_regions(hierarchy_address const&) = 0;
         virtual void add_allowance(hierarchy_address const&) const= 0;
         virtual void add_allowance_left(hierarchy_address const&)= 0;
         virtual void add_allowance_right(hierarchy_address const&)= 0;
@@ -90,9 +90,9 @@ namespace allscale { namespace data_item_manager {
             return data_item_manager::check_write_requirements(addr, process_requirements_);
         }
 
-        void get_missing_regions(hierarchy_address const& addr) final
+        bool get_missing_regions(hierarchy_address const& addr) final
         {
-            data_item_manager::get_missing_regions(addr, process_requirements_);
+            return data_item_manager::get_missing_regions(addr, process_requirements_);
         }
 
         void add_allowance(hierarchy_address const& addr) const final

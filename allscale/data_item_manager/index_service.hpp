@@ -96,20 +96,27 @@ namespace allscale { namespace data_item_manager {
             return region_type::intersect(region, unallocated);
         }
 
-        region_type get_missing_region(region_type const& region) const
+        region_type get_missing_region(region_type const& region, bool& unallocated) const
         {
             if (region.empty()) return {};
             std::lock_guard<mutex_type> l(mtx_);
 
             region_type managed_unallocated = get_managed_unallocated(region);
-            if (!managed_unallocated.empty()) return managed_unallocated;
+            if (!managed_unallocated.empty())
+            {
+                unallocated = true;
+                return managed_unallocated;
+            }
+
+            unallocated = false;
 
             return region_type::difference(region, full_);
         }
 
         bool check_write_requirement(region_type const& region) const
         {
-            return get_missing_region(region).empty();
+            bool unallocated = false;
+            return get_missing_region(region, unallocated).empty();
         }
 
         template <typename Requirement>
@@ -127,12 +134,10 @@ namespace allscale { namespace data_item_manager {
                     region_type reserved = region_type::merge(frag.getCoveredRegion(), region);
                     // resize fragment...
                     frag.resize(reserved);
-                    // update ownership
-                    if (exclusive)
-                        item.exclusive = region_type::merge(
-                            item.exclusive,
-                            region_type::intersect(frag.getCoveredRegion(), region));
                 }
+                // update ownership
+                if (exclusive)
+                    item.exclusive = region_type::merge(item.exclusive, region);
             }
         }
 
@@ -517,7 +522,6 @@ namespace allscale { namespace data_item_manager {
 #endif
                     }
 
-
                     return hpx::make_ready_future(std::move(info));
                 }
 
@@ -571,18 +575,10 @@ namespace allscale { namespace data_item_manager {
             // First, recurse to right child for better overlap.
             if (!remote_regions[1].empty())
             {
-                if (service_->right_id_)
-                {
-                    remote_infos.push_back(
-                        hpx::async<collect_child_ownerships_action<requirement_type>>(
-                            service_->right_id_, service_->right_, ref, std::move(remote_regions[1])));
-                }
-                else
-                {
-                    remote_infos.push_back(
-                        data_item_manager::collect_child_ownerships(
-                            service_->right_, ref, std::move(remote_regions[1])));
-                }
+                HPX_ASSERT(service_->right_id_);
+                remote_infos.push_back(
+                    hpx::async<collect_child_ownerships_action<requirement_type>>(
+                        service_->right_id_, service_->right_, ref, std::move(remote_regions[1])));
             }
             if (!remote_regions[0].empty())
             {
@@ -833,8 +829,7 @@ namespace allscale { namespace data_item_manager {
           : here_(here)
           , parent_(here_.getParent())
           , is_root_(here_ == runtime::HierarchyAddress::getRootOfNetworkSize(
-                allscale::get_num_numa_nodes(), allscale::get_num_localities()
-                ))
+                allscale::get_num_localities()))
         {
             if (parent_.getRank() != scheduler::rank())
             {
@@ -903,7 +898,7 @@ namespace allscale { namespace data_item_manager {
         using data_item_type = typename Requirement::data_item_type;
 
         return runtime::HierarchicalOverlayNetwork::getLocalService<
-            index_service<data_item_type>>(addr).get(req.ref).locate(req);
+            index_service<data_item_type>>(addr.getLayer()).get(req.ref).locate(req);
 
     }
 
@@ -915,7 +910,7 @@ namespace allscale { namespace data_item_manager {
     {
         using data_item_type = typename DataItemReference::data_item_type;
         return runtime::HierarchicalOverlayNetwork::getLocalService<
-            index_service<data_item_type>>(addr).get(ref).acquire_ownership_for(
+            index_service<data_item_type>>(addr.getLayer()).get(ref).acquire_ownership_for(
                 child, ref, std::move(missing));
     }
 
@@ -926,7 +921,7 @@ namespace allscale { namespace data_item_manager {
     {
         using data_item_type = typename DataItemReference::data_item_type;
         return runtime::HierarchicalOverlayNetwork::getLocalService<
-            index_service<data_item_type>>(addr).get(ref).collect_child_ownerships(ref, std::move(region));
+            index_service<data_item_type>>(addr.getLayer()).get(ref).collect_child_ownerships(ref, std::move(region));
     }
 
     template <typename DataItem>

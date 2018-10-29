@@ -18,9 +18,32 @@ namespace allscale {
         std::uint64_t locality_id;
         std::uint64_t id;
         task_path path;
+        mutable std::uint8_t numa_depth = 0;
+        mutable std::uint8_t numa_node_ = std::uint8_t(-1);
 
         // This is used for monitoring...
         std::shared_ptr<allscale::profile> profile;
+
+        std::size_t numa_node(std::size_t numa_d, std::size_t cut_off) const
+        {
+            if (depth() < cut_off) return 0;
+
+            if (numa_node_ == std::uint8_t(-1))
+            {
+                numa_depth = numa_d;
+                numa_node_ = 0;
+            }
+            else
+            {
+                if (numa_depth > 0)
+                {
+                    --numa_depth;
+                    numa_node_ = numa_node_ * 2 + (path.getPath() & 0x1);
+                }
+            }
+
+            return numa_node_;
+        }
 
         template <typename Archive>
         void serialize(Archive& ar, unsigned)
@@ -49,12 +72,12 @@ namespace allscale {
 
         task_id left_child() const
         {
-            return {locality_id, id, path.getLeftChildPath(), nullptr};
+            return {locality_id, id, path.getLeftChildPath(), numa_depth, numa_node_, nullptr};
         }
 
         task_id right_child() const
         {
-            return {locality_id, id, path.getRightChildPath(), nullptr};
+            return {locality_id, id, path.getRightChildPath(), numa_depth, numa_node_, nullptr};
         }
 
         std::size_t depth() const
@@ -105,7 +128,7 @@ namespace allscale {
 
         friend std::ostream& operator<<(std::ostream& os, task_id const& id)
         {
-            return os << "T-" << id.locality_id << "." << id.id << id.path;
+            return os << "T-" << id.locality_id << "." << id.id << id.path << '(' << id.path.getPath() << ',' << +id.path.getLength() << ')';
         }
 
         friend std::string to_string(task_id const& id);

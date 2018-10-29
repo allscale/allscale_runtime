@@ -3,6 +3,7 @@
 #define ALLSCALE_MONITOR_HPP
 
 #include <allscale/this_work_item.hpp>
+#include <allscale/task_times.hpp>
 
 #include <functional>
 #include <memory>
@@ -38,9 +39,11 @@ namespace allscale {
         static void connect(event e, event_function f);
         static void disconnect(event e, event_function f);
         static HPX_EXPORT void signal(event e, work_item const& w);
+        static HPX_EXPORT void add_task_time(task_id::task_path const& path, task_times::time_t const& time);
         static components::monitor & get();
         static components::monitor *get_ptr();
         static HPX_EXPORT void stop();
+        static bool enabled;
 
     private:
 //        static std::shared_ptr<components::monitor> & get_ptr();

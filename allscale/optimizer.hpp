@@ -3,6 +3,7 @@
 #define ALLSCALE_OPTIMIZER_HPP
 
 #include <allscale/get_num_localities.hpp>
+#include <allscale/task_times.hpp>
 
 #include <hpx/lcos/future.hpp>
 #include <hpx/traits/is_bitwise_serializable.hpp>
@@ -11,6 +12,19 @@
 #include <vector>
 
 namespace allscale {
+    struct optimizer_state
+    {
+        float load_;
+        task_times task_times_;
+
+        template <typename Archive>
+        void serialize(Archive& ar, unsigned)
+        {
+            ar & load_;
+            ar & task_times_;
+        }
+    };
+
 	/**
 	 * A class to model user-defined tuning objectives.
 	 *
@@ -63,30 +77,6 @@ namespace allscale {
 
     tuning_objective get_default_objective();
 
-    struct optimizer_state
-    {
-        optimizer_state() : load(1.f), active_frequency(1000.f), cores_per_node(1)
-        {}
-
-        optimizer_state(float l, float freq, std::size_t cores)
-          : load(l)
-          , active_frequency(freq)
-          , cores_per_node(cores)
-        {}
-
-        float load;
-        float active_frequency;
-        std::size_t cores_per_node;
-
-        template <typename Archive>
-        void serialize(Archive& ar, unsigned)
-        {
-            ar & load;
-            ar & active_frequency;
-            ar & cores_per_node;
-        }
-    };
-
     struct global_optimizer
     {
         global_optimizer();
@@ -104,7 +94,7 @@ namespace allscale {
         hpx::future<void> balance(bool);
 
     private:
-        void tune(std::vector<optimizer_state> const& state);
+        void tune(std::vector<float> const& state);
 
         std::size_t num_active_nodes_;
         float active_frequency_;
@@ -122,7 +112,5 @@ namespace allscale {
         std::vector<hpx::id_type> localities_;
     };
 }
-
-HPX_IS_BITWISE_SERIALIZABLE(allscale::optimizer_state);
 
 #endif

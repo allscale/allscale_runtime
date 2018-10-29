@@ -4,6 +4,7 @@
 #include <allscale/dashboard.hpp>
 #include <allscale/data_item_manager/get_ownership_json.hpp>
 #include <allscale/components/scheduler.hpp>
+#include <allscale/scheduler.hpp>
 #ifdef ALLSCALE_HAVE_CPUFREQ
 #include <allscale/util/hardware_reconf.hpp>
 #endif
@@ -26,12 +27,12 @@ namespace allscale { namespace dashboard
     node_state get_state()
     {
         node_state state;
-        allscale::components::monitor *monitor_c = &allscale::monitor::get();
 //
         state.rank = hpx::get_locality_id();
         state.online = true;
-        state.active = true;
+        state.active = scheduler::active();
 
+        allscale::components::monitor *monitor_c = &allscale::monitor::get();
 
         // FIXME: add proper metrics here...
         state.num_cores = monitor_c->get_num_cpus();
@@ -44,6 +45,7 @@ namespace allscale { namespace dashboard
         state.task_throughput = monitor_c->get_throughput();
         state.weighted_task_throughput = monitor_c->get_weighted_throughput();
         state.idle_rate = (monitor_c->get_idle_rate())/100;
+
         state.network_in = monitor_c->get_network_in();
         state.network_out = monitor_c->get_network_out();
 
@@ -103,7 +105,7 @@ namespace allscale { namespace dashboard
         std::string res;
         res += "{\"id\":" + std::to_string(rank) + ',';
         res += "\"time\":" + std::to_string(time) + ',';
-        res += "\"state\":\"" + (online ? (active ? std::string("active\",") : "stand-by\",") : "offline\"");
+        res += "\"state\":\"" + (online ? (active ? std::string("active\",") : "standby\",") : "offline\"");
         if (!online) {
             res += '}';
             return res;
@@ -130,6 +132,10 @@ namespace allscale { namespace dashboard
         return res;
     }
 
+    system_state::system_state()
+      : policy(scheduler::policy())
+    {}
+
     std::string system_state::to_json() const
     {
         std::string res;
@@ -138,7 +144,13 @@ namespace allscale { namespace dashboard
         res += "\"speed\":" + std::to_string(speed) + ',';
         res += "\"efficiency\":" + std::to_string(efficiency) + ',';
         res += "\"power\":" + std::to_string(power) + ',';
+        res += "\"objective_exponent\": {";
+            res += "\"speed\": 1.0,";
+            res += "\"efficiency\": 1.0,";
+            res += "\"power\": 1.0";
+        res += "},";
         res += "\"score\":" + std::to_string(score) + ',';
+        res += "\"scheduler\": \"" + policy + "\",";
         res += "\"nodes\":[";
         for (auto & node: nodes)
         {
@@ -247,6 +259,14 @@ namespace allscale { namespace dashboard
             std::size_t msg_size;
         };
 
+        struct command
+        {
+            command() : size_(0) {}
+
+            std::uint64_t size_;
+            std::vector<char> command_;
+        };
+
         template <typename F>
         void write(system_state& state, F f)
         {
@@ -277,6 +297,70 @@ namespace allscale { namespace dashboard
                         return;
                     }
                     f();
+                }
+            );
+        }
+
+        void get_commands()
+        {
+            std::shared_ptr<command> cmd = std::make_shared<command>();
+
+            boost::asio::async_read(socket_, boost::asio::buffer(&cmd->size_, sizeof(std::uint64_t)),
+                [cmd, this](boost::system::error_code ec, std::size_t /*length*/) mutable
+                {
+                    if (ec)
+                    {
+                        std::cerr << "Read failed...\n";
+                        return;
+                    }
+
+                    std::cout << "got message: " << cmd->size_ << " " << be64toh(cmd->size_) << '\n';
+
+                    cmd->command_.resize(be64toh(cmd->size_));
+                    auto buffer = boost::asio::buffer(cmd->command_);
+                    boost::asio::async_read(socket_, buffer,
+                        [cmd, this](boost::system::error_code ec, std::size_t /*length*/) mutable
+                        {
+                            auto cmd_it = std::find(cmd->command_.begin(), cmd->command_.end(), ' ');
+
+                            std::string command(cmd->command_.begin(), cmd_it);
+                            std::string payload(cmd_it + 1, cmd->command_.end());
+
+                            hpx::future<void> cmd_fut;
+
+                            if (command == "set_scheduler")
+                            {
+                                std::cerr << "Setting scheduler policy to " << payload << '\n';
+                                cmd_fut = scheduler::set_policy(payload);
+                            }
+                            else if (command == "toggle_node")
+                            {
+                                std::size_t locality_id = std::stol(payload);
+                                std::cerr << "Toggling locality " << locality_id << '\n';
+                                cmd_fut = scheduler::toggle_node(locality_id);
+                            }
+                            else if (command == "set_speed")
+                            {
+                                cmd_fut = hpx::make_ready_future();
+                            }
+                            else if (command == "set_efficiency")
+                            {
+                                cmd_fut = hpx::make_ready_future();
+                            }
+                            else if (command == "set_power")
+                            {
+                                cmd_fut = hpx::make_ready_future();
+                            }
+                            else
+                            {
+                                cmd_fut = hpx::make_ready_future();
+                                std::cout << "got unknown command: " << command << ':' << payload << '\n';
+                            }
+
+                            // Read next...
+                            cmd_fut.then([this](hpx::future<void>){ get_commands(); });
+                        }
+                    );
                 }
             );
         }
@@ -373,5 +457,13 @@ namespace allscale { namespace dashboard
                 update();
             });
         });
+    }
+
+    void get_commands()
+    {
+        dashboard_client& client = dashboard_client::get();
+
+        if (!client) return;
+        client.get_commands();
     }
 }}

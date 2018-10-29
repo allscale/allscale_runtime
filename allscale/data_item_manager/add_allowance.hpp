@@ -24,15 +24,22 @@ namespace allscale { namespace data_item_manager {
             using lease_type = allscale::lease<data_item_type>;
             using region_type = typename data_item_type::region_type;
 
+            auto& entry =
+                runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr.getLayer()).get(req.ref);
             HPX_ASSERT(!req.region.empty());
 
-            if (req.mode == access_mode::ReadOnly)
-                return;
-
-            auto& entry =
-                runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr).get(req.ref);
-
-            entry.add_full(req.allowance);
+            bool isLeaf = addr.isLeaf();
+            if (req.mode == access_mode::ReadWrite)
+            {
+                entry.add_full(req.allowance);
+                if (isLeaf)
+                    entry.resize_fragment(req, req.region, true);
+            }
+            else
+            {
+                if (isLeaf)
+                    entry.resize_fragment(req, req.region, false);
+            }
         }
 
         template <typename Requirement>
@@ -48,7 +55,7 @@ namespace allscale { namespace data_item_manager {
                 return;
 
             auto& entry =
-                runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr).get(req.ref);
+                runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr.getLayer()).get(req.ref);
 
             req.allowance = entry.add_left(req.allowance, req.region);
         }
@@ -66,7 +73,7 @@ namespace allscale { namespace data_item_manager {
                 return;
 
             auto& entry =
-                runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr).get(req.ref);
+                runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr.getLayer()).get(req.ref);
 
             req.allowance = entry.add_right(req.allowance, req.region);
         }

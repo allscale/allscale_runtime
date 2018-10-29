@@ -99,7 +99,10 @@ namespace allscale {
          * @param N the number of nodes to distribute work on
          * @param granularity the negative exponent of the acceptable load imbalance; e.g. 0 => 2^0 = 100%, 5 => 2^-5 = 3.125%
          */
-        static HPX_EXPORT std::unique_ptr<scheduling_policy> create_uniform(int N, int M, int granularity);
+        static HPX_EXPORT std::unique_ptr<scheduling_policy> create_uniform(std::vector<bool> const& mask, int granularity);
+        static HPX_EXPORT std::unique_ptr<scheduling_policy> create_uniform(std::vector<bool> const& mask);
+
+        static HPX_EXPORT std::unique_ptr<scheduling_policy> create_uniform(int N, int granularity);
 
         /**
          * Creates a scheduling policy distributing work uniformly among the given number of nodes. The
@@ -107,7 +110,7 @@ namespace allscale {
          *
          * @param N the number of nodes to distribute work on
          */
-        static HPX_EXPORT std::unique_ptr<scheduling_policy> create_uniform(int N, int M);
+        static HPX_EXPORT std::unique_ptr<scheduling_policy> create_uniform(int N);
 
         /**
          * Creates an updated load balancing policy based on a given policy and a measured load distribution.
@@ -117,7 +120,10 @@ namespace allscale {
          * @param loadDistribution the load distribution measured, utilized for weighting tasks. Ther must be one entry per node,
          *             no entry must be negative.
          */
-        static HPX_EXPORT std::unique_ptr<scheduling_policy> create_rebalanced(const scheduling_policy& old, const std::vector<optimizer_state>& load, std::vector<bool> const& mask);
+        static HPX_EXPORT std::unique_ptr<scheduling_policy> create_rebalanced(const scheduling_policy& old, const std::vector<float>& load);
+
+        static HPX_EXPORT std::unique_ptr<scheduling_policy> create_rebalanced(const scheduling_policy& old, const std::vector<float>& load, std::vector<bool> const& mask);
+        static HPX_EXPORT std::unique_ptr<scheduling_policy> create_rebalanced(const scheduling_policy& old, task_times const& times, std::vector<bool> const& mask);
 
         // --- observer ---
 
@@ -129,6 +135,11 @@ namespace allscale {
         const decision_tree& tree() const
         {
             return tree_;
+        }
+
+        int get_granularity() const
+        {
+            return granularity_;
         }
 
         // retrieves the task distribution pattern this tree is realizing
@@ -166,13 +177,13 @@ namespace allscale {
 //             ar & granularity_;
 //             ar & tree_;
 //         }
-    private:
         tree_scheduling_policy(runtime::HierarchyAddress root, int granularity, decision_tree&& tree)
           : root_(root)
           , granularity_(granularity)
           , tree_(std::move(tree))
         {}
 
+    private:
         const runtime::HierarchyAddress& getPresumedRootAddress() const {
 			return root_;
 		}

@@ -79,8 +79,8 @@ namespace allscale { namespace data_item_manager {
             if (req.mode == access_mode::ReadWrite)
             {
                 auto& entry =
-                    runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr).get(req.ref);
-                entry.resize_fragment(req, req.region, true);
+                    runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr.getLayer()).get(req.ref);
+//                 entry.resize_fragment(req, req.region, true);
                 region_type missing;
                 {
                     std::lock_guard<mutex_type> l(entry.mtx_);
@@ -145,9 +145,9 @@ namespace allscale { namespace data_item_manager {
                     auto info = infof.get();
                     if (info.regions.empty()) return hpx::make_ready_future();
 
-                    auto& entry =
-                        runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr).get(req.ref);
-                    entry.resize_fragment(req, req.region, false);
+//                     auto& entry =
+//                         runtime::HierarchicalOverlayNetwork::getLocalService<index_service<data_item_type>>(addr.getLayer()).get(req.ref);
+//                     entry.resize_fragment(req, req.region, false);
 
                     std::vector<hpx::future<void>> transfers;
 
@@ -160,6 +160,9 @@ namespace allscale { namespace data_item_manager {
                     for (auto const& part: info.regions)
                     {
                         if (part.first == addr.getRank()) continue;
+#if defined(HPX_DEBUG)
+                        if (part.first == std::size_t(-1)) continue;
+#endif
 
                         hpx::id_type target(
                             hpx::naming::get_id_from_locality_id(part.first));

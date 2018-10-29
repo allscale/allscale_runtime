@@ -6,6 +6,8 @@
 #include <allscale/data_item_manager/fragment.hpp>
 #include <hpx/util/annotated_function.hpp>
 
+#include <hpx/util/debugging.hpp>
+
 #include <memory>
 
 namespace allscale { namespace data_item_manager {
@@ -56,7 +58,12 @@ namespace allscale { namespace data_item_manager {
 
                 auto& frag = *item.fragment;
 
-                frag.insert(reader);
+                bool insert = reader.read<bool>();
+
+                if (insert)
+                {
+                    frag.insert(reader);
+                }
             }
         }
 
@@ -72,16 +79,26 @@ namespace allscale { namespace data_item_manager {
                 HPX_ASSERT(item.fragment);
 
                 auto& frag = *item.fragment;
+
+                if (!allscale::api::core::isSubRegion(region_, frag.getCoveredRegion()))
+                {
+                    writer.write(false);
+                    return;
+//                     std::cout << "not subregion...\n";
+//                     hpx::util::attach_debugger();
+                }
+
                 HPX_ASSERT(allscale::api::core::isSubRegion(region_, frag.getCoveredRegion()));
 
+                writer.write(true);
                 frag.extract(writer, region_);
 
-//                 if (migrate_)
-//                 {
-//                     // Remove exclusive ownership
-//                     region_type reserved = region_type::difference(frag.getCoveredRegion(), region_);
-//                     frag.resize(reserved);
-//                 }
+                if (migrate_)
+                {
+                    // Remove exclusive ownership
+                    region_type reserved = region_type::difference(frag.getCoveredRegion(), region_);
+                    frag.resize(reserved);
+                }
             }
         }
 

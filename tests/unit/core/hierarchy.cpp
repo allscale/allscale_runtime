@@ -40,102 +40,30 @@ void print()
     // test that the default version is valid
     HierarchyAddress addr;
 
-    HPX_TEST_EQ("0:0:0", toString(addr));
+    HPX_TEST_EQ("0:0", toString(addr));
 }
 
 void root()
 {
     using namespace allscale::runtime;
     // test the root of various network sizes
-    HPX_TEST_EQ("0:0:0",toString(HierarchyAddress::getRootOfNetworkSize(1,  1)));
-    HPX_TEST_EQ("0:0:1",toString(HierarchyAddress::getRootOfNetworkSize(1,  2)));
-    HPX_TEST_EQ("0:0:2",toString(HierarchyAddress::getRootOfNetworkSize(1,  3)));
-    HPX_TEST_EQ("0:0:2",toString(HierarchyAddress::getRootOfNetworkSize(1,  4)));
-    HPX_TEST_EQ("0:0:3",toString(HierarchyAddress::getRootOfNetworkSize(1,  5)));
-    HPX_TEST_EQ("0:0:3",toString(HierarchyAddress::getRootOfNetworkSize(1,  6)));
-    HPX_TEST_EQ("0:0:3",toString(HierarchyAddress::getRootOfNetworkSize(1,  7)));
-    HPX_TEST_EQ("0:0:3",toString(HierarchyAddress::getRootOfNetworkSize(1,  8)));
-    HPX_TEST_EQ("0:0:4",toString(HierarchyAddress::getRootOfNetworkSize(1,  9)));
-    HPX_TEST_EQ("0:0:4",toString(HierarchyAddress::getRootOfNetworkSize(1, 10)));
-    HPX_TEST_EQ("0:0:4",toString(HierarchyAddress::getRootOfNetworkSize(1, 11)));
-    HPX_TEST_EQ("0:0:4",toString(HierarchyAddress::getRootOfNetworkSize(1, 12)));
-    HPX_TEST_EQ("0:0:4",toString(HierarchyAddress::getRootOfNetworkSize(1, 13)));
-    HPX_TEST_EQ("0:0:4",toString(HierarchyAddress::getRootOfNetworkSize(1, 14)));
-    HPX_TEST_EQ("0:0:4",toString(HierarchyAddress::getRootOfNetworkSize(1, 15)));
-    HPX_TEST_EQ("0:0:4",toString(HierarchyAddress::getRootOfNetworkSize(1, 16)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(1, 17)));
-
-    HPX_TEST_EQ("0:0:1",toString(HierarchyAddress::getRootOfNetworkSize(2,  1)));
-    HPX_TEST_EQ("0:0:2",toString(HierarchyAddress::getRootOfNetworkSize(2,  2)));
-    HPX_TEST_EQ("0:0:3",toString(HierarchyAddress::getRootOfNetworkSize(2,  3)));
-    HPX_TEST_EQ("0:0:3",toString(HierarchyAddress::getRootOfNetworkSize(2,  4)));
-    HPX_TEST_EQ("0:0:4",toString(HierarchyAddress::getRootOfNetworkSize(2,  5)));
-    HPX_TEST_EQ("0:0:4",toString(HierarchyAddress::getRootOfNetworkSize(2,  6)));
-    HPX_TEST_EQ("0:0:4",toString(HierarchyAddress::getRootOfNetworkSize(2,  7)));
-    HPX_TEST_EQ("0:0:4",toString(HierarchyAddress::getRootOfNetworkSize(2,  8)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(2,  9)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(2, 10)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(2, 11)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(2, 12)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(2, 13)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(2, 14)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(2, 15)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(2, 16)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(2, 17)));
-
-    HPX_TEST_EQ("0:0:2",toString(HierarchyAddress::getRootOfNetworkSize(3,  1)));
-    HPX_TEST_EQ("0:0:3",toString(HierarchyAddress::getRootOfNetworkSize(3,  2)));
-    HPX_TEST_EQ("0:0:4",toString(HierarchyAddress::getRootOfNetworkSize(3,  3)));
-    HPX_TEST_EQ("0:0:4",toString(HierarchyAddress::getRootOfNetworkSize(3,  4)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(3,  5)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(3,  6)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(3,  7)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(3,  8)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(3,  9)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(3, 10)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(3, 11)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(3, 12)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(3, 13)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(3, 14)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(3, 15)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(3, 16)));
-    HPX_TEST_EQ("0:0:7",toString(HierarchyAddress::getRootOfNetworkSize(3, 17)));
-
-    HPX_TEST_EQ("0:0:2",toString(HierarchyAddress::getRootOfNetworkSize(4,  1)));
-    HPX_TEST_EQ("0:0:3",toString(HierarchyAddress::getRootOfNetworkSize(4,  2)));
-    HPX_TEST_EQ("0:0:4",toString(HierarchyAddress::getRootOfNetworkSize(4,  3)));
-    HPX_TEST_EQ("0:0:4",toString(HierarchyAddress::getRootOfNetworkSize(4,  4)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(4,  5)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(4,  6)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(4,  7)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(4,  8)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(4,  9)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(4, 10)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(4, 11)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(4, 12)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(4, 13)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(4, 14)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(4, 15)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(4, 16)));
-    HPX_TEST_EQ("0:0:7",toString(HierarchyAddress::getRootOfNetworkSize(4, 17)));
-
-    HPX_TEST_EQ("0:0:3",toString(HierarchyAddress::getRootOfNetworkSize(5,  1)));
-    HPX_TEST_EQ("0:0:4",toString(HierarchyAddress::getRootOfNetworkSize(5,  2)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(5,  3)));
-    HPX_TEST_EQ("0:0:5",toString(HierarchyAddress::getRootOfNetworkSize(5,  4)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(5,  5)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(5,  6)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(5,  7)));
-    HPX_TEST_EQ("0:0:6",toString(HierarchyAddress::getRootOfNetworkSize(5,  8)));
-    HPX_TEST_EQ("0:0:7",toString(HierarchyAddress::getRootOfNetworkSize(5,  9)));
-    HPX_TEST_EQ("0:0:7",toString(HierarchyAddress::getRootOfNetworkSize(5, 10)));
-    HPX_TEST_EQ("0:0:7",toString(HierarchyAddress::getRootOfNetworkSize(5, 11)));
-    HPX_TEST_EQ("0:0:7",toString(HierarchyAddress::getRootOfNetworkSize(5, 12)));
-    HPX_TEST_EQ("0:0:7",toString(HierarchyAddress::getRootOfNetworkSize(5, 13)));
-    HPX_TEST_EQ("0:0:7",toString(HierarchyAddress::getRootOfNetworkSize(5, 14)));
-    HPX_TEST_EQ("0:0:7",toString(HierarchyAddress::getRootOfNetworkSize(5, 15)));
-    HPX_TEST_EQ("0:0:7",toString(HierarchyAddress::getRootOfNetworkSize(5, 16)));
-    HPX_TEST_EQ("0:0:8",toString(HierarchyAddress::getRootOfNetworkSize(5, 17)));
+    HPX_TEST_EQ("0:0",toString(HierarchyAddress::getRootOfNetworkSize( 1)));
+    HPX_TEST_EQ("0:1",toString(HierarchyAddress::getRootOfNetworkSize( 2)));
+    HPX_TEST_EQ("0:2",toString(HierarchyAddress::getRootOfNetworkSize( 3)));
+    HPX_TEST_EQ("0:2",toString(HierarchyAddress::getRootOfNetworkSize( 4)));
+    HPX_TEST_EQ("0:3",toString(HierarchyAddress::getRootOfNetworkSize( 5)));
+    HPX_TEST_EQ("0:3",toString(HierarchyAddress::getRootOfNetworkSize( 6)));
+    HPX_TEST_EQ("0:3",toString(HierarchyAddress::getRootOfNetworkSize( 7)));
+    HPX_TEST_EQ("0:3",toString(HierarchyAddress::getRootOfNetworkSize( 8)));
+    HPX_TEST_EQ("0:4",toString(HierarchyAddress::getRootOfNetworkSize( 9)));
+    HPX_TEST_EQ("0:4",toString(HierarchyAddress::getRootOfNetworkSize(10)));
+    HPX_TEST_EQ("0:4",toString(HierarchyAddress::getRootOfNetworkSize(11)));
+    HPX_TEST_EQ("0:4",toString(HierarchyAddress::getRootOfNetworkSize(12)));
+    HPX_TEST_EQ("0:4",toString(HierarchyAddress::getRootOfNetworkSize(13)));
+    HPX_TEST_EQ("0:4",toString(HierarchyAddress::getRootOfNetworkSize(14)));
+    HPX_TEST_EQ("0:4",toString(HierarchyAddress::getRootOfNetworkSize(15)));
+    HPX_TEST_EQ("0:4",toString(HierarchyAddress::getRootOfNetworkSize(16)));
+    HPX_TEST_EQ("0:5",toString(HierarchyAddress::getRootOfNetworkSize(17)));
 }
 
 void layers_on_node()
@@ -143,83 +71,25 @@ void layers_on_node()
     using namespace allscale::runtime;
 
     // test the root of various network sizes
-    HPX_TEST_EQ(1,HierarchyAddress::getLayersOn(0,0,1,1));
-    HPX_TEST_EQ(2,HierarchyAddress::getLayersOn(0,0,1,2));
-    HPX_TEST_EQ(3,HierarchyAddress::getLayersOn(0,0,1,3));
-    HPX_TEST_EQ(3,HierarchyAddress::getLayersOn(0,0,1,4));
-    HPX_TEST_EQ(4,HierarchyAddress::getLayersOn(0,0,1,5));
-    HPX_TEST_EQ(4,HierarchyAddress::getLayersOn(0,0,1,6));
-    HPX_TEST_EQ(4,HierarchyAddress::getLayersOn(0,0,1,7));
-    HPX_TEST_EQ(4,HierarchyAddress::getLayersOn(0,0,1,8));
-    HPX_TEST_EQ(5,HierarchyAddress::getLayersOn(0,0,1,9));
-
-    HPX_TEST_EQ(2,HierarchyAddress::getLayersOn(0,0,2,1));
-    HPX_TEST_EQ(3,HierarchyAddress::getLayersOn(0,0,2,2));
-    HPX_TEST_EQ(4,HierarchyAddress::getLayersOn(0,0,2,3));
-    HPX_TEST_EQ(4,HierarchyAddress::getLayersOn(0,0,2,4));
-    HPX_TEST_EQ(5,HierarchyAddress::getLayersOn(0,0,2,5));
-    HPX_TEST_EQ(5,HierarchyAddress::getLayersOn(0,0,2,6));
-    HPX_TEST_EQ(5,HierarchyAddress::getLayersOn(0,0,2,7));
-    HPX_TEST_EQ(5,HierarchyAddress::getLayersOn(0,0,2,8));
-    HPX_TEST_EQ(6,HierarchyAddress::getLayersOn(0,0,2,9));
-
-    HPX_TEST_EQ(3,HierarchyAddress::getLayersOn(0,0,3,1));
-    HPX_TEST_EQ(4,HierarchyAddress::getLayersOn(0,0,3,2));
-    HPX_TEST_EQ(5,HierarchyAddress::getLayersOn(0,0,3,3));
-    HPX_TEST_EQ(5,HierarchyAddress::getLayersOn(0,0,3,4));
-    HPX_TEST_EQ(6,HierarchyAddress::getLayersOn(0,0,3,5));
-    HPX_TEST_EQ(6,HierarchyAddress::getLayersOn(0,0,3,6));
-    HPX_TEST_EQ(6,HierarchyAddress::getLayersOn(0,0,3,7));
-    HPX_TEST_EQ(6,HierarchyAddress::getLayersOn(0,0,3,8));
-    HPX_TEST_EQ(7,HierarchyAddress::getLayersOn(0,0,3,9));
-
-    HPX_TEST_EQ(3,HierarchyAddress::getLayersOn(0,0,4,1));
-    HPX_TEST_EQ(4,HierarchyAddress::getLayersOn(0,0,4,2));
-    HPX_TEST_EQ(5,HierarchyAddress::getLayersOn(0,0,4,3));
-    HPX_TEST_EQ(5,HierarchyAddress::getLayersOn(0,0,4,4));
-    HPX_TEST_EQ(6,HierarchyAddress::getLayersOn(0,0,4,5));
-    HPX_TEST_EQ(6,HierarchyAddress::getLayersOn(0,0,4,6));
-    HPX_TEST_EQ(6,HierarchyAddress::getLayersOn(0,0,4,7));
-    HPX_TEST_EQ(6,HierarchyAddress::getLayersOn(0,0,4,8));
-    HPX_TEST_EQ(7,HierarchyAddress::getLayersOn(0,0,4,9));
-
-    HPX_TEST_EQ(4,HierarchyAddress::getLayersOn(0,0,5,1));
-    HPX_TEST_EQ(5,HierarchyAddress::getLayersOn(0,0,5,2));
-    HPX_TEST_EQ(6,HierarchyAddress::getLayersOn(0,0,5,3));
-    HPX_TEST_EQ(6,HierarchyAddress::getLayersOn(0,0,5,4));
-    HPX_TEST_EQ(7,HierarchyAddress::getLayersOn(0,0,5,5));
-    HPX_TEST_EQ(7,HierarchyAddress::getLayersOn(0,0,5,6));
-    HPX_TEST_EQ(7,HierarchyAddress::getLayersOn(0,0,5,7));
-    HPX_TEST_EQ(7,HierarchyAddress::getLayersOn(0,0,5,8));
-    HPX_TEST_EQ(8,HierarchyAddress::getLayersOn(0,0,5,9));
+    HPX_TEST_EQ(1,HierarchyAddress::getLayersOn(0,1));
+    HPX_TEST_EQ(2,HierarchyAddress::getLayersOn(0,2));
+    HPX_TEST_EQ(3,HierarchyAddress::getLayersOn(0,3));
+    HPX_TEST_EQ(3,HierarchyAddress::getLayersOn(0,4));
+    HPX_TEST_EQ(4,HierarchyAddress::getLayersOn(0,5));
+    HPX_TEST_EQ(4,HierarchyAddress::getLayersOn(0,6));
+    HPX_TEST_EQ(4,HierarchyAddress::getLayersOn(0,7));
+    HPX_TEST_EQ(4,HierarchyAddress::getLayersOn(0,8));
+    HPX_TEST_EQ(5,HierarchyAddress::getLayersOn(0,9));
 
     // test other nodes
-    HPX_TEST_EQ(4,HierarchyAddress::getLayersOn(0,0,1,8));
-    HPX_TEST_EQ(1,HierarchyAddress::getLayersOn(1,0,1,8));
-    HPX_TEST_EQ(2,HierarchyAddress::getLayersOn(2,0,1,8));
-    HPX_TEST_EQ(1,HierarchyAddress::getLayersOn(3,0,1,8));
-    HPX_TEST_EQ(3,HierarchyAddress::getLayersOn(4,0,1,8));
-    HPX_TEST_EQ(1,HierarchyAddress::getLayersOn(5,0,1,8));
-    HPX_TEST_EQ(2,HierarchyAddress::getLayersOn(6,0,1,8));
-    HPX_TEST_EQ(1,HierarchyAddress::getLayersOn(7,0,1,8));
-
-    HPX_TEST_EQ(5,HierarchyAddress::getLayersOn(0,0,2,8));
-    HPX_TEST_EQ(2,HierarchyAddress::getLayersOn(1,0,2,8));
-    HPX_TEST_EQ(3,HierarchyAddress::getLayersOn(2,0,2,8));
-    HPX_TEST_EQ(2,HierarchyAddress::getLayersOn(3,0,2,8));
-    HPX_TEST_EQ(4,HierarchyAddress::getLayersOn(4,0,2,8));
-    HPX_TEST_EQ(2,HierarchyAddress::getLayersOn(5,0,2,8));
-    HPX_TEST_EQ(3,HierarchyAddress::getLayersOn(6,0,2,8));
-    HPX_TEST_EQ(2,HierarchyAddress::getLayersOn(7,0,2,8));
-
-    HPX_TEST_EQ(4,HierarchyAddress::getLayersOn(0,1,2,8));
-    HPX_TEST_EQ(1,HierarchyAddress::getLayersOn(1,1,2,8));
-    HPX_TEST_EQ(2,HierarchyAddress::getLayersOn(2,1,2,8));
-    HPX_TEST_EQ(1,HierarchyAddress::getLayersOn(3,1,2,8));
-    HPX_TEST_EQ(3,HierarchyAddress::getLayersOn(4,1,2,8));
-    HPX_TEST_EQ(1,HierarchyAddress::getLayersOn(5,1,2,8));
-    HPX_TEST_EQ(2,HierarchyAddress::getLayersOn(6,1,2,8));
-    HPX_TEST_EQ(1,HierarchyAddress::getLayersOn(7,1,2,8));
+    HPX_TEST_EQ(4,HierarchyAddress::getLayersOn(0,8));
+    HPX_TEST_EQ(1,HierarchyAddress::getLayersOn(1,8));
+    HPX_TEST_EQ(2,HierarchyAddress::getLayersOn(2,8));
+    HPX_TEST_EQ(1,HierarchyAddress::getLayersOn(3,8));
+    HPX_TEST_EQ(3,HierarchyAddress::getLayersOn(4,8));
+    HPX_TEST_EQ(1,HierarchyAddress::getLayersOn(5,8));
+    HPX_TEST_EQ(2,HierarchyAddress::getLayersOn(6,8));
+    HPX_TEST_EQ(1,HierarchyAddress::getLayersOn(7,8));
 }
 
 namespace {
@@ -232,14 +102,14 @@ namespace {
         collectAll(cur.getRightChild(),res);
     }
 
-    std::set<HierarchyAddress> getAllAddresses(std::size_t numa, std::size_t size) {
+    std::set<HierarchyAddress> getAllAddresses(std::size_t size) {
         std::set<HierarchyAddress> all;
-        collectAll(HierarchyAddress::getRootOfNetworkSize(numa, size),all);
+        collectAll(HierarchyAddress::getRootOfNetworkSize(size),all);
 
         // filter all beyond size
         std::set<HierarchyAddress> res;
         for(const auto& cur : all) {
-            if (cur.getRank() < size && cur.getNumaNode() < numa) res.insert(cur);
+            if (cur.getRank() < size) res.insert(cur);
         }
 
         // done
@@ -248,61 +118,55 @@ namespace {
 
 }
 
-void navigation(std::size_t M)
+void navigation()
 {
     using namespace allscale::runtime;
-    {
-        std::size_t N = 8;
-        HierarchyAddress::numaCutOff = std::ceil(std::log2(M));
+    std::size_t N = 8;
 
-        std::size_t depth = std::ceil(std::log2(N * M));
-        std::size_t num_nodes = std::pow(2, depth + 1) - 1;
+    // test the full navigation in an 8-wide tree
+    auto root = HierarchyAddress::getRootOfNetworkSize(N);
 
-		// test the full navigation in an 8-wide tree
-		auto root = HierarchyAddress::getRootOfNetworkSize(M, N);
+    // collect all nodes
+    std::set<HierarchyAddress> all;
+    collectAll(root,all);
 
-		// collect all nodes
-		std::set<HierarchyAddress> all;
-		collectAll(root,all);
+    // check the number of nodes
+    HPX_TEST_EQ(15,all.size());
 
-		// check the number of nodes
-		HPX_TEST_EQ(num_nodes,all.size());
+    int numLeafs = 0;
+    int numInner = 0;
+    int numLeftChildren = 0;
+    int numRightChildren = 0;
+    for(const auto& cur : all) {
 
-		int numLeafs = 0;
-		int numInner = 0;
-		int numLeftChildren = 0;
-		int numRightChildren = 0;
-		for(const auto& cur : all) {
+        if (cur.isLeaf()) {
+            numLeafs++;
+        } else {
+            HPX_TEST(cur.isVirtualNode());
+            numInner++;
+        }
 
-			if (cur.isLeaf()) {
-				numLeafs++;
-			} else {
-				HPX_TEST(cur.isVirtualNode());
-				numInner++;
-			}
+        // check family relations
+        if (cur.isLeftChild()) {
+            HPX_TEST_EQ(cur,cur.getParent().getLeftChild());
+            numLeftChildren++;
+        } else {
+            HPX_TEST(cur.isRightChild());
+            HPX_TEST_EQ(cur,cur.getParent().getRightChild());
+            numRightChildren++;
+        }
 
-			// check family relations
-			if (cur.isLeftChild()) {
-				HPX_TEST_EQ(cur,cur.getParent().getLeftChild());
-				numLeftChildren++;
-			} else {
-				HPX_TEST(cur.isRightChild());
-				HPX_TEST_EQ(cur,cur.getParent().getRightChild());
-				numRightChildren++;
-			}
-
-			// check height
-			HPX_TEST_LT(cur.getLayer(), HierarchyAddress::getLayersOn(cur.getRank(),0, M, N));
-		}
-
-		// check the correct number of leafs and inner nodes
-		HPX_TEST_EQ((num_nodes + 1)/2,numLeafs);
-		HPX_TEST_EQ(num_nodes - ((num_nodes + 1)/2),numInner);
-
-		// also: the correct number of left and right children
-		HPX_TEST_EQ(num_nodes/2 + 1,numLeftChildren); // the root is a left child
-		HPX_TEST_EQ(num_nodes/2,numRightChildren);
+        // check height
+        HPX_TEST_LT(cur.getLayer(), HierarchyAddress::getLayersOn(cur.getRank(), N));
     }
+
+    // check the correct number of leafs and inner nodes
+    HPX_TEST_EQ(8,numLeafs);
+    HPX_TEST_EQ(7,numInner);
+
+    // also: the correct number of left and right children
+    HPX_TEST_EQ(8,numLeftChildren); // the root is a left child
+    HPX_TEST_EQ(7,numRightChildren);
 }
 
 using namespace allscale::runtime;
@@ -319,13 +183,14 @@ namespace {
 }
 HierarchyAddress where_are_you(HierarchyAddress const& addr)
 {
-    return HierarchicalOverlayNetwork::getLocalService<LayerService>(addr).whereAreYou();
+    return HierarchicalOverlayNetwork::getLocalService<LayerService>(addr.getLayer()).whereAreYou();
 }
+
 HPX_PLAIN_ACTION(where_are_you)
 
 void comm_test_impl()
 {
-	auto all = getAllAddresses(allscale::get_num_numa_nodes(), allscale::get_num_localities());
+	auto all = getAllAddresses(allscale::get_num_localities());
 
     for(const auto& cur : all) {
         hpx::id_type dest = hpx::naming::get_id_from_locality_id(cur.getRank());
@@ -361,12 +226,7 @@ int hpx_main(int argc, char **argv)
     print();
     root();
     layers_on_node();
-    navigation(1);
-    navigation(2);
-    navigation(4);
-
-    HierarchyAddress::numaCutOff = std::ceil(std::log2(allscale::get_num_numa_nodes()));
-
+    navigation();
     comm_test();
 
     return hpx::finalize();

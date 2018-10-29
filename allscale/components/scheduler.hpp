@@ -125,7 +125,8 @@ namespace allscale { namespace components {
         std::vector<hpx::threads::mask_type> suspending_masks_;
         std::vector<hpx::threads::mask_type> resuming_masks_;
         std::vector<executor_type> executors_;
-        std::atomic<std::size_t> current_;
+        std::size_t numa_depth = 0;
+        std::size_t numa_start = 0;
 
         // This is the depth where we don't want to split anymore...
         std::size_t depth_cut_off_;

@@ -38,8 +38,11 @@ namespace allscale
         scheduler(std::size_t rank);
 
         static HPX_EXPORT std::size_t rank();
+        static HPX_EXPORT hpx::future<void> toggle_node(std::size_t locality_id);
+        static HPX_EXPORT hpx::future<void> set_policy(std::string policy);
+        static HPX_EXPORT std::string policy();
 
-        static HPX_EXPORT void update_policy(std::vector<optimizer_state> const& state, std::vector<bool> mask);
+        static HPX_EXPORT void update_policy(task_times const& times, std::vector<bool> mask);
 
         static HPX_EXPORT void schedule(work_item&& work);
         static HPX_EXPORT components::scheduler* run(std::size_t rank);
@@ -47,10 +50,18 @@ namespace allscale
         static components::scheduler* get_ptr();
 
         static components::scheduler & get();
+
+        static bool active();
+
+        static void toggle_active(bool toggle = true);
+
     private:
 
         typedef hpx::lcos::local::spinlock mutex_type;
         static HPX_EXPORT void partition_resources(hpx::resource::partitioner& rp);
+
+        static mutex_type active_mtx_;
+        static bool active_;
 
         std::shared_ptr<components::scheduler> component_;
     };

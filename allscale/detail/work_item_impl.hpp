@@ -340,8 +340,13 @@ namespace allscale { namespace detail {
                 work_item(this_));
             this_work_item::set s(*this_);
 
+            auto begin = std::chrono::high_resolution_clock::now();
+
             auto work_res =
                 WorkItemDescription::process_variant::execute(closure_);
+
+            auto end = std::chrono::high_resolution_clock::now();
+            monitor::add_task_time(this->id().path, std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin));
 
             finalize(std::move(this_), std::move(work_res), std::move(reqs), false);
 		}
@@ -360,7 +365,11 @@ namespace allscale { namespace detail {
                 work_item(this_));
             this_work_item::set s(*this_);
 
+            auto begin = std::chrono::high_resolution_clock::now();
             WorkItemDescription::process_variant::execute(closure_);
+
+            auto end = std::chrono::high_resolution_clock::now();
+            monitor::add_task_time(this->id().path, std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin));
 
             finalize(std::move(this_), hpx::util::unused_type(), std::move(reqs), false);
 		}

@@ -24,17 +24,13 @@ namespace allscale
     optimizer_state get_optimizer_state()
     {
         float load = 1.f - float(monitor::get().get_idle_rate() / 100.);
-#ifdef ALLSCALE_HAVE_CPUFREQ
-        float frequency = components::util::hardware_reconf::get_kernel_freq(0);
-#else
-        float frequency = 1.f;
-#endif
-        return optimizer_state(load, frequency, scheduler::get().get_active_threads());
+//         return load;
+        return {load, monitor::get().get_task_times()};
     }
 
-    void optimizer_update_policy(std::vector<optimizer_state> const& state, std::vector<bool> mask)
+    void optimizer_update_policy(task_times const& times, std::vector<bool> mask)
     {
-        scheduler::update_policy(state, mask);
+        scheduler::update_policy(times, mask);
     }
 }
 
@@ -123,7 +119,7 @@ namespace allscale
       , localities_(hpx::find_all_localities())
     {}
 
-    void global_optimizer::tune(std::vector<optimizer_state> const& state)
+    void global_optimizer::tune(std::vector<float> const& state)
     {
 #ifdef ALLSCALE_HAVE_CPUFREQ
         float max_frequency = components::util::hardware_reconf::get_frequencies(0).back();
@@ -148,14 +144,14 @@ namespace allscale
 
         for (std::size_t i = 0; i < allscale::get_num_localities(); ++i)
         {
-            if (i < num_active_nodes_)
-            {
-                used_cycles += state[i].load * state[i].active_frequency * state[i].cores_per_node;
-                avail_cycles += state[i].active_frequency * state[i].cores_per_node;
-                used_power += estimate_power(state[i].active_frequency);
-                active_frequency += state[i].active_frequency / num_active_nodes_;
-            }
-            max_cycles += max_frequency * state[i].cores_per_node;
+//             if (i < num_active_nodes_)
+//             {
+//                 used_cycles += state[i] * state[i].active_frequency * state[i].cores_per_node;
+//                 avail_cycles += state[i].active_frequency * state[i].cores_per_node;
+//                 used_power += estimate_power(state[i].active_frequency);
+//                 active_frequency += state[i].active_frequency / num_active_nodes_;
+//             }
+//             max_cycles += max_frequency * state[i].cores_per_node;
             max_power = estimate_power(max_frequency);
         }
 
@@ -251,34 +247,37 @@ namespace allscale
                 [this, tuned](hpx::future<std::vector<optimizer_state>> future_state)
                 {
                     auto state = future_state.get();
+//                     std::vector<float> load;
+//                     load.reserve(state.size());
 
                     // compute the load variance
-                    optimizer_state avg_state = std::accumulate(
-                        state.begin(), state.end(), optimizer_state(0.0f, 0.f, 0),
-                        [this](optimizer_state const& lhs, optimizer_state const& rhs)
+                    float avg_load = 0.0f;
+                    task_times times;
+
+                    std::for_each(state.begin(), state.end(),
+                        [&times, &avg_load](optimizer_state const& s)
                         {
-                            return optimizer_state(
-                                (lhs.load + rhs.load),
-                                (lhs.active_frequency + rhs.active_frequency) / num_active_nodes_,
-                                (lhs.cores_per_node + rhs.cores_per_node) / num_active_nodes_);
-                        }
-                    );
-                    avg_state.load = avg_state.load / num_active_nodes_;
+//                             load.push_back(s.load_);
+                            avg_load += s.load_;
+                            times += s.task_times_;
+                        });
+                    avg_load = avg_load / num_active_nodes_;
+
 
                     float sum_dist = 0.f;
                     for(std::size_t i=0; i<num_active_nodes_; i++)
                     {
-                        float dist = state[i].load - avg_state.load;
+                        float dist = state[i].load_ - avg_load;
                         sum_dist +=  dist * dist;
                     }
-                    float var = sum_dist / (num_active_nodes_ - 1);
-                    if (num_active_nodes_ == 1) var = 0.f;
+                    float var = (num_active_nodes_ > 1) ? sum_dist / (num_active_nodes_ - 1) : 0.0f;
 
                     std::cerr
-                        << "Average load "      << std::setprecision(2) << avg_state.load
+//                         << times << '\n'
+                        << "Average load "      << std::setprecision(2) << avg_load
                         << ", load variance "   << std::setprecision(2) << var
-                        << ", average frequency "   << std::setprecision(2) << avg_state.active_frequency
-                        << ", total progress " << std::setprecision(2) << (avg_state.load*num_active_nodes_)
+//                         << ", average frequency "   << std::setprecision(2) << avg_state.active_frequency
+                        << ", total progress " << std::setprecision(2) << (avg_load*num_active_nodes_)
                         << " on " << num_active_nodes_ << " nodes\n";
                     // -- Step 2: if stable, adjust number of nodes and clock speed
 
@@ -286,7 +285,7 @@ namespace allscale
                     if (tuned && var < 0.01f)
                     {
                         // adjust number of nodes and CPU frequency
-                        tune(state);
+//                         tune(state);
                     }
                     // -- Step 3: enforce selected number of nodes and clock speed, keep system balanced
 
@@ -297,7 +296,7 @@ namespace allscale
                     }
 
                     hpx::lcos::broadcast_apply<allscale_optimizer_update_policy_action>(
-                        localities_, state, mask);
+                        localities_, times, mask);
 
 //                     // get the local scheduler
 //                     auto& scheduleService = node.getService<com::HierarchyService<ScheduleService>>().get(0);
