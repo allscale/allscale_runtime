@@ -53,8 +53,8 @@ namespace allscale { namespace dashboard
         float frequency = components::util::hardware_reconf::get_kernel_freq(0);
         float max_frequency = frequency;//components::util::hardware_reconf::get_frequencies(0).back();;
 #else
-        float frequency = 1.f;
-        float max_frequency = 1.f;
+        float frequency = monitor_c->get_current_freq(0);
+        float max_frequency = monitor_c->get_max_freq(0);
 #endif
         std::size_t active_cores = scheduler::get().get_active_threads();
 
@@ -62,6 +62,8 @@ namespace allscale { namespace dashboard
         std::size_t avail_cycles = active_cores * frequency;
         std::size_t max_cycles = active_cores * max_frequency;
 
+        state.productive_cycles_per_second = frequency * 1000 * (1.f - state.idle_rate);  // freq to Hz
+        
         state.efficiency = used_cycles / float(max_cycles);
         state.speed = used_cycles / float(avail_cycles);
 
