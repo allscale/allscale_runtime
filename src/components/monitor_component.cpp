@@ -70,7 +70,7 @@ namespace allscale { namespace components {
      , min_process_task(0)
      , max_process_task(0)
      , finished_tasks(0)
-     , sampling_interval_ms(2000)
+     , sampling_interval_ms(1000)
 //     , metric_sampler_(
 //          hpx::util::bind(
 //		&monitor::sample_node,
