@@ -460,7 +460,11 @@ namespace allscale
 
             bool target_left = (d == schedule_decision::left) || (right_ == left_);
 
-            if (target_left || !allscale::resilience::rank_running(right_.getRank()))
+	    // don't try to schedule on a failed locality
+ 	    if (!target_left && !allscale::resilience::rank_running(right_.getRank())) {
+                 schedule_local(std::move(work), std::move(reqs));
+ 	    }
+            else if (target_left)
             {
 //                 std::cout << here_ << ' ' << work.name() << "." << id << ": left: " << '\n';
 //                 reqs->show();
