@@ -18,7 +18,7 @@ namespace allscale
         // On the right level, just keep a record...
         if (path.getLength() == TRACKING_LEVEL)
         {
-            times[path.getPath()] += (time.count() * 1e-9f);
+            times[path.getPath()] += time.count();
             return;
         }
 

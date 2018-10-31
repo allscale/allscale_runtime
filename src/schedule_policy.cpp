@@ -266,8 +266,10 @@ namespace allscale {
                 // if we cross a boundary
                 if (cur_node < num_nodes - 1)
                 {
-                    if (std::abs(cur_costs - next_goal) < std::abs(next_goal - next_costs))
+                    if (next_costs > next_goal)
+//                     if (std::abs(cur_costs - next_goal) < std::abs(next_goal - next_costs))
                     {
+//                         std::cout << "advance to node " << cur_node+1 << '\n';
                         cur_node++;
                         while (!mask[cur_node]) cur_node++;
                         next_goal += share;
@@ -373,7 +375,7 @@ namespace allscale {
         }
     }
 
-    std::unique_ptr<scheduling_policy> tree_scheduling_policy::create_rebalanced(const scheduling_policy& old_base, task_times const& times, std::vector<bool> const& mask)
+    std::unique_ptr<scheduling_policy> tree_scheduling_policy::create_rebalanced(const scheduling_policy& old_base, task_times const& times, std::vector<bool> const& mask, bool output)
     {
         tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(old_base);
 
@@ -383,6 +385,137 @@ namespace allscale {
 
         // sample measured times
         sample_task_costs(times, task_id::task_path::root(), old.get_granularity(), task_costs);
+
+        std::vector<std::size_t> mapping = old.task_distribution_mapping();
+
+        std::vector<float> node_avg(mask.size(), 0.f);
+        std::vector<std::size_t> node_contribution(mask.size(), 0);
+
+        auto total = std::accumulate(task_costs.begin(), task_costs.end(), 0.0f);
+        for(float& t: task_costs)
+        {
+            t/=total;
+        }
+        auto avg =  std::accumulate(task_costs.begin(), task_costs.end(), 0.0f) / task_costs.size();
+        float sum_dist = 0.f;
+        for(std::size_t i=0; i<task_costs.size(); i++)
+        {
+            float dist = task_costs[i] - avg;
+            sum_dist +=  dist * dist;
+        }
+        float var = sum_dist;
+
+
+        // Calculate the average per node, and its contribution inside the
+        // mapping
+        for (std::size_t i = 0; i < mapping.size(); ++i)
+        {
+            std::size_t node = mapping[i];
+            node_avg[node] += task_costs[i];
+            ++node_contribution[node];
+        }
+
+        for (std::size_t node = 0; node != node_avg.size(); ++node)
+        {
+            node_avg[node] /= node_contribution[node];
+        }
+
+        // Find the maximum of the costs
+        auto minmax = std::minmax_element(node_avg.begin(), node_avg.end());
+
+        auto node_min = std::distance(node_avg.begin(), minmax.first);
+        auto node_max = std::distance(node_avg.begin(), minmax.second);
+
+        if (node_avg.size() > 1)
+        {
+            // Figure out in which direction we need to balance towards
+            // Select the node with the smallest average
+            auto eligable_max = [&node_avg, &node_contribution, var](std::size_t node)
+            {
+                std::size_t target_node = std::size_t(-1);
+                if (node == node_avg.size()-1 || (node_avg[node - 1] < node_avg[node + 1]))
+                {
+                    if ((node_avg[node - 1] < node_avg[node] - var/2.f) && (node_contribution[node] > 1))
+                    {
+                        target_node = node - 1;
+                    }
+                }
+                else
+                {
+                    if (node_avg[node + 1] < node_avg[node] - var/2.f && (node_contribution[node] > 1))
+                    {
+                        target_node = node + 1;
+                    }
+                }
+                return target_node;
+            };
+            auto eligable_min = [&node_avg, &node_contribution, var](std::size_t node)
+            {
+                std::size_t target_node = std::size_t(-1);
+                if (node == node_avg.size()-1 || (node_avg[node - 1] < node_avg[node + 1]))
+                {
+                    if (node_avg[node + 1] > node_avg[node] - var/2.f)
+                    {
+                        target_node = node + 1;
+                    }
+                }
+                else
+                {
+                    if (node_avg[node - 1] > node_avg[node] - var/2.f)
+                    {
+                        target_node = node + 1;
+                    }
+                }
+                return target_node;
+            };
+
+            std::size_t target_node[] = {eligable_min(node_min), eligable_max(node_max)};
+
+            bool update = false;
+            if (target_node[0] != std::size_t(-1))
+            {
+                if (node_contribution[target_node[0]] > 1)
+                {
+//                     if (output) std::cout << target_node[0] << " -> " << node_min << '\n';
+                    node_contribution[node_min]++;
+                    node_contribution[target_node[0]]--;
+                    update = true;
+                }
+            }
+            if (target_node[1] != std::size_t(-1))
+            {
+                if (node_contribution[node_max] > 1)
+                {
+//                     if (output) std::cout << node_max << " -> " << target_node[1] << '\n';
+                    node_contribution[node_max]--;
+                    node_contribution[target_node[1]]++;
+                    update = true;
+                }
+            }
+
+            if (update)
+            {
+                // Generating new mapping by using the node_contribution.
+                auto jt = mapping.begin();
+                for (std::size_t i = 0; i != node_avg.size(); ++i)
+                {
+                    for (std::size_t j = 0; j != node_contribution[i]; ++j)
+                    {
+                        *jt = i;
+                        ++jt;
+                    }
+                }
+            }
+        }
+
+//         if (output) std::cout << mapping << '\n';
+
+        // create new scheduling policy
+        auto log2 = old.root().getLayer();
+
+        return std::unique_ptr<scheduling_policy>(new tree_scheduling_policy(
+                old.root(), old.get_granularity(),
+                toDecisionTree((1<<log2), mapping)));
 
         // compute new schedule
         return rebalance_tasks(old, task_costs, mask);

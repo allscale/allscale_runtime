@@ -11,6 +11,7 @@
 #include <allscale/get_num_localities.hpp>
 #include <allscale/data_item_manager/index_service.hpp>
 #include <allscale/data_item_manager/task_requirements.hpp>
+#include <allscale/utils/printer/vectors.h>
 
 #include <hpx/include/actions.hpp>
 #include <hpx/apply.hpp>
@@ -263,7 +264,9 @@ namespace allscale
           , right_id_(std::move(other.right_id_))
           , is_root_(other.is_root_)
           , optimizer_(std::move(other.optimizer_))
-        {}
+        {
+            HPX_ASSERT(false);
+        }
 
         scheduler_service(runtime::HierarchyAddress here)
           : policy_(create_policy())
@@ -298,6 +301,8 @@ namespace allscale
                         right_.getRank());
                 }
             }
+
+            if (is_root_) run();
         }
 
         std::string policy()
@@ -327,31 +332,55 @@ namespace allscale
             {
                 std::lock_guard<mutex_type> l(mtx_);
                 mask_ = std::vector<bool>(mask_.size(), true);
+
                 policy_ = std::move(pol);
             }
         }
 
         void update_policy(task_times const& times, std::vector<bool> const& mask)
         {
-            std::lock_guard<mutex_type> l(mtx_);
             if (!(policy_.value_ == replacable_policy::dynamic || policy_.value_ == replacable_policy::tuned)) return;
 
-            mask_ = mask;
-            policy_.policy_ = tree_scheduling_policy::create_rebalanced(*policy_.policy_, times, mask_);
+            auto new_policy = tree_scheduling_policy::create_rebalanced(*policy_.policy_, times, mask, is_root_);
+
+            {
+                std::lock_guard<mutex_type> l(mtx_);
+
+                mask_ = mask;
+                policy_.policy_ = std::move(new_policy);
+            }
         }
 
-        void schedule(work_item work)
+        bool balance()
         {
-            if (is_root_ && policy_.value_ == replacable_policy::dynamic &&
-                work.id().is_root() && work.id().id > 0 && (work.id().id % 10 == 0))
+            HPX_ASSERT(is_root_);
+
+            if (policy_.value_ == replacable_policy::dynamic)
             {
                 optimizer_.balance(false);
             }
 
-            if (policy_.value_ == replacable_policy::tuned &&
-                work.id().is_root() && work.id().id > 0 && (work.id().id % 10 == 0))
+            if (policy_.value_ == replacable_policy::tuned)
             {
                 optimizer_.balance(true);
+            }
+
+            return true;
+        }
+
+        void run()
+        {
+        }
+
+        void stop()
+        {
+        }
+
+        void schedule(work_item work)
+        {
+            if (is_root_ && work.id().is_root() && work.id().id % 10 == 0)
+            {
+                balance();
             }
 
             auto reqs = work.get_task_requirements();
@@ -608,6 +637,8 @@ namespace allscale
 
     void scheduler::stop()
     {
+        auto addr = runtime::HierarchyAddress::getRootOfNetworkSize(allscale::get_num_localities());
+        runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>(addr.getLayer()).stop();
         get().stop();
 //         get_ptr().reset();
     }

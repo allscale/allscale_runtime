@@ -295,7 +295,7 @@ namespace allscale
                         mask[i] = i < num_active_nodes_;
                     }
 
-                    hpx::lcos::broadcast_apply<allscale_optimizer_update_policy_action>(
+                    return hpx::lcos::broadcast<allscale_optimizer_update_policy_action>(
                         localities_, times, mask);
 
 //                     // get the local scheduler

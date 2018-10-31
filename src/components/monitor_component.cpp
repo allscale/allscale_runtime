@@ -127,7 +127,7 @@ namespace allscale { namespace components {
 
        // normalize to one second
        auto interval = std::chrono::duration_cast<std::chrono::nanoseconds>(now - last_task_times_sample_);
-       auto res = (task_times_ - last_task_times_) / (interval.count() * 1e-9f);
+       auto res = (task_times_ - last_task_times_);// / interval.count();
 
        last_task_times_sample_ = now;
        last_task_times_ = task_times_;
