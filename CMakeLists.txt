@@ -25,6 +25,18 @@ if (ALLSCALE_WITH_PAPI)
 add_definitions(-DHAVE_PAPI)
 endif()
 
+if (ALLSCALE_WITH_CRAY_PM)
+add_definitions(-DCRAY_COUNTERS)
+endif()
+
+if (ALLSCALE_WITH_POWER_ESTIMATE)
+add_definitions(-DPOWER_ESTIMATE)
+endif()
+
+if (ALLSCALE_READ_VOLTAGE)
+add_definitions(-DREAD_VOLTAGE_FILE)
+endif()
+
 if (ALLSCALE_WITH_EXTRAE)
 if(NOT EXTRAE_DIR)
   message(FATAL_ERROR "EXTRAE_DIR Cmake variable not set. Please set it to point to the directory where EXTRAE is installed")

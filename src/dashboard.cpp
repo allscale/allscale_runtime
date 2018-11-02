@@ -67,6 +67,11 @@ namespace allscale { namespace dashboard
         state.efficiency = used_cycles / float(max_cycles);
         state.speed = used_cycles / float(avail_cycles);
 
+#ifdef POWER_ESTIMATE
+        state.cur_power = monitor_c->get_current_power();
+        state.max_power = monitor_c->get_max_power();
+#endif
+
         return state;
     }
 }}

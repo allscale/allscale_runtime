@@ -2,6 +2,7 @@
 #include <allscale/monitor.hpp>
 #include <allscale/dashboard.hpp>
 #include <allscale/get_num_numa_nodes.hpp>
+#include <allscale/power.hpp>
 
 #include <math.h>
 #include <limits>
@@ -34,6 +35,8 @@
 #include "extrae.h"
 #endif
 
+#define SAMPLE_INTERVAL 1000
+
 char const* gather_basename1 = "allscale/monitor/gather1";
 HPX_REGISTER_GATHER(profile_map, profile_gatherer);
 
@@ -51,16 +54,25 @@ namespace allscale { namespace components {
 
 
    monitor::monitor(std::uint64_t rank)
-     : last_task_times_sample_(std::chrono::high_resolution_clock::now())
-     , rank_(rank)
+     : rank_(rank)
      , num_localities_(0)
      , enable_monitor(true)
-     , total_memory_(0)
-     , num_cpus_(0)
+     , output_profile_table_(0)
+     , output_treeture_(0)
+     , output_iteration_trees_(0)
+     , collect_papi_(0)
+     , cutoff_level_(0)
+     , print_throughput_hm_(0)
+     , print_idle_hm_(0)
+     , done(false)
      , current_read_queue(0)
      , current_write_queue(0)
-     , done(false)
-//#ifdef WI_STATS
+     , sampling_interval_ms(SAMPLE_INTERVAL)
+     , finished_tasks(0)
+     , task_throughput(0)
+     , cpu_load_(0.0)
+     , total_memory_(0)
+     , num_cpus_(0)
      , total_split_time(0)
      , total_process_time(0)
      , num_split_tasks(0)
@@ -69,28 +81,13 @@ namespace allscale { namespace components {
      , max_split_task(0)
      , min_process_task(0)
      , max_process_task(0)
-     , finished_tasks(0)
-     , sampling_interval_ms(1000)
-//     , metric_sampler_(
-//          hpx::util::bind(
-//		&monitor::sample_node,
-//		this
-//	  ),
-//          2000000,
-//          "monitor::sample_node",
-//          false
-//       )
-     , task_throughput(0)
      , weighted_sum(0.0)
      , weighted_throughput(0.0)
      , bytes_sent_(0)
      , bytes_recv_(0)
-     , cpu_load_(0.0)
-//#endif
+#ifdef REALTIME_VIZ
      , num_active_tasks_(0)
      , total_tasks_(0)
-     , total_task_duration_(0.0)
-#ifdef REALTIME_VIZ
      , realtime_viz(0)
      , sample_id_(0)
      , timer_(
@@ -103,44 +100,9 @@ namespace allscale { namespace components {
           true
        )
 #endif
-     , output_profile_table_(0)
-     , output_treeture_(0)
-     , output_iteration_trees_(0)
-     , collect_papi_(0)
-     , cutoff_level_(0)
-     , print_throughput_hm_(0)
-     , print_idle_hm_(0)
     {
 
     }
-
-   void monitor::add_task_time(task_id::task_path const& path, task_times::time_t const& time)
-   {
-       if (!enable_monitor) return;
-
-       std::lock_guard<mutex_type> l(task_times_mtx_);
-//        if (hpx::get_locality_id() == 0)
-//        {
-//            std::cout << path.getPath() << " " << time.count() << "\n";
-//        }
-       task_times_.add(path, time);
-   }
-
-   task_times monitor::get_task_times()
-   {
-       if (!enable_monitor) return task_times{};
-
-       std::lock_guard<mutex_type> l(task_times_mtx_);
-       auto now = std::chrono::high_resolution_clock::now();
-
-       // normalize to one second
-       auto interval = std::chrono::duration_cast<std::chrono::nanoseconds>(now - last_task_times_sample_);
-       auto res = (task_times_ - last_task_times_) / (interval.count() * 1e-9f);
-
-       last_task_times_sample_ = now;
-       last_task_times_ = task_times_;
-       return res;
-   }
 
 #ifdef REALTIME_VIZ
    bool monitor::sample_task_stats()
@@ -166,7 +128,7 @@ namespace allscale { namespace components {
 //	       << "Average time per task: " << get_avg_task_duration() <<  "IDLE RATE: " << idle_rate_ << std::endl;
      return true;
    }
-#endif
+
 
    double monitor::get_avg_task_duration()
    {
@@ -174,6 +136,7 @@ namespace allscale { namespace components {
      else return total_task_duration_/(double)total_tasks_;
    }
 
+#endif
 
 
    std::uint64_t monitor::get_timestamp( void ) {
@@ -310,6 +273,21 @@ namespace allscale { namespace components {
          return std::vector<std::uint64_t>();
    }
 
+
+   float monitor::get_current_power()
+   {
+      return allscale::power::get_instant_power() * num_cpus_;
+   }
+
+
+   float monitor::get_max_power()
+   {
+#ifdef POWER_ESTIMATE
+      return allscale::power::estimate_power(get_max_freq(0)) * num_cpus_;
+#else
+      return 0.0;
+#endif
+   }
 
 
    std::uint64_t monitor::get_network_out()
@@ -451,6 +429,12 @@ namespace allscale { namespace components {
            pstat >> foo_word >> user_time >> nice_time >> system_time >> idle_time;
        }
 
+       // Power
+#ifdef CRAY_COUNTERS
+       allscale::power::read_pm_counters();
+#elif POWER_ESTIMATE
+       allscale::power::estimate_power(get_current_freq(0));
+#endif
 
        // Compute statistics
        std::unique_lock<std::mutex> lock(sampling_mutex);
@@ -583,11 +567,15 @@ namespace allscale { namespace components {
       std::shared_ptr<allscale::work_item_stats> stats;
       auto my_wid = w.id();
 
-
-      {
+#ifdef REALTIME_VIZ
+      if(realtime_viz) {
+         // Global task stats
          std::unique_lock<std::mutex> lock2(counter_mutex_);
+         total_tasks_++; num_active_tasks_--;
          total_task_duration_ += p->get_exclusive_time();
+         lock2.unlock();
       }
+#endif
 
 
 #ifdef HAVE_PAPI
@@ -1284,13 +1272,6 @@ namespace allscale { namespace components {
 
   double monitor::get_avg_idle_rate()
   {
-      auto now = std::chrono::steady_clock::now();
-      std::chrono::duration<double> time_elapsed =
-          std::chrono::duration_cast<std::chrono::duration<double>>(now - execution_start);
-
-      return get_avg_task_duration() / time_elapsed.count();
-
-
 /*     hpx::performance_counters::counter_value idle_avg_value;
 
      idle_avg_value = hpx::performance_counters::stubs::performance_counter::get_value(
@@ -1298,8 +1279,8 @@ namespace allscale { namespace components {
 
 
      return idle_avg_value.get_value<double>() * 0.01;
-      return 0.0;
 */
+      return 0.0;
   }
 
   double monitor::get_avg_idle_rate_remote(hpx::id_type locality)
@@ -2196,17 +2177,20 @@ namespace allscale { namespace components {
 
       initialized = true;
 
-       std::cerr
+      std::cerr
           << "Monitor component with rank "
           << rank_ << " created!\n";
 
       if (rank_ == 0)
       {
           dashboard::update();
-          dashboard::get_commands();
       }
 
    }
+
+
+
+
 }}
 
 //HPX_REGISTER_ACTION(allscale::components::monitor::get_my_rank_action, get_my_rank_action);
