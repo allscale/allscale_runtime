@@ -54,7 +54,8 @@ namespace allscale { namespace components {
 
 
    monitor::monitor(std::uint64_t rank)
-     : rank_(rank)
+     : last_task_times_sample_(std::chrono::high_resolution_clock::now())
+     , rank_(rank)
      , num_localities_(0)
      , enable_monitor(true)
      , output_profile_table_(0)
@@ -104,6 +105,36 @@ namespace allscale { namespace components {
 
     }
 
+
+   void monitor::add_task_time(task_id::task_path const& path, task_times::time_t const& time)
+   {
+       if (!enable_monitor) return;
+
+       std::lock_guard<mutex_type> l(task_times_mtx_);
+//        if (hpx::get_locality_id() == 0)
+//        {
+//            std::cout << path.getPath() << " " << time.count() << "\n";
+//        }
+       task_times_.add(path, time);
+   }
+
+   task_times monitor::get_task_times()
+   {
+       if (!enable_monitor) return task_times{};
+
+       std::lock_guard<mutex_type> l(task_times_mtx_);
+       auto now = std::chrono::high_resolution_clock::now();
+
+       // normalize to one second
+       auto interval = std::chrono::duration_cast<std::chrono::nanoseconds>(now - last_task_times_sample_);
+       auto res = (task_times_ - last_task_times_) / (interval.count() * 1e-9f);
+
+       last_task_times_sample_ = now;
+       last_task_times_ = task_times_;
+       return res;
+   }
+
+
 #ifdef REALTIME_VIZ
    bool monitor::sample_task_stats()
    {
@@ -128,15 +159,13 @@ namespace allscale { namespace components {
 //	       << "Average time per task: " << get_avg_task_duration() <<  "IDLE RATE: " << idle_rate_ << std::endl;
      return true;
    }
-
+#endif
 
    double monitor::get_avg_task_duration()
    {
      if(!total_tasks_) return 0.0;
      else return total_task_duration_/(double)total_tasks_;
    }
-
-#endif
 
 
    std::uint64_t monitor::get_timestamp( void ) {
@@ -567,15 +596,12 @@ namespace allscale { namespace components {
       std::shared_ptr<allscale::work_item_stats> stats;
       auto my_wid = w.id();
 
-#ifdef REALTIME_VIZ
-      if(realtime_viz) {
-         // Global task stats
+
+      {
          std::unique_lock<std::mutex> lock2(counter_mutex_);
-         total_tasks_++; num_active_tasks_--;
          total_task_duration_ += p->get_exclusive_time();
-         lock2.unlock();
       }
-#endif
+
 
 
 #ifdef HAVE_PAPI
@@ -1272,6 +1298,13 @@ namespace allscale { namespace components {
 
   double monitor::get_avg_idle_rate()
   {
+      auto now = std::chrono::steady_clock::now();
+      std::chrono::duration<double> time_elapsed =
+          std::chrono::duration_cast<std::chrono::duration<double>>(now - execution_start);
+
+      return get_avg_task_duration() / time_elapsed.count();
+
+
 /*     hpx::performance_counters::counter_value idle_avg_value;
 
      idle_avg_value = hpx::performance_counters::stubs::performance_counter::get_value(
@@ -1279,8 +1312,8 @@ namespace allscale { namespace components {
 
 
      return idle_avg_value.get_value<double>() * 0.01;
-*/
       return 0.0;
+*/
   }
 
   double monitor::get_avg_idle_rate_remote(hpx::id_type locality)
@@ -2184,6 +2217,7 @@ namespace allscale { namespace components {
       if (rank_ == 0)
       {
           dashboard::update();
+          dashboard::get_commands();
       }
 
    }
