@@ -5,6 +5,7 @@
 #include <allscale/data_item_manager/get_ownership_json.hpp>
 #include <allscale/components/scheduler.hpp>
 #include <allscale/scheduler.hpp>
+#include <allscale/resilience.hpp>
 #ifdef ALLSCALE_HAVE_CPUFREQ
 #include <allscale/util/hardware_reconf.hpp>
 #endif
@@ -250,9 +251,15 @@ namespace allscale { namespace dashboard
 
         hpx::future<std::vector<node_state>> get_system_state()
         {
-            // FIXME: make resilient: filter out failed localities...
-            return hpx::lcos::broadcast<allscale_dashboard_get_state_action>(
-                localities_);
+            // Filter out failed localities (ask resilience component)
+            std::vector<hpx::naming::id_type> survivors;
+            std::copy_if(localities_.begin(), localities_.end(), std::back_inserter(survivors),
+                    [](hpx::naming::id_type t){
+                    int rank = hpx::naming::get_locality_id_from_id(t);
+                    return resilience::rank_running(rank);
+                    });
+
+            return hpx::lcos::broadcast<allscale_dashboard_get_state_action>(survivors);
         }
 
         struct msg
@@ -440,30 +447,26 @@ namespace allscale { namespace dashboard
 
         auto start = std::chrono::system_clock::now();
 
-        client.get_system_state().then(
-        [&client, start](hpx::future<std::vector<node_state>> nodes)
-        {
-            system_state state;
+        auto f = client.get_system_state();
+        f.then(
+                [&client, start](hpx::future<std::vector<node_state>> nodes)
+                {
+                system_state state;
 
-            state.speed = .9f;
-            state.efficiency = .5f;
-            state.power = .3f;
-            state.score = 1.f;
+                state.speed = .9f;
+                state.efficiency = .5f;
+                state.power = .3f;
+                state.score = 1.f;
 
-            state.nodes = nodes.get();
-
-            client.write(state,
-            [start]()
-            {
-                HPX_ASSERT(hpx::threads::get_self_ptr() == nullptr);
-                // Send next update in 40 millseconds for 25 FPS.
-                using namespace std::chrono_literals;
-                auto duration = std::chrono::system_clock::now() - start;
-                if (duration < 1s)
-                    std::this_thread::sleep_for(1s - duration);
-                update();
-            });
-        });
+                state.nodes = nodes.get();
+                // empty lambda now instead of 'update', since we call 'update' after the continuation
+                client.write(state, [](){});
+                });
+        using namespace std::chrono_literals;
+        auto duration = std::chrono::system_clock::now() - start;
+        if (duration < 1s)
+            std::this_thread::sleep_for(1s - duration);
+        hpx::apply(update);
     }
 
     void get_commands()
