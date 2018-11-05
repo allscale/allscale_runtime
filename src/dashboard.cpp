@@ -64,7 +64,7 @@ namespace allscale { namespace dashboard
         std::size_t max_cycles = active_cores * max_frequency;
 
         state.productive_cycles_per_second = frequency * 1000 * (1.f - state.idle_rate);  // freq to Hz
-        
+
         state.efficiency = used_cycles / float(max_cycles);
         state.speed = used_cycles / float(avail_cycles);
 
@@ -253,8 +253,9 @@ namespace allscale { namespace dashboard
         {
             // Filter out failed localities (ask resilience component)
             std::vector<hpx::naming::id_type> survivors;
+            survivors.reserve(localities_.size());
             std::copy_if(localities_.begin(), localities_.end(), std::back_inserter(survivors),
-                    [](hpx::naming::id_type t){
+                    [](hpx::naming::id_type const& t){
                     int rank = hpx::naming::get_locality_id_from_id(t);
                     return resilience::rank_running(rank);
                     });
@@ -447,26 +448,36 @@ namespace allscale { namespace dashboard
 
         auto start = std::chrono::system_clock::now();
 
-        auto f = client.get_system_state();
-        f.then(
-                [&client, start](hpx::future<std::vector<node_state>> nodes)
+        auto f = client.get_system_state().then(
+        [&client, start](hpx::future<std::vector<node_state>> nodes)
+        {
+            system_state state;
+
+            state.speed = .9f;
+            state.efficiency = .5f;
+            state.power = .3f;
+            state.score = 1.f;
+
+            auto next_update =
+                [start]()
                 {
-                system_state state;
+                    using namespace std::chrono_literals;
+                    auto duration = std::chrono::system_clock::now() - start;
+                    if (duration < 1s)
+                        std::this_thread::sleep_for(1s - duration);
+                    update();
+                };
 
-                state.speed = .9f;
-                state.efficiency = .5f;
-                state.power = .3f;
-                state.score = 1.f;
-
+            try
+            {
                 state.nodes = nodes.get();
-                // empty lambda now instead of 'update', since we call 'update' after the continuation
-                client.write(state, [](){});
-                });
-        using namespace std::chrono_literals;
-        auto duration = std::chrono::system_clock::now() - start;
-        if (duration < 1s)
-            std::this_thread::sleep_for(1s - duration);
-        hpx::apply(update);
+                client.write(state, std::move(next_update));
+            }
+            catch (...)
+            {
+                next_update();
+            }
+        });
     }
 
     void get_commands()
