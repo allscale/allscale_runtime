@@ -420,90 +420,132 @@ namespace allscale {
             node_avg[node] /= node_contribution[node];
         }
 
-        // Find the maximum of the costs
-        auto minmax = std::minmax_element(node_avg.begin(), node_avg.end());
-
-        auto node_min = std::distance(node_avg.begin(), minmax.first);
-        auto node_max = std::distance(node_avg.begin(), minmax.second);
-
-        if (node_avg.size() > 1)
+        // Figure out in which direction we need to balance towards
+        // Select the node with the smallest average
+        bool update_mapping = false;
+        auto eligable_max = [&node_avg, &node_contribution, &update_mapping, var](std::size_t node)
         {
-            // Figure out in which direction we need to balance towards
-            // Select the node with the smallest average
-            auto eligable_max = [&node_avg, &node_contribution, var](std::size_t node)
-            {
-                std::size_t target_node = std::size_t(-1);
-                if (node == node_avg.size()-1 || (node_avg[node - 1] < node_avg[node + 1]))
-                {
-                    if ((node_avg[node - 1] < node_avg[node] - var/2.f) && (node_contribution[node] > 1))
-                    {
-                        target_node = node - 1;
-                    }
-                }
-                else
-                {
-                    if (node_avg[node + 1] < node_avg[node] - var/2.f && (node_contribution[node] > 1))
-                    {
-                        target_node = node + 1;
-                    }
-                }
-                return target_node;
-            };
-            auto eligable_min = [&node_avg, &node_contribution, var](std::size_t node)
-            {
-                std::size_t target_node = std::size_t(-1);
-                if (node == node_avg.size()-1 || (node_avg[node - 1] < node_avg[node + 1]))
-                {
-                    if (node_avg[node + 1] > node_avg[node] - var/2.f)
-                    {
-                        target_node = node + 1;
-                    }
-                }
-                else
-                {
-                    if (node_avg[node - 1] > node_avg[node] - var/2.f)
-                    {
-                        target_node = node + 1;
-                    }
-                }
-                return target_node;
-            };
+            std::size_t target_node = std::size_t(-1);
 
-            std::size_t target_node[] = {eligable_min(node_min), eligable_max(node_max)};
+            if (node_contribution[node] == 1) return;
 
-            bool update = false;
-            if (target_node[0] != std::size_t(-1))
+            if (node == 0)
             {
-                if (node_contribution[target_node[0]] > 1)
+                if (node_avg[node + 1] < node_avg[node] - var/2.f)
                 {
-//                     if (output) std::cout << target_node[0] << " -> " << node_min << '\n';
-                    node_contribution[node_min]++;
-                    node_contribution[target_node[0]]--;
-                    update = true;
+                    target_node = node + 1;
+                    node_contribution[node]--;
+                    node_contribution[target_node]++;
+                    update_mapping = true;
                 }
+                return;
             }
-            if (target_node[1] != std::size_t(-1))
+            if (node == node_avg.size() - 1)
             {
-                if (node_contribution[node_max] > 1)
+                if (node_avg[node - 1] < node_avg[node] - var/2.f)
                 {
-//                     if (output) std::cout << node_max << " -> " << target_node[1] << '\n';
-                    node_contribution[node_max]--;
-                    node_contribution[target_node[1]]++;
-                    update = true;
+                    target_node = node - 1;
+                    node_contribution[node]--;
+                    node_contribution[target_node]++;
+                    update_mapping = true;
                 }
+                return;
             }
 
-            if (update)
+            if (node_avg[node - 1] < node_avg[node + 1])
             {
-                // Generating new mapping by using the node_contribution.
-                auto jt = mapping.begin();
-                for (std::size_t i = 0; i != node_avg.size(); ++i)
+                if (node_avg[node - 1] < node_avg[node] - var/2.f)
                 {
-                    for (std::size_t j = 0; j != node_contribution[i]; ++j)
-                    {
-                        *jt = i;
-                        ++jt;
-                    }
+                    target_node = node - 1;
+                    node_contribution[node]--;
+                    node_contribution[target_node]++;
+                    update_mapping = true;
+                }
+            }
+            else
+            {
+                if (node_avg[node + 1] < node_avg[node] - var/2.f)
+                {
+                    target_node = node + 1;
+                    node_contribution[node]--;
+                    node_contribution[target_node]++;
+                    update_mapping = true;
+                }
+            }
+        };
+
+        auto eligable_min = [&node_avg, &node_contribution, &update_mapping, var](std::size_t node)
+        {
+            std::size_t target_node = std::size_t(-1);
+            if (node == 0)
+            {
+                if (node_contribution[node + 1] == 1) return;
+                if (node_avg[node + 1] > node_avg[node] + var/2.f)
+                {
+                    target_node = node + 1;
+                    node_contribution[node]++;
+                    node_contribution[target_node]--;
+                    update_mapping = true;
+                }
+                return;
+            }
+            if (node == node_avg.size() -1)
+            {
+                if (node_contribution[node - 1] == 1) return;
+                if (node_avg[node - 1] > node_avg[node] + var/2.f)
+                {
+                    target_node = node - 1;
+                    node_contribution[node]++;
+                    node_contribution[target_node]--;
+                    update_mapping = true;
+                }
+                return;
+            }
+
+            if (node_avg[node - 1] < node_avg[node + 1])
+            {
+                if (node_contribution[node + 1] == 1) return;
+                if (node_avg[node + 1] > node_avg[node] + var/2.f)
+                {
+                    target_node = node + 1;
+                    node_contribution[node]++;
+                    node_contribution[target_node]--;
+                    update_mapping = true;
+                }
+            }
+            else
+            {
+                if (node_contribution[node - 1] == 1) return;
+                if (node_avg[node - 1] > node_avg[node] + var/2.f)
+                {
+                    target_node = node - 1;
+                    node_contribution[node]++;
+                    node_contribution[target_node]--;
+                    update_mapping = true;
+                }
+            }
+        };
+        // Go over all node averages
+        for (std::size_t i = 0; i != node_avg.size(); ++i)
+        {
+            // If we are above the overall average + variance, we should
+            // put the work to our neighbors
+            eligable_max(i);
+            // If we are above the overall average - variance, we should
+            // put the work to our neighbors
+            eligable_min(i);
+        }
+
+        if (update_mapping)
+        {
+            // Generating new mapping by using the node_contribution.
+            auto jt = mapping.begin();
+            for (std::size_t i = 0; i != node_avg.size(); ++i)
+            {
+                for (std::size_t j = 0; j != node_contribution[i]; ++j)
+                {
+                    *jt = i;
+                    ++jt;
                 }
             }
         }
