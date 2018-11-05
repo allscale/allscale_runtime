@@ -35,6 +35,8 @@ namespace allscale { namespace components {
     }
 
     void resilience::set_guard(uint64_t guard_rank) {
+        
+        std::unique_lock<mutex_type> lock(guard_mutex_);
         guard_ = hpx::find_from_basename("allscale/resilience", guard_rank);
         guard_rank_ = guard_rank;
     }
@@ -52,7 +54,10 @@ namespace allscale { namespace components {
             hpx::this_thread::sleep_for(milliseconds(miu));
             auto t_now =  std::chrono::high_resolution_clock::now();
             my_heartbeat = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
-            hpx::apply<send_heartbeat_action>(guard_.get(), my_heartbeat);
+            {
+                std::unique_lock<mutex_type> lock(guard_mutex_);
+                hpx::apply<send_heartbeat_action>(guard_.get(), my_heartbeat);
+            }
             thread_safe_printer("my counter = " + std::to_string(my_heartbeat) + " protectee COUNTER = " + std::to_string(protectee_heartbeat) + "\n");
             if (my_heartbeat > protectee_heartbeat + delta/1000) {
                 thread_safe_printer("DETECTED FAILURE!!!" + std::to_string(my_heartbeat) + " -- " + std::to_string(protectee_heartbeat) + " -- "+ std::to_string(protectee_heartbeat+delta/1000)  + "\n");
@@ -125,9 +130,12 @@ namespace allscale { namespace components {
         std::size_t left_id = (rank_ == 0)?(num_localities-1):(rank_-1);
         std::size_t left_left_id = (left_id == 0)?(num_localities-1):(left_id-1);
         thread_safe_printer("left:"+std::to_string(left_id)+"right:"+std::to_string(right_id)+"left left:"+std::to_string(left_left_id));
-        guard_ = localities[right_id];
+        {
+            std::unique_lock<mutex_type> lock(guard_mutex_);
+            guard_ = localities[right_id];
+            guard_rank_ = right_id;
+        }
         thread_safe_printer("got guard_");
-        guard_rank_ = right_id;
         protectee_ = localities[left_id];
 
         protectee_rank_ = left_id;
@@ -166,7 +174,11 @@ namespace allscale { namespace components {
         token++;
         if (get_running_ranks() > token) {
             thread_safe_printer("Will remote-call dispatched at rank "+std::to_string(dead_rank));
-            hpx::apply<reschedule_dispatched_to_dead_action>(guard_.get(), dead_rank, token);
+            
+            {
+            std::unique_lock<mutex_type> lock(guard_mutex_);
+                hpx::apply<reschedule_dispatched_to_dead_action>(guard_.get(), dead_rank, token);
+            }
         }
     }
 
@@ -230,7 +242,10 @@ namespace allscale { namespace components {
             keep_running = false;
             // dpn't forget to end the circle
             if (get_running_ranks() > token) {
-                hpx::async<shutdown_action>(guard_.get(), ++token).get();
+                {
+                    std::unique_lock<mutex_type> lock(guard_mutex_);
+                    hpx::async<shutdown_action>(guard_.get(), ++token).get();
+                }
             }
         }
     }

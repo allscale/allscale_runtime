@@ -66,6 +66,7 @@ namespace allscale { namespace components {
            uint64_t protectees_protectee_rank_;
            mutable mutex_type backup_mutex_;
            mutable mutex_type delegated_items_mutex_;
+           mutable mutex_type guard_mutex_;
            mutable mutex_type remote_backup_mutex_;
            mutable mutex_type running_ranks_mutex_;
            std::map<std::string, work_item> local_backups_;
