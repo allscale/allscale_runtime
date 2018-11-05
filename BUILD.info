@@ -1,0 +1,41 @@
+
+Some info about CMAKE variables used to configure the runtime.
+*********************************************************************
+
+
+MONITORING COMPONENT
+====================
+
+CMAKE vars
+----------
+
+* ALLSCALE_WITH_CRAY_PM
+	Enables power measurements for Cray XC
+
+* ALLSCALE_WITH_POWER_ESTIMATE
+	Enables power measurements using an estimate (C * U^2 * freq)
+
+* ALLSCALE_READ_VOLTAGE
+	Enables reading the voltage from /sys in the ARM suitacase
+
+
+Env. vars
+---------
+
+* ALLSCALE_MONITOR 
+	Enables/disables the monitoring component 
+
+* PRINT_PERFORMANCE_TABLE
+	Prints at the end a summary of work item statistics
+
+* PRINT_TREETURE
+	Prints at the end the treeture of WIs
+
+* PRINT_THROUGHPUT_HM
+	Prints a heatmap of the task throughput accross samples
+
+* PRINT_IDLE_HM
+	Prints a heatmap of the idle rate accross samples
+
+* MONITOR_PAPI
+	Enables PAPI counters 
