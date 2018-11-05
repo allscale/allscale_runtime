@@ -16,11 +16,11 @@ namespace allscale { namespace data_item_manager {
 
     namespace detail
     {
-        HPX_EXPORT void tls_cache(hpx::naming::gid_type const& id, void *);
-        HPX_EXPORT void *tls_cache(hpx::naming::gid_type const& id);
+        HPX_EXPORT void tls_cache(data_item_id const& id, void *);
+        HPX_EXPORT void *tls_cache(data_item_id const& id);
 
         template <typename DataItem>
-        DataItem* tls_cache(hpx::naming::gid_type const& id)
+        DataItem* tls_cache(data_item_id const& id)
         {
             return reinterpret_cast<DataItem*>(tls_cache(id));
         }
@@ -29,7 +29,7 @@ namespace allscale { namespace data_item_manager {
 template<typename DataItemType>
 struct data_item_store
 {
-    using id_type = hpx::naming::gid_type;
+    using id_type = data_item_id;
     using data_item_type = data_item<DataItemType>;
     using data_item_reference = ::allscale::data_item_reference<DataItemType>;
 

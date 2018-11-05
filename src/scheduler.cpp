@@ -378,7 +378,7 @@ namespace allscale
 
         void schedule(work_item work)
         {
-            if (is_root_ && work.id().is_root() && work.id().id % 10 == 0)
+            if (is_root_ && work.id().is_root() && work.id().id % 20 == 0)
             {
                 balance();
             }

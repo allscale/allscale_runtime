@@ -23,8 +23,7 @@ namespace allscale
 {
     optimizer_state get_optimizer_state()
     {
-        float load = 1.f - float(monitor::get().get_idle_rate() / 100.);
-//         return load;
+        float load = 1.f - monitor::get().get_idle_rate();
         return {load, monitor::get().get_task_times()};
     }
 

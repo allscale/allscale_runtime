@@ -17,7 +17,7 @@
 #define PM_MAX_ATTEMPTS 10
 #endif
 
-namespace allscale { namespace power 
+namespace allscale { namespace power
 {
 
 #ifdef CRAY_COUNTERS
@@ -146,18 +146,18 @@ namespace allscale { namespace power
            static const char * file_name = "/sys/class/i2c-dev/i2c-3/device/3-002d/regulator/regulator.1/microvolts";
            std::ifstream file;
            std::uint64_t microvolts = 0;
-           float U = 0.9; 
+           float U = 0.9;
 
            // Estimate using C * U^2 * f
 
-           // for now C is 30pF, not able to find it for Cortex A53 
-           auto C = 30 * 1.0e-12; // 
+           // for now C is 30pF, not able to find it for Cortex A53
+           auto C = 30 * 1.0e-12; //
 
 
            // voltage U
 #ifdef READ_VOLTAGE_FILE
 	   file.open(file_name);
-           if(!file) 
+           if(!file)
                 std::cerr << "Warning: Cannot read voltage from /sys/class, using 0.9 instead" << std::endl;
            else {
               file >> microvolts;

@@ -116,14 +116,15 @@ namespace allscale { namespace components {
 //            std::cout << path.getPath() << " " << time.count() << "\n";
 //        }
        task_times_.add(path, time);
+       process_time_ += time;
    }
 
    task_times monitor::get_task_times()
    {
        if (!enable_monitor) return task_times{};
+       auto now = std::chrono::high_resolution_clock::now();
 
        std::lock_guard<mutex_type> l(task_times_mtx_);
-       auto now = std::chrono::high_resolution_clock::now();
 
        // normalize to one second
        auto interval = std::chrono::duration_cast<std::chrono::nanoseconds>(now - last_task_times_sample_);
@@ -134,6 +135,30 @@ namespace allscale { namespace components {
        return res;
    }
 
+//    task_times::time_t monitor::get_process_time()
+//    {
+//        std::lock_guard<mutex_type> l(task_times_mtx_);
+//        return process_time_;
+//    }
+
+   double monitor::get_idle_rate()
+   {
+       auto now = std::chrono::high_resolution_clock::now();
+       std::lock_guard<mutex_type> l(task_times_mtx_);
+
+       auto process_time = process_time_;
+
+       auto d1 = std::chrono::duration_cast<task_times::time_t>(process_time - process_time_buffer_.oldest_data());
+       auto d2 = std::chrono::duration_cast<task_times::time_t>(now - process_time_buffer_.oldest_time());
+
+       double idle_rate = 1. - static_cast<double>(d1.count())/(static_cast<double>(d2.count()) * num_cpus_);
+
+
+       // aggregate process time...
+       process_time_buffer_.push(process_time, now);
+
+       return idle_rate;
+   }
 
 #ifdef REALTIME_VIZ
    bool monitor::sample_task_stats()
@@ -141,19 +166,16 @@ namespace allscale { namespace components {
       hpx::performance_counters::counter_value idle_value;
       hpx::performance_counters::counter_value rss_value;
 
-      idle_value = hpx::performance_counters::stubs::performance_counter::get_value(
-                hpx::launch::sync, idle_rate_counter_);
       rss_value = hpx::performance_counters::stubs::performance_counter::get_value(
                 hpx::launch::sync, resident_memory_counter_);
 
 
      std::unique_lock<std::mutex> lock(counter_mutex_);
 
-     idle_rate_ = (idle_value.get_value<double>() * 0.01) / get_num_numa_nodes();
      resident_memory_ = rss_value.get_value<double>() * 1e-6;
 
      data_file << sample_id_++ << "\t" << num_active_tasks_ << "\t"
-               << get_avg_task_duration() << "\t" << idle_rate_ << "\t" << resident_memory_ << std::endl;
+               << get_avg_task_duration() << "\t" << get_idle_rate() << "\t" << resident_memory_ << std::endl;
 
 //     std::cout << "Total number of tasks: " << total_tasks_ << " Number of active tasks: " << num_active_tasks_
 //	       << "Average time per task: " << get_avg_task_duration() <<  "IDLE RATE: " << idle_rate_ << std::endl;
@@ -206,12 +228,6 @@ namespace allscale { namespace components {
    }
 
 
-
-   double monitor::get_idle_rate()
-   {
-      std::unique_lock<std::mutex> lock(sampling_mutex);
-      return idle_rate_;
-   }
 
 
    double monitor::get_idle_rate_remote(hpx::id_type locality)
@@ -273,7 +289,11 @@ namespace allscale { namespace components {
 
       it = cpu_frequencies.find(cpuid);
       if(it != cpu_frequencies.end())
-	 return (it->second).front();
+      {
+          auto back = (it->second).back();
+          auto front = (it->second).front();
+          return std::min(back, front);
+      }
       else
 	 return 0;
    }
@@ -285,7 +305,11 @@ namespace allscale { namespace components {
 
       it = cpu_frequencies.find(cpuid);
       if(it != cpu_frequencies.end())
-         return (it->second).back();
+      {
+          auto back = (it->second).back();
+          auto front = (it->second).front();
+          return std::max(back, front);
+      }
       else
          return 0;
    }
@@ -305,7 +329,7 @@ namespace allscale { namespace components {
 
    float monitor::get_current_power()
    {
-      return allscale::power::get_instant_power() * num_cpus_;
+      return allscale::power::estimate_power(get_current_freq(0)) * num_cpus_;
    }
 
 
@@ -344,8 +368,7 @@ namespace allscale { namespace components {
       std::uint64_t freq_in_KHz = 0;
       std::vector<std::uint64_t> freqs;
 
-      num_cpus_ = std::thread::hardware_concurrency();
-
+      num_cpus_ = hpx::get_os_thread_count();
 
       for(int i = 0; i < num_cpus_; i++) {
 	 std::ifstream avail_freq_file(boost::str(boost::format(avail_freq_filename) % i));
@@ -403,7 +426,6 @@ namespace allscale { namespace components {
        hpx::performance_counters::counter_value network_out_tcp_value;
 
 
-       double rate_value;
        std::uint64_t memory_value = 0, network_in_mpi = 0, network_out_mpi = 0;
        std::uint64_t network_in_tcp = 0, network_out_tcp = 0;
        std::uint64_t user_time, nice_time, system_time, idle_time;
@@ -411,12 +433,6 @@ namespace allscale { namespace components {
 
 
        // Counters
-
-       if(rate_counter_registered_)
-          idle_value = hpx::performance_counters::stubs::performance_counter::get_value(
-                   hpx::launch::sync, idle_rate_counter_);
-
-
        if(memory_counter_registered_)
           rss_value = hpx::performance_counters::stubs::performance_counter::get_value(
                    hpx::launch::sync, resident_memory_counter_);
@@ -440,7 +456,6 @@ namespace allscale { namespace components {
        }
 
 
-       if(rate_counter_registered_) rate_value = (idle_value.get_value<double>() * 0.01) / get_num_numa_nodes();
        if(memory_counter_registered_) memory_value = rss_value.get_value<std::uint64_t>();
        if(network_mpi_counters_registered_) {
 	  network_in_mpi = network_in_mpi_value.get_value<std::uint64_t>();
@@ -470,7 +485,6 @@ namespace allscale { namespace components {
 
        task_throughput = (double)finished_tasks/((double)sampling_interval_ms/1000);
        weighted_throughput = weighted_sum/((double)sampling_interval_ms/1000);
-       idle_rate_ = rate_value;
        resident_memory_ = memory_value;
        bytes_sent_ = network_out_mpi + network_out_tcp;
        bytes_recv_ = network_in_mpi + network_out_tcp;
@@ -480,13 +494,12 @@ namespace allscale { namespace components {
        last_user_time = user_time; last_nice_time = nice_time; last_system_time = system_time; last_idle_time = idle_time;
 
 /*       std::cerr << "NODE " << rank_ << " THROUGHPUT " << task_throughput << " tasks/s "
-                 << "IDLE RATE " << idle_rate_
+                 << "IDLE RATE " << get_idle_rate()
                  << "RESIDENT MEMORY " << resident_memory_
                  << "CPU LOAD " << cpu_load_ << std::endl;
 */
 
        if(print_throughput_hm_) throughput_history.push_back(task_throughput);
-       if(print_idle_hm_) idle_rate_history.push_back(idle_rate_);
 
        finished_tasks = 0;
        weighted_sum = 0.0;
@@ -1749,9 +1762,6 @@ namespace allscale { namespace components {
       metric_sampler_->stop();
 
       // Stop performance counters
-      if(rate_counter_registered_)
-         hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, idle_rate_counter_);
-
       if(memory_counter_registered_)
          hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, resident_memory_counter_);
 
@@ -1764,10 +1774,6 @@ namespace allscale { namespace components {
          hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, nsend_tcp_counter_);
          hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, nrecv_tcp_counter_);
       }
-
-
-//      hpx::performance_counters::stubs::performance_counter::stop(hpx::launch::sync, idle_rate_avg_counter_);
-
 
 /*
       {
@@ -1912,6 +1918,7 @@ namespace allscale { namespace components {
       if(!enable_monitor)
       {
          std::cout << "Monitor component disabled!\n";
+         initialized = true;
          return;
       }
       num_localities_ = allscale::get_num_localities();
@@ -1987,18 +1994,13 @@ namespace allscale { namespace components {
 	       data_file.open ("realtime_data.txt", std::ofstream::out | std::ofstream::trunc);
 
                // setup performance counter
-               static const char * idle_counter_name = "/threads{locality#%d/total}/idle-rate";
                static const char * vm_counter_name = "/runtime{locality#%d/total}/memory/resident";
 
                const std::uint32_t prefix = hpx::get_locality_id();
 
-               idle_rate_counter_ = hpx::performance_counters::get_counter(
-                    boost::str(boost::format(idle_counter_name) % prefix));
-
                resident_memory_counter_ = hpx::performance_counters::get_counter(
                     boost::str(boost::format(vm_counter_name) % prefix));
 
-               hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_rate_counter_);
                hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, resident_memory_counter_);
 
                sample_task_stats();
@@ -2081,23 +2083,6 @@ namespace allscale { namespace components {
 
       // Create HPX counters
       const std::uint32_t prefix = hpx::get_locality_id();
-
-      // Idle rate counter
-      static const char * idle_counter_name = "/threads{locality#%d/total}/idle-rate";
-
-
-      try {
-         std::cerr << "Registering counter " << boost::str(boost::format(idle_counter_name) % prefix) << std::endl;
-         idle_rate_counter_ = hpx::performance_counters::get_counter(
-                 boost::str(boost::format(idle_counter_name) % prefix));
-
-         hpx::performance_counters::stubs::performance_counter::start(hpx::launch::sync, idle_rate_counter_);
-         rate_counter_registered_ = 1;
-      }
-      catch(const std::exception& e) {
-         std::cerr << "Failed to register counter " << boost::str(boost::format(idle_counter_name) % prefix) << std::endl;
-         rate_counter_registered_ = 0;
-      }
 
       // Memory counter
       static const char * memory_counter_name = "/runtime{locality#%d/total}/memory/resident";

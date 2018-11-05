@@ -137,14 +137,7 @@ namespace allscale { namespace data_item_manager {
         {
             typedef typename DataItem::shared_data_type shared_data_type;
 
-            auto ref = data_item_reference<DataItem>(
-                    hpx::local_new<allscale::detail::id_holder>(
-                        [](hpx::naming::gid_type const& id)
-                        {
-//                             data_item_manager_impl<DataItem>::get_ptr()->destroy(id);
-                        }
-                    )
-                );
+            auto ref = data_item_reference<DataItem>(data_item_id::create());
             auto &item = data_item_store<DataItem>::lookup(ref);
             item.shared_data.reset(new shared_data_type(std::forward<Args>(args)...));
 //             initializer<DataItem>::call(ref);

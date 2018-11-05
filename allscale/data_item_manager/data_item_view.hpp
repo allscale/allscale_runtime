@@ -21,13 +21,13 @@ namespace allscale { namespace data_item_manager {
         using region_type = typename DataItem::region_type;
         using mutex_type = typename data_item_store<DataItem>::data_item_type::mutex_type;
 
-        hpx::naming::gid_type id_;
+        data_item_id id_;
         region_type region_;
         bool migrate_;
 
         data_item_view() = default;
 
-        data_item_view(hpx::naming::gid_type id, region_type region, bool migrate)
+        data_item_view(data_item_id id, region_type region, bool migrate)
           : id_(std::move(id))
           , region_(std::move(region))
           , migrate_(migrate)

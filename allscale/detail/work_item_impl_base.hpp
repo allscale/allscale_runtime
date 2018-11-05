@@ -21,6 +21,8 @@ namespace allscale { namespace detail {
     struct work_item_impl_base
       : std::enable_shared_from_this<work_item_impl_base>
     {
+        using time_point =
+            std::chrono::high_resolution_clock::time_point;
         using task_requirements =
             std::unique_ptr<data_item_manager::task_requirements_base>;
 
@@ -45,7 +47,7 @@ namespace allscale { namespace detail {
         virtual void on_ready(hpx::util::unique_function_nonser<void()> f)=0;
 
 		virtual bool can_split() const=0;
-		virtual void process(executor_type& exec, task_requirements&&)=0;
+		virtual void process(executor_type& exec, time_point begin, task_requirements&&)=0;
 		virtual void split(executor_type& exec, task_requirements&&)=0;
 
         virtual task_requirements get_task_requirements() const = 0;

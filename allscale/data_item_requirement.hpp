@@ -37,7 +37,6 @@ namespace allscale{
                 access_mode pmode)
           : ref(std::move(pref)) , region(std::move(pregion)) , mode(pmode)
         {
-            HPX_ASSERT(ref.id());
             HPX_ASSERT(!region.empty());
             HPX_ASSERT(mode != access_mode::Invalid);
         }

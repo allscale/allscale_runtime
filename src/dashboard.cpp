@@ -45,39 +45,32 @@ namespace allscale { namespace dashboard
         state.memory_load = monitor_c->get_consumed_memory();
         state.task_throughput = monitor_c->get_throughput();
         state.weighted_task_throughput = monitor_c->get_weighted_throughput();
-        state.idle_rate = (monitor_c->get_idle_rate())/100;
+        state.idle_rate = monitor_c->get_idle_rate();
 
         state.network_in = monitor_c->get_network_in();
         state.network_out = monitor_c->get_network_out();
 
-#ifdef ALLSCALE_HAVE_CPUFREQ
-        float frequency = components::util::hardware_reconf::get_kernel_freq(0);
-        float max_frequency = frequency;//components::util::hardware_reconf::get_frequencies(0).back();;
-#else
-        float frequency = monitor_c->get_current_freq(0);
-        float max_frequency = monitor_c->get_max_freq(0);
-#endif
+        state.cur_frequency = monitor_c->get_current_freq(0);
+        state.max_frequency = monitor_c->get_max_freq(0);
+
         std::size_t active_cores = scheduler::get().get_active_threads();
 
-        std::size_t used_cycles = (1.f - state.idle_rate) * active_cores * frequency;
-        std::size_t avail_cycles = active_cores * frequency;
-        std::size_t max_cycles = active_cores * max_frequency;
+        state.productive_cycles_per_second = state.cur_frequency * (1.f - state.idle_rate);  // freq to Hz
 
-        state.productive_cycles_per_second = frequency * 1000 * (1.f - state.idle_rate);  // freq to Hz
-
-        state.efficiency = used_cycles / float(max_cycles);
-        state.speed = used_cycles / float(avail_cycles);
+        state.speed = 1.f - state.idle_rate;
+        state.efficiency = state.speed * ((state.cur_frequency * active_cores) / (state.max_frequency * state.num_cores));
 
 #ifdef POWER_ESTIMATE
         state.cur_power = monitor_c->get_current_power();
         state.max_power = monitor_c->get_max_power();
+        state.power = state.cur_power / state.max_power;
 #endif
 
         return state;
     }
 }}
 
-HPX_PLAIN_ACTION(allscale::dashboard::get_state, allscale_dashboard_get_state_action);
+HPX_PLAIN_DIRECT_ACTION(allscale::dashboard::get_state, allscale_dashboard_get_state_action);
 
 namespace allscale { namespace dashboard
 {
@@ -386,10 +379,10 @@ namespace allscale { namespace dashboard
 
             system_state state;
 
-            state.speed = .9f;
-            state.efficiency = .5f;
-            state.power = .3f;
-            state.score = 1.f;
+            state.speed = 0.f;
+            state.efficiency = 0.f;
+            state.power = 0.f;
+            state.score = 0.f;
 
             state.nodes.reserve(localities_.size());
             for (auto loc: localities_)
@@ -421,7 +414,6 @@ namespace allscale { namespace dashboard
 
         static dashboard_client& get();
 
-    private:
         boost::asio::io_service& io_service_;
         boost::asio::ip::tcp::socket socket_;
         std::vector<hpx::id_type> localities_;
@@ -453,11 +445,6 @@ namespace allscale { namespace dashboard
         {
             system_state state;
 
-            state.speed = .9f;
-            state.efficiency = .5f;
-            state.power = .3f;
-            state.score = 1.f;
-
             auto next_update =
                 [start]()
                 {
@@ -471,6 +458,30 @@ namespace allscale { namespace dashboard
             try
             {
                 state.nodes = nodes.get();
+
+                // compute overall speed
+                float total_speed = 0.f;
+                float total_efficiency = 0.f;
+
+                float max_power = 0.f;
+                float cur_power = 0.f;
+
+                for (auto const& cur: state.nodes)
+                {
+                    if (cur.online && cur.active)
+                    {
+                        total_speed += cur.speed;
+                        total_efficiency += cur.efficiency;
+                        cur_power += cur.cur_power;
+                    }
+                    max_power += cur.max_power;
+                }
+
+                state.speed = total_speed / client.localities_.size();
+                state.efficiency = total_efficiency / client.localities_.size();
+                state.power = (max_power > 0) ? cur_power/max_power : 0;
+                state.score = 1.f;
+
                 client.write(state, std::move(next_update));
             }
             catch (...)

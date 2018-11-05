@@ -1,36 +1,51 @@
 #ifndef ALLSCALE_DATA_ITEM_REFERENCE_HPP
 #define ALLSCALE_DATA_ITEM_REFERENCE_HPP
 
-#include <hpx/runtime/components/server/component_base.hpp>
-#include <hpx/runtime/naming/id_type.hpp>
-#include <hpx/lcos/future.hpp>
-#include <hpx/include/serialization.hpp>
+#include <hpx/util/atomic_count.hpp>
+#include <hpx/runtime/get_locality_id.hpp>
+#include <hpx/traits/is_bitwise_serializable.hpp>
+
+#include <atomic>
+#include <cstdint>
+#include <iostream>
 
 ///////////////////////////////////////////////////////////////////////////
 
 namespace allscale {
-    namespace detail
+    struct data_item_id
     {
-        struct id_holder
-          : hpx::components::component_base<id_holder>
+        std::uint32_t locality_;
+        std::uint32_t id_;
+
+        friend bool operator==(data_item_id const& lhs, data_item_id const& rhs)
         {
-            typedef void(*release_function_type)(hpx::naming::gid_type const&);
+            return lhs.locality_ == rhs.locality_ && lhs.id_ == rhs.id_;
+        }
 
-            explicit id_holder(release_function_type release_function)
-              : release_function_(release_function)
-            {}
+        friend bool operator!=(data_item_id const& lhs, data_item_id const& rhs)
+        {
+            return !(lhs == rhs);
+        }
 
-            ~id_holder()
-            {
-                HPX_ASSERT(release_function_);
-                HPX_ASSERT(this->get_id());
-                std::cout << "Release DI " << this->get_id() << "\n";
-                release_function_(this->get_id().get_gid());
-            }
+        friend std::ostream& operator<<(std::ostream& os, data_item_id const& id)
+        {
+            os << "D-" << id.locality_ << '.' << id.id_;
+            return os;
+        }
 
-            release_function_type release_function_;
-        };
-    }
+        template <typename Archive>
+        void serialize(Archive& ar, unsigned)
+        {
+            ar & locality_;
+            ar & id_;
+        }
+
+        static data_item_id create()
+        {
+            static hpx::util::atomic_count id(0);
+            return {hpx::get_locality_id(), static_cast<std::uint32_t>(++id - 1)};
+        }
+    };
 
     template<typename DataItemType>
     class data_item_reference
@@ -57,14 +72,7 @@ namespace allscale {
         data_item_reference() : cache(nullptr)
         {}
 
-        explicit data_item_reference(hpx::future<hpx::id_type> fid) : cache(nullptr)
-        {
-            hpx::id_type id(fid.get());
-            id.make_unmanaged();
-            id_ = id.get_gid();
-        }
-
-        explicit data_item_reference(hpx::naming::gid_type id) : id_(id), cache(nullptr)
+        explicit data_item_reference(data_item_id id) : id_(id), cache(nullptr)
         {
         }
 
@@ -103,7 +111,7 @@ namespace allscale {
             ar & id_;
         }
 
-        hpx::naming::gid_type const& id() const
+        data_item_id const& id() const
         {
             return id_;
         }
@@ -118,12 +126,26 @@ namespace allscale {
         }
 
     private:
-        hpx::naming::gid_type id_;
+        data_item_id id_;
 
         // a transient cache for the referenced fragment
         mutable std::atomic<fragment_type*> cache;
 
     };
 }
+
+namespace std
+{
+    template <>
+    struct hash<allscale::data_item_id>
+    {
+        std::size_t operator()(allscale::data_item_id const& id) const
+        {
+            return std::hash<std::size_t>()(id.id_);
+        }
+    };
+}
+
+// HPX_IS_BITWISE_SERIALIZABLE(allscale::data_item_id);
 
 #endif

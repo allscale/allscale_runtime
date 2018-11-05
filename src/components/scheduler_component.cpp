@@ -883,6 +883,9 @@ std::pair<work_item, std::unique_ptr<data_item_manager::task_requirements_base>>
     else
     {
         if (!addr.isLeaf()) return std::make_pair(std::move(work), std::move(reqs));
+
+        auto begin = std::chrono::high_resolution_clock::now();
+
         reqs->add_allowance(addr);
 
 
@@ -903,9 +906,9 @@ std::pair<work_item, std::unique_ptr<data_item_manager::task_requirements_base>>
                     acquired);
 
         auto f =
-            [state, work = std::move(work), reqs = std::move(reqs)](executor_type& exec) mutable
+            [state, work = std::move(work), reqs = std::move(reqs), begin](executor_type& exec) mutable
             {
-                work.process(exec, std::move(reqs));
+                work.process(exec, begin, std::move(reqs));
             };
 
         state->set_on_completed(

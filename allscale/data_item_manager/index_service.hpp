@@ -823,7 +823,7 @@ namespace allscale { namespace data_item_manager {
         bool is_root_;
 
         mutex_type mtx_;
-        std::unordered_map<hpx::naming::gid_type, index_entry<DataItem>> entries_;
+        std::unordered_map<data_item_id, index_entry<DataItem>> entries_;
 
         index_service(runtime::HierarchyAddress here)
           : here_(here)
@@ -869,7 +869,7 @@ namespace allscale { namespace data_item_manager {
             HPX_ASSERT(other.entries_.empty());
         }
 
-        index_entry<DataItem>& get(hpx::naming::gid_type const& id)
+        index_entry<DataItem>& get(data_item_id const& id)
         {
             std::lock_guard<mutex_type> l(mtx_);
             auto it = entries_.find(id);

@@ -23,6 +23,7 @@
 #include <allscale/util/graph_colouring.hpp>
 #include <allscale/historical_data.hpp>
 #include <allscale/task_times.hpp>
+#include <allscale/measure_buffer.hpp>
 
 
 #include <hpx/include/components.hpp>
@@ -42,6 +43,7 @@ typedef std::unordered_map<std::string, allscale::work_item_stats> profile_map;
 typedef std::unordered_map<std::string, std::vector<std::string>> dependency_graph;
 
 namespace allscale { namespace components {
+
 
        struct HPX_COMPONENT_EXPORT monitor
 	 : hpx::components::component_base<monitor>
@@ -69,10 +71,13 @@ namespace allscale { namespace components {
            task_times task_times_;
            task_times last_task_times_;
            std::chrono::high_resolution_clock::time_point last_task_times_sample_;
+           task_times::time_t process_time_;
+           measure_buffer<task_times::time_t, 1> process_time_buffer_;
 
            void add_task_time(task_id::task_path const& path, task_times::time_t const& time);
 
            task_times get_task_times();
+           task_times get_process_time();
 
            /////////////////////////////////////////////////////////////////////////////////////
            ///                       Performance Data Introspection
@@ -347,13 +352,13 @@ namespace allscale { namespace components {
            float get_cpu_load();
 
 
-           /// \brief This function returns the current power 
-           //           //           /// \returns     Power 
+           /// \brief This function returns the current power
+           //           //           /// \returns     Power
            float get_current_power();
 
 
-           /// \brief This function returns the max power that can be consumed 
-           //           //           /// \returns     Max power 
+           /// \brief This function returns the max power that can be consumed
+           //           //           /// \returns     Max power
            float get_max_power();
 
 
@@ -443,10 +448,7 @@ namespace allscale { namespace components {
 	     bool sample_node();
 
              // Idle rate
-             hpx::id_type idle_rate_counter_;
-             int rate_counter_registered_;
-             double idle_rate_;
-	     std::vector<double> idle_rate_history;
+             std::vector<double> idle_rate_history;
 
 	     // Memory consumed
              hpx::id_type resident_memory_counter_;
@@ -473,8 +475,6 @@ namespace allscale { namespace components {
 
              void print_heatmap(const char *file_name, std::vector<std::vector<double>> &buffer);
 
-//             hpx::id_type idle_rate_avg_counter_;
-//             double idle_rate_avg_;
 
              // REALTIME VIZ
 	     std::mutex counter_mutex_;
@@ -482,10 +482,6 @@ namespace allscale { namespace components {
 	     std::uint64_t total_tasks_;
 	     double total_task_duration_;
 #ifdef REALTIME_VIZ
-
-             hpx::id_type idle_rate_counter_;
-             double idle_rate_;
-
 	     int realtime_viz;
              hpx::util::interval_timer timer_;
 

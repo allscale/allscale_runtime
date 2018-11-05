@@ -3,6 +3,7 @@
 #define ALLSCALE_DATA_ITEM_MANAGER_SHARED_DATA_HPP
 
 #include <allscale/data_item_manager/data_item_store.hpp>
+#include <hpx/include/actions.hpp>
 
 namespace allscale { namespace data_item_manager {
     template <typename DataItemReference>

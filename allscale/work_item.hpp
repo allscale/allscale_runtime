@@ -17,6 +17,8 @@
 
 namespace allscale {
     struct work_item {
+        using time_point =
+            std::chrono::high_resolution_clock::time_point;
         using task_requirements =
             std::unique_ptr<data_item_manager::task_requirements_base>;
 
@@ -74,10 +76,10 @@ namespace allscale {
             impl_->on_ready(std::move(f));
         }
 
-        void process(executor_type& exec, task_requirements&& reqs) {
+        void process(executor_type& exec, time_point begin, task_requirements&& reqs) {
             HPX_ASSERT(valid());
             HPX_ASSERT(impl_->valid());
-            impl_->process(exec, std::move(reqs));
+            impl_->process(exec, begin, std::move(reqs));
     //         impl_.reset();
         }
 

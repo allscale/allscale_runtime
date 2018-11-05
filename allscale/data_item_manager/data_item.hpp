@@ -17,18 +17,18 @@ namespace allscale { namespace data_item_manager {
     namespace detail
     {
         template <typename Region>
-        std::string to_json(hpx::naming::gid_type const& id, Region const& region, ...)
+        std::string to_json(data_item_id const& id, Region const& region, ...)
         {
             return std::string();
         }
 
         template <typename Region>
-        std::string to_json(hpx::naming::gid_type const& id, Region const& region, decltype(Region::Dimensions)*)
+        std::string to_json(data_item_id const& id, Region const& region, decltype(Region::Dimensions)*)
         {
             if (region.empty()) return std::string();
 
             std::stringstream out;
-            out << "{\"id\" : " << id.get_lsb() << ",";
+            out << "{\"id\" : " << ((std::uint64_t(id.locality_) << 32) | id.id_) << ",";
             out << "\"type\" : \"" << Region::Dimensions << "D-Grid\",";
             out << "\"region\" : [";
 
@@ -78,7 +78,7 @@ namespace allscale { namespace data_item_manager {
         // The mutex which protects this data item from concurrent accesses
         mutex_type mtx;
 
-        hpx::naming::gid_type id;
+        data_item_id id;
 
         std::unique_ptr<fragment_type> fragment;
         std::unique_ptr<shared_data_type> shared_data;

@@ -168,6 +168,8 @@ namespace allscale { namespace detail {
     struct work_item_impl
       : detail::work_item_impl_base
     {
+        using time_point =
+            std::chrono::high_resolution_clock::time_point;
         using result_type = typename WorkItemDescription::result_type;
         using closure_type = Closure;
 
@@ -271,6 +273,8 @@ namespace allscale { namespace detail {
             else
             {
                 monitor::signal(monitor::work_item_process_execution_finished, work_item(this_));
+                auto end = std::chrono::high_resolution_clock::now();
+                monitor::add_task_time(this->id().path, std::chrono::duration_cast<std::chrono::nanoseconds>(end - process_start_));
             }
 
 
@@ -318,6 +322,8 @@ namespace allscale { namespace detail {
             {
                 monitor::signal(monitor::work_item_process_execution_finished, work_item(this_));
                 reqs->release_process();
+                auto end = std::chrono::high_resolution_clock::now();
+                monitor::add_task_time(this->id().path, std::chrono::duration_cast<std::chrono::nanoseconds>(end - process_start_));
             }
 
             this_work_item::set s(*this_);
@@ -340,13 +346,8 @@ namespace allscale { namespace detail {
                 work_item(this_));
             this_work_item::set s(*this_);
 
-            auto begin = std::chrono::high_resolution_clock::now();
-
             auto work_res =
                 WorkItemDescription::process_variant::execute(closure_);
-
-            auto end = std::chrono::high_resolution_clock::now();
-            monitor::add_task_time(this->id().path, std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin));
 
             finalize(std::move(this_), std::move(work_res), std::move(reqs), false);
 		}
@@ -365,11 +366,7 @@ namespace allscale { namespace detail {
                 work_item(this_));
             this_work_item::set s(*this_);
 
-            auto begin = std::chrono::high_resolution_clock::now();
             WorkItemDescription::process_variant::execute(closure_);
-
-            auto end = std::chrono::high_resolution_clock::now();
-            monitor::add_task_time(this->id().path, std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin));
 
             finalize(std::move(this_), hpx::util::unused_type(), std::move(reqs), false);
 		}
@@ -465,8 +462,9 @@ namespace allscale { namespace detail {
             }
         }
 
-        void process(executor_type& exec, task_requirements&& reqs) final
+        void process(executor_type& exec, time_point begin, task_requirements&& reqs) final
         {
+            process_start_ = begin;
             hpx::util::annotate_function("allscale::work_item::process");
             get_deps<typename WorkItemDescription::process_variant>(
                 exec, std::move(reqs), nullptr);
@@ -549,6 +547,7 @@ namespace allscale { namespace detail {
 
         HPX_SERIALIZATION_POLYMORPHIC_TEMPLATE_SEMIINTRUSIVE(work_item_impl);
 
+        std::chrono::high_resolution_clock::time_point process_start_;
         treeture<result_type> tres_;
         closure_type closure_;
         hpx::shared_future<void> dep_;

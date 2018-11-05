@@ -25,7 +25,7 @@ namespace allscale { namespace data_item_manager {
     namespace detail
     {
         template <typename DataItemType>
-        data_item_view<DataItemType> transfer(hpx::naming::gid_type id, typename DataItemType::region_type region, bool migrate)
+        data_item_view<DataItemType> transfer(data_item_id id, typename DataItemType::region_type region, bool migrate)
         {
             // The data_item_view transparently extracts and inserts the parts
             // into the responsible fragments.
@@ -42,7 +42,7 @@ namespace allscale { namespace data_item_manager {
         {};
 
         template <typename DataItemType>
-        void update_cache(hpx::naming::gid_type id, typename DataItemType::region_type missing, std::size_t new_rank)
+        void update_cache(data_item_id id, typename DataItemType::region_type missing, std::size_t new_rank)
         {
             runtime::HierarchicalOverlayNetwork::forAllLocal<index_service<DataItemType>>(
                 [&](index_service<DataItemType>& is)
