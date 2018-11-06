@@ -43,6 +43,7 @@ namespace allscale
         static HPX_EXPORT std::string policy();
 
         static HPX_EXPORT void update_policy(task_times const& times, std::vector<bool> mask);
+        static void apply_new_mapping(const std::vector<std::size_t> &new_mapping);
 
         static HPX_EXPORT void schedule(work_item&& work);
         static HPX_EXPORT components::scheduler* run(std::size_t rank);

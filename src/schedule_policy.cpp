@@ -1,6 +1,5 @@
 
 #include <allscale/schedule_policy.hpp>
-
 #include "allscale/utils/assert.h"
 #include "allscale/utils/printer/vectors.h"
 
@@ -572,9 +571,22 @@ namespace allscale {
         return std::unique_ptr<scheduling_policy>(new tree_scheduling_policy(
                 old.root(), old.get_granularity(),
                 toDecisionTree((1<<log2), mapping)));
+    }
 
-        // compute new schedule
-        return rebalance_tasks(old, task_costs, mask);
+    std::unique_ptr<scheduling_policy>
+    tree_scheduling_policy::from_mapping(const scheduling_policy& old_base,
+                                        const std::vector<std::size_t> &mapping)
+    {
+        tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(old_base);
+        auto log2 = old.root_.getLayer();
+
+        return std::unique_ptr<scheduling_policy>(
+                new tree_scheduling_policy(
+                                            old.root_,
+                                            old.granularity_,
+                                            toDecisionTree((1<<log2),mapping)
+                                        )
+                );
     }
 
     namespace {
@@ -622,7 +634,7 @@ namespace allscale {
         // base case - the root path
         if (path.isRoot())
         {
-			switch(decide(root_,path))
+            switch(decide(root_,path))
             {
                 case schedule_decision::stay: return false;
                 case schedule_decision::left: return addr == root_.getLeftChild();

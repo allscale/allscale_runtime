@@ -161,7 +161,14 @@ namespace allscale
                 static_,
                 dynamic,
                 tuned,
-                random
+                /* VV: This is for the multi-objective InterNode-Optimizer (INO)
+                 * ALLSCALE_SCHEDULING_POLICY = ino
+                 * ALLSCALE_RESOURCE_MAX = (0.0, 1.0) // maximum allowed resources to use
+                 * ALLSCALE_RESOURCE_LEEWAY = (0.0, 1.0) // extra percentage allowed to explore
+                 */
+                ino,
+                random,
+                truly_random
             };
 
             policy_value value_;
@@ -177,6 +184,8 @@ namespace allscale
                         return "balanced";
                     case tuned:
                         return "tuned";
+                    case ino:
+                        return "ino";
                     case random:
                         return "random";
                     default:
@@ -205,6 +214,13 @@ namespace allscale
             {
                 return {
                     replacable_policy::tuned,
+                    tree_scheduling_policy::create_uniform(allscale::get_num_localities())
+                };
+            }
+            if (policy == "ino")
+            {
+                return {
+                    replacable_policy::ino,
                     tree_scheduling_policy::create_uniform(allscale::get_num_localities())
                 };
             }
@@ -310,6 +326,13 @@ namespace allscale
             return policy_.policy();
         }
 
+        void apply_new_mapping(const std::vector<std::size_t> &new_mapping)
+        {
+            std::lock_guard<mutex_type> l(mtx_);
+            policy_.policy_ = tree_scheduling_policy::from_mapping(*policy_.policy_,
+                                                                    new_mapping);
+        }
+
         void toggle_node(std::size_t locality_id)
         {
             std::lock_guard<mutex_type> l(mtx_);
@@ -363,6 +386,12 @@ namespace allscale
             if (policy_.value_ == replacable_policy::tuned)
             {
                 optimizer_.balance(true);
+            }
+
+            if (policy_.value_ == replacable_policy::ino)
+            {
+                tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(*policy_.policy_);
+                optimizer_.balance_ino(old.task_distribution_mapping());
             }
 
             return true;
@@ -603,6 +632,16 @@ namespace allscale
             [&](scheduler_service& sched)
             {
                 sched.update_policy(times, mask);
+            }
+        );
+    }
+
+    void scheduler::apply_new_mapping(const std::vector<std::size_t> &new_mapping)
+    {
+        runtime::HierarchicalOverlayNetwork::forAllLocal<scheduler_service>(
+            [&](scheduler_service& sched)
+            {
+                sched.apply_new_mapping(new_mapping);
             }
         );
     }

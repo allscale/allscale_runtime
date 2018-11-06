@@ -1394,29 +1394,19 @@ namespace allscale { namespace components {
       return history->current_iteration;
    }
 
-
    double monitor::get_avg_time_last_iterations(std::uint32_t num_iters)
    {
       double avg_time = 0.0;
-      std::uint32_t j = num_iters;
+      std::uint32_t j = 0;
       std::lock_guard<mutex_type> lock(history_mutex);
 
-      for(std::vector<double>::reverse_iterator i = history->iteration_time.rbegin();
-		   i != history->iteration_time.rend(); ++i)
-      {
-	  if(!j) break;
-	  avg_time += *i; j--;
+      for (auto i = history->iteration_time.rbegin();
+            i != history->iteration_time.rend() && j < num_iters;
+            ++i, ++j)
+         avg_time += *i;
 
-      }
-
-      if(num_iters <= history->iteration_time.size())
-          return avg_time/(double)num_iters;
-      else if(history->iteration_time.empty())
-          return avg_time;
-      else
-          return avg_time/(double)history->iteration_time.size();
+      return avg_time / (j + 1);
    }
-
 
    // Translates a work ID changing it prefix with the last iteration root
    // Returns the same label for work items of the first iteration
