@@ -36,9 +36,13 @@ namespace allscale { namespace components {
 
     void resilience::set_guard(uint64_t guard_rank) {
         
-        std::unique_lock<mutex_type> lock(guard_mutex_);
-        guard_ = hpx::find_from_basename("allscale/resilience", guard_rank);
-        guard_rank_ = guard_rank;
+        hpx::shared_future<hpx::id_type> guard_tmp;
+        {
+            std::unique_lock<mutex_type> lock(guard_mutex_);
+            guard_tmp = localities[guard_rank]; //hpx::find_from_basename("allscale/resilience", guard_rank); <= using this call causes 'multiple locks held' exception
+            guard_rank_ = guard_rank;
+        }
+        std::swap(guard_tmp, guard_);
     }
 
     void resilience::failure_detection_loop_async() {
@@ -54,10 +58,12 @@ namespace allscale { namespace components {
             hpx::this_thread::sleep_for(milliseconds(miu));
             auto t_now =  std::chrono::high_resolution_clock::now();
             my_heartbeat = std::chrono::duration_cast<std::chrono::milliseconds>(t_now-start_time).count()/1000;
+            hpx::shared_future<hpx::id_type> guard_tmp;
             {
                 std::unique_lock<mutex_type> lock(guard_mutex_);
-                hpx::apply<send_heartbeat_action>(guard_.get(), my_heartbeat);
+                guard_tmp = guard_;
             }
+            hpx::apply<send_heartbeat_action>(guard_tmp.get(), my_heartbeat);
             thread_safe_printer("my counter = " + std::to_string(my_heartbeat) + " protectee COUNTER = " + std::to_string(protectee_heartbeat) + "\n");
             if (my_heartbeat > protectee_heartbeat + delta/1000) {
                 thread_safe_printer("DETECTED FAILURE!!!" + std::to_string(my_heartbeat) + " -- " + std::to_string(protectee_heartbeat) + " -- "+ std::to_string(protectee_heartbeat+delta/1000)  + "\n");
@@ -175,10 +181,12 @@ namespace allscale { namespace components {
         if (get_running_ranks() > token) {
             thread_safe_printer("Will remote-call dispatched at rank "+std::to_string(dead_rank));
             
+            hpx::shared_future<hpx::id_type> guard_tmp;
             {
-            std::unique_lock<mutex_type> lock(guard_mutex_);
-                hpx::apply<reschedule_dispatched_to_dead_action>(guard_.get(), dead_rank, token);
+                std::unique_lock<mutex_type> lock(guard_mutex_);
+                guard_tmp = guard_;
             }
+            hpx::apply<reschedule_dispatched_to_dead_action>(guard_tmp.get(), dead_rank, token);
         }
     }
 
@@ -221,7 +229,9 @@ namespace allscale { namespace components {
         hpx::util::high_resolution_timer t;
         protectee_ = protectees_protectee_;
         protectee_rank_ = protectees_protectee_rank_;
+
         hpx::async<set_guard_action>(protectee_.get(), rank_).get();
+        
         auto p = hpx::async<get_protectee_action>(protectee_.get()).get();
         protectees_protectee_ = p.first;
         protectees_protectee_rank_ = p.second;
@@ -242,10 +252,12 @@ namespace allscale { namespace components {
             keep_running = false;
             // dpn't forget to end the circle
             if (get_running_ranks() > token) {
+                hpx::shared_future<hpx::id_type> guard_tmp;
                 {
                     std::unique_lock<mutex_type> lock(guard_mutex_);
-                    hpx::async<shutdown_action>(guard_.get(), ++token).get();
+                    guard_tmp = guard_;
                 }
+                hpx::async<shutdown_action>(guard_tmp.get(), ++token).get();
             }
         }
     }

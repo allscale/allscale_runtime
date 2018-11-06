@@ -35,7 +35,6 @@ namespace allscale { namespace components {
 
            bool env_resilience_disabled = false;
            // START failure detection here (Kiril)
-           udp::endpoint * my_receiver_endpoint, *guard_receiver_endpoint;
            enum state {TRUST, SUSPECT, RECOVERING};
            std::condition_variable cv;
            std::mutex cv_m;
