@@ -521,7 +521,7 @@ hpx::future<void> global_optimizer::balance_ino(const std::vector<std::size_t> &
                 #endif
 
                 std::map<std::size_t, std::vector<std::size_t> > node_map;
-                std::vector<size_t> new_mapping;
+                std::vector<size_t> new_mapping(old_mapping.size());
                 std::map<std::size_t, float> node_loads, node_times;
                 // VV: This is using a vector instead of a map, should make both
                 //     APIs use the same parameter format
