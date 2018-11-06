@@ -125,6 +125,10 @@ namespace allscale {
         static HPX_EXPORT std::unique_ptr<scheduling_policy> create_rebalanced(const scheduling_policy& old, const std::vector<float>& load, std::vector<bool> const& mask);
         static HPX_EXPORT std::unique_ptr<scheduling_policy> create_rebalanced(const scheduling_policy& old, task_times const& times, std::vector<bool> const& mask, bool);
 
+        static std::unique_ptr<scheduling_policy> from_mapping(
+                                        const scheduling_policy& old_base, 
+                                        const std::vector<std::size_t> &mapping);
+
         // --- observer ---
 
         const runtime::HierarchyAddress& root() const
