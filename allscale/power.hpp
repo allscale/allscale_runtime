@@ -138,11 +138,11 @@ namespace allscale { namespace power
 
 #endif
 
-#ifdef POWER_ESTIMATE
 
        // Estimate basic power
        double estimate_power(std::uint64_t frequency)
        {
+#ifdef POWER_ESTIMATE
            static const char * file_name = "/sys/class/i2c-dev/i2c-3/device/3-002d/regulator/regulator.1/microvolts";
            std::ifstream file;
            std::uint64_t microvolts = 0;
@@ -169,8 +169,10 @@ namespace allscale { namespace power
            instant_power = (double)C * (U * U) * (double)(frequency * 1000);  // freq is in kHz
 
            return instant_power;
-       }
+#else
+           return 1.;
 #endif
+       }
 
 
 
