@@ -188,6 +188,8 @@ namespace allscale
                         return "ino";
                     case random:
                         return "random";
+                    case truly_random:
+                        return "truly_random";
                     default:
                         return "unknown";
                 }
@@ -221,6 +223,13 @@ namespace allscale
             {
                 return {
                     replacable_policy::ino,
+                    tree_scheduling_policy::create_uniform(allscale::get_num_localities())
+                };
+            }
+            if (policy == "truly_random")
+            {
+                return {
+                    replacable_policy::truly_random,
                     tree_scheduling_policy::create_uniform(allscale::get_num_localities())
                 };
             }
@@ -392,6 +401,11 @@ namespace allscale
             {
                 tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(*policy_.policy_);
                 optimizer_.balance_ino(old.task_distribution_mapping());
+            }
+
+            if (policy_.value_ == replacable_policy::truly_random) {
+                tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(*policy_.policy_);
+                optimizer_.decide_random_mapping(old.task_distribution_mapping());
             }
 
             return true;

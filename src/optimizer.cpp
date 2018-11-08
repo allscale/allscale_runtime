@@ -453,7 +453,7 @@ hpx::future<void> global_optimizer::decide_random_mapping(const std::vector<std:
         #ifdef TRULY_RANDOM_DEBUG
         std::cerr << "Will exclude " << how_many_to_exclude << " out of " << num_localities << std::endl;
         #endif
-
+        #if 1
         for (auto i=0ul; i<how_many_to_exclude; ++i) {
             auto new_exclude = get_random_node();
             exclude.push_back(new_exclude);
@@ -462,6 +462,15 @@ hpx::future<void> global_optimizer::decide_random_mapping(const std::vector<std:
             std::cerr << "Excluded: " << new_exclude << std::endl;
             #endif
         }
+        #else
+        for ( auto i=num_localities-how_many_to_exclude; i<num_localities; ++i) {
+            exclude.push_back(num_localities-i-1);
+
+            #ifdef TRULY_RANDOM_DEBUG
+            std::cerr << "Excluded: " << i << std::endl;
+            #endif
+        }
+        #endif
     }
 
     u_steps_till_rebalance = u_balance_every;
@@ -562,6 +571,7 @@ hpx::future<void> global_optimizer::balance_ino(const std::vector<std::size_t> &
                     #ifdef INO_DEBUG_DECIDE_SCHEDULE
                     std::cerr << "Ino picked a schedule" << std::endl;
                     #endif
+
                     for (auto node_wis : ino_schedule)
                         for (auto wi : node_wis.second.v_work_items)
                             new_mapping[wi] = node_wis.first;
