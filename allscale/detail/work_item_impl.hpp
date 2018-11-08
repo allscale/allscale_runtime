@@ -341,6 +341,7 @@ namespace allscale { namespace detail {
         >::type
 		do_process(task_requirements&& reqs)
         {
+            process_start_ = std::chrono::high_resolution_clock::now();
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_process_execution_started,
                 work_item(this_));
@@ -361,6 +362,7 @@ namespace allscale { namespace detail {
         >::type
 		do_process(task_requirements&& reqs)
         {
+            process_start_ = std::chrono::high_resolution_clock::now();
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_process_execution_started,
                 work_item(this_));
@@ -464,7 +466,6 @@ namespace allscale { namespace detail {
 
         void process(executor_type& exec, time_point begin, task_requirements&& reqs) final
         {
-            process_start_ = begin;
             hpx::util::annotate_function("allscale::work_item::process");
             get_deps<typename WorkItemDescription::process_variant>(
                 exec, std::move(reqs), nullptr);
