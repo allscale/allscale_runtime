@@ -2349,7 +2349,7 @@ std::basic_ostream<char, std::char_traits<char > >& allscale_fun_2244(std::basic
 int32_t IMP_main(int32_t var_0, char** var_1) {
     { };
     { };
-    if (var_0 != 3 || strcmp(var_1[1], "-h") == 0 || strcmp(var_1[1], "--help") == 0) {
+    if (var_0 < 2 || strcmp(var_1[1], "-h") == 0 || strcmp(var_1[1], "--help") == 0) {
         std::cout << "Usage: ./ipic3d <config-file>" << &std::endl;
         return 1;
     };
