@@ -341,7 +341,7 @@ namespace allscale { namespace detail {
         >::type
 		do_process(task_requirements&& reqs)
         {
-//             process_start_ = std::chrono::high_resolution_clock::now();
+            process_start_ = std::chrono::high_resolution_clock::now();
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_process_execution_started,
                 work_item(this_));
@@ -362,7 +362,7 @@ namespace allscale { namespace detail {
         >::type
 		do_process(task_requirements&& reqs)
         {
-//             process_start_ = std::chrono::high_resolution_clock::now();
+            process_start_ = std::chrono::high_resolution_clock::now();
             std::shared_ptr < work_item_impl > this_(shared_this());
             monitor::signal(monitor::work_item_process_execution_started,
                 work_item(this_));
