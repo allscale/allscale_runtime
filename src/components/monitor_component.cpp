@@ -55,6 +55,7 @@ namespace allscale { namespace components {
 
    monitor::monitor(std::uint64_t rank)
      : last_task_times_sample_(std::chrono::high_resolution_clock::now())
+     , idle_rate_idx_(0)
      , rank_(rank)
      , num_localities_(0)
      , enable_monitor(true)
@@ -102,7 +103,7 @@ namespace allscale { namespace components {
        )
 #endif
     {
-
+        std::fill(idle_rates_.begin(), idle_rates_.end(), 1.0);
     }
 
 
@@ -128,7 +129,7 @@ namespace allscale { namespace components {
 
        // normalize to one second
        auto interval = std::chrono::duration_cast<std::chrono::nanoseconds>(now - last_task_times_sample_);
-       auto res = (task_times_ - last_task_times_);// / interval.count();
+       auto res = (task_times_ - last_task_times_) / interval.count();
 
        last_task_times_sample_ = now;
        last_task_times_ = task_times_;
@@ -151,13 +152,16 @@ namespace allscale { namespace components {
        auto d1 = std::chrono::duration_cast<task_times::time_t>(process_time - process_time_buffer_.oldest_data());
        auto d2 = std::chrono::duration_cast<task_times::time_t>(now - process_time_buffer_.oldest_time());
 
-       double idle_rate = 1. - static_cast<double>(d1.count())/(static_cast<double>(d2.count()) * num_cpus_);
+       double cur_idle_rate = 1. - static_cast<double>(d1.count())/(static_cast<double>(d2.count()) * num_cpus_);
 
+       idle_rates_[idle_rate_idx_] = cur_idle_rate;
+       idle_rate_idx_ = (idle_rate_idx_ + 1) % idle_rate_history_count;
 
        // aggregate process time...
        process_time_buffer_.push(process_time, now);
 
-       return idle_rate;
+       // calucalate the mean idle rate over all as the result
+       return std::accumulate(idle_rates_.begin(), idle_rates_.end(), 0.0) / idle_rate_history_count;
    }
 
 #ifdef REALTIME_VIZ

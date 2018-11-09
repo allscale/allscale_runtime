@@ -73,6 +73,9 @@ namespace allscale { namespace components {
            std::chrono::high_resolution_clock::time_point last_task_times_sample_;
            task_times::time_t process_time_;
            measure_buffer<task_times::time_t, 1> process_time_buffer_;
+           static constexpr std::size_t idle_rate_history_count = 8;
+           std::array<double, idle_rate_history_count> idle_rates_;
+           std::size_t idle_rate_idx_;
 
            void add_task_time(task_id::task_path const& path, task_times::time_t const& time);
 
