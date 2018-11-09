@@ -29,7 +29,6 @@ namespace allscale
 {
     optimizer_state get_optimizer_state()
     {
-        static float last_energy = 0.f;
         float load = 1.f - monitor::get().get_idle_rate();
         float my_time = monitor::get().get_avg_time_last_iterations(HISTORY_ITERATIONS);
 
@@ -37,16 +36,16 @@ namespace allscale
             my_time = -1.f;
 
         allscale::components::monitor *monitor_c = &allscale::monitor::get();
-        float energy = 100.f;
-#ifdef POWER_ESTIMATE
-        energy = monitor_c->get_current_power();
+        float power_now = 100.f;
+#if defined(POWER_ESTIMATE) || defined(ALLSCALE_HAVE_CPUFREQ)
+        power_now = monitor_c->get_current_power();
 #endif
-
+        // VV: Use power as if it were energy
         return {
             load,
             monitor::get().get_task_times(),
             my_time,
-            energy,
+            power_now,
             float(monitor_c->get_current_freq(0)),
             scheduler::get().get_active_threads()
         };

@@ -19,7 +19,6 @@
 // only meant to be defined if one needs to measure the efficacy
 // of the scheduler
 //#define ALLSCALE_HAVE_CPUFREQ 1
-#define ALLSCALE_USE_CORE_OFFLINING 1
 
 namespace allscale {
 namespace components {
