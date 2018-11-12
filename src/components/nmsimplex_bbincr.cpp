@@ -11,8 +11,8 @@
  */
 
 #include <allscale/components/nmsimplex_bbincr.hpp>
-//#define NMD_DEBUG_ 1
-//#define NMD_INFO_ 1
+#define NMD_DEBUG_ 1
+#define NMD_INFO_ 1
 
 /* create the initial simplex
 
@@ -212,11 +212,13 @@ optstepresult NelderMead::step(double param)
       for (j=0;j<=n-1;j++) {
         /*vr[j] = (1+ALPHA)*vm[j] - ALPHA*v[vg][j];*/
         /*
-        std::cout << "vm[" << j << "]=" << vm[j] << std::endl;
-        std::cout << "v[vg" << j << "]=" << v[vg][j] << std::endl;
-        std::cout << "ALPHA=" << ALPHA << std::endl;
         */
         vr[j] = vm[j]+ALPHA*(vm[j]-v[vg][j]);
+
+        // std::cout << "vm[" << j << "]=" << vm[j] << std::endl;
+        // std::cout << "v[vg" << j << "]=" << v[vg][j] << std::endl;
+        // std::cout << "ALPHA=" << ALPHA << std::endl;
+        // std::cout << "Vr[" << j << "]=" << vr[j] << std::endl;
       }
       my_constraints(vr);
 #ifdef NMD_DEBUG_

@@ -15,7 +15,8 @@
 
 //#define MEASURE_MANUAL_ 1
 #define MEASURE_ 1
-//#define DEBUG_ 1
+#define DEBUG_ 1
+#define DEBUG_MULTIOBJECTIVE_ 1
 
 namespace allscale { namespace components {
 
@@ -71,7 +72,8 @@ namespace allscale { namespace components {
         /* index to the global cpu-supported frequencies vector pointing to
            the new frequency to be set. If set to -1, frequency will stay
            unchanged */
-       unsigned int frequency_idx;
+       int frequency_idx;
+       int previous_frequency_idx;
 #endif
     };
 
@@ -124,6 +126,9 @@ namespace allscale { namespace components {
             return frequencies_param_allowed_;
         }
 #endif
+        std::size_t getmaxthreads() {
+            return max_threads_;
+        }
 
         void setmaxthreads(std::size_t threads){
             max_threads_=threads;
@@ -197,12 +202,6 @@ namespace allscale { namespace components {
         /* vector containing sorted list of frequencies supported by the
            processor */
         std::vector<unsigned long> frequencies_param_allowed_;
-
-        /* index to the vector of allowed frequencies that points to the highest
-           frequency. The ordering of the vector, as reported by hardware
-           reconfiguration can be platform specific, and therefore we need this
-           index to make sorted access to the vector platform agnostic */
-        const short unsigned int highest_frequency_allowed_idx_ = 0;
 #endif
 
         /* threshold (percentage in [0,1]) to decide convergence of optimization

@@ -10,9 +10,9 @@
 #include <stdlib.h>
 #include <stdexcept>
 
-//#define DEBUG_ 1
+#define DEBUG_ 1
 //#define DEBUG_INIT_ 1 // define to generate output during scheduler initialization
-//#define DEBUG_MULTIOBJECTIVE_ 1
+#define DEBUG_MULTIOBJECTIVE_ 1
 //#define DEBUG_CONVERGENCE_ 1
 //#define MEASURE_MANUAL 1 // define to generate output consumed by the regression test
 #define MEASURE_ 1
@@ -109,6 +109,9 @@ void localoptimizer::printobjectives(){
 }
 
 void localoptimizer::printverbosesteps(actuation act){
+  static int last_frequency_idx = 0;
+
+
   std::cout << "[INFO]";
   if (optmethod_==random)
     std::cout << "Random ";
@@ -116,18 +119,24 @@ void localoptimizer::printverbosesteps(actuation act){
     std::cout << "Allscale ";
   }
   std::cout << "Scheduler Step: Setting OS Threads to " << threads_param_;
-#ifdef ALLSCALE_HAVE_CPUFREQ
-  std::cout << ", CPU Frequency to " << frequencies_param_allowed_[act.frequency_idx]
+  #ifdef ALLSCALE_HAVE_CPUFREQ
+  if ( act.frequency_idx >= 0 )
+    last_frequency_idx = act.frequency_idx;
+  std::cout << " , CPU Frequency to " << frequencies_param_allowed_[last_frequency_idx]
     << std::endl;
 #else
   std::cout << std::endl;
 #endif
-
 }
 
 #endif
 
 void localoptimizer::measureObjective(double iter_time, double power, double threads){
+  std::cout <<"Measuring objective: " 
+            << iter_time << " " 
+            << power << " " 
+            << threads << std::endl;
+  
   for(auto& el: objectives_){
     switch (el.type){
       case time:
@@ -235,18 +244,18 @@ actuation localoptimizer::step()
     /* random optimization step */
     if (optmethod_ == random)
     {
-        act.delta_threads = (rand() % max_threads_) - threads_param_;
+        act.delta_threads = (rand() % max_threads_);
 #ifdef ALLSCALE_HAVE_CPUFREQ
         act.frequency_idx = rand() % frequencies_param_allowed_.size();
-        if (act.frequency_idx == frequency_param_)
-            act.frequency_idx = -1;
+        // if (act.frequency_idx == frequency_param_)
+        //     act.frequency_idx = -1;
 #endif
     }
 
     else if (optmethod_ == allscale)
     {
         if (current_objective_idx_ > objectives_.size())
-  	    	return act;
+  	      goto validate_act;
 
         if (steps_ < warmup_steps_)
         {
@@ -260,7 +269,7 @@ actuation localoptimizer::step()
 #ifdef ALLSCALE_HAVE_CPUFREQ
     	    act.frequency_idx = rand() % frequencies_param_allowed_.size();
 #endif
-            return act;
+        goto validate_act;
         }
 
         // iterate over all objectives in decreasing priority
@@ -305,7 +314,7 @@ actuation localoptimizer::step()
             double constraint_min[]={1,0};
             double constraint_max[]={(double)max_threads_,
                 (double)frequencies_param_allowed_.size()};
-
+            std::cout << "initialize_simplex::Initializing with " << frequencies_param_allowed_.size() << " frequencies" << std::endl;
             nmd.initialize_simplex(params,values,constraint_min,constraint_max);
             objectives_[current_objective_idx_].initialized=true;
 #endif
@@ -420,8 +429,6 @@ actuation localoptimizer::step()
                         act.frequency_idx = (int)priority_obj.minimization_params[1]*
                             (max_leeway_value/priority_obj.converged_minimum);
 #endif
-                        //act.delta_threads=minimization_point[0];
-			            //act.frequency_idx=minimization_point[1];
 			            current_objective_idx_++;
 			            if (current_objective_idx_ == objectives_.size())
                         {
@@ -430,15 +437,28 @@ actuation localoptimizer::step()
                             std::cout << "[LOCALOPTIMIZER|INFO] ALL OBJECTIVES HAVE CONVERGED " << std::endl;
 #endif
                         }
-                        return act;
+                        act.delta_threads=(nmd_res.threads==0)?getCurrentThreads():nmd_res.threads;
+#ifdef ALLSCALE_HAVE_CPUFREQ
+                        act.frequency_idx=nmd_res.freq_idx;
+#endif
+
+                        goto validate_act;
                     }
     		}
-            act.delta_threads=(nmd_res.threads==0)?getCurrentThreads():nmd_res.threads;
-#ifdef ALLSCALE_HAVE_CPUFREQ
-            act.frequency_idx=nmd_res.freq_idx;
-#endif
         }
     }
+    validate_act:
+
+    if ( act.delta_threads > max_threads_) {
+      act.delta_threads = max_threads_;
+    } else if ( act.delta_threads < 1 ) {
+      act.delta_threads = getCurrentThreads();
+    }
+#ifdef ALLSCALE_HAVE_CPUFREQ
+    // VV: If freq_idx is -1 then set it to last used frequency (frequency_param_)
+    if ( act.frequency_idx < 0)
+      act.frequency_idx= frequency_param_;
+#endif
     return act;
 }
 }

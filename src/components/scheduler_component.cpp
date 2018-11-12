@@ -22,7 +22,7 @@
 
 //#define DEBUG_ 1
 //#define DEBUG_INIT_ 1 // define to generate output during scheduler initialization
-//#define DEBUG_MULTIOBJECTIVE_ 1
+#define DEBUG_MULTIOBJECTIVE_ 1
 //#define DEBUG_THREADTHROTTLING_ 1
 //#define DEBUG_THREADSTATUS_ 1
 //#define DEBUG_FREQSCALING_ 1
@@ -719,7 +719,6 @@ void scheduler::optimize_locally(work_item const& work)
         /* Count Active threads for validation*/
 
         hpx::threads::mask_type active_mask;
-        std::size_t active_threads_ = 0;
         std::size_t domain_active_threads = 0;
         std::size_t pool_idx = 0;
         int total_threads_counted=0;
@@ -741,14 +740,13 @@ void scheduler::optimize_locally(work_item const& work)
 #ifdef MEASURE_
 #ifdef ALLSCALE_HAVE_CPUFREQ
         std::size_t temp_id = work.id().id;
-        if ((temp_id >= period_for_power) &&
-                (temp_id % period_for_power == 0))
+        if ((temp_id >= period_for_power) && (temp_id % period_for_power == 0))
             update_power_consumption(hardware_reconf::read_system_power());
 #endif
 #endif
 
 #ifdef ALLSCALE_HAVE_CPUFREQ
-        if (uselopt && !lopt_.isConverged()){
+        if (uselopt && !lopt_.isConverged()) {
             last_power_usage++;
             current_power_usage = hardware_reconf::read_system_power();
             power_sum += current_power_usage;
@@ -775,7 +773,8 @@ void scheduler::optimize_locally(work_item const& work)
                 }
 
                 lopt_.measureObjective(current_avg_iter_time,power_sum/last_power_usage,
-                        active_threads);
+                // active_threads
+                        lopt_.getCurrentThreads());
                 last_power_usage=0;
                 power_sum=0;
             }
@@ -790,39 +789,27 @@ void scheduler::optimize_locally(work_item const& work)
                 lopt_.printverbosesteps(act_temp);
 #endif
                 // amend threads if signaled
-                /*
-                if (act_temp.delta_threads<0){
-                    unsigned int suspended_temp =
-                        suspend_threads(-1 * act_temp.delta_threads);
-                    lopt_.setCurrentThreads(lopt_.getCurrentThreads()-suspended_temp);
-                }
-                else if (act_temp.delta_threads>0){
-                    unsigned int resumed_temp =
-                        resume_threads(act_temp.delta_threads);
-                    lopt_.setCurrentThreads(lopt_.getCurrentThreads()+resumed_temp);
-                }
-                */
-
+                
                 if (act_temp.delta_threads < active_threads){
 #ifdef DEBUG_MULTIOBJECTIVE_
-                    int new_threads_target = (int)active_threads - act_temp.delta_threads;
-                    std::cout << "[SCHEDULER|INFO]: Optimizer induced threads to suspend: " << new_threads_target << std::endl;
-                    std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << ", target threads = " << act_temp.delta_threads << std::endl;
-#endif
+                    std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << " out of " << lopt_.getmaxthreads() 
+                    << " , target threads = " << act_temp.delta_threads << std::endl;
+
+#endif    
                     //unsigned int suspended_temp = suspend_threads(new_threads_target);
                     //lopt_.setCurrentThreads(lopt_.getCurrentThreads()-suspended_temp);
-
-                    lopt_.setCurrentThreads(active_threads);
+                    suspend_threads(active_threads-act_temp.delta_threads);
                 }
                 else if (act_temp.delta_threads > active_threads){
 #ifdef DEBUG_MULTIOBJECTIVE_
-                    int new_threads_target = act_temp.delta_threads - (int)active_threads;
-                    std::cout << "[SCHEDULER|INFO]: Optimizer induced threads to resume to: " << new_threads_target << std::endl;
-                    std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << ", target threads = " << act_temp.delta_threads << std::endl;
+                    std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << " out of " << lopt_.getmaxthreads() 
+                    << " , target threads = " << act_temp.delta_threads << std::endl;
 #endif
-                    fix_allcores_frequencies(act_temp.frequency_idx);
-                    lopt_.setCurrentFrequencyIdx(act_temp.frequency_idx);
+                    resume_threads(act_temp.delta_threads - active_threads);
                 }
+                fix_allcores_frequencies(act_temp.frequency_idx);
+                lopt_.setCurrentFrequencyIdx(act_temp.frequency_idx);
+                lopt_.setCurrentThreads(act_temp.delta_threads);
             }
         } // uselopt
 #endif
