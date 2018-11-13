@@ -123,9 +123,9 @@ namespace allscale { namespace components {
    task_times monitor::get_task_times()
    {
        if (!enable_monitor) return task_times{};
-       auto now = std::chrono::high_resolution_clock::now();
 
        std::lock_guard<mutex_type> l(task_times_mtx_);
+       auto now = std::chrono::high_resolution_clock::now();
 
        // normalize to one second
        auto interval = std::chrono::duration_cast<std::chrono::nanoseconds>(now - last_task_times_sample_);
@@ -144,13 +144,15 @@ namespace allscale { namespace components {
 
    double monitor::get_idle_rate()
    {
-       auto now = std::chrono::high_resolution_clock::now();
        std::lock_guard<mutex_type> l(task_times_mtx_);
+       auto now = std::chrono::high_resolution_clock::now();
+
 
        auto process_time = process_time_;
 
        auto d1 = std::chrono::duration_cast<task_times::time_t>(process_time - process_time_buffer_.oldest_data());
        auto d2 = std::chrono::duration_cast<task_times::time_t>(now - process_time_buffer_.oldest_time());
+
 
        double cur_idle_rate = 1. - static_cast<double>(d1.count())/(static_cast<double>(d2.count()) * num_cpus_);
 
