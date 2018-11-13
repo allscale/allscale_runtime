@@ -30,6 +30,7 @@ namespace allscale { namespace components {
 #define ALPHA       1.0       /* reflection coefficient */
 #define BETA        0.5       /* contraction coefficient */
 #define GAMMA       2.0       /* expansion coefficient */
+#define DELTA       0.5        /* shrinking coefficient */
 
 /* structure type of a single optimization step return status */
 struct optstepresult{
@@ -42,7 +43,8 @@ struct optstepresult{
 };
 
 /* enumeration encoding state that the incremental Nelder Mead optimizer is at */
-enum iterationstates {start, reflection, expansion, contraction};
+enum iterationstates {start, reflection, expansion,
+                      contraction, shrink};
 
 class NelderMead {
 
@@ -63,9 +65,17 @@ class NelderMead {
     unsigned long int getIterations(){return itr;}
 
   private:
+
+    optstepresult do_step_start(double param);
+    optstepresult do_step_reflect(double param);
+    optstepresult do_step_expand(double param);
+    optstepresult do_step_contract(double param);
+    optstepresult do_step_shrink(double param);
+
     int vg_index();
     int vs_index();
     int vh_index();
+    void sort_vertices(void);
     void my_constraints(double*);
     void centroid();
     bool testConvergence();

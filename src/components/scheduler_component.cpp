@@ -490,8 +490,27 @@ void scheduler::init() {
     lopt_.reset(os_thread_count,0);
   #if defined(ALLSCALE_HAVE_CPUFREQ)
     using hardware_reconf = allscale::components::util::hardware_reconf;
+    auto  freqs = hardware_reconf::get_frequencies(0);
+
+    const std::size_t max_freqs = 5;
+    std::size_t keep_every = (std::size_t) ceilf(freqs.size() / (float) max_freqs);
+
+    if ( keep_every > 1 ) {
+      std::vector<unsigned long> new_freqs;
+
+      int i, j, len;
+
+      for (j=0, i=0, len=freqs.size(); i<len; ++i ) {
+        if ( (i==len-1) || ( (i % keep_every) == 0 )) {
+          new_freqs.push_back(freqs[i]);
+        }
+      }      
+
+        freqs = new_freqs;
+    }
+
     std::vector<unsigned long> freq_temp =
-      lopt_.setfrequencies(hardware_reconf::get_frequencies(0));
+      lopt_.setfrequencies(freqs);
     if (freq_temp.empty()){
       HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
       "error in initializing the local optimizer, allowed frequency values are empty");
