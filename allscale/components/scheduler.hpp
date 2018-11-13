@@ -5,8 +5,10 @@
 #include <allscale/work_item.hpp>
 #include <allscale/components/treeture_buffer.hpp>
 #include <allscale/components/localoptimizer.hpp>
+
 #if defined(ALLSCALE_HAVE_CPUFREQ)
 #include <allscale/util/hardware_reconf.hpp>
+#else
 #endif
 
 #include <hpx/include/components.hpp>
@@ -108,7 +110,7 @@ namespace allscale { namespace components {
         long last_optimization_timestamp_;
 
         /* periodicity in milliseconds to invoke the optimizer */
-        const long optimization_period_ms = 5;
+        const long optimization_period_ms = 5000;
 
         /* captures absolute timestamp of the last time optimization
            objective value have been measured (sampled) */
@@ -117,7 +119,7 @@ namespace allscale { namespace components {
         long last_objective_measurement_timestamp_;
 
         /* periodicity in milliseconds to invoke objective sampling */
-        const long objective_measurement_period_ms = 1;
+        const long objective_measurement_period_ms = 1000;
 
         //extra masks to better handle suspending/resuming threads
         std::vector<hpx::threads::thread_pool_base*> thread_pools_;

@@ -3,6 +3,7 @@
 #define ALLSCALE_COMPONENTS_LOCALOPTIMIZER_HPP
 
 #include <allscale/components/nmsimplex_bbincr.hpp>
+
 #if defined(ALLSCALE_HAVE_CPUFREQ)
 #include <allscale/util/hardware_reconf.hpp>
 #endif
@@ -20,7 +21,7 @@
 
 namespace allscale { namespace components {
 
-    enum objectiveType {time,energy,resource};
+    enum objectiveType {time, energy, resource};
 
     enum parameterType {thread, frequency};
 
@@ -28,6 +29,8 @@ namespace allscale { namespace components {
 
     /* structure type of a single optimization objective */
     struct objective{
+      double last_scores[3];
+
       objectiveType type;
       /* leeway threshold desired, 0-1 double */
       double leeway;
@@ -60,7 +63,7 @@ namespace allscale { namespace components {
       double minimization_params[2];
     };
 
-
+    
     /* structure type modelling an optimization actuation action to be taken
        by the scheduler */
     struct actuation{
@@ -81,14 +84,19 @@ namespace allscale { namespace components {
     {
         localoptimizer()
             :nmd(0.01),
+            pending_threads(0.),
+            pending_energy(0.),
+            pending_time(0.),
+            pending_num_times(0.),
+            mo_initialized(false),
 #if defined(ALLSCALE_HAVE_CPUFREQ)
             frequency_param_(0),
 #endif
             current_objective_idx_(0),converged_(false)
     {
-            if (optmethod_==random)
-                srand (std::time(NULL));
-            }
+        if (optmethod_==random)
+            srand (std::time(NULL));
+        }
 
         localoptimizer(std::list<objective>);
 
@@ -99,10 +107,14 @@ namespace allscale { namespace components {
 #ifdef DEBUG_
           std::cout << "Local Optimizer Initialized with "
                     << policyToString(pol)
-                    << " policy for single objective search."
+                    << " policy for multi-objective search."
                     << std::endl;
 #endif
         }
+#ifdef ALLSCALE_HAVE_CPUFREQ
+        void initialize_nmd();
+#endif
+        double opt_weights[NMD_NUM_OBJECTIVES];
 
         searchPolicy getPolicy(){return optmethod_;}
 
@@ -166,6 +178,23 @@ namespace allscale { namespace components {
         }
 
     private:
+        void accumulate_objective_measurements();
+        void reset_accumulated_measurements();
+
+        std::vector<double> samples_energy;
+        std::vector<double> samples_time;
+        std::vector<double> samples_threads;
+        std::vector<double> samples_freq;
+
+        bool explore_knob_domain;
+        
+        double initialization_samples[NMD_NUM_KNOBS+1][NMD_NUM_OBJECTIVES];
+        double initialization_params[NMD_NUM_KNOBS+1][NMD_NUM_KNOBS];
+
+        double pending_time, pending_energy, pending_threads;
+        unsigned long pending_num_times;
+
+        bool mo_initialized;
 
         /* vector of active optimization objectives. Objectives are stored
            in the vector in decreasing priority order */

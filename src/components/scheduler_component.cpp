@@ -223,8 +223,6 @@ void scheduler::init() {
         )
     );
 
-//   std::cout << "init: " << num_cores << " " << allscale::get_num_localities() << " " << depth_cut_off_ << '\n';
-
   // Reading user provided options in terms of desired optimization objectives
   std::string input_objective_str =
       hpx::get_config_entry("allscale.objective", "");
@@ -232,18 +230,24 @@ void scheduler::init() {
   /* Read optimization policy selected by the user. If not specified,
      allscale policy is the default */
     std::string input_optpolicy_str =
-      hpx::get_config_entry("allscale.policy", "allscale");
+      hpx::get_config_entry("allscale.policy", "none");
 #ifdef DEBUG_MULTIOBJECTIVE_
     std::cout << "[Local Optimizer|INFO] Optimization Policy Active = " << input_optpolicy_str << std::endl;
 #endif
-    if (input_optpolicy_str=="allscale")
-      lopt_.setPolicy(allscale);
-    else if (input_optpolicy_str=="random")
+#if ALLSCALE_HAVE_CPUFREQ
+    if (input_optpolicy_str=="allscale") {
+		lopt_.setPolicy(allscale);
+	}
+    else 
+#endif
+	if (input_optpolicy_str=="random")
       lopt_.setPolicy(random);
     else if (input_optpolicy_str=="manual")
       lopt_.setPolicy(manual);
-    else lopt_.setPolicy(allscale);
-
+	else if ( input_optpolicy_str != "none" ) {
+		HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init", 
+							"unknown allscale.policy");
+	}
 #ifdef MEASURE_MANUAL_
   std::string input_osthreads_str =
       hpx::get_config_entry("allscale.osthreads", "");
