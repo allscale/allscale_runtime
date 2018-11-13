@@ -79,9 +79,9 @@ namespace allscale
 //                            scheduler::get().get_active_threads());
 // }
 
-    void optimizer_update_policy(task_times const& times, std::vector<bool> mask)
+    void optimizer_update_policy(task_times const& times, std::vector<bool> mask, float freq)
     {
-        scheduler::update_policy(times, mask);
+        scheduler::update_policy(times, mask, freq);
     }
 
     void optimizer_update_policy_ino(const std::vector<std::size_t> &new_mapping)
@@ -106,7 +106,7 @@ float tuning_objective::score(float speed, float efficiency, float power) const
 
 std::ostream &operator<<(std::ostream &os, tuning_objective const &obj)
 {
-    std::cout
+    os
         << "t^" << obj.speed_exponent << " * "
         << "e^" << obj.efficiency_exponent << " * "
         << "p^" << obj.power_exponent;
@@ -169,9 +169,11 @@ float estimate_power(float frequency)
 }
 
 global_optimizer::global_optimizer()
-    : num_active_nodes_(allscale::get_num_localities()), best_(0, 1.f), best_score_(0.0f), active_(true), objective_(get_default_objective()), localities_(hpx::find_all_localities()),
-    f_resource_max(-1.0f), f_resource_leeway(-1.0f),
-    u_balance_every(10), u_steps_till_rebalance(u_balance_every)
+    : u_balance_every(10), u_steps_till_rebalance(u_balance_every),
+    active_nodes_(allscale::get_num_localities(), true), tuner_(new simple_coordinate_descent(tuner_configuration{active_nodes_, allscale::monitor::get().get_current_freq(0)})),
+    objective_(get_default_objective()),
+    active_(true), localities_(hpx::find_all_localities()),
+    f_resource_max(-1.0f), f_resource_leeway(-1.0f)
 {
     char *const c_policy = std::getenv("ALLSCALE_SCHEDULING_POLICY");
 
@@ -209,124 +211,48 @@ global_optimizer::global_optimizer()
 //     }
 }
 
-// void global_optimizer::tune(std::vector<optimizer_state> const &state)
-// {
-//     #ifdef ALLSCALE_HAVE_CPUFREQ
-//     float max_frequency = components::util::hardware_reconf::get_frequencies(0).back();
-//     #else
-//     float max_frequency = 1.f;
-//     #endif
-//     // Assume all CPUs have the same frequency for now...
-//     //         for (std::size_t i = 0; i != cores_per_node; ++i)
-//     //         {
-//     //             auto freq = hardware_reconf::get_kernel_freq(i) * 1000f;
-//     //             if (freq > max_frequency)
-//     //                 max_frequency = freq;
-//     //         }
-//
-//     float active_frequency = 0.0f;
-//
-//     std::uint64_t used_cycles = 0;
-//     std::uint64_t avail_cycles = 0;
-//     std::uint64_t max_cycles = 0;
-//     float used_power = 0;
-//     float max_power = 0;
-//
-//     for (std::size_t i = 0; i < allscale::get_num_localities(); ++i)
-//     {
-//         if (i < num_active_nodes_)
-//         {
-//             used_cycles += state[i].load * state[i].active_frequency * state[i].cores_per_node;
-//             avail_cycles += state[i].active_frequency * state[i].cores_per_node;
-//             used_power += estimate_power(state[i].active_frequency);
-//             active_frequency += state[i].active_frequency / num_active_nodes_;
-//         }
-//         max_cycles += max_frequency * state[i].cores_per_node;
-//         max_power = estimate_power(max_frequency);
-//     }
-//
-//     float speed = used_cycles / float(max_cycles);
-//     float efficiency = used_cycles / float(avail_cycles);
-//     float power = used_power / max_power;
-//
-//     float score = objective_.score(speed, efficiency, power);
-//
-//     for (const auto &s : state)
-//         std::cout << "load:" << s.load << " time:" << s.avg_time << " freq:" << s.active_frequency << " cores:" << s.cores_per_node << std::endl;
-//
-//     std::cerr << "\tSystem state:"
-//               << " spd=" << std::setprecision(2) << speed
-//               << ", eff=" << std::setprecision(2) << efficiency
-//               << ", pow=" << std::setprecision(2) << power
-//               << " => score: " << std::setprecision(2) << score
-//               << " for objective " << objective_ << "\n";
-//
-//     // record current solution
-//     if (score > best_score_)
-//     {
-//         best_ = {num_active_nodes_, active_frequency};
-//         best_score_ = score;
-//     }
-//
-//     // pick next state
-//     if (explore_.empty())
-//     {
-//         // nothing left to explore => generate new points
-//         std::cerr << "\t\tPrevious best option " << best_.first << " @ " << best_.second << " with score " << best_score_ << "\n";
-//
-//         // get nearby frequencies
-//     #ifdef ALLSCALE_HAVE_CPUFREQ
-//         auto options = components::util::hardware_reconf::get_frequencies(0);
-//     #else
-//         auto options = std::vector<float>(1, 1.f);
-//     #endif
-//         auto cur = std::find(options.begin(), options.end(), best_.second);
-//
-//         HPX_ASSERT(cur != options.end());
-//         auto pos = cur - options.begin();
-//
-//         std::vector<float> frequencies;
-//         if (pos != 0)
-//             frequencies.push_back(options[pos - 1]);
-//         frequencies.push_back(options[pos]);
-//         if (pos + 1 < int(options.size()))
-//             frequencies.push_back(options[pos + 1]);
-//
-//         // get nearby node numbers
-//         std::vector<std::size_t> num_nodes;
-//         if (best_.first > 1)
-//             num_nodes.push_back(best_.first - 1);
-//         num_nodes.push_back(best_.first);
-//         if (best_.first < allscale::get_num_localities())
-//             num_nodes.push_back(best_.first + 1);
-//
-//         // create new options
-//         for (const auto &a : num_nodes)
-//         {
-//             for (const auto &b : frequencies)
-//             {
-//                 std::cerr << "\t\tAdding option " << a << " @ " << b << "\n";
-//                 explore_.push_back({a, b});
-//             }
-//         }
-//
-//         // reset best options
-//         best_score_ = 0;
-//     }
-//
-//     // if there are still no options, there is nothing to do
-//     if (explore_.empty())
-//         return;
-//
-//     // take next option and evaluate
-//     auto next = explore_.back();
-//     explore_.pop_back();
-//
-//     num_active_nodes_ = next.first;
-//     active_frequency_ = next.second;
-//
-//     std::cout << "\t\tSwitching to " << num_active_nodes_ << " @ " << active_frequency_ << "\n";
-// }
+void global_optimizer::tune(std::vector<optimizer_state> const &state)
+{
+    allscale::components::monitor *monitor_c = &allscale::monitor::get();
+    float max_frequency = monitor_c->get_max_freq(0);
+
+    std::size_t num_active_nodes = std::count(active_nodes_.begin(), active_nodes_.end(), true);
+
+    // compute overall speed
+
+    float total_speed = 0.f;
+    float total_efficiency = 0.f;
+    float used_power = 0.f;
+    float max_power = 0.f;
+    float cur_power = 0.f;
+
+    for (std::size_t i = 0; i != active_nodes_.size(); ++i)
+    {
+        if (i < num_active_nodes)
+        {
+            total_speed += state[i].load_;
+            total_efficiency += state[i].load_ * ((state[i].active_frequency_ * state[i].cores_per_node_) / (max_frequency * state[i].cores_per_node_));;
+            used_power += state[i].energy_;
+        }
+#ifdef POWER_ESTIMATE
+        max_power += monitor_c->get_max_power();
+#endif
+    }
+
+    tuner_state tune_state;
+
+    tune_state.speed = total_speed / active_nodes_.size();
+    tune_state.efficiency = total_efficiency / active_nodes_.size();
+    tune_state.power = used_power / max_power;
+
+    tune_state.score = objective_.score(tune_state.speed, tune_state.efficiency, tune_state.power);
+
+    std::cerr << tune_state << " for objective " << objective_ << '\n';
+
+    auto next_cfg = tuner_->next(tuner_configuration{active_nodes_, active_frequency_}, tune_state, objective_);
+    active_nodes_ = std::move(next_cfg.node_mask);
+    active_frequency_ = next_cfg.frequency;
+}
 
     hpx::future<void> global_optimizer::balance(bool tuned)
     {
@@ -343,72 +269,57 @@ global_optimizer::global_optimizer()
         // FIXME: make resilient: filter out failed localities...
         return hpx::lcos::broadcast<allscale_get_optimizer_state_action>(
             localities_).then(
-                [this, tuned](hpx::future<std::vector<optimizer_state>> future_state)
+                [this, tuned](hpx::future<std::vector<optimizer_state>> future_state) mutable
                 {
-                    auto state = future_state.get();
-//                     std::vector<float> load;
-//                     load.reserve(state.size());
-
-                    // compute the load variance
-                    float avg_load = 0.0f;
                     task_times times;
+                    {
+                        std::lock_guard<mutex_type> lk(mtx_);
+                        auto state = future_state.get();
+    //                     std::vector<float> load;
+    //                     load.reserve(state.size());
 
-                    std::for_each(state.begin(), state.end(),
-                        [&times, &avg_load](optimizer_state const& s)
+                        // compute the load variance
+                        float avg_load = 0.0f;
+
+                        std::size_t num_active_nodes = std::count(active_nodes_.begin(), active_nodes_.end(), true);
+                        std::for_each(state.begin(), state.end(),
+                            [&times, &avg_load](optimizer_state const& s)
+                            {
+    //                             load.push_back(s.load_);
+                                avg_load += s.load_;
+                                times += s.task_times_;
+                            });
+                        avg_load = avg_load / num_active_nodes;
+
+
+                        float sum_dist = 0.f;
+                        for(std::size_t i=0; i<num_active_nodes; i++)
                         {
-//                             load.push_back(s.load_);
-                            avg_load += s.load_;
-                            times += s.task_times_;
-                        });
-                    avg_load = avg_load / num_active_nodes_;
+                            float dist = state[i].load_ - avg_load;
+                            sum_dist +=  dist * dist;
+                        }
+                        float var = (num_active_nodes > 1) ? sum_dist / (num_active_nodes - 1) : 0.0f;
 
+                        std::cerr
+    //                         << times << '\n'
+                            << "Average load "      << std::setprecision(2) << avg_load
+                            << ", load variance "   << std::setprecision(2) << var
+    //                         << ", average frequency "   << std::setprecision(2) << avg_state.active_frequency
+                            << ", total progress " << std::setprecision(2) << (avg_load*num_active_nodes)
+                            << " on " << num_active_nodes << " nodes\n";
+                        // -- Step 2: if stable, adjust number of nodes and clock speed
 
-                    float sum_dist = 0.f;
-                    for(std::size_t i=0; i<num_active_nodes_; i++)
-                    {
-                        float dist = state[i].load_ - avg_load;
-                        sum_dist +=  dist * dist;
-                    }
-                    float var = (num_active_nodes_ > 1) ? sum_dist / (num_active_nodes_ - 1) : 0.0f;
-
-                    std::cerr
-//                         << times << '\n'
-                        << "Average load "      << std::setprecision(2) << avg_load
-                        << ", load variance "   << std::setprecision(2) << var
-//                         << ", average frequency "   << std::setprecision(2) << avg_state.active_frequency
-                        << ", total progress " << std::setprecision(2) << (avg_load*num_active_nodes_)
-                        << " on " << num_active_nodes_ << " nodes\n";
-                    // -- Step 2: if stable, adjust number of nodes and clock speed
-
-                    // if stable enough, allow meta-optimizer to manage load
-                    if (tuned && var < 0.01f)
-                    {
-                        // adjust number of nodes and CPU frequency
-//                         tune(state);
+                        // if stable enough, allow meta-optimizer to manage load
+                        if (tuned && var < 0.01f)
+                        {
+                            // adjust number of nodes and CPU frequency
+                            tune(state);
+                        }
                     }
                     // -- Step 3: enforce selected number of nodes and clock speed, keep system balanced
 
-                    // compute number of nodes to be used
-                    std::vector<bool> mask(localities_.size());
-                    for(std::size_t i=0; i<localities_.size(); i++) {
-                        mask[i] = i < num_active_nodes_;
-                    }
-
                     return hpx::lcos::broadcast<allscale_optimizer_update_policy_action>(
-                        localities_, times, mask);
-
-//                     // get the local scheduler
-//                     auto& scheduleService = node.getService<com::HierarchyService<ScheduleService>>().get(0);
-//
-//                     // get current policy
-//                     auto policy = scheduleService.getPolicy();
-//                     assert_true(policy.isa<DecisionTreeSchedulingPolicy>());
-//
-//                     // re-balance load
-//                     auto curPolicy = policy.getPolicy<DecisionTreeSchedulingPolicy>();
-//                     auto newPolicy = DecisionTreeSchedulingPolicy::createReBalanced(curPolicy,load,mask);
-//
-//                     // distribute new policy
+                        localities_, times, active_nodes_, active_frequency_);
                 }
             );
     }
@@ -536,7 +447,9 @@ hpx::future<void> global_optimizer::balance_ino(const std::vector<std::size_t> &
                 // VV: Create node_loads, and node_times from optimizer_state
                 idx = 0ul;
                 auto node = state.begin();
-                for (idx=0ul; idx<=num_active_nodes_; ++idx, ++node)
+                // FIXME: this is racey....
+                std::size_t num_active_nodes = std::count(active_nodes_.begin(), active_nodes_.end(), true);
+                for (idx=0ul; idx<=num_active_nodes; ++idx, ++node)
                 {
                     node_loads[idx] = node->load_;
                     node_times[idx++] = node->avg_time_;
@@ -550,7 +463,7 @@ hpx::future<void> global_optimizer::balance_ino(const std::vector<std::size_t> &
                                                           ino_times,
                                                           ino_energies);
 
-                num_active_nodes_ = knobs.u_nodes;
+                num_active_nodes = knobs.u_nodes;
 
                 auto ino_schedule = components::internode_optimizer_t \
                                               ::decide_schedule(node_map,

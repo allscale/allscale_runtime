@@ -4,6 +4,8 @@
 
 #include <allscale/get_num_localities.hpp>
 #include <allscale/task_times.hpp>
+#include <allscale/tuning_objective.hpp>
+#include <allscale/tuner.hpp>
 
 #include <allscale/components/internodeoptimizer.hpp>
 #include <hpx/lcos/future.hpp>
@@ -35,57 +37,6 @@ namespace allscale {
         }
     };
 
-	/**
-	 * A class to model user-defined tuning objectives.
-	 *
-	 * Objectives are defined as
-	 *
-	 * 	score = t^m * e^n * (1-p)^k
-	 *
-	 * where t, e, p \in [0..1] is the current system speed, efficiency
-	 * and power dissipation. The exponents m, n, and k can be user defined.
-	 *
-	 * The optimizer aims to maximize the overall score.
-	 */
-    struct tuning_objective
-    {
-        float speed_exponent;
-        float efficiency_exponent;
-        float power_exponent;
-
-        tuning_objective()
-          : speed_exponent(0.0f)
-          , efficiency_exponent(0.0f)
-          , power_exponent(0.0f)
-        {}
-
-        tuning_objective(float speed, float efficiency, float power)
-          : speed_exponent(speed)
-          , efficiency_exponent(efficiency)
-          , power_exponent(power)
-        {}
-
-        static tuning_objective speed()
-        {
-            return {1.0f, 0.0f, 0.0f };
-        }
-
-        static tuning_objective efficiency()
-        {
-            return {0.0f, 1.0f, 0.0f };
-        }
-
-        static tuning_objective power()
-        {
-            return {0.0f, 1.0f, 0.0f };
-        }
-
-        float score(float speed, float efficiency, float power) const;
-
-        friend std::ostream& operator<<(std::ostream& os, tuning_objective const&);
-    };
-
-    tuning_objective get_default_objective();
 
 //     struct optimizer_state
 //     {
@@ -122,16 +73,25 @@ namespace allscale {
 
     struct global_optimizer
     {
+        using mutex_type = hpx::lcos::local::spinlock;
+        mutex_type mtx_;
+
         global_optimizer();
+
+        global_optimizer(global_optimizer&& other)
+          : active_nodes_(std::move(other.active_nodes_))
+          , active_frequency_(other.active_frequency_)
+          , tuner_(std::move(other.tuner_))
+          , active_(other.active_)
+          , localities_(std::move(other.localities_))
+          , f_resource_max(other.f_resource_max)
+          , f_resource_leeway(other.f_resource_leeway)
+          , o_ino(std::move(o_ino))
+        {}
 
         bool active() const
         {
             return active_;
-        }
-
-        void update(std::size_t num_active_nodes)
-        {
-            num_active_nodes_ = num_active_nodes;
         }
 
         hpx::future<void> balance(bool);
@@ -142,25 +102,20 @@ namespace allscale {
 
         std::size_t u_balance_every;
         std::size_t u_steps_till_rebalance;
-    private:
-//         void tune(std::vector<float> const& state);
 
-//         std::size_t u_steps_till_rebalance;
-//         void tune(std::vector<optimizer_state> const& state);
+        void tune(std::vector<optimizer_state> const& state);
 
-        std::size_t num_active_nodes_;
+        std::vector<bool> active_nodes_;
         float active_frequency_;
 
         using config = std::pair<std::size_t, float>;
         // Hill climbing data
-        config best_;
-        float best_score_;
-        std::vector<config> explore_;
+        std::unique_ptr<tuner> tuner_;
+        tuning_objective objective_;
 
         // local state information
         bool active_;
 
-        tuning_objective objective_;
         std::vector<hpx::id_type> localities_;
 
         float f_resource_max, f_resource_leeway;

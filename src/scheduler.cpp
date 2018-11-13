@@ -7,6 +7,7 @@
 #include <allscale/resilience.hpp>
 #include <allscale/schedule_policy.hpp>
 #include <allscale/components/scheduler.hpp>
+#include <allscale/components/monitor.hpp>
 #include <allscale/get_num_numa_nodes.hpp>
 #include <allscale/get_num_localities.hpp>
 #include <allscale/data_item_manager/index_service.hpp>
@@ -32,12 +33,19 @@ namespace allscale
 
     void toggle_node_broadcast(std::size_t locality_id);
     void set_policy_broadcast(std::string policy);
+
+    void set_speed_exponent_broadcast(float exp);
+    void set_efficiency_exponent_broadcast(float exp);
+    void set_power_exponent_broadcast(float exp);
 }
 
 HPX_PLAIN_DIRECT_ACTION(allscale::schedule_global, schedule_global_action);
 HPX_PLAIN_DIRECT_ACTION(allscale::schedule_down_global, schedule_down_global_action);
 HPX_PLAIN_DIRECT_ACTION(allscale::toggle_node_broadcast, toggle_node_action);
 HPX_PLAIN_DIRECT_ACTION(allscale::set_policy_broadcast, set_policy_action);
+HPX_PLAIN_DIRECT_ACTION(allscale::set_speed_exponent_broadcast, set_speed_exponent_action);
+HPX_PLAIN_DIRECT_ACTION(allscale::set_efficiency_exponent_broadcast, set_efficiency_exponent_action);
+HPX_PLAIN_DIRECT_ACTION(allscale::set_power_exponent_broadcast, set_power_exponent_action);
 
 namespace allscale
 {
@@ -257,7 +265,6 @@ namespace allscale
         using mutex_type = hpx::lcos::local::spinlock;
         mutex_type mtx_;
         replacable_policy policy_;
-        std::vector<bool> mask_;
         runtime::HierarchyAddress here_;
         runtime::HierarchyAddress root_;
         runtime::HierarchyAddress parent_;
@@ -270,7 +277,6 @@ namespace allscale
 
         scheduler_service(scheduler_service&& other)
           : policy_(std::move(other.policy_))
-          , mask_(std::move(other.mask_))
           , here_(std::move(other.here_))
           , root_(std::move(other.root_))
           , parent_(std::move(other.parent_))
@@ -286,7 +292,6 @@ namespace allscale
 
         scheduler_service(runtime::HierarchyAddress here)
           : policy_(create_policy())
-          , mask_(allscale::get_num_localities(), true)
           , here_(here)
           , root_(
                 runtime::HierarchyAddress::getRootOfNetworkSize(allscale::get_num_localities()))
@@ -335,42 +340,86 @@ namespace allscale
 
         void toggle_node(std::size_t locality_id)
         {
-            std::lock_guard<mutex_type> l(mtx_);
-            mask_[locality_id] = !mask_[locality_id];
+            {
+                std::lock_guard<mutex_type> l(optimizer_.mtx_);
+                optimizer_.active_nodes_[locality_id] = !optimizer_.active_nodes_[locality_id];
+            }
 
+            std::lock_guard<mutex_type> l(mtx_);
             if (policy_.value_ == replacable_policy::random)
             {
                 policy_.value_ = replacable_policy::static_;
-                policy_.policy_ = tree_scheduling_policy::create_uniform(mask_);
+                policy_.policy_ = tree_scheduling_policy::create_uniform(optimizer_.active_nodes_);
             }
             else
             {
-                policy_.policy_ = tree_scheduling_policy::create_uniform(mask_);
+                policy_.policy_ = tree_scheduling_policy::create_uniform(optimizer_.active_nodes_);
             }
         }
+
+        void set_speed_exponent(float exp)
+        {
+            std::lock_guard<mutex_type> l(optimizer_.mtx_);
+            optimizer_.objective_.speed_exponent = exp;
+        }
+
+        void set_efficiency_exponent(float exp)
+        {
+            std::lock_guard<mutex_type> l(optimizer_.mtx_);
+            optimizer_.objective_.efficiency_exponent = exp;
+        }
+
+        void set_power_exponent(float exp)
+        {
+            std::lock_guard<mutex_type> l(optimizer_.mtx_);
+            optimizer_.objective_.power_exponent = exp;
+        }
+
+        hpx::util::tuple<float, float, float> get_optimizer_exponents()
+        {
+            std::lock_guard<mutex_type> l(optimizer_.mtx_);
+            return hpx::util::make_tuple(
+                optimizer_.objective_.speed_exponent,
+                optimizer_.objective_.efficiency_exponent,
+                optimizer_.objective_.power_exponent
+            );
+        }
+
 
         void set_policy(std::string policy)
         {
             auto pol = create_policy(policy);
             {
-                std::lock_guard<mutex_type> l(mtx_);
-                mask_ = std::vector<bool>(mask_.size(), true);
+                {
+                    std::lock_guard<mutex_type> l(optimizer_.mtx_);
+                    optimizer_.active_nodes_ = std::vector<bool>(optimizer_.active_nodes_.size(), true);
+                }
 
-                policy_ = std::move(pol);
+                {
+                    std::lock_guard<mutex_type> l(mtx_);
+                    policy_ = std::move(pol);
+                }
             }
         }
 
-        void update_policy(task_times const& times, std::vector<bool> const& mask)
+        void update_policy(task_times const& times, std::vector<bool> const& mask, float freq)
         {
             if (!(policy_.value_ == replacable_policy::dynamic || policy_.value_ == replacable_policy::tuned)) return;
 
             auto new_policy = tree_scheduling_policy::create_rebalanced(*policy_.policy_, times, mask, is_root_);
 
             {
-                std::lock_guard<mutex_type> l(mtx_);
 
-                mask_ = mask;
-                policy_.policy_ = std::move(new_policy);
+                {
+                    std::lock_guard<mutex_type> l(optimizer_.mtx_);
+                    optimizer_.active_nodes_ = mask;
+                    optimizer_.active_frequency_ = freq;
+                }
+
+                {
+                    std::lock_guard<mutex_type> l(mtx_);
+                    policy_.policy_ = std::move(new_policy);
+                }
             }
         }
 
@@ -380,12 +429,18 @@ namespace allscale
 
             if (policy_.value_ == replacable_policy::dynamic)
             {
-                optimizer_.balance(false);
+                {
+                    std::lock_guard<mutex_type> l(optimizer_.mtx_);
+                    optimizer_.balance(false);
+                }
             }
 
             if (policy_.value_ == replacable_policy::tuned)
             {
-                optimizer_.balance(true);
+                {
+                    std::lock_guard<mutex_type> l(optimizer_.mtx_);
+                    optimizer_.balance(true);
+                }
             }
 
             if (policy_.value_ == replacable_policy::ino)
@@ -602,6 +657,54 @@ namespace allscale
             locality_id);
     }
 
+    void set_speed_exponent_broadcast(float exp)
+    {
+        runtime::HierarchicalOverlayNetwork::forAllLocal<scheduler_service>(
+            [&](scheduler_service& sched)
+            {
+                sched.set_speed_exponent(exp);
+            }
+        );
+    }
+
+    void set_efficiency_exponent_broadcast(float exp)
+    {
+        runtime::HierarchicalOverlayNetwork::forAllLocal<scheduler_service>(
+            [&](scheduler_service& sched)
+            {
+                sched.set_efficiency_exponent(exp);
+            }
+        );
+    }
+
+    void set_power_exponent_broadcast(float exp)
+    {
+        runtime::HierarchicalOverlayNetwork::forAllLocal<scheduler_service>(
+            [&](scheduler_service& sched)
+            {
+                sched.set_power_exponent(exp);
+            }
+        );
+    }
+
+    hpx::future<void> scheduler::set_speed_exponent(float exp)
+    {
+        return hpx::lcos::broadcast<set_speed_exponent_action>(hpx::find_all_localities(),
+            exp);
+    }
+
+    hpx::future<void> scheduler::set_efficiency_exponent(float exp)
+    {
+        return hpx::lcos::broadcast<set_efficiency_exponent_action>(hpx::find_all_localities(),
+            exp);
+    }
+
+    hpx::future<void> scheduler::set_power_exponent(float exp)
+    {
+        return hpx::lcos::broadcast<set_power_exponent_action>(hpx::find_all_localities(),
+            exp);
+    }
+
     void set_policy_broadcast(std::string policy)
     {
         runtime::HierarchicalOverlayNetwork::forAllLocal<scheduler_service>(
@@ -626,14 +729,22 @@ namespace allscale
             policy();
     }
 
-    void scheduler::update_policy(task_times const& times, std::vector<bool> mask)
+    hpx::util::tuple<float, float, float> scheduler::get_optimizer_exponents()
+    {
+        return runtime::HierarchicalOverlayNetwork::getLocalService<scheduler_service>().
+            get_optimizer_exponents();
+    }
+
+    void scheduler::update_policy(task_times const& times, std::vector<bool> mask, float freq)
     {
         runtime::HierarchicalOverlayNetwork::forAllLocal<scheduler_service>(
             [&](scheduler_service& sched)
             {
-                sched.update_policy(times, mask);
+                sched.update_policy(times, mask, freq);
             }
         );
+
+        monitor::get().set_cur_freq(freq);
     }
 
     void scheduler::apply_new_mapping(const std::vector<std::size_t> &new_mapping)

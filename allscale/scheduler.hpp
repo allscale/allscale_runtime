@@ -40,9 +40,13 @@ namespace allscale
         static HPX_EXPORT std::size_t rank();
         static HPX_EXPORT hpx::future<void> toggle_node(std::size_t locality_id);
         static HPX_EXPORT hpx::future<void> set_policy(std::string policy);
+        static HPX_EXPORT hpx::future<void> set_speed_exponent(float exp);
+        static HPX_EXPORT hpx::future<void> set_efficiency_exponent(float exp);
+        static HPX_EXPORT hpx::future<void> set_power_exponent(float exp);
+        static HPX_EXPORT hpx::util::tuple<float, float, float> get_optimizer_exponents();
         static HPX_EXPORT std::string policy();
 
-        static HPX_EXPORT void update_policy(task_times const& times, std::vector<bool> mask);
+        static HPX_EXPORT void update_policy(task_times const& times, std::vector<bool> mask, float frequency);
         static void apply_new_mapping(const std::vector<std::size_t> &new_mapping);
 
         static HPX_EXPORT void schedule(work_item&& work);

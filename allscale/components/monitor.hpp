@@ -320,7 +320,7 @@ namespace allscale { namespace components {
 
            /// \brief This function returns the current frequency for the CPU cpuid
            //            /// \returns  Current frequency of cpuid
-	   std::uint64_t get_current_freq(int cpuid);
+           std::uint64_t get_current_freq(int cpuid);
 
 
            /// \brief This function returns the min frequency for the CPU cpuid
@@ -332,10 +332,12 @@ namespace allscale { namespace components {
            //            /// \returns  Max frequency of cpuid
            std::uint64_t get_max_freq(int cpuid);
 
+           void set_cur_freq(std::uint64_t freq);
+
 
            /// \brief This function returns the available frequencies for the CPU cpuid
            //            /// \returns  Available frequencies for cpuid
-	   std::vector<std::uint64_t> get_available_freqs(int cpuid);
+           std::vector<std::uint64_t> get_available_freqs(int cpuid);
 
 
            // Functions related to system/node metrics
