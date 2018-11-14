@@ -126,6 +126,24 @@ void localoptimizer::printobjectives()
 	}
 }
 
+bool localoptimizer::isConverged()
+{	
+	#if 0
+	if ( converged_ == false ) {
+		return false;
+	}
+
+	auto timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+
+	if ( reexplore_every_ms >0 && timestamp_now - last_convergence_ts > reexplore_every_ms )
+	{	
+		std::cout << "[LOCALOPTIMIZER] Re-exploring space!" << std::endl;
+		initialize_nmd();
+	}
+	#endif 
+	return converged_; 
+}
+
 void localoptimizer::printverbosesteps(actuation act)
 {
 	static int last_frequency_idx = 0;
@@ -200,6 +218,7 @@ void localoptimizer::initialize_nmd()
 
 	mo_initialized = true;
 	explore_knob_domain = true;
+	converged_ = false;
 }
 #endif
 

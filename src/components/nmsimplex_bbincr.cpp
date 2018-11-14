@@ -48,6 +48,7 @@ NelderMead::NelderMead(double eps)
     vm = (double *)malloc(n * sizeof(double));
     
     warming_up_step = 0;
+    convergence_reevaluating = false;
 
     /* allocate the columns of the arrays */
     for (i = 0; i <= n; i++)
@@ -320,6 +321,23 @@ void NelderMead::initialize_simplex(double weights[3],
     state_ = warmup;
     itr = 0;
     warming_up_step = 0;
+    convergence_reevaluating = false;
+    cache_.clear();
+
+    int threads_low = round(0.25 * (constraint_max[0] - constraint_min[1]) 
+                + constraint_min[1]);
+    int threads_med = round(0.5 * (constraint_max[0] - constraint_min[1])
+                + constraint_min[1]);
+    int threads_high = constraint_max[0] * 0.75;
+
+    initial_configurations[0][0] = threads_low;
+    initial_configurations[0][1] = (int)constraint_min[1];
+
+    initial_configurations[1][0] = threads_med;
+    initial_configurations[1][1] = (int)constraint_max[1];
+
+    initial_configurations[2][0] = threads_high;
+    initial_configurations[2][1] = (int)constraint_max[1];
 }
 
 /* print out the initial values */
@@ -781,21 +799,6 @@ optstepresult NelderMead::step(const double objectives[])
             return step(objectives);
         }
 
-        // VV: Start at 25% threads with lowest CPU Freq, then 75% threads with max freq
-        //     and 100% threads with max freq
-
-        int threads_low = round(0.25 * (constraint_max[0] - constraint_min[1]) 
-                    + constraint_min[1]);
-        int threads_med = round(0.75 * (constraint_max[0] - constraint_min[1])
-                    + constraint_min[1]);
-        int threads_max = constraint_max[0];
-
-        const int initial_configurations[NMD_NUM_KNOBS+1][NMD_NUM_KNOBS] = {
-            {threads_low, (int)constraint_min[1]},
-            {threads_med, (int)constraint_max[1]},
-            {threads_max, (int)constraint_max[1]},
-        };
-
         optstepresult res;
         res.objectives[0] = -1;
         res.objectives[1] = -1;
@@ -872,6 +875,7 @@ bool NelderMead::testConvergence(std::size_t tested_combinations)
         return true;
     }
     #endif
+    bool ret = false;
 
     fsum = 0.0;
     for (auto j = 0; j <= n; j++)
@@ -897,7 +901,7 @@ bool NelderMead::testConvergence(std::size_t tested_combinations)
     if ( (s >= EPSILON)
         && (itr <= MAXITERATIONS)
         && (max_combinations != tested_combinations) )
-        return false;
+        ret = false;
     else
     {
         sort_vertices();
@@ -917,7 +921,32 @@ bool NelderMead::testConvergence(std::size_t tested_combinations)
             }
         )
 
+        ret = true;
+    }
+
+    if ( ret == true && convergence_reevaluating == true ) {
         return true;
+    } else if ( ret == true ) {
+        // VV: Do another final run to make sure that the objective scores still hold up
+        OUT_DEBUG (
+            std::cout << "[NelderMead|Debug] Doing another final search" << std::endl;
+        )
+        state_ = warmup;
+        warming_up_step = 0;
+        itr --;
+        convergence_reevaluating = true;
+
+        for (auto i=0; i<NMD_NUM_KNOBS+1; ++i ) {
+            for (auto j=0; j<NMD_NUM_KNOBS; ++j) {
+                initial_configurations[i][j] = v[i][j];
+            }
+        }
+
+        print_initial_simplex();
+
+        return false;
+    } else {
+        return false;
     }
 }
 

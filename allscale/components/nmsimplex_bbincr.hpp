@@ -163,6 +163,9 @@ class NelderMead
 		return rnum;
 	}
 
+	bool convergence_reevaluating;
+	int initial_configurations[NMD_NUM_KNOBS+1][NMD_NUM_KNOBS];
+	
 	/* vertex with smallest value */
 	int vs;
 

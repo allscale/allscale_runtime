@@ -101,8 +101,8 @@ scheduler::scheduler(std::uint64_t rank)
 #ifdef DEBUG_KOSTAS
   std::cout << "DEBUG_KOSTAS is defined" << std::endl << std::flush;
 #endif
-#ifdef ALLSCALE_HAVE_CPUFREQ_
-  std::cout << "ALLSCALE_HAVE_CPUFREQ_ is defined" << std::endl << std::flush;
+#ifdef ALLSCALE_HAVE_CPUFREQ
+  std::cout << "ALLSCALE_HAVE_CPUFREQ is defined" << std::endl << std::flush;
 #endif
 
 }
@@ -524,6 +524,14 @@ void scheduler::init() {
     lopt_.printobjectives();
 #endif
   }
+#if defined(ALLSCALE_HAVE_CPUFREQ)
+else {
+    using hardware_reconf = allscale::components::util::hardware_reconf;
+    auto  freqs = hardware_reconf::get_frequencies(0);
+    // VV: Set maximum frequency
+    fix_allcores_frequencies(freqs[freqs.size()-1]);
+}
+#endif
 }
 
 /**
