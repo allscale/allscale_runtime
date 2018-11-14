@@ -83,7 +83,7 @@ namespace allscale { namespace components {
     struct localoptimizer
     {
         localoptimizer()
-            :nmd(0.01),
+            :nmd(convergence_threshold_),
             pending_threads(0.),
             pending_energy(0.),
             pending_time(0.),
@@ -142,10 +142,7 @@ namespace allscale { namespace components {
             return max_threads_;
         }
 
-        void setmaxthreads(std::size_t threads){
-            max_threads_=threads;
-            threads_param_=threads;
-        }
+        void setmaxthreads(std::size_t threads);
 
         /* executes one step of multi-objective optimization */
         actuation step();
@@ -178,6 +175,9 @@ namespace allscale { namespace components {
         }
 
     private:
+        // VV: Used to convert thread_idx to actual number of threads
+        std::size_t threads_dt;
+
         void accumulate_objective_measurements();
         void reset_accumulated_measurements();
 
@@ -188,9 +188,6 @@ namespace allscale { namespace components {
 
         bool explore_knob_domain;
         
-        double initialization_samples[NMD_NUM_KNOBS+1][NMD_NUM_OBJECTIVES];
-        double initialization_params[NMD_NUM_KNOBS+1][NMD_NUM_KNOBS];
-
         double pending_time, pending_energy, pending_threads;
         unsigned long pending_num_times;
 
@@ -234,8 +231,8 @@ namespace allscale { namespace components {
 #endif
 
         /* threshold (percentage in [0,1]) to decide convergence of optimization
-           steps against a single objective */
-        const double convergence_threshold_ = 0.02;
+           steps */
+        const double convergence_threshold_ = 0.01;
 
         /***** optimization state variables ******/
 

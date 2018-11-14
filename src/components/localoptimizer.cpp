@@ -24,6 +24,7 @@ namespace allscale
 {
 namespace components
 {
+	#if 0
 localoptimizer::localoptimizer(std::list<objective> targetobjectives)
 	: objectives_((int)targetobjectives.size()),
 	  nmd(convergence_threshold_),
@@ -49,6 +50,7 @@ localoptimizer::localoptimizer(std::list<objective> targetobjectives)
 	setCurrentFrequencyIdx(0);
 #endif
 };
+#endif
 
 void localoptimizer::setobjectives(std::list<objective> targetobjectives)
 {
@@ -153,42 +155,47 @@ void localoptimizer::accumulate_objective_measurements()
 	if (pending_num_times)
 	{
 		pending_time /= (double)pending_num_times;
-		pending_threads /= (double)pending_num_times;
+		pending_threads /= (double)(pending_num_times*threads_dt);
 		pending_energy /= (double)pending_num_times;
 		pending_num_times = 0;
 	}
 }
 
+void localoptimizer::setmaxthreads(std::size_t threads)
+{
+	max_threads_=threads;
+	threads_param_=threads;
+	#if 0
+	double threads_tick = threads / 5.;
+
+	if ( threads_tick < 1.0 )
+		threads_tick = 1.0;
+	
+	threads_dt = (int) round(threads_tick);
+	#elif 0
+	if ( max_threads_ <= 4 )
+		threads_dt = 1.;
+	else if ( max_threads_ <= 8 )
+		threads_dt = 2.;
+	else if ( max_threads_ <= 32 )
+		threads_dt = 4.;
+	else
+		threads_dt = 8.;
+	#else 
+		threads_dt = 1.;
+	#endif
+}
+
 #ifdef ALLSCALE_HAVE_CPUFREQ
 void localoptimizer::initialize_nmd()
 {
-	// VV: Retrieve measurements for last exploration
-	if ( steps_ == warmup_steps_ +1 )
-	{
-		accumulate_objective_measurements();
-
-		initialization_samples[steps_ - 2][0] = pending_time;
-		initialization_samples[steps_ - 2][1] = pending_energy;
-		initialization_samples[steps_ - 2][2] = pending_threads;
-
-		reset_accumulated_measurements();
-
-		initialization_params[steps_ - 2][1] = getCurrentFrequencyIdx();
-	}
-	
 	// VV: Place reasonable limits to #threads and cpu_freq tunable knobs
-	double min_threads = round(max_threads_ * 0.25);
 
-	if (min_threads < 1.0)
-		min_threads = 1.0;
-
-	double constraint_min[] = {min_threads, 0};
-	double constraint_max[] = {(double)max_threads_,
+	double constraint_min[] = {1, 0};
+	double constraint_max[] = {ceil(max_threads_/(double)threads_dt),
 							   (double)frequencies_param_allowed_.size() - 1};
 
-	nmd.initialize_simplex(initialization_params, 
-						   initialization_samples,
-						   opt_weights,
+	nmd.initialize_simplex(opt_weights,
 						   constraint_min, constraint_max);
 
 	mo_initialized = true;
@@ -242,38 +249,6 @@ actuation localoptimizer::step()
 #ifdef ALLSCALE_HAVE_CPUFREQ
 	else if (optmethod_ == allscale)
 	{
-		if (steps_ <= warmup_steps_)
-		{
-#ifdef DEBUG_MULTIOBJECTIVE_
-			std::cout << "[LOCALOPTIMIZER|INFO] Optimizer No-OP: either at warm-up or optimizer has completed\n";
-#endif
-			// set some random parametrization to collect at least 3 different
-			// vertices to be used as input to the optimizer
-
-			//VV: TODO Ensure that we don't pick the same 3 configurations
-			float bucket_dt = steps_ / (float)warmup_steps_;
-			float _min_threads = max_threads_ * bucket_dt;
-
-			act.delta_threads = rand() % (int)ceil(bucket_dt) + roundf(_min_threads);
-
-			float _min_freqs = frequencies_param_allowed_.size() * bucket_dt;
-			act.frequency_idx = rand() % (int)ceil(bucket_dt) + roundf(_min_freqs);
-
-			if (steps_ > 1)
-			{
-				accumulate_objective_measurements();
-				initialization_samples[steps_ - 2][0] = pending_time;
-				initialization_samples[steps_ - 2][1] = pending_energy;
-				initialization_samples[steps_ - 2][2] = pending_threads;
-				reset_accumulated_measurements();
-				initialization_params[steps_ - 2][0] = getCurrentThreads();
-
-			initialization_params[steps_ - 2][1] = getCurrentFrequencyIdx();
-
-			}
-			goto validate_act;
-		}
-
 		if (mo_initialized == false)
 			initialize_nmd();
 				
@@ -285,6 +260,7 @@ actuation localoptimizer::step()
 
 		if ( explore_knob_domain ){
 			optstepresult nmd_res = nmd.step(latest_measurements);
+
 #ifdef DEBUG_MULTIOBJECTIVE_
 			std::cout << "[LOCALOPTIMIZER|DEBUG] New Vertex to try:";
 			std::cout << " Threads = " << nmd_res.threads;
@@ -311,6 +287,11 @@ actuation localoptimizer::step()
 				act.delta_threads = nmd_res.threads;
 				act.frequency_idx = nmd_res.freq_idx;
 			}
+			
+			act.delta_threads *= threads_dt;
+			std::cout << "[LOCALOPTIMIZER|DEBUG] ACTUAL Vertex to try:";
+			std::cout << " Threads = " << act.delta_threads;
+			std::cout << " Freq Idx = " << act.frequency_idx << std::endl;
 		}
 	}
 #endif // ALLSCALE_HAVE_CPUFREQ

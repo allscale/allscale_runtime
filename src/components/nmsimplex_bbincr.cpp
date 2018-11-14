@@ -35,7 +35,7 @@ NelderMead::NelderMead(double eps)
     std::cout << "[NelderMead|INFO] Initial Convergence Threshold set is " << EPSILON << std::endl;
 #endif
     itr = 0;
-    state_ = start;
+    state_ = warmup;
 
     /* dynamically allocate arrays */
 
@@ -46,12 +46,151 @@ NelderMead::NelderMead(double eps)
     ve = (double *)malloc(n * sizeof(double));
     vc = (double *)malloc(n * sizeof(double));
     vm = (double *)malloc(n * sizeof(double));
+    
+    warming_up_step = 0;
 
     /* allocate the columns of the arrays */
     for (i = 0; i <= n; i++)
     {
         v[i] = (double *)malloc(n * sizeof(double));
     }
+}
+
+std::pair<int, NelderMead::direction> NelderMead::explore_next_extra(double *extra, int level, 
+                                direction dir, 
+                                int level_max, int level_nested_max)
+{
+    /*
+    const char *to_string[] = {
+        "up", "up_final", "down", "left", "right", "right_final"
+    };
+    */
+    if ( extra[0] == 0.0 && extra[1] == 0.0 ) {
+        extra[1] = 1.0;
+
+        return std::make_pair(level, dir);
+    }
+    switch (dir) {
+        case (direction::up):
+            if ( extra[1] < level ) {
+                extra[1] += 1.;
+            } else if( extra[0] < level_nested_max ) {
+                extra[0] += 1.;
+                dir = direction::right;
+            } else {
+                level ++;
+            }
+        break;
+
+        case (direction::up_final):
+            if ( extra[1] < level ) {
+                extra[1] += 1.;
+            } else if( extra[0] < level_nested_max ) {
+                extra[0] += 1.;
+                dir = direction::right_final;
+            } else {
+                level ++;
+            }
+        break;
+
+
+        case (direction::down):
+            if ( extra[1] > -level ) {
+                extra[1] -= 1.0;
+            } else if ( extra[0] > -level_nested_max ){
+                extra[0] -= 1.0;
+                dir = direction::left;
+            }
+        break;
+
+        case (direction::left):
+            if ( extra[0] > -level_nested_max ) {
+                extra[0] -= 1.0;
+            } else if (extra[1] < level ) {
+                extra[1] += 1.0;
+                dir = direction::up_final;
+            }
+        break;
+
+        case (direction::right):
+            if ( extra[0] < level_nested_max ) {
+                extra[0] += 1.;
+            } else if ( extra[1] <= level ) {
+                extra[1] -= 1.;
+                dir = direction::down;
+            }
+        break;
+        
+        case (direction::right_final):
+        if ( extra[0] < 0. ) {
+            extra[0] += 1.;
+        } else {
+            level ++; 
+            extra[0] = 0.0;
+            extra[1] = level;
+            dir = direction::right;
+        }
+        break;
+    }
+
+    return std::make_pair(level, dir);
+}
+
+template <typename F>
+void NelderMead::generate_new(F &gen)
+{
+    double extra[] = {0, 0};
+    double *new_set;
+    int i = 0;
+    int max_combinations = (constraint_max[0] - constraint_min[0]+1) 
+                            * (constraint_max[1] - constraint_min[1]+1);
+    int level = 1;
+    int max_nested_level = constraint_max[1] - constraint_min[1] +1;
+    int max_level = constraint_max[0] - constraint_min[0] +1;
+    direction dir = direction::right;
+
+    // VV: Search for a twice as big space to take into account that
+    //     new_set is not *actually* at 0, 0
+
+    max_level *= 2;
+    max_nested_level *=2;
+
+    int is_same;
+    do
+    {
+        new_set = gen(extra);
+        
+        auto key = std::make_pair((int)new_set[0], (int)new_set[1]);
+        auto entry = cache_.find(key);
+        is_same = (entry != cache_.end());
+
+        if ( ( level < max_level +1) 
+             && is_same 
+             && max_combinations > (NMD_NUM_KNOBS + 1))
+        {
+            # if 0
+            extra[0] = rand() % (int)(constraint_max[0] - constraint_min[0]) 
+                            + (int)constraint_min[0] 
+                            - (int)(0.5 * (constraint_max[0] - constraint_min[0]));
+
+            extra[1] = rand() % (int)(constraint_max[1] - constraint_min[1]) 
+                                + (int)constraint_min[1] 
+                                - (int)(0.5 * (constraint_max[1] - constraint_min[1]));
+            #else
+            auto logistics = explore_next_extra(extra, level, dir, 
+                                                max_level, max_nested_level);
+            level = logistics.first;
+            dir = logistics.second;
+
+            #endif
+            OUT_DEBUG(
+                std::cout << "[NelderMead|Debug] Rejecting " 
+                    << new_set[0] << " " << new_set[1] <<  std::endl;
+            )
+        } else {
+            break;
+        }
+    } while ( 1 );
 }
 
 void NelderMead::my_constraints(double x[])
@@ -126,7 +265,7 @@ bool NelderMead::cache_update(int threads, int freq_idx,
 
 double NelderMead::evaluate_score(const double objectives[], const double *weights) const
 {
-    double score = 0.0f;
+    double score;
     // VV: [time, energy/power, resources]
     double scale[] = {1.0, 1000.0, 1.0};
     scale[2] = (double)constraint_max[0];
@@ -134,12 +273,19 @@ double NelderMead::evaluate_score(const double objectives[], const double *weigh
     if (weights == nullptr)
         weights = opt_weights;
 
+    #if 0
+    score = 0.0;
     for (auto i = 0; i < NMD_NUM_OBJECTIVES; ++i)
     {
         double t = objectives[i] / scale[i];
         score += t * t * weights[i];
     }
-
+    #else 
+    score = 0.0;
+    for ( auto i=0; i<NMD_NUM_OBJECTIVES; ++ i) {
+        score += exp(weights[i]*objectives[i]/scale[i]);
+    }
+    #endif
     return score;
 }
 
@@ -157,9 +303,7 @@ void NelderMead::set_weights(double weights[3])
 }
 
 /* FIXME: generalize */
-void NelderMead::initialize_simplex(double params[][2],
-                                    double objectives[][3],
-                                    double weights[3],
+void NelderMead::initialize_simplex(double weights[3],
                                     double constraint_min[2],
                                     double constraint_max[2])
 {
@@ -173,50 +317,9 @@ void NelderMead::initialize_simplex(double params[][2],
     }
 
     set_weights(weights);
-
-    // VV: Need num_knobs +1
-    for (i = 0; i < NMD_NUM_KNOBS + 1; i++)
-    {
-        f[i] = evaluate_score(objectives[i], weights);
-
-        for (j = 0; j < n; j++)
-        {
-            v[i][j] = params[i][j];
-        }
-
-        my_constraints(v[i]);
-
-        optstepresult entry;
-        entry.threads = round(v[i][0]);
-        entry.freq_idx = round(v[i][1]);
-
-        // VV: Check if we can re-use a previously explored configuration
-        auto key = std::make_pair(entry.threads, entry.freq_idx);
-
-        auto past_entry = cache_.find(std::make_pair(entry.threads,
-                                                     entry.freq_idx));
-        if (past_entry != cache_.end())
-        {
-            for (j = 0; j < NMD_NUM_OBJECTIVES; ++j)
-                past_entry->second.objectives[j] = objectives[i][j];
-
-            past_entry->second._cache_timestamp = timestamp_now;
-            // VV: Skip attempting to re-insert the "same" entry
-            continue;
-        }
-
-        // VV: If we've reached this point we need to add the entry to the cache
-        for (j = 0; j < NMD_NUM_OBJECTIVES; ++j)
-            entry.objectives[j] = objectives[i][j];
-
-        entry._cache_timestamp = timestamp_now;
-        entry._cache_expires_dt = CACHE_EXPIRE_AFTER_MS;
-
-        cache_.insert(std::make_pair(key, entry));
-    }
+    state_ = warmup;
     itr = 0;
-
-    state_ = start;
+    warming_up_step = 0;
 }
 
 /* print out the initial values */
@@ -326,68 +429,31 @@ void NelderMead::sort_vertices()
     }
 }
 
-bool NelderMead::knob_set_exists(double knobs[2], int exclude)
-{
-    int is_same;
-
-    for (auto i=0; i<NMD_NUM_KNOBS+1; ++i) {
-        if ( i != exclude ) {
-            is_same = 1;
-            for ( auto j=0; j<NMD_NUM_KNOBS; ++j ) 
-                is_same &= (v[i][j] == knobs[j]);
-            
-            if ( is_same )
-                return true;
-        }
-    }
-
-    return false;
-}
-
 optstepresult NelderMead::do_step_start()
 {
     optstepresult res;
 
-    itr++;
     OUT_DEBUG(
         std::cout << "[NelderMead DEBUG] State = Start" << std::endl;
-        print_initial_simplex();)
+        print_initial_simplex();
+    )
 
     sort_vertices();
 
-    centroid();
-    double extra[2] = {0.0, 0.0};
-    int is_invalid = 0;
-    int max_combinations = 0;
-
-    max_combinations = (constraint_max[0] - constraint_min[0]+1) * (constraint_max[1] - constraint_min[1]+1);
-
+    centroid();   
 
     // VV: Try not to pick a knob_set that already exists in `v`
-    do {
+    auto gen_new = [this](double *extra) mutable -> double* {
+        
         for (j = 0; j < NMD_NUM_KNOBS; j++)
             vr[j] = vm[j] + ALPHA * (vm[j] - v[vg][j]) + extra[j];
-        
+       
         my_constraints(vr);
-        
-        is_invalid = 0;
 
-        if ( max_combinations > NMD_NUM_KNOBS +1 ) {
-            is_invalid = knob_set_exists(vr, -1);
-
-            if ( is_invalid ) {
-                extra[0] = rand() % (int)(constraint_max[0] - constraint_min[0])
-                            + (int) constraint_min[0]
-                            - (int)(0.5*(constraint_max[0] - constraint_min[0]));
-
-                extra[1] = rand() % (int)(constraint_max[1] - constraint_min[1])
-                            + (int) constraint_min[1]
-                            - (int)(0.5*(constraint_max[1] - constraint_min[1]));
-                
-            }
-        } 
-        
-    } while ( is_invalid );
+        return vr;
+    };
+    
+    generate_new(gen_new);
 
 #ifdef NMD_DEBUG_
     std::cout << "[NelderMead DEBUG] Reflection Parameter = ("
@@ -450,38 +516,16 @@ optstepresult NelderMead::do_step_reflect(const double objectives[])
     else if (fr < f[vs])
     {
         // VV: REFLECTED is better than BEST
-
-        double extra[2] = {0.0, 0.0};
-        int is_invalid = 0;
-        int max_combinations = 0;
-
-        max_combinations = (constraint_max[0] - constraint_min[0]+1) * (constraint_max[1] - constraint_min[1]+1);
-
-        // VV: Try not to pick a knob_set that already exists in `v`
-        do {
+        auto gen_new = [this](double *extra) mutable -> double* {
             for (j = 0; j < NMD_NUM_KNOBS; j++)
                 ve[j] = vm[j] + GAMMA * (vr[j] - vm[j]) + extra[j];
-            
+                
             my_constraints(ve);
-            
-            is_invalid = 0;
 
-            if ( max_combinations > NMD_NUM_KNOBS +1 ) {
-                is_invalid = knob_set_exists(ve, -1);
-
-                if ( is_invalid ) {
-                    extra[0] = rand() % (int)(constraint_max[0] - constraint_min[0])
-                                + (int) constraint_min[0]
-                                - (int)(0.5*(constraint_max[0] - constraint_min[0]));
-
-                    extra[1] = rand() % (int)(constraint_max[1] - constraint_min[1])
-                                + (int) constraint_min[1]
-                                - (int)(0.5*(constraint_max[1] - constraint_min[1]));
-                    
-                }
-            } 
-            
-        } while ( is_invalid );
+            return ve;
+        };
+    
+        generate_new(gen_new);
 
         // VV: Now evaluate EXPANDED
         res.threads = ve[0];
@@ -509,38 +553,17 @@ optstepresult NelderMead::do_step_reflect(const double objectives[])
     else if ((f[vh] <= fr) && (fr < f[vg]))
     {
         // VV: REFLECTED between SECOND BEST and WORST
-        double extra[2] = {0.0, 0.0};
-        int is_invalid = 0;
-        int max_combinations = 0;
-
-        max_combinations = (constraint_max[0] - constraint_min[0]+1) * (constraint_max[1] - constraint_min[1]+1);
-
-        // VV: Try not to pick a knob_set that already exists in `v`
-        do {
+        auto gen_new = [this](double *extra) mutable -> double* {
             for (j = 0; j < NMD_NUM_KNOBS; j++)
                 vc[j] = vm[j] + BETA * (vr[j] - vm[j]) + extra[j];
-            
+                
             my_constraints(vc);
-            
-            is_invalid = 0;
 
-            if ( max_combinations > NMD_NUM_KNOBS +1 ) {
-                is_invalid = knob_set_exists(vc, -1);
+            return vc;
+        };
 
-                if ( is_invalid ) {
-                    extra[0] = rand() % (int)(constraint_max[0] - constraint_min[0])
-                                + (int) constraint_min[0]
-                                - (int)(0.5*(constraint_max[0] - constraint_min[0]));
-
-                    extra[1] = rand() % (int)(constraint_max[1] - constraint_min[1])
-                                + (int) constraint_min[1]
-                                - (int)(0.5*(constraint_max[1] - constraint_min[1]));
-                    
-                }
-            } 
-            
-        } while ( is_invalid );
-
+        generate_new(gen_new);  
+        
         // VV: Now evaluate EXPANDED
         res.threads = vc[0];
         res.freq_idx = vc[1];
@@ -567,37 +590,16 @@ optstepresult NelderMead::do_step_reflect(const double objectives[])
     else
     {
         // VV: REFLECTED worse than WORST
-        double extra[2] = {0.0, 0.0};
-        int is_invalid = 0;
-        int max_combinations = 0;
-
-        max_combinations = (constraint_max[0] - constraint_min[0]+1) * (constraint_max[1] - constraint_min[1]+1);
-
-        // VV: Try not to pick a knob_set that already exists in `v`
-        do {
+        auto gen_new = [this](double *extra) mutable -> double* {
             for (j = 0; j < NMD_NUM_KNOBS; j++)
                 vc[j] = vm[j] - BETA * (vr[j] - vm[j]) + extra[j];
-            
+                
             my_constraints(vc);
-            
-            is_invalid = 0;
 
-            if ( max_combinations > NMD_NUM_KNOBS +1 ) {
-                is_invalid = knob_set_exists(vc, -1);
+            return vc;
+        };
 
-                if ( is_invalid ) {
-                    extra[0] = rand() % (int)(constraint_max[0] - constraint_min[0])
-                                + (int) constraint_min[0]
-                                - (int)(0.5*(constraint_max[0] - constraint_min[0]));
-
-                    extra[1] = rand() % (int)(constraint_max[1] - constraint_min[1])
-                                + (int) constraint_min[1]
-                                - (int)(0.5*(constraint_max[1] - constraint_min[1]));
-                    
-                }
-            } 
-            
-        } while ( is_invalid );
+        generate_new(gen_new);
 
         // VV: Now evaluate EXPANDED
         res.threads = vc[0];
@@ -686,37 +688,17 @@ optstepresult NelderMead::do_step_contract(const double objectives[])
     {
         // VV: Replace SECOND BEST
         double new_vh[NMD_NUM_KNOBS];
-        double extra[NMD_NUM_KNOBS] = {0.0, 0.0};
-        int is_invalid = 0;
-        int max_combinations = 0;
-
-        max_combinations = (constraint_max[0] - constraint_min[0]+1) * (constraint_max[1] - constraint_min[1]+1);
-
-        // VV: Try not to pick a knob_set that already exists in `v`
-        do {
-            for (j = 0; j < NMD_NUM_KNOBS; j++)
+        
+        auto gen_new = [this, &new_vh](double *extra) mutable -> double* {
+            for (auto j = 0; j < NMD_NUM_KNOBS; j++)
                 new_vh[j] = v[vs][j] + DELTA * (v[vh][j] - v[vs][j]) + extra[j];
-            
+                
             my_constraints(new_vh);
-            
-            is_invalid = 0;
 
-            if ( max_combinations > NMD_NUM_KNOBS +1 ) {
-                is_invalid = knob_set_exists(new_vh, -1);
+            return new_vh;
+        };
 
-                if ( is_invalid ) {
-                    extra[0] = rand() % (int)(constraint_max[0] - constraint_min[0])
-                                + (int) constraint_min[0]
-                                - (int)(0.5*(constraint_max[0] - constraint_min[0]));
-
-                    extra[1] = rand() % (int)(constraint_max[1] - constraint_min[1])
-                                + (int) constraint_min[1]
-                                - (int)(0.5*(constraint_max[1] - constraint_min[1]));
-                    
-                }
-            } 
-            
-        } while ( is_invalid );
+        generate_new(gen_new);
 
         for (j = 0; j < NMD_NUM_KNOBS; j++)
             v[vh][j] = new_vh[j];
@@ -769,15 +751,69 @@ optstepresult NelderMead::step(const double objectives[])
     optstepresult res;
     res.threads = 0;
     res.freq_idx = -1;
-    std::cout << "Starting step with "
-                << objectives[0] << " " 
-                << objectives[1] << " " 
-                << objectives[2] << std::endl;
+    OUT_DEBUG(
+        std::cout << "[NelderMead|DEBUG] Starting step with "
+            << objectives[0] << " " 
+            << objectives[1] << " " 
+            << objectives[2] << std::endl;
+    )
     
+    std::size_t tested_combinations = cache_.size();
+
     switch (state_)
     {
+    case warmup:
+    {
+        #ifdef NMD_DEBUG_
+            std::cout << "[NelderMead|DEBUG] State = Warmup " 
+                      << warming_up_step << std::endl;
+        #endif
+        if ( warming_up_step > 0 ) {
+            // VV: Record results of last warming up step
+            f[warming_up_step-1] = evaluate_score(objectives, nullptr);
+            cache_update(v[warming_up_step-1][0], v[warming_up_step-1][1], 
+                         objectives, true);
+        }
 
+        if ( warming_up_step == NMD_NUM_KNOBS + 1) {
+            // VV: We need not explore the knob_set space anymore
+            state_ = start;
+            return step(objectives);
+        }
+
+        // VV: Start at 25% threads with lowest CPU Freq, then 75% threads with max freq
+        //     and 100% threads with max freq
+
+        int threads_low = round(0.25 * (constraint_max[0] - constraint_min[1]) 
+                    + constraint_min[1]);
+        int threads_med = round(0.75 * (constraint_max[0] - constraint_min[1])
+                    + constraint_min[1]);
+        int threads_max = constraint_max[0];
+
+        const int initial_configurations[NMD_NUM_KNOBS+1][NMD_NUM_KNOBS] = {
+            {threads_low, (int)constraint_min[1]},
+            {threads_med, (int)constraint_max[1]},
+            {threads_max, (int)constraint_max[1]},
+        };
+
+        optstepresult res;
+        res.objectives[0] = -1;
+        res.objectives[1] = -1;
+        res.objectives[2] = -1;
+        res.converged = false;
+        res.score = -1;
+        res.threads = initial_configurations[warming_up_step][0];
+        res.freq_idx = initial_configurations[warming_up_step][1];
+        
+        v[warming_up_step][0] = res.threads;
+        v[warming_up_step][1] = res.freq_idx;
+        warming_up_step++;
+
+        return res;
+    }
+    break;
     case start:
+        itr++;
         res = do_step_start();
         break;
     case reflection:
@@ -798,14 +834,17 @@ optstepresult NelderMead::step(const double objectives[])
         return res;
     }
 
-    res.converged = testConvergence();
+    res.converged = testConvergence(tested_combinations);
 
     if (res.converged == true)
     {
         res.threads = v[vs][0];
         res.freq_idx = v[vs][1];
-        std::cout << "Converged to " << res.threads << " " << res.freq_idx << std::endl;
+        OUT_DEBUG(
+            std::cout << "[NelderMead|DEBUG] Converged to " << res.threads << " " << res.freq_idx << std::endl;
+        )
     }
+
     std::cout << "Stop step with "
                 << objectives[0] << " " 
                 << objectives[1] << " " 
@@ -814,7 +853,7 @@ optstepresult NelderMead::step(const double objectives[])
     return res;
 }
 
-bool NelderMead::testConvergence()
+bool NelderMead::testConvergence(std::size_t tested_combinations)
 {
     double temp;
     #if 0
@@ -852,12 +891,32 @@ bool NelderMead::testConvergence()
     std::cout << "[NelderMead|INFO] Convergence Ratio is " << s << std::endl;
     std::cout << "[NelderMead|INFO] Convergence Threshold set is " << EPSILON << std::endl;
 #endif
-    if (s >= EPSILON && itr <= MAXITERATIONS)
+    int max_combinations = (constraint_max[0] - constraint_min[0]+1) 
+                            * (constraint_max[1] - constraint_min[1]+1);
+
+    if ( (s >= EPSILON)
+        && (itr <= MAXITERATIONS)
+        && (max_combinations != tested_combinations) )
         return false;
     else
     {
         sort_vertices();
         min = f[vs];
+
+        OUT_DEBUG(
+            std::cout << "[NelderMead|Debug] Cache_ Max: " << max_combinations 
+                        << " explored " << tested_combinations << std::endl;
+            for (const auto &entry: cache_ ) {
+                std::cout << "[NelderMead|Debug] Cache_ " 
+                    << entry.second.threads << " " 
+                    << entry.second.freq_idx << " :: "
+                    << entry.second.objectives[0] << " "
+                    << entry.second.objectives[1] << " "
+                    << entry.second.objectives[2] << " :: "
+                    << evaluate_score(entry.second.objectives, nullptr) << std::endl;
+            }
+        )
+
         return true;
     }
 }

@@ -804,7 +804,7 @@ void scheduler::optimize_locally(work_item const& work)
 
             elapsedTimeMs = t_duration_now - last_optimization_timestamp_;
 
-            if (elapsedTimeMs > optimization_period_ms){
+            if (elapsedTimeMs > optimization_period_ms || nr_opt_steps == 0){
                 last_optimization_timestamp_= t_duration_now;
                 nr_opt_steps++;
                 actuation act_temp = lopt_.step();
