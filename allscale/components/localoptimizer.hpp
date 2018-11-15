@@ -155,6 +155,25 @@ struct localoptimizer
 	const std::vector<unsigned long>
 	setfrequencies(std::vector<unsigned long> frequencies)
 	{
+		#if 1
+		const std::size_t max_freqs = 10;
+		std::size_t keep_every = (std::size_t) ceilf(frequencies.size() / (float) max_freqs);
+
+		if ( keep_every > 1 ) {
+			std::vector<unsigned long> new_freqs;
+
+			int i, j, len;
+
+			for (j=0, i=0, len=frequencies.size(); i<len; ++i ) {
+				if ( (i==len-1) || ( (i % keep_every) == 0 )) {
+				new_freqs.push_back(frequencies[i]);
+				}
+			}      
+
+			frequencies = new_freqs;
+		}
+		#endif
+
 		frequencies_param_allowed_ = frequencies;
 		//std::cout << "**************** = " << frequency_param_ << std::endl;
 		//for(auto& el: frequencies_param_allowed_)

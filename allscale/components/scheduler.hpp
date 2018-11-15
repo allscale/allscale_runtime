@@ -93,9 +93,10 @@ namespace allscale { namespace components {
 
 #ifdef MEASURE_
         // convenience methods to update measured metrics of interest
-        void update_active_osthreads(std::size_t);
-        void update_power_consumption(std::size_t);
+        void update_active_osthreads(std::size_t threads, int64_t delta_time);
+        void update_power_consumption(std::size_t power_sample, int64_t delta_time);
 #endif
+        int64_t last_measure_power;
 
         void fix_allcores_frequencies(int index);
 

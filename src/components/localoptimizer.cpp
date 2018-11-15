@@ -301,6 +301,7 @@ actuation localoptimizer::step()
 				act.frequency_idx = minimization_point[1];
 				// VV: Stop searching for new knob_set
 				explore_knob_domain = false;
+				converged_ = true;
 			} else {
 				// VV: Have not converged yet, keep exploring
 				act.delta_threads = nmd_res.threads;

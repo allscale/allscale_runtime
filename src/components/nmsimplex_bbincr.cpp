@@ -507,8 +507,24 @@ optstepresult NelderMead::do_step_reflect(const double objectives[])
 #ifdef NMD_DEBUG_
     std::cout << "[NelderMead DEBUG] State = Reflection" << std::endl;
 #endif
-    fr = evaluate_score(objectives, opt_weights);
+    // VV: Make sure that we actually profiled what we meant to
+    int profiled_threads = objectives[2];
 
+    if ( (int) vr[0] != profiled_threads ) {
+        std::cout << "[NelderMead|WARN] Meant to profile " << vr[0] << " threads "
+                     "but ended up using " << profiled_threads << std::endl;
+        
+        auto key = std::make_pair((int)vr[0], (int)vr[1]);
+        auto iter = cache_.find(key);
+        if ( iter != cache_.end() ) {
+            iter->second.threads = profiled_threads;
+        }
+
+        vr[0] = profiled_threads;
+    }
+
+    fr = evaluate_score(objectives, opt_weights);
+    
     if ((f[vs] <= fr) && (fr < f[vh]))
     {
         // VV: REFLECTED point is better than the SECOND BEST
@@ -650,6 +666,22 @@ optstepresult NelderMead::do_step_expand(const double objectives[])
 #endif
     fe = evaluate_score(objectives, nullptr);
 
+    // VV: Make sure that we actually profiled what we meant to
+    int profiled_threads = objectives[2];
+
+    if ( (int) ve[0] != profiled_threads ) {
+        std::cout << "[NelderMead|WARN] Meant to profile " << ve[0] << " threads "
+                     "but ended up using " << profiled_threads << std::endl;
+        
+        auto key = std::make_pair((int)ve[0], (int)ve[1]);
+        auto iter = cache_.find(key);
+        if ( iter != cache_.end() ) {
+            iter->second.threads = profiled_threads;
+        }
+
+        ve[0] = profiled_threads;
+    }
+
     if (fe < fr)
     {
         // VV: EXPANDED point is better than REFLECTIVE
@@ -685,6 +717,22 @@ optstepresult NelderMead::do_step_contract(const double objectives[])
     std::cout << "[NelderMead|DEBUG] State = Contraction" << std::endl;
 #endif
     fc = evaluate_score(objectives, nullptr);
+
+    // VV: Make sure that we actually profiled what we meant to
+    int profiled_threads = objectives[2];
+
+    if ( (int) vc[0] != profiled_threads ) {
+        std::cout << "[NelderMead|WARN] Meant to profile " << vc[0] << " threads "
+                     "but ended up using " << profiled_threads << std::endl;
+        
+        auto key = std::make_pair((int)vc[0], (int)vc[1]);
+        auto iter = cache_.find(key);
+        if ( iter != cache_.end() ) {
+            iter->second.threads = profiled_threads;
+        }
+
+        vc[0] = profiled_threads;
+    }
 
     if (fc <= fr)
     {
@@ -754,6 +802,16 @@ optstepresult NelderMead::do_step_shrink(const double objectives[])
 #endif
     f[vh] = evaluate_score(objectives, nullptr);
 
+    // VV: Make sure that we actually profiled what we meant to
+    int profiled_threads = objectives[2];
+
+    if ( (int) v[vh][0] != profiled_threads ) {
+        std::cout << "[NelderMead|WARN] Meant to profile " << v[vh][0] << " threads "
+                     "but ended up using " << profiled_threads << std::endl;
+        
+        v[vh][0] = profiled_threads;
+    }
+
     const int threads = (int)(v[vh][0]);
     const int freq_idx = (int)(v[vh][1]);
 
@@ -786,10 +844,18 @@ optstepresult NelderMead::step(const double objectives[])
             std::cout << "[NelderMead|DEBUG] State = Warmup " 
                       << warming_up_step << std::endl;
         #endif
+        // VV: Make sure that we actually profiled what we meant to
+        int profiled_threads = objectives[2];
+
         if ( warming_up_step > 0 ) {
+            if ( (int) v[warming_up_step-1][0] != profiled_threads ) {
+                std::cout << "[NelderMead|WARN] Meant to profile " << vr[0] << " threads "
+                            "but ended up using " << profiled_threads << std::endl;
+                v[warming_up_step-1][0] = profiled_threads;
+            }
             // VV: Record results of last warming up step
             f[warming_up_step-1] = evaluate_score(objectives, nullptr);
-            cache_update(v[warming_up_step-1][0], v[warming_up_step-1][1], 
+            cache_update(profiled_threads, v[warming_up_step-1][1], 
                          objectives, true);
         }
 
@@ -935,6 +1001,7 @@ bool NelderMead::testConvergence(std::size_t tested_combinations)
         warming_up_step = 0;
         itr --;
         convergence_reevaluating = true;
+        cache_.clear();
 
         for (auto i=0; i<NMD_NUM_KNOBS+1; ++i ) {
             for (auto j=0; j<NMD_NUM_KNOBS; ++j) {

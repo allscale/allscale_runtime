@@ -205,10 +205,11 @@ void scheduler::init() {
     return;
 
 #ifdef MEASURE_
-  update_active_osthreads(0);
-#ifdef ALLSCALE_HAVE_CPUFREQ
-  update_power_consumption(hardware_reconf::read_system_power());
-#endif
+  last_measure_power = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+// update_active_osthreads(0);
+// #ifdef ALLSCALE_HAVE_CPUFREQ
+//   update_power_consumption(hardware_reconf::read_system_power(), 1);
+// #endif
 #endif
 
   rp_ = &hpx::resource::get_partitioner();
@@ -496,25 +497,7 @@ void scheduler::init() {
     using hardware_reconf = allscale::components::util::hardware_reconf;
     auto  freqs = hardware_reconf::get_frequencies(0);
 
-    const std::size_t max_freqs = 5;
-    std::size_t keep_every = (std::size_t) ceilf(freqs.size() / (float) max_freqs);
-
-    if ( keep_every > 1 ) {
-      std::vector<unsigned long> new_freqs;
-
-      int i, j, len;
-
-      for (j=0, i=0, len=freqs.size(); i<len; ++i ) {
-        if ( (i==len-1) || ( (i % keep_every) == 0 )) {
-          new_freqs.push_back(freqs[i]);
-        }
-      }      
-
-        freqs = new_freqs;
-    }
-
-    std::vector<unsigned long> freq_temp =
-      lopt_.setfrequencies(freqs);
+    auto freq_temp = lopt_.setfrequencies(freqs);
     if (freq_temp.empty()){
       HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
       "error in initializing the local optimizer, allowed frequency values are empty");
@@ -769,17 +752,33 @@ void scheduler::optimize_locally(work_item const& work)
 #endif
 
 #ifdef MEASURE_
-#ifdef ALLSCALE_HAVE_CPUFREQ
         std::size_t temp_id = work.id().id;
         if ((temp_id >= period_for_power) && (temp_id % period_for_power == 0))
-            update_power_consumption(hardware_reconf::read_system_power());
+        {
+          auto timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+          auto dt = timestamp_now - last_measure_power;
+
+          dt = dt > 0 ? dt : 1 ;
+
+          last_measure_power = timestamp_now;
+          
+          update_active_osthreads(active_threads, dt);
+#ifdef ALLSCALE_HAVE_CPUFREQ
+          allscale::components::monitor *monitor_c = &allscale::monitor::get();
+          auto measurement = monitor_c->get_current_power();
+          if ( measurement <= 10000 ) {
+            update_power_consumption(measurement, dt);
+          }
 #endif
+        }
+
 #endif
 
 #ifdef ALLSCALE_HAVE_CPUFREQ
         if (uselopt && !lopt_.isConverged()) {
             last_power_usage++;
-            current_power_usage = hardware_reconf::read_system_power();
+            allscale::components::monitor *monitor_c = &allscale::monitor::get();
+            current_power_usage = monitor_c->get_current_power();
             power_sum += current_power_usage;
 
             auto t_now = std::chrono::system_clock::now();
@@ -804,8 +803,7 @@ void scheduler::optimize_locally(work_item const& work)
                 }
 
                 lopt_.measureObjective(current_avg_iter_time,power_sum/last_power_usage,
-                // active_threads
-                        lopt_.getCurrentThreads());
+                        active_threads);
                 last_power_usage=0;
                 power_sum=0;
             }
@@ -1075,9 +1073,9 @@ unsigned int scheduler::suspend_threads(std::size_t suspendthreads) {
   std::cout << "total active PUs: " << active_threads_ << "\n";
 #endif
 
-#ifdef MEASURE_
-  update_active_osthreads(active_threads_-active_threads);
-#endif
+// #ifdef MEASURE_
+//   update_active_osthreads(active_threads_-active_threads);
+// #endif
 
   active_threads = active_threads_;
 
@@ -1140,9 +1138,9 @@ unsigned int scheduler::suspend_threads(std::size_t suspendthreads) {
             )
         );
   }
-#ifdef MEASURE_
-  update_active_osthreads(-1 * suspend_threads.size());
-#endif
+// #ifdef MEASURE_
+//   update_active_osthreads(-1 * suspend_threads.size());
+// #endif
 
   active_threads = active_threads - suspend_threads.size();
 
@@ -1261,9 +1259,9 @@ unsigned int scheduler::resume_threads(std::size_t resumethreads) {
   std::cout << "total active PUs: " << active_threads_ << "\n";
 #endif
 
-#ifdef MEASURE_
-  update_active_osthreads(active_threads_-active_threads);
-#endif
+// #ifdef MEASURE_
+//   update_active_osthreads(active_threads_-active_threads);
+// #endif
 
   active_threads = active_threads_;
   // if no thread is suspended, nothing to do
@@ -1320,9 +1318,9 @@ unsigned int scheduler::resume_threads(std::size_t resumethreads) {
             )
         );
   }
-#ifdef MEASURE_
-  update_active_osthreads(resume_threads.size());
-#endif
+// #ifdef MEASURE_
+//   update_active_osthreads(resume_threads.size());
+// #endif
   active_threads = active_threads + resume_threads.size();
 #ifdef DEBUG_THREADSTATUS_
   std::cout << "[SCHEDULER|INFO]: Thread Resume - Newly Active Threads: " << active_threads
@@ -1441,51 +1439,31 @@ void scheduler::fix_allcores_frequencies(int frequency_idx){
 #endif
 
 #ifdef MEASURE_
-void scheduler::update_active_osthreads(std::size_t delta) {
-  std::size_t temp = active_threads + delta;
-  if (meas_active_threads_max==0)
-    meas_active_threads_max=temp;
+void scheduler::update_active_osthreads(std::size_t threads, int64_t delta_time) {
 
-  if (meas_active_threads_min==0)
-    meas_active_threads_min=temp;
+  if (meas_active_threads_max==0 || meas_active_threads_max < threads)
+    meas_active_threads_max=threads;
 
-  if (meas_active_threads_sum==0){
-    meas_active_threads_count++;
-    meas_active_threads_sum=active_threads;
-    return;
-  }
+  if (meas_active_threads_min==0 || meas_active_threads_min > threads)
+    meas_active_threads_min=threads;
 
-  if ((temp >= min_threads) && (temp <= os_thread_count)){
-    meas_active_threads_count++;
-    meas_active_threads_sum+=temp;
-    if (temp > meas_active_threads_max)
-      meas_active_threads_max=temp;
-    if (temp < meas_active_threads_min)
-      meas_active_threads_min=temp;
-  }
+  meas_active_threads_count += delta_time;
+  meas_active_threads_sum += active_threads * delta_time;
 }
 
-void scheduler::update_power_consumption(std::size_t power_sample) {
-  if (meas_power_max==0)
+void scheduler::update_power_consumption(std::size_t power_sample, int64_t delta_time)
+{
+  if (meas_power_max==0 || meas_power_max < power_sample)
     meas_power_max=power_sample;
 
-  if (meas_power_min==0)
+  if (meas_power_min==0 || meas_power_min > power_sample)
     meas_power_min=power_sample;
 
-  if (meas_power_sum==0){
-    meas_power_count++;
-    meas_power_sum=power_sample;
-    return;
-  }
 
-  if (power_sample <= 10000){
-    meas_power_count++;
-    meas_power_sum+=power_sample;
-    if (power_sample > meas_power_max)
-      meas_power_max=power_sample;
-    if (power_sample < meas_power_min)
-      meas_power_min=power_sample;
-  }
+  meas_power_count += delta_time;
+  meas_power_sum += power_sample * delta_time;
+
+  std::cout << "Reporting Threads:" << active_threads << " Power:" << power_sample << " for Dt:" << delta_time << std::endl;
 }
 #endif
 
@@ -1554,6 +1532,20 @@ void scheduler::stop() {
   /* Output all measured metrics */
 #ifdef DEBUG_MULTIOBJECTIVE_
 #ifdef MEASURE_
+  auto timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+  auto dt = timestamp_now - last_measure_power;
+  last_measure_power = timestamp_now;
+
+  update_active_osthreads(active_threads, dt);
+#ifdef ALLSCALE_HAVE_CPUFREQ
+  allscale::components::monitor *monitor_c = &allscale::monitor::get();
+
+  auto measurement = monitor_c->get_current_power();
+  if ( measurement <= 10000 ) {
+    update_power_consumption(measurement, dt);
+  }
+#endif
+
   std::cout << "\n****************************************************\n" << std::flush;
   std::cout << "Measured Metrics of Application Execution:\n"
 
