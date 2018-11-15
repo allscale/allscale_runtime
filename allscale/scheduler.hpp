@@ -46,7 +46,7 @@ namespace allscale
         static HPX_EXPORT hpx::util::tuple<float, float, float> get_optimizer_exponents();
         static HPX_EXPORT std::string policy();
 
-        static HPX_EXPORT void update_policy(task_times const& times, std::vector<bool> mask, float frequency);
+        static HPX_EXPORT void update_policy(task_times const& times, std::vector<bool> mask, std::uint64_t frequency);
         static void apply_new_mapping(const std::vector<std::size_t> &new_mapping);
 
         static HPX_EXPORT void schedule(work_item&& work);

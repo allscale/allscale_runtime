@@ -34,9 +34,9 @@ namespace allscale { namespace dashboard
 
         // -- CPU core frequency --
 
-        float max_frequency = 1.0;
+        std::uint64_t max_frequency = 1.0;
 
-        float cur_frequency = 1.0;
+        std::uint64_t cur_frequency = 1.0;
 
         // -- memory state --
 

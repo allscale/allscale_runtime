@@ -79,7 +79,7 @@ namespace allscale
 //                            scheduler::get().get_active_threads());
 // }
 
-    void optimizer_update_policy(task_times const& times, std::vector<bool> mask, float freq)
+    void optimizer_update_policy(task_times const& times, std::vector<bool> mask, std::uint64_t freq)
     {
         scheduler::update_policy(times, mask, freq);
     }
@@ -214,7 +214,7 @@ global_optimizer::global_optimizer()
 void global_optimizer::tune(std::vector<optimizer_state> const &state)
 {
     allscale::components::monitor *monitor_c = &allscale::monitor::get();
-    float max_frequency = monitor_c->get_max_freq(0);
+    std::uint64_t max_frequency = monitor_c->get_max_freq(0);
 
     std::size_t num_active_nodes = std::count(active_nodes_.begin(), active_nodes_.end(), true);
 
@@ -231,7 +231,7 @@ void global_optimizer::tune(std::vector<optimizer_state> const &state)
         if (i < num_active_nodes)
         {
             total_speed += state[i].load_;
-            total_efficiency += state[i].load_ * ((state[i].active_frequency_ * state[i].cores_per_node_) / (max_frequency * state[i].cores_per_node_));;
+            total_efficiency += state[i].load_ * (float(state[i].active_frequency_ * state[i].cores_per_node_) / float(max_frequency * state[i].cores_per_node_));;
             used_power += state[i].energy_;
         }
 #ifdef POWER_ESTIMATE

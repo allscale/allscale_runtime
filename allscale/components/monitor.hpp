@@ -334,7 +334,6 @@ namespace allscale { namespace components {
 
            void set_cur_freq(std::uint64_t freq);
 
-
            /// \brief This function returns the available frequencies for the CPU cpuid
            //            /// \returns  Available frequencies for cpuid
            std::vector<std::uint64_t> get_available_freqs(int cpuid);

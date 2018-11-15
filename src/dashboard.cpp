@@ -55,10 +55,10 @@ namespace allscale { namespace dashboard
 
         std::size_t active_cores = scheduler::get().get_active_threads();
 
-        state.productive_cycles_per_second = state.cur_frequency * (1.f - state.idle_rate);  // freq to Hz
+        state.productive_cycles_per_second = float(state.cur_frequency) * (1.f - state.idle_rate);  // freq to Hz
 
         state.speed = 1.f - state.idle_rate;
-        state.efficiency = state.speed * ((state.cur_frequency * active_cores) / (state.max_frequency * state.num_cores));
+        state.efficiency = state.speed * (float(state.cur_frequency * active_cores) / float(state.max_frequency * state.num_cores));
 
 #ifdef POWER_ESTIMATE
         state.cur_power = monitor_c->get_current_power();

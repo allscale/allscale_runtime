@@ -8,7 +8,7 @@
 namespace allscale {
     std::ostream& operator<<(std::ostream& os, tuner_configuration const& cfg)
     {
-        os << cfg.node_mask << '@' << cfg.frequency;
+        os << cfg.node_mask << '@' << cfg.frequency / 1000. << "GHz";
         return os;
     }
 
@@ -68,7 +68,7 @@ namespace allscale {
             return new_mask;
         }
 
-        allscale::utils::optional<float> inc(float freq)
+        allscale::utils::optional<std::uint64_t> inc(std::uint64_t freq)
         {
             auto freqs = monitor::get().get_available_freqs(0);
             auto cur = std::find(freqs.begin(), freqs.end(), freq);
@@ -99,7 +99,7 @@ namespace allscale {
             }
         }
 
-        allscale::utils::optional<float> dec(float freq)
+        allscale::utils::optional<std::uint64_t> dec(std::uint64_t freq)
         {
             auto freqs = monitor::get().get_available_freqs(0);
             auto cur = std::find(freqs.begin(), freqs.end(), freq);
@@ -176,7 +176,7 @@ namespace allscale {
             }
             else
             {
-                if(allscale::utils::optional<float> n = (dir == up) ? inc(res.frequency) : dec(res.frequency))
+                if(allscale::utils::optional<std::uint64_t> n = (dir == up) ? inc(res.frequency) : dec(res.frequency))
                 {
                     res.frequency = *n;
                     return res;

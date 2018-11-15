@@ -402,7 +402,7 @@ namespace allscale
             }
         }
 
-        void update_policy(task_times const& times, std::vector<bool> const& mask, float freq)
+        void update_policy(task_times const& times, std::vector<bool> const& mask, std::uint64_t freq)
         {
             if (!(policy_.value_ == replacable_policy::dynamic || policy_.value_ == replacable_policy::tuned)) return;
 
@@ -735,7 +735,7 @@ namespace allscale
             get_optimizer_exponents();
     }
 
-    void scheduler::update_policy(task_times const& times, std::vector<bool> mask, float freq)
+    void scheduler::update_policy(task_times const& times, std::vector<bool> mask, std::uint64_t freq)
     {
         runtime::HierarchicalOverlayNetwork::forAllLocal<scheduler_service>(
             [&](scheduler_service& sched)

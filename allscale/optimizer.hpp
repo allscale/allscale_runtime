@@ -22,7 +22,7 @@ namespace allscale {
 
         float avg_time_;
         unsigned long long energy_;
-        float active_frequency_;
+        std::uint64_t active_frequency_;
         std::size_t cores_per_node_;
 
         template <typename Archive>
@@ -106,7 +106,7 @@ namespace allscale {
         void tune(std::vector<optimizer_state> const& state);
 
         std::vector<bool> active_nodes_;
-        float active_frequency_;
+        std::uint64_t active_frequency_;
 
         using config = std::pair<std::size_t, float>;
         // Hill climbing data

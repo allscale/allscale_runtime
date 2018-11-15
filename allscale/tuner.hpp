@@ -14,7 +14,7 @@ namespace allscale {
         // the current selection of nodes being active
         std::vector<bool> node_mask;
         // the currently selected frequency active on all nodes
-        float frequency;
+        std::uint64_t frequency;
 
         bool operator==(tuner_configuration const& other) const
         {
