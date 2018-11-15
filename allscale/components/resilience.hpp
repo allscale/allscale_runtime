@@ -44,7 +44,7 @@ namespace allscale { namespace components {
            std::chrono::high_resolution_clock::time_point start_time,trust_lease;
            std::atomic<std::size_t> protectee_heartbeat;
            std::size_t my_heartbeat;
-           const std::size_t miu = 1000;
+           const std::size_t miu = 500;
            const std::size_t delta = 10000;
            boost::dynamic_bitset<> rank_running_;
            std::size_t get_running_ranks();
