@@ -34,9 +34,9 @@ namespace allscale { namespace dashboard
 
         // -- CPU core frequency --
 
-        float max_frequency = 1.0;
+        std::uint64_t max_frequency = 1.0;
 
-        float cur_frequency = 1.0;
+        std::uint64_t cur_frequency = 1.0;
 
         // -- memory state --
 
@@ -116,8 +116,12 @@ namespace allscale { namespace dashboard
 
         std::string policy;
 
+        float speed_exponent = 0.f;
+        float efficiency_exponent = 0.f;
+        float power_exponent = 0.f;
+
         // the overall system-wide score of the objective function
-        float score = 0;
+        float score() const;
 
         // -- the node states --
 

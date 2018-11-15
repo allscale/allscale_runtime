@@ -55,10 +55,10 @@ namespace allscale { namespace dashboard
 
         std::size_t active_cores = scheduler::get().get_active_threads();
 
-        state.productive_cycles_per_second = state.cur_frequency * (1.f - state.idle_rate);  // freq to Hz
+        state.productive_cycles_per_second = float(state.cur_frequency) * (1.f - state.idle_rate);  // freq to Hz
 
         state.speed = 1.f - state.idle_rate;
-        state.efficiency = state.speed * ((state.cur_frequency * active_cores) / (state.max_frequency * state.num_cores));
+        state.efficiency = state.speed * (float(state.cur_frequency * active_cores) / float(state.max_frequency * state.num_cores));
 
 #ifdef ALLSCALE_HAVE_CPUFREQ
         state.power = monitor_c->get_current_power();
@@ -148,11 +148,11 @@ namespace allscale { namespace dashboard
         res += "\"efficiency\":" + std::to_string(efficiency) + ',';
         res += "\"power\":" + std::to_string(power) + ',';
         res += "\"objective_exponent\": {";
-            res += "\"speed\": 1.0,";
-            res += "\"efficiency\": 1.0,";
-            res += "\"power\": 1.0";
+            res += "\"speed\": " + std::to_string(speed_exponent) +  ",";
+            res += "\"efficiency\": " + std::to_string(efficiency_exponent) + ",";
+            res += "\"power\": " + std::to_string(power_exponent) + "";
         res += "},";
-        res += "\"score\":" + std::to_string(score) + ',';
+        res += "\"score\":" + std::to_string(score()) + ',';
         res += "\"scheduler\": \"" + policy + "\",";
         res += "\"nodes\":[";
         for (auto & node: nodes)
@@ -162,6 +162,13 @@ namespace allscale { namespace dashboard
         res.back() = ']';
         res += "}";
         return res;
+    }
+
+    float system_state::score() const
+    {
+        return std::pow(speed, speed_exponent) *
+               std::pow(efficiency, efficiency_exponent) *
+               std::pow(1 - power, power_exponent);
     }
 
     template void node_state::serialize<hpx::serialization::input_archive>(hpx::serialization::input_archive& ar, unsigned);
@@ -351,15 +358,21 @@ namespace allscale { namespace dashboard
                             }
                             else if (command == "set_speed")
                             {
-                                cmd_fut = hpx::make_ready_future();
+                                float exp = std::stof(payload);
+                                std::cout << "Setting speed to " << exp << '\n';
+                                cmd_fut = scheduler::set_speed_exponent(exp);
                             }
                             else if (command == "set_efficiency")
                             {
-                                cmd_fut = hpx::make_ready_future();
+                                float exp = std::stof(payload);
+                                std::cout << "Setting efficiency to " << exp << '\n';
+                                cmd_fut = scheduler::set_efficiency_exponent(exp);
                             }
                             else if (command == "set_power")
                             {
-                                cmd_fut = hpx::make_ready_future();
+                                float exp = std::stof(payload);
+                                std::cout << "Setting power to " << exp << '\n';
+                                cmd_fut = scheduler::set_power_exponent(exp);
                             }
                             else
                             {
@@ -384,7 +397,6 @@ namespace allscale { namespace dashboard
             state.speed = 0.f;
             state.efficiency = 0.f;
             state.power = 0.f;
-            state.score = 0.f;
 
             state.nodes.reserve(localities_.size());
             for (auto loc: localities_)
@@ -440,7 +452,7 @@ namespace allscale { namespace dashboard
 
         if (!client) return;
 
-        auto start = std::chrono::system_clock::now();
+        auto start = std::chrono::steady_clock::now();
 
         auto f = client.get_system_state().then(
         [&client, start](hpx::future<std::vector<node_state>> nodes)
@@ -451,7 +463,7 @@ namespace allscale { namespace dashboard
                 [start]()
                 {
                     using namespace std::chrono_literals;
-                    auto duration = std::chrono::system_clock::now() - start;
+                    auto duration = std::chrono::steady_clock::now() - start;
                     if (duration < 1s)
                         std::this_thread::sleep_for(1s - duration);
                     update();
@@ -463,6 +475,8 @@ namespace allscale { namespace dashboard
 
                 // compute overall speed
                 float total_speed = 0.f;
+//                 float total_speed = 1.f;
+//                 std::vector<float> speeds(state.nodes.size(), 0.0f);
                 float total_efficiency = 0.f;
 
                 float max_power = 0.f;
@@ -473,6 +487,8 @@ namespace allscale { namespace dashboard
                     if (cur.online && cur.active)
                     {
                         total_speed += cur.speed;
+//                         total_speed *= cur.speed;
+//                         speeds[cur.rank] = cur.speed;
                         total_efficiency += cur.efficiency;
                         cur_power += cur.cur_power;
                     }
@@ -480,9 +496,16 @@ namespace allscale { namespace dashboard
                 }
 
                 state.speed = total_speed / client.localities_.size();
+//                 state.speed = std::pow(total_speed, 1.f/client.localities_.size());
+
                 state.efficiency = total_efficiency / client.localities_.size();
                 state.power = (max_power > 0) ? cur_power/max_power : 0;
-                state.score = 1.f;
+
+                auto exponents = scheduler::get_optimizer_exponents();
+
+                state.speed_exponent = hpx::util::get<0>(exponents);
+                state.efficiency_exponent = hpx::util::get<1>(exponents);
+                state.power_exponent = hpx::util::get<2>(exponents);
 
                 client.write(state, std::move(next_update));
             }

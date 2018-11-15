@@ -72,7 +72,10 @@ namespace allscale { namespace components {
            task_times last_task_times_;
            std::chrono::high_resolution_clock::time_point last_task_times_sample_;
            task_times::time_t process_time_;
-           measure_buffer<task_times::time_t, 1> process_time_buffer_;
+           measure_buffer<task_times::time_t, 8> process_time_buffer_;
+           static constexpr std::size_t idle_rate_history_count = 1;
+           std::array<double, idle_rate_history_count> idle_rates_;
+           std::size_t idle_rate_idx_;
 
            void add_task_time(task_id::task_path const& path, task_times::time_t const& time);
 
@@ -317,7 +320,7 @@ namespace allscale { namespace components {
 
            /// \brief This function returns the current frequency for the CPU cpuid
            //            /// \returns  Current frequency of cpuid
-	   std::uint64_t get_current_freq(int cpuid);
+           std::uint64_t get_current_freq(int cpuid);
 
 
            /// \brief This function returns the min frequency for the CPU cpuid
@@ -329,10 +332,11 @@ namespace allscale { namespace components {
            //            /// \returns  Max frequency of cpuid
            std::uint64_t get_max_freq(int cpuid);
 
+           void set_cur_freq(std::uint64_t freq);
 
            /// \brief This function returns the available frequencies for the CPU cpuid
            //            /// \returns  Available frequencies for cpuid
-	   std::vector<std::uint64_t> get_available_freqs(int cpuid);
+           std::vector<std::uint64_t> get_available_freqs(int cpuid);
 
 
            // Functions related to system/node metrics

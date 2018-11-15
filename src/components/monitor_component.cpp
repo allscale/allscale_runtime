@@ -60,6 +60,7 @@ namespace allscale { namespace components {
 
    monitor::monitor(std::uint64_t rank)
      : last_task_times_sample_(std::chrono::high_resolution_clock::now())
+     , idle_rate_idx_(0)
      , rank_(rank)
      , num_localities_(0)
      , enable_monitor(true)
@@ -107,7 +108,7 @@ namespace allscale { namespace components {
        )
 #endif
     {
-
+        std::fill(idle_rates_.begin(), idle_rates_.end(), 1.0);
     }
 
 
@@ -127,13 +128,13 @@ namespace allscale { namespace components {
    task_times monitor::get_task_times()
    {
        if (!enable_monitor) return task_times{};
-       auto now = std::chrono::high_resolution_clock::now();
 
        std::lock_guard<mutex_type> l(task_times_mtx_);
+       auto now = std::chrono::high_resolution_clock::now();
 
        // normalize to one second
        auto interval = std::chrono::duration_cast<std::chrono::nanoseconds>(now - last_task_times_sample_);
-       auto res = (task_times_ - last_task_times_);// / interval.count();
+       auto res = (task_times_ - last_task_times_) / interval.count();
 
        last_task_times_sample_ = now;
        last_task_times_ = task_times_;
@@ -148,21 +149,25 @@ namespace allscale { namespace components {
 
    double monitor::get_idle_rate()
    {
-       auto now = std::chrono::high_resolution_clock::now();
        std::lock_guard<mutex_type> l(task_times_mtx_);
+       auto now = std::chrono::high_resolution_clock::now();
 
        auto process_time = process_time_;
 
        auto d1 = std::chrono::duration_cast<task_times::time_t>(process_time - process_time_buffer_.oldest_data());
        auto d2 = std::chrono::duration_cast<task_times::time_t>(now - process_time_buffer_.oldest_time());
 
-       double idle_rate = 1. - static_cast<double>(d1.count())/(static_cast<double>(d2.count()) * num_cpus_);
 
+       double cur_idle_rate = 1. - static_cast<double>(d1.count())/(static_cast<double>(d2.count()) * num_cpus_);
+
+       idle_rates_[idle_rate_idx_] = cur_idle_rate;
+       idle_rate_idx_ = (idle_rate_idx_ + 1) % idle_rate_history_count;
 
        // aggregate process time...
        process_time_buffer_.push(process_time, now);
 
-       return idle_rate;
+       // calucalate the mean idle rate over all as the result
+       return std::accumulate(idle_rates_.begin(), idle_rates_.end(), 0.0) / idle_rate_history_count;
    }
 
 #ifdef REALTIME_VIZ
@@ -319,6 +324,25 @@ namespace allscale { namespace components {
          return 0;
    }
 
+   void monitor::set_cur_freq(std::uint64_t freq)
+   {
+      static const char * file_name = "/sys/devices/system/cpu/cpu%d/cpufreq/scaling_cur_freq";
+
+      std::string freq_s = std::to_string(freq);
+
+      auto format_str = boost::format(file_name);
+
+      for (std::size_t cpuid = 0; cpuid != num_cpus_; ++cpuid)
+      {
+          std::ofstream file(boost::str(format_str % cpuid));
+          if (file)
+          {
+              file.write(freq_s.data(), freq_s.size());
+              file.flush();
+          }
+      }
+   }
+
 
    std::vector<std::uint64_t> monitor::get_available_freqs(int cpuid)
    {
@@ -410,48 +434,50 @@ namespace allscale { namespace components {
 
       num_cpus_ = hpx::get_os_thread_count();
 
-      for(int i = 0; i < num_cpus_; i++) {
-	 std::ifstream avail_freq_file(boost::str(boost::format(avail_freq_filename) % i));
+      for(int i = 0; i < num_cpus_; i++)
+      {
+
+          std::ifstream avail_freq_file(boost::str(boost::format(avail_freq_filename) % i));
 
 
-         if(!avail_freq_file) {     // File not available, get min and max via the other two files
+          if(!avail_freq_file)
+          {     // File not available, get min and max via the other two files
 
 //            std::cerr << "Warning: Cannot read avail frequencies from /sys/devices/system/cpu for CPU "
 //                      << i
 //                      << ". Looking into scaling_min_freq and scaling_max_freq files\n";
 
-            std::ifstream min_freq_file(boost::str(boost::format(min_freq_filename) % i));
+              std::ifstream min_freq_file(boost::str(boost::format(min_freq_filename) % i));
 
-	    if(!min_freq_file) {
-		std::cerr << "Warning: Cannot read min frequency from /sys/devices/system/cpu for CPU " << i << std::endl;
-                freq_in_KHz = 0;
-	    }
-	    else min_freq_file >> freq_in_KHz;
+              if(!min_freq_file) {
+                  std::cerr << "Warning: Cannot read min frequency from /sys/devices/system/cpu for CPU " << i << std::endl;
+                  freq_in_KHz = 0;
+              }
+              else min_freq_file >> freq_in_KHz;
 
-            freqs.push_back(freq_in_KHz);
+              freqs.push_back(freq_in_KHz);
 
-            std::ifstream max_freq_file(boost::str(boost::format(max_freq_filename) % i));
+              std::ifstream max_freq_file(boost::str(boost::format(max_freq_filename) % i));
 
-            if(!max_freq_file) {
-                std::cerr << "Warning: Cannot read max frequency from /sys/devices/system/cpu for CPU " << i << std::endl;
-                freq_in_KHz = 0;
-            }
-	    else max_freq_file >> freq_in_KHz;
+              if(!max_freq_file) {
+                  std::cerr << "Warning: Cannot read max frequency from /sys/devices/system/cpu for CPU " << i << std::endl;
+                  freq_in_KHz = 0;
+              }
+              else max_freq_file >> freq_in_KHz;
 
-            freqs.push_back(freq_in_KHz);
+              freqs.push_back(freq_in_KHz);
 
-            cpu_frequencies.insert( std::pair<int, std::vector<std::uint64_t>>(i, freqs) );
-            freqs.clear();
-         }
-         else {      // Read the values from the file and put them in the vector of freqs
-	    while(avail_freq_file >> freq_in_KHz)
-		freqs.push_back(freq_in_KHz);
+              cpu_frequencies.insert( std::pair<int, std::vector<std::uint64_t>>(i, freqs) );
+              freqs.clear();
+          }
+          else {      // Read the values from the file and put them in the vector of freqs
+              while(avail_freq_file >> freq_in_KHz)
+                  freqs.push_back(freq_in_KHz);
 
-            cpu_frequencies.insert( std::pair<int, std::vector<std::uint64_t>>(i, freqs) );
-            freqs.clear();
-         }
+              cpu_frequencies.insert( std::pair<int, std::vector<std::uint64_t>>(i, freqs) );
+              freqs.clear();
+          }
       }
-
    }
 
 

@@ -14,6 +14,7 @@ set(_srcs
     task_times.cpp
     this_work_item.cpp
     treeture.cpp
+    tuner.cpp
     optimizer.cpp
     get_num_localities.cpp
     get_num_numa_nodes.cpp

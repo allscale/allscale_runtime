@@ -400,12 +400,13 @@ namespace allscale {
         }
         float var = sum_dist / task_costs.size();
 
+
         // we use a confidence intervall of ...
 //         float margin = 3.291f * std::sqrt(var / task_costs.size()); // ... 99.9%
 //         float margin = 2.807f * std::sqrt(var / task_costs.size()); // ... 99.5%
 //         float margin = 2.576f * std::sqrt(var / task_costs.size()); // ... 99%
-//         float margin = 1.96f * std::sqrt(var / task_costs.size()); // ... 95%
-        float margin = 1.282f * std::sqrt(var / task_costs.size()); // ... 80%
+        float margin = 1.96f * std::sqrt(var / task_costs.size()); // ... 95%
+//         float margin = 1.282f * std::sqrt(var / task_costs.size()); // ... 80%
         float lower = avg - margin;
         float upper = avg + margin;
 
@@ -528,23 +529,29 @@ namespace allscale {
                 }
             }
         };
-        // Go over all node averages
-        for (std::size_t i = 0; i != node_avg.size(); ++i)
+        if (var < 0.01f)
         {
-//             if(output) std::cout << node_avg[i] << " " << lower << " " << upper << " " << avg << " " << margin << '\n';
-            // If we are above the overall average + variance, we should
-            // put the work to our neighbors
-            if (node_avg[i] > upper)
+        }
+        else
+        {
+            // Go over all node averages
+            for (std::size_t i = 0; i != node_avg.size(); ++i)
             {
-//                 if (output) std::cout << "new max?\n";
-                eligable_max(i);
-            }
-            // If we are above the overall average - variance, we should
-            // put the work to our neighbors
-            if (node_avg[i] < lower)
-            {
-//                 if (output) std::cout << "new min?\n";
-                eligable_min(i);
+    //             if(output) std::cout << node_avg[i] << " " << lower << " " << upper << " " << avg << " " << margin << '\n';
+                // If this node has higher load than the confidence interval,
+                // put the work to our neighbors
+                if (node_avg[i] > upper)
+                {
+    //                 if (output) std::cout << "new max?\n";
+                    eligable_max(i);
+                }
+                // If this node has lower load than the confidence interval,
+                // put the work to our neighbors
+                if (node_avg[i] < lower)
+                {
+    //                 if (output) std::cout << "new min?\n";
+                    eligable_min(i);
+                }
             }
         }
 //         if (output) std::cout << "\n";
