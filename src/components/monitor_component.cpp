@@ -338,19 +338,24 @@ namespace allscale { namespace components {
       /*VV: Read potentially multiple measurements of power within the span of 
             POWER_MEASUREMENT_PERIOD_MS milliseconds. Each time this function
             is invoked it returns the running average of power.*/
-      static unsigned long long times_read_power=1;
-      static unsigned long long power_sum = util::hardware_reconf::read_system_power();
+      static mutex_type power_mtx;
+      static unsigned long long times_read_power=0;
+      static unsigned long long power_sum = 0ull;
+      static long timestamp_reset_power = 0;
 
-      static long timestamp_reset_power = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+      int64_t t_now, dt;
+      float ret;
+
+      std::lock_guard<mutex_type> lock(power_mtx);
       
-      long t_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-
-      auto dt = t_now - timestamp_reset_power;
+      t_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+ 
+      dt = t_now - timestamp_reset_power;
       times_read_power ++;
 
       power_sum += util::hardware_reconf::read_system_power();
 
-      float ret = power_sum / (float)(times_read_power);
+      ret = power_sum / (float)(times_read_power);
 
       if ( dt >= POWER_MEASUREMENT_PERIOD_MS ) {
             times_read_power = 0;
@@ -368,7 +373,8 @@ namespace allscale { namespace components {
    float monitor::get_max_power()
    {
 #if defined(ALLSCALE_HAVE_CPUFREQ)
-      return 0.0;
+      // VV: report 125.0 Watt ( this should be dynamically configured/discovered )
+      return 1250.0;
 #elif defined(POWER_ESTIMATE)
       return allscale::power::estimate_power(get_max_freq(0)) * num_cpus_;
 #else

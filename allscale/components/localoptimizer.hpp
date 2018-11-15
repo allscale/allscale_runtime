@@ -155,7 +155,7 @@ struct localoptimizer
 	const std::vector<unsigned long>
 	setfrequencies(std::vector<unsigned long> frequencies)
 	{
-		#if 1
+		#if 0
 		const std::size_t max_freqs = 10;
 		std::size_t keep_every = (std::size_t) ceilf(frequencies.size() / (float) max_freqs);
 
@@ -223,6 +223,7 @@ struct localoptimizer
   private:
 	// VV: Used to convert thread_idx to actual number of threads
 	std::size_t threads_dt;
+
 
 	void accumulate_objective_measurements();
 	void reset_accumulated_measurements();

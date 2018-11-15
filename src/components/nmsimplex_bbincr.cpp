@@ -849,8 +849,9 @@ optstepresult NelderMead::step(const double objectives[])
 
         if ( warming_up_step > 0 ) {
             if ( (int) v[warming_up_step-1][0] != profiled_threads ) {
-                std::cout << "[NelderMead|WARN] Meant to profile " << vr[0] << " threads "
-                            "but ended up using " << profiled_threads << std::endl;
+                std::cout << "[NelderMead|WARN] Meant to profile " 
+                        << v[warming_up_step-1] << " threads "
+                        "but ended up using " << profiled_threads << std::endl;
                 v[warming_up_step-1][0] = profiled_threads;
             }
             // VV: Record results of last warming up step
