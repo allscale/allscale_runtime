@@ -60,9 +60,7 @@ namespace allscale { namespace dashboard
         state.speed = 1.f - state.idle_rate;
         state.efficiency = state.speed * (float(state.cur_frequency * active_cores) / float(state.max_frequency * state.num_cores));
 
-#ifdef ALLSCALE_HAVE_CPUFREQ
-        state.power = monitor_c->get_current_power();
-#elif defined(POWER_ESTIMATE)
+#if defined(POWER_ESTIMATE) || defined(ALLSCALE_HAVE_CPUFREQ)
         state.cur_power = monitor_c->get_current_power();
         state.max_power = monitor_c->get_max_power();
         state.power = state.cur_power / state.max_power;

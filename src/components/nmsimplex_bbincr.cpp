@@ -284,7 +284,7 @@ double NelderMead::evaluate_score(const double objectives[], const double *weigh
     #else 
     score = 0.0;
     for ( auto i=0; i<NMD_NUM_OBJECTIVES; ++ i) {
-        score += exp(weights[i]*objectives[i]/scale[i]);
+        score *= exp(weights[i]*objectives[i]/scale[i]);
     }
     #endif
     return score;
