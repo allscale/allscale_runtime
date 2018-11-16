@@ -569,7 +569,7 @@ void scheduler::initialize_cpu_frequencies() {
 
   // Make sure frequency change happened before continuing
   std::cout << "topo.num_logical_cores: " << topo.num_logical_cores
-            << "topo.num_hw_threads" << topo.num_hw_threads << "\n"
+            << " topo.num_hw_threads" << topo.num_hw_threads << "\n"
             << std::flush;
   {
     // check status of Pus frequency
@@ -647,7 +647,6 @@ void scheduler::optimize_locally(work_item const& work)
         // find out which pool has the most threads
 
         /* Count Active threads for validation*/
-
         hpx::threads::mask_type active_mask;
         std::size_t domain_active_threads = 0;
         std::size_t pool_idx = 0;
@@ -665,15 +664,16 @@ void scheduler::optimize_locally(work_item const& work)
             }
         }
         std::cout << "Active OS Threads = " <<  total_threads_counted << std::endl;
+
 #endif
 
 #ifdef MEASURE_
-        std::size_t temp_id = work.id().id;
-        if ((temp_id >= period_for_power) && (temp_id % period_for_power == 0))
-        {
-          auto timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-          auto dt = timestamp_now - last_measure_power;
+        auto timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+        auto dt = timestamp_now - last_measure_power;
 
+        if (dt >= 5000)
+        {
+          
           dt = dt > 0 ? dt : 1 ;
 
           last_measure_power = timestamp_now;
@@ -736,25 +736,19 @@ void scheduler::optimize_locally(work_item const& work)
                 // amend threads if signaled
                 
                 if (act_temp.threads < active_threads){
-#ifdef DEBUG_MULTIOBJECTIVE_
-                    std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << " out of " << lopt_.getmaxthreads() 
-                    << " , target threads = " << act_temp.threads << std::endl;
-
-#endif    
-                    //unsigned int suspended_temp = suspend_threads(new_threads_target);
-                    //lopt_.setCurrentThreads(lopt_.getCurrentThreads()-suspended_temp);
                     suspend_threads(active_threads-act_temp.threads);
                 }
                 else if (act_temp.threads > active_threads){
-#ifdef DEBUG_MULTIOBJECTIVE_
-                    std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << " out of " << lopt_.getmaxthreads() 
-                    << " , target threads = " << act_temp.threads << std::endl;
-#endif
                     resume_threads(act_temp.threads - active_threads);
                 }
                 fix_allcores_frequencies(act_temp.frequency_idx);
                 lopt_.setCurrentFrequencyIdx(act_temp.frequency_idx);
-                lopt_.setCurrentThreads(act_temp.threads);
+                lopt_.setCurrentThreads(active_threads);
+
+#ifdef DEBUG_MULTIOBJECTIVE_
+                    std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << " out of " << lopt_.getmaxthreads() 
+                    << " , target threads = " << act_temp.threads << ", set threads to " << active_threads << std::endl;
+#endif
             }
         } // uselopt
 #endif

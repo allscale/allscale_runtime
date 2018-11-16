@@ -37,6 +37,9 @@ NelderMead::NelderMead(double eps)
     itr = 0;
     state_ = warmup;
     
+    max_power_ = 900.;
+    max_time_ = 3.2;
+
     warming_up_step = 0;
     convergence_reevaluating = false;
 }
@@ -244,11 +247,17 @@ bool NelderMead::cache_update(int threads, int freq_idx,
     return false;
 }
 
-double NelderMead::evaluate_score(const double objectives[], const double *weights) const
+double NelderMead::evaluate_score(const double objectives[], const double *weights)
 {
     double score;
     // VV: [time, energy/power, resources]
-    double scale[] = {1.0, 1100., 1.0};
+    double scale[] = {1.0, 1.0, 1.0};
+    
+    max_time_ = max_time_ > objectives[0] ? max_time_ : objectives[0];
+    max_power_ = max_power_ > objectives[2] ? max_power_ : objectives[2];
+
+    scale[0] = max_time_;
+    scale[1] = max_power_;
     scale[2] = (double)constraint_max[0];
 
     if (weights == nullptr)
@@ -327,6 +336,7 @@ void NelderMead::initialize_simplex(const double weights[3],
     cache_.clear();
     if (initial_simplex == nullptr)
     {
+        #if 0
         int threads_low = round(0.25 * (constraint_max[0] - constraint_min[1]) 
                     + constraint_min[1]);
         int threads_med = round(0.5 * (constraint_max[0] - constraint_min[1])
@@ -336,11 +346,38 @@ void NelderMead::initialize_simplex(const double weights[3],
         initial_configurations[0][0] = threads_low;
         initial_configurations[0][1] = (int)constraint_min[1];
 
-        initial_configurations[1][0] = threads_med;
-        initial_configurations[1][1] = (int)constraint_max[1];
+        initial_configurations[1][0] = threads_high;
+        initial_configurations[1][1] = (int)constraint_min[1];
 
         initial_configurations[2][0] = threads_high;
         initial_configurations[2][1] = (int)constraint_max[1];
+        #else
+        for (i=0; i<NMD_NUM_KNOBS+1; ++i) {
+            int is_ok = 1;
+            do {
+                
+                for (j=0; j<NMD_NUM_KNOBS; ++j)
+                    initial_configurations[i][j] = constraint_min[j] + rand() % (int) (constraint_max[j] - constraint_min[j]+1);
+                
+                is_ok = 1;
+
+                for (auto c=0; c<i && is_ok == 1; ++c)
+                {
+                    is_ok = 0;
+                    for ( j=0; j<NMD_NUM_KNOBS; ++j )
+                        is_ok |= (initial_configurations[c][j] != initial_configurations[i][j]);
+                }
+
+            } while (is_ok == 0);
+
+            OUT_DEBUG(
+                std::cout << "[NelderMead|DEBUG] Random initial simplex [" << i << "]: ";
+                for ( j =0; j<NMD_NUM_KNOBS; ++j) 
+                    std::cout << initial_configurations[i][j] << " ";
+                std::cout << std::endl;
+            )
+        }
+        #endif
     } else {
         double knob_set[NMD_NUM_KNOBS];
         for (i=0; i<NMD_NUM_KNOBS+1; ++i ) {
@@ -479,7 +516,7 @@ optstepresult NelderMead::do_step_start()
     auto gen_new = [this](double *extra) mutable -> double* {
         
         for (j = 0; j < NMD_NUM_KNOBS; j++)
-            vr[j] = vm[j] + ALPHA * (vm[j] - v[vg][j]) + extra[j];
+            vr[j] = vm[j] + ALPHA * (vm[j] - v[vg][j]) - extra[j];
        
         my_constraints(vr);
 
@@ -567,7 +604,7 @@ optstepresult NelderMead::do_step_reflect(const double objectives[])
         // VV: REFLECTED is better than BEST
         auto gen_new = [this](double *extra) mutable -> double* {
             for (j = 0; j < NMD_NUM_KNOBS; j++)
-                ve[j] = vm[j] + GAMMA * (vr[j] - vm[j]) + extra[j];
+                ve[j] = vm[j] + GAMMA * (vr[j] - vm[j]) - extra[j];
                 
             my_constraints(ve);
 
@@ -604,7 +641,7 @@ optstepresult NelderMead::do_step_reflect(const double objectives[])
         // VV: REFLECTED between SECOND BEST and WORST
         auto gen_new = [this](double *extra) mutable -> double* {
             for (j = 0; j < NMD_NUM_KNOBS; j++)
-                vc[j] = vm[j] + BETA * (vr[j] - vm[j]) + extra[j];
+                vc[j] = vm[j] + BETA * (vr[j] - vm[j]) - extra[j];
                 
             my_constraints(vc);
 
@@ -641,7 +678,7 @@ optstepresult NelderMead::do_step_reflect(const double objectives[])
         // VV: REFLECTED worse than WORST
         auto gen_new = [this](double *extra) mutable -> double* {
             for (j = 0; j < NMD_NUM_KNOBS; j++)
-                vc[j] = vm[j] - BETA * (vr[j] - vm[j]) + extra[j];
+                vc[j] = vm[j] - BETA * (vr[j] - vm[j]) - extra[j];
                 
             my_constraints(vc);
 
@@ -772,7 +809,7 @@ optstepresult NelderMead::do_step_contract(const double objectives[])
         
         auto gen_new = [this, &new_vh](double *extra) mutable -> double* {
             for (auto j = 0; j < NMD_NUM_KNOBS; j++)
-                new_vh[j] = v[vs][j] + DELTA * (v[vh][j] - v[vs][j]) + extra[j];
+                new_vh[j] = v[vs][j] + DELTA * (v[vh][j] - v[vs][j]) - extra[j];
                 
             my_constraints(new_vh);
 
@@ -851,6 +888,17 @@ optstepresult NelderMead::step(const double objectives[])
     
     std::size_t tested_combinations = cache_.size();
 
+    evaluate_score(objectives, nullptr);
+
+    for (i=0; i<NMD_NUM_KNOBS+1; ++i) {
+        auto key = std::make_pair((int)v[i][0], (int)v[i][1]);
+        auto entry = cache_.find(key);
+
+        if ( entry != cache_.end() ) {
+            f[i] = evaluate_score(entry->second.objectives, nullptr);
+        }
+    }
+
     switch (state_)
     {
     case warmup:
@@ -865,7 +913,7 @@ optstepresult NelderMead::step(const double objectives[])
         if ( warming_up_step > 0 && warming_up_step < NMD_NUM_KNOBS + 1) {
             if ( (int) v[warming_up_step-1][0] != profiled_threads ) {
                 std::cout << "[NelderMead|WARN] Meant to profile " 
-                        << v[warming_up_step-1] << " threads "
+                        << v[warming_up_step-1][0] << " threads "
                         "but ended up using " << profiled_threads << std::endl;
                 v[warming_up_step-1][0] = profiled_threads;
             }
@@ -888,7 +936,7 @@ optstepresult NelderMead::step(const double objectives[])
         res.objectives[1] = -1;
         res.objectives[2] = -1;
         res.converged = false;
-        res.score = -1;
+
         res.threads = initial_configurations[warming_up_step][0];
         res.freq_idx = initial_configurations[warming_up_step][1];
         

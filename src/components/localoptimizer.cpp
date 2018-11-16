@@ -38,7 +38,9 @@ void localoptimizer::setobjectives(double time_weight,
 
 	// VV: Modifying the objectives triggers restarting the optimizer
 	//     from scratch
-	initialize_nmd(true);
+	
+	mo_initialized = false;
+	converged_ = false;
 }
 
 void localoptimizer::reset(int threads, int freq_idx)
@@ -252,6 +254,8 @@ actuation localoptimizer::step()
 			}
 			
 			act.threads *= threads_dt;
+
+			threads_param_ = act.threads;
 #ifdef DEBUG_MULTIOBJECTIVE_
 			std::cout << "[LOCALOPTIMIZER|DEBUG] ACTUAL Vertex to try:";
 			std::cout << " Threads = " << act.threads;

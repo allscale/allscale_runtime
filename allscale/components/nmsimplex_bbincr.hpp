@@ -66,7 +66,6 @@ struct optstepresult
 	int freq_idx;
 
 	/******VV: Cache stuff******/
-	double score;
 	double objectives[3]; // (time, energy, resource)
 	// VV: _cache_expires denotes dt (in ms) after _cache_timestamp
 	int64_t _cache_timestamp, _cache_expires_dt;
@@ -126,13 +125,15 @@ class NelderMead
 	}
 
 	unsigned long int getIterations() { return itr; }
-	double evaluate_score(const double objectives[], const double *weights) const;
+	double evaluate_score(const double objectives[], const double *weights);
 	void set_weights(const double weights[]);
 
 	optstepresult step(const double objectives[]);
 
   private:
 	int warming_up_step;
+
+	double max_power_, max_time_;
 
 	// VV: Utility to make sure that we generate new values and not something that already
 	//     exists in the set of NMD_NUM_KNOBS+1 configuration points
