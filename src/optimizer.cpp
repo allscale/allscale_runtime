@@ -126,6 +126,19 @@ tuning_objective get_default_objective()
         return tuning_objective::efficiency();
     if (obj == "power")
         return tuning_objective::power();
+    if ( obj == "local") {
+        double time_weight, energy_weight, resource_weight;
+        
+        auto &&local_scheduler = scheduler::get();
+
+        local_scheduler.get_local_optimizer_weights(&time_weight,
+                                                    &energy_weight,
+                                                    &resource_weight);
+        // VV: If the local-optimizer is used too then copy its objectives
+        return tuning_objective(time_weight, 
+                                resource_weight, 
+                                energy_weight);
+    }
 
     float speed = 0.0f;
     float efficiency = 0.0f;
@@ -233,7 +246,7 @@ void global_optimizer::tune(std::vector<optimizer_state> const &state)
             total_efficiency += state[i].load_ * (float(state[i].active_frequency_ * state[i].cores_per_node_) / float(max_frequency * state[i].cores_per_node_));;
             used_power += state[i].energy_;
         }
-#ifdef POWER_ESTIMATE
+#if defined(POWER_ESTIMATE) || defined(ALLSCALE_HAVE_CPUFREQ)
         max_power += monitor_c->get_max_power();
 #endif
     }

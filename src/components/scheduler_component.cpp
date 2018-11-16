@@ -57,7 +57,6 @@ scheduler::scheduler(std::uint64_t rank)
       target_freq_found(false)
 #endif
       ,
-      resource_step(1),
       target_resource_found(false),
       sampling_interval(10),
       current_avg_iter_time(0.0),
@@ -65,9 +64,9 @@ scheduler::scheduler(std::uint64_t rank)
       time_requested(false),
       resource_requested(false),
       energy_requested(false),
-      time_leeway(1.0),
-      resource_leeway(1.0),
-      energy_leeway(1.0),
+      time_weight(0.0),
+      resource_weight(0.0),
+      energy_weight(0.0),
       period_for_time(10),
       period_for_resource(10),
       period_for_power(20),
@@ -193,14 +192,11 @@ std::size_t scheduler::get_num_numa_cores(std::size_t domain) {
  *
 */
 void scheduler::init() {
-
-  std::vector<objectiveType> objectives_priorities;
-  int objectives_priority_idx=0;
-
   std::size_t num_localities = allscale::get_num_localities();
 
   std::unique_lock<mutex_type> l(resize_mtx_);
   hpx::util::ignore_while_checking<std::unique_lock<mutex_type>> il(&l);
+
   if (initialized_)
     return;
 
@@ -281,95 +277,53 @@ void scheduler::init() {
 #ifdef DEBUG_INIT_
       std::cout << "Scheduling Objective provided: " << obj << "\n";
 #endif
-      // Don't scale objectives if none is given
-      double leeway = 1.0;
+      // VV: Don't scale objectives if none is given
+      double opt_weight = 1.0;
 
       if (idx != std::string::npos) {
 #ifdef DEBUG_INIT_
-        std::cout << "Found a leeway, triggering multi-objectives policies\n"
-                  << std::flush;
+        std::cout << "Found an optimization weight, triggering " 
+                     "multi-objectives policies\n" << std::flush;
 #endif
 
         multi_objectives = true;
         obj = objective_str.substr(0, idx);
-        leeway = std::stod(objective_str.substr(idx + 1));
+        opt_weight = std::stod(objective_str.substr(idx + 1));
       }
 
       if (obj == "time") {
           time_requested = true;
-          objectives_priorities.push_back(time);
+          time_weight = opt_weight;
 #ifdef DEBUG_INIT_
-          std::cout << "Priority[" << objectives_priority_idx << "]=" << objectives_priorities[objectives_priority_idx]
-          << std::endl;
+          std::cout << "Set time weight to " << time_weight << "\n" << std::flush;
 #endif
-          time_leeway = leeway;
-#ifdef DEBUG_INIT_
-          std::cout << "Set time margin to " << time_leeway << "\n" << std::flush;
-#endif
-
       } else if (obj == "resource") {
-          resource_requested = true;
-          objectives_priorities.push_back(resource);
+        resource_requested = true;
+        resource_weight = opt_weight;
 #ifdef DEBUG_INIT_
-          std::cout << "Priority[" << objectives_priority_idx << "]=" << objectives_priorities[objectives_priority_idx]
-          << std::endl;
-#endif
-        resource_leeway = leeway;
-#ifdef DEBUG_INIT_
-        std::cout << "Set resource margin to " << resource_leeway << "\n"
+        std::cout << "Set resource weight to " << resource_weight << "\n"
                   << std::flush;
-        ;
 #endif
 
       } else if (obj == "energy") {
-          energy_requested = true;
-          objectives_priorities.push_back(energy);
+        energy_requested = true;
+        energy_weight = opt_weight;
 #ifdef DEBUG_INIT_
-          std::cout << "Priority[" << objectives_priority_idx << "]=" << objectives_priorities[objectives_priority_idx]
-          << std::endl;
-#endif
-        energy_leeway = leeway;
-#ifdef DEBUG_INIT_
-        std::cout << "Set energy margin to " << energy_leeway << "\n"
+        std::cout << "Set energy weight to " << energy_weight << "\n"
                   << std::flush;
-        ;
 #endif
       } else {
-        std::ostringstream all_keys;
-        copy(scheduler::objectives.begin(), scheduler::objectives.end(),
-             std::ostream_iterator<std::string>(all_keys, ","));
-        std::string keys_str = all_keys.str();
-        keys_str.pop_back();
         HPX_THROW_EXCEPTION(
             hpx::bad_request, "scheduler::init",
             boost::str(
-                boost::format("Wrong objective: %s, Valid values: [%s]") % obj %
-                keys_str));
+                boost::format("Wrong objective: Valid values: [time, energy, resource]")));
       }
 
-      if (time_leeway > 1 || resource_leeway > 1 || energy_leeway > 1) {
+      if (time_weight > 2 || resource_weight > 2 || energy_weight > 2
+          || time_weight < -2 || resource_weight < -2 || energy_weight < -2) {
         HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
-                            "leeways should be within ]0, 1]");
+                            "Objective weights should be within [-2, 2]");
       }
-      objectives_priority_idx++;
-    }
-  }
-  objectives_priority_idx--;
-
-  /* Reading optional user provided input for granularity (step) of
-     adding/removing resources to/from the runtime (where resource=OS thread) */
-  std::string input_resource_step_str =
-      hpx::get_config_entry("allscale.resource_step", "");
-  if (!input_resource_step_str.empty()) {
-
-    resource_step = std::stoul(input_resource_step_str);
-#ifdef DEBUG_INIT_
-    std::cout << "Resource step provided : " << resource_step << "\n";
-#endif
-    if (resource_step == 0 || resource_step >= os_thread_count) {
-      HPX_THROW_EXCEPTION(
-          hpx::bad_request, "scheduler::init",
-          "resource step should be within ]0, total nb threads[");
     }
   }
 
@@ -400,16 +354,13 @@ void scheduler::init() {
 
 #if defined(ALLSCALE_HAVE_CPUFREQ)
   if (multi_objectives) {
-    // reallocating objectives_status vector of vectors
-    objectives_status.resize(3);
-    for (int i = 0; i < 3; i++) {
-      objectives_status[i].resize(3);
-    }
+
 #ifdef DEBUG_INIT_
     std::cout << "\n****************************************************\n" << std::flush;
-    std::cout << "Policy selected: multi-objective set with time=" << time_leeway
-              << ", resource=" << resource_leeway
-              << ", energy=" << energy_leeway << "\n"
+    std::cout << "Policy selected: multi-objective set with time=" << time_weight
+              << ", energy=" << energy_weight 
+              << ", resource=" << resource_weight
+              << "\n"
               << std::flush;
     std::cout << "Objectives Flags Set: \n" <<
               "\tTime: " << time_requested <<
@@ -447,53 +398,9 @@ void scheduler::init() {
     last_optimization_timestamp_ = t_duration_now;
     last_objective_measurement_timestamp_= t_duration_now;
 
-    std::list<objective> objectives_temp;
-    if (energy_requested){
-      objective o_temp;
-      o_temp.type=energy;
-      o_temp.leeway=energy_leeway;
-      int i=0;
-      for(auto& el: objectives_priorities){
-        if (el==energy){
-          o_temp.priority=i;
-          break;
-        }
-        ++i;
-      }
-      objectives_temp.push_back(o_temp);
-    }
-    if (time_requested){
-      objective o_temp;
-      o_temp.type=time;
-      o_temp.leeway=time_leeway;
-      int i=0;
-      for(auto& el: objectives_priorities){
-        if (el==time){
-          o_temp.priority=i;
-          break;
-        }
-        ++i;
-      }
-      objectives_temp.push_back(o_temp);
-    }
-    if (resource_requested){
-      objective o_temp;
-      o_temp.type=resource;
-      o_temp.leeway=resource_leeway;
-      int i=0;
-      for(auto& el: objectives_priorities){
-        if (el==resource){
-          o_temp.priority=i;
-          break;
-        }
-        ++i;
-      }
-      objectives_temp.push_back(o_temp);
-    }
-    lopt_.setobjectives(objectives_temp);
     lopt_.setmaxthreads(os_thread_count);
-    lopt_.reset(os_thread_count,0);
-  #if defined(ALLSCALE_HAVE_CPUFREQ)
+
+ #if defined(ALLSCALE_HAVE_CPUFREQ)
     using hardware_reconf = allscale::components::util::hardware_reconf;
     auto  freqs = hardware_reconf::get_frequencies(0);
 
@@ -502,7 +409,16 @@ void scheduler::init() {
       HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
       "error in initializing the local optimizer, allowed frequency values are empty");
     }
-  #endif
+    // VV: Set to max number of threads and max frequency
+    lopt_.reset(os_thread_count, freqs.size()-1);
+#else
+    // VV: Max number of threads, and an arbitrary frequency index
+    lopt_.reset(os_thread_count,0);
+#endif
+    
+    // VV: Set objectives after setting all constraints to
+    //     trigger the initialization of nmd
+    lopt_.setobjectives(time_weight, energy_weight, resource_weight);
 #ifdef DEBUG_
     lopt_.printobjectives();
 #endif
@@ -819,30 +735,44 @@ void scheduler::optimize_locally(work_item const& work)
 #endif
                 // amend threads if signaled
                 
-                if (act_temp.delta_threads < active_threads){
+                if (act_temp.threads < active_threads){
 #ifdef DEBUG_MULTIOBJECTIVE_
                     std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << " out of " << lopt_.getmaxthreads() 
-                    << " , target threads = " << act_temp.delta_threads << std::endl;
+                    << " , target threads = " << act_temp.threads << std::endl;
 
 #endif    
                     //unsigned int suspended_temp = suspend_threads(new_threads_target);
                     //lopt_.setCurrentThreads(lopt_.getCurrentThreads()-suspended_temp);
-                    suspend_threads(active_threads-act_temp.delta_threads);
+                    suspend_threads(active_threads-act_temp.threads);
                 }
-                else if (act_temp.delta_threads > active_threads){
+                else if (act_temp.threads > active_threads){
 #ifdef DEBUG_MULTIOBJECTIVE_
                     std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << " out of " << lopt_.getmaxthreads() 
-                    << " , target threads = " << act_temp.delta_threads << std::endl;
+                    << " , target threads = " << act_temp.threads << std::endl;
 #endif
-                    resume_threads(act_temp.delta_threads - active_threads);
+                    resume_threads(act_temp.threads - active_threads);
                 }
                 fix_allcores_frequencies(act_temp.frequency_idx);
                 lopt_.setCurrentFrequencyIdx(act_temp.frequency_idx);
-                lopt_.setCurrentThreads(act_temp.delta_threads);
+                lopt_.setCurrentThreads(act_temp.threads);
             }
         } // uselopt
 #endif
     }
+}
+
+void scheduler::set_local_optimizer_weights(double time_weight, 
+                                         double energy_weight,
+                                         double resource_weight)
+{
+    lopt_.setobjectives(time_weight, energy_weight, resource_weight);
+}
+
+void scheduler::get_local_optimizer_weights(double *time_weight,
+                                           double *energy_weight,
+                                           double *resource_weight)
+{
+    lopt_.getobjectives(time_weight, energy_weight, resource_weight);
 }
 
 std::pair<work_item, std::unique_ptr<data_item_manager::task_requirements_base>> scheduler::schedule_local(work_item work,

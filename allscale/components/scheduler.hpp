@@ -65,7 +65,13 @@ namespace allscale { namespace components {
         {
             return active_threads;
         }
-
+        
+        void set_local_optimizer_weights(double time_weight, 
+                                         double energy_weight,
+                                         double resource_weight);
+        void get_local_optimizer_weights(double *time_weight, 
+                                         double *energy_weight,
+                                         double *resource_weight);
     private:
 
         std::size_t get_num_numa_nodes();
@@ -84,12 +90,11 @@ namespace allscale { namespace components {
         bool do_split(work_item const& work, std::size_t numa_node);
 
         bool collect_counters();
-        //try to suspend resource_step threads, return number of threads which received a new suspend order;
-        // REM unsigned int suspend_threads();
-        unsigned int suspend_threads(std::size_t);
-        //try to resume resource_step threads, return number of threads which received a new resume order;
-        // REM         unsigned int resume_threads();
-        unsigned int resume_threads(std::size_t);
+        //try to suspend threads, return number of threads which received a new suspend order;
+                unsigned int suspend_threads(std::size_t);
+        
+        //try to resume threads, return number of threads which received a new resume order;
+                unsigned int resume_threads(std::size_t);
 
 #ifdef MEASURE_
         // convenience methods to update measured metrics of interest
@@ -163,11 +168,10 @@ namespace allscale { namespace components {
         // Indices correspond to the freq id in cpu_freqs, and
         // each pair holds energy usage and execution time
         std::vector<std::pair<unsigned long long, double>> freq_times;
-        std::vector<std::vector<std::pair<unsigned long long, double>>> objectives_status;
+        
         unsigned int freq_step;
         bool target_freq_found;
 #endif
-        unsigned int resource_step;
         bool target_resource_found;
 
         mutable mutex_type throttle_mtx_;
@@ -189,9 +193,9 @@ namespace allscale { namespace components {
         bool resource_requested;
         bool energy_requested;
 
-        double time_leeway;
-        double resource_leeway;
-        double energy_leeway;
+        double time_weight;
+        double resource_weight;
+        double energy_weight;
         unsigned int period_for_time;
         unsigned int period_for_resource;
         unsigned int period_for_power;

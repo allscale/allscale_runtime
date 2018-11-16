@@ -94,10 +94,16 @@ class NelderMead
 	NelderMead(double);
 	// VV: For the time being 
 	//     weights = [ W_time, W_energy/power, W_resources ]
+	//     initial_simplex = double[NMD_NUM_KNOBS+1][NMD_NUM_KNOBS]
 	//     constraint_min = [min_threads, min_freq_idx]
-	void initialize_simplex(double weights[NMD_NUM_OBJECTIVES],
-							double constraint_min[NMD_NUM_KNOBS],
-							double constraint_max[NMD_NUM_KNOBS]);
+	void initialize_simplex(const double weights[NMD_NUM_OBJECTIVES],
+							const double initial_simplex[][NMD_NUM_KNOBS],
+							const double constraint_min[NMD_NUM_KNOBS],
+							const double constraint_max[NMD_NUM_KNOBS]);
+	
+	void initialize_simplex(const double weights[NMD_NUM_OBJECTIVES],
+							const double constraint_min[NMD_NUM_KNOBS],
+							const double constraint_max[NMD_NUM_KNOBS]);
 
 	void print_initial_simplex();
 	void print_iteration();
@@ -112,9 +118,16 @@ class NelderMead
 		return min;
 	}
 
+	// VV: Returns a [NMD_NUM_KNOS+1][NMD_NUM_KNOBS] array
+	void get_simplex(double simplex[][NMD_NUM_KNOBS]) {
+		for (auto i=0; i<NMD_NUM_KNOBS+1; ++i)
+			for (auto j=0; j<NMD_NUM_KNOBS; ++j)
+				simplex[i][j] = v[i][j];
+	}
+
 	unsigned long int getIterations() { return itr; }
 	double evaluate_score(const double objectives[], const double *weights) const;
-	void set_weights(double weights[]);
+	void set_weights(const double weights[]);
 
 	optstepresult step(const double objectives[]);
 
@@ -148,21 +161,6 @@ class NelderMead
 					  const double objectives[],
 					  bool add_if_new);
 
-	double round2(double num, int precision)
-	{
-		double rnum = 0.0;
-		int tnum;
-
-		if (num == 0.0)
-			return num;
-
-		rnum = num * pow(10, precision);
-		tnum = (int)(rnum < 0 ? rnum - 0.5 : rnum + 0.5);
-		rnum = tnum / pow(10, precision);
-
-		return rnum;
-	}
-
 	bool convergence_reevaluating;
 	int initial_configurations[NMD_NUM_KNOBS+1][NMD_NUM_KNOBS];
 	
@@ -186,10 +184,10 @@ class NelderMead
 	int itr;
 
 	/* holds vertices of simplex */
-	double **v;
+	double v[NMD_NUM_KNOBS+1][NMD_NUM_KNOBS];
 
 	/* value of function at each vertex */
-	double *f;
+	double f[NMD_NUM_KNOBS+1];
 
 	/* value of function at reflection point */
 	double fr;
@@ -201,16 +199,16 @@ class NelderMead
 	double fc;
 
 	/* reflection - coordinates */
-	double *vr;
+	double vr[NMD_NUM_KNOBS];
 
 	/* expansion - coordinates */
-	double *ve;
+	double ve[NMD_NUM_KNOBS];
 
 	/* contraction - coordinates */
-	double *vc;
+	double vc[NMD_NUM_KNOBS];
 
 	/* centroid - coordinates */
-	double *vm;
+	double vm[NMD_NUM_KNOBS];
 
 	double min;
 

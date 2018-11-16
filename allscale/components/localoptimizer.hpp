@@ -31,12 +31,6 @@ enum objectiveType
 	resource
 };
 
-enum parameterType
-{
-	thread,
-	frequency
-};
-
 enum searchPolicy
 {
 	allscale,
@@ -44,50 +38,12 @@ enum searchPolicy
 	manual
 };
 
-/* structure type of a single optimization objective */
-struct objective
-{
-	double last_scores[3];
-
-	objectiveType type;
-	/* leeway threshold desired, 0-1 double */
-	double leeway;
-	/* non-negative integer priority of the objective, 0 is highest priority*/
-	int priority;
-	/* local minimum during single objective optimization */
-	double localmin;
-	/* local maximum during single objective optimization */
-	double localmax;
-	/* local minimum during single objective optimization */
-	double globalmin;
-	/* local minimum during single objective optimization */
-	double globalmax;
-	/* current deviation of the objective value from observed min */
-	double currentthreshold;
-	/* sampled objective values throughout execution */
-	std::vector<double> samples;
-	/* thread number that lead to the objective value in samples vector */
-	std::vector<double> threads_samples;
-	/* frequency index that lead to the objective value in samples vector */
-	std::vector<double> freq_samples;
-	/* true if optimization of objective has converged, false otherwise */
-	bool converged;
-	/* true if optimizer for objective has been initialized, false otherwise */
-	bool initialized;
-	/* index to the parameter vectors for setup that has so far achieved
-         the minimum over all samples */
-	long int min_params_idx;
-	double converged_minimum;
-	double minimization_params[2];
-};
 
 /* structure type modelling an optimization actuation action to be taken
        by the scheduler */
 struct actuation
 {
-	/* number of threads to resume (>0) or suspend (<0). If set to zero,
-          number of threads will stay unchanged. */
-	unsigned int delta_threads;
+	unsigned int threads;
 
 #if defined(ALLSCALE_HAVE_CPUFREQ)
 	/* index to the global cpu-supported frequencies vector pointing to
@@ -109,16 +65,16 @@ struct localoptimizer
 #if defined(ALLSCALE_HAVE_CPUFREQ)
 		  frequency_param_(0),
 #endif
-		  current_objective_idx_(0), 
 		  converged_(false),
 		  convergence_threshold_(0.01),
+		  time_weight(0.0),
+		  energy_weight(0.0),
+		  resource_weight(0.0),
 		  nmd(0.01)
 	{
 		if (optmethod_ == random)
 			srand(std::time(NULL));
 	}
-	localoptimizer(std::list<objective>);
-
 	bool isConverged();
 
 	void setPolicy(searchPolicy pol)
@@ -132,13 +88,26 @@ struct localoptimizer
 #endif
 	}
 #ifdef ALLSCALE_HAVE_CPUFREQ
-	void initialize_nmd();
+	void initialize_nmd(bool from_scratch);
 #endif
-	double opt_weights[NMD_NUM_OBJECTIVES];
-
 	searchPolicy getPolicy() { return optmethod_; }
 
-	void setobjectives(std::list<objective>);
+	// VV: Modifying the objectives triggers restarting the optimizer
+	void setobjectives(double time_weight, 
+						double energy_weight, 
+						double resource_weight);
+
+	void getobjectives(double *time_weight, 
+					   double *energy_weight,
+					   double *resource_weight)
+	{
+		if ( time_weight != nullptr )
+			*time_weight = this->time_weight;
+		if ( energy_weight != nullptr )
+			*energy_weight = this->energy_weight;
+		if ( resource_weight != nullptr )
+			*resource_weight = this->resource_weight;
+	}
 
 	std::size_t getCurrentThreads() { return threads_param_; }
 
@@ -221,9 +190,10 @@ struct localoptimizer
 	}
 
   private:
+	double time_weight, energy_weight, resource_weight;
+
 	// VV: Used to convert thread_idx to actual number of threads
 	std::size_t threads_dt;
-
 
 	void accumulate_objective_measurements();
 	void reset_accumulated_measurements();
@@ -240,14 +210,7 @@ struct localoptimizer
 
 	bool mo_initialized;
 
-	/* vector of active optimization objectives. Objectives are stored
-           in the vector in decreasing priority order */
-	std::vector<objective> objectives_;
-
 	NelderMead nmd;
-
-	/* counts number of parameter changes (as pair) */
-	unsigned long long int param_changes_;
 
 	/* single objective optimization method used */
 	searchPolicy optmethod_ = random;
@@ -283,21 +246,8 @@ struct localoptimizer
 
 	/***** optimization state variables ******/
 
-	/* index to the _objectives vector of currently optimized objective */
-	unsigned short int current_objective_idx_;
-
-	/* number of times the optimizer step() has been invoked, this is for
-           init and housekeeping purposes */
-	unsigned long long int steps_;
-
-	/* currently optimized parameter */
-	parameterType current_param_;
-
 	/* initial warm-up steps */
 	const unsigned int warmup_steps_ = 3;
-
-	/* maximum number of optimization steps allowed */
-	const int max_steps_ = 100;
 
 	/* set to true if local optimizer has converged over all objectives */
 	bool converged_;

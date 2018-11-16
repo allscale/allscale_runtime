@@ -370,18 +370,54 @@ namespace allscale
         {
             std::lock_guard<mutex_type> l(optimizer_.mtx_);
             optimizer_.objective_.speed_exponent = exp;
+            double time_weight, energy_weight, resource_weight;
+
+            auto &&local_scheduler = scheduler::get();
+
+            local_scheduler.get_local_optimizer_weights(&time_weight,
+                                                        &energy_weight,
+                                                        &resource_weight);
+            time_weight = (double) exp;
+
+            local_scheduler.set_local_optimizer_weights(time_weight,
+                                                        energy_weight,
+                                                        resource_weight);
         }
 
         void set_efficiency_exponent(float exp)
         {
             std::lock_guard<mutex_type> l(optimizer_.mtx_);
             optimizer_.objective_.efficiency_exponent = exp;
+            double time_weight, energy_weight, resource_weight;
+
+            auto &&local_scheduler = scheduler::get();
+
+            local_scheduler.get_local_optimizer_weights(&time_weight,
+                                                        &energy_weight,
+                                                        &resource_weight);
+            resource_weight = (double) exp;
+
+            local_scheduler.set_local_optimizer_weights(time_weight,
+                                                        energy_weight,
+                                                        resource_weight);
         }
 
         void set_power_exponent(float exp)
         {
             std::lock_guard<mutex_type> l(optimizer_.mtx_);
             optimizer_.objective_.power_exponent = exp;
+            double time_weight, energy_weight, resource_weight;
+            
+            auto &&local_scheduler = scheduler::get();
+
+            local_scheduler.get_local_optimizer_weights(&time_weight,
+                                                        &energy_weight,
+                                                        &resource_weight);
+            energy_weight = (double) exp;
+
+            local_scheduler.set_local_optimizer_weights(time_weight,
+                                                        energy_weight,
+                                                        resource_weight);
         }
 
         hpx::util::tuple<float, float, float> get_optimizer_exponents()

@@ -397,12 +397,12 @@ namespace allscale { namespace components {
    float monitor::get_max_power()
    {
 #if defined(ALLSCALE_HAVE_CPUFREQ)
-      // VV: report 1250 Watts
+      // VV: report 1100 Watts
       //  ( redbox paper 5283 for 8335-GTA indicates 1875 for the 
-      //   whole node but I've noticed up to ~1100-1200 Watts, for
+      //   whole node but I've noticed up to ~1100 Watts, for
       //   the time being this is a good enough figure )
       //  ( this should be dynamically configured/discovered )
-      return 1250.0;
+      return 1100.0;
 #elif defined(POWER_ESTIMATE)
       return allscale::power::estimate_power(get_max_freq(0)) * num_cpus_;
 #else
