@@ -57,8 +57,13 @@ namespace allscale { namespace dashboard
 
         state.productive_cycles_per_second = float(state.cur_frequency) * (1.f - state.idle_rate);  // freq to Hz
 
+#ifdef ALLSCALE_HAVE_CPUFREQ
+        state.speed = monitor_c->get_avg_time_last_iterations(100);
+        state.efficiency = active_cores;
+#else
         state.speed = 1.f - state.idle_rate;
         state.efficiency = state.speed * (float(state.cur_frequency * active_cores) / float(state.max_frequency * state.num_cores));
+#endif
 
 #if defined(POWER_ESTIMATE) || defined(ALLSCALE_HAVE_CPUFREQ)
         state.cur_power = monitor_c->get_current_power();

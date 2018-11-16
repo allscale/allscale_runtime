@@ -139,6 +139,7 @@ void NelderMead::generate_new(F &gen)
 
     max_level *= 2;
     max_nested_level *=2;
+    auto timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
 
     int is_same;
     do
@@ -147,7 +148,13 @@ void NelderMead::generate_new(F &gen)
         
         auto key = std::make_pair((int)new_set[0], (int)new_set[1]);
         auto entry = cache_.find(key);
-        is_same = (entry != cache_.end());
+        
+        is_same = 0;
+
+        if ( entry != cache_.end() ) {
+            auto dt = timestamp_now - entry->second._cache_timestamp;
+            is_same = dt <= entry->second._cache_expires_dt;
+        }
 
         if ( ( level < max_level +1) 
              && is_same 
@@ -281,7 +288,7 @@ void NelderMead::initialize_simplex(const double weights[3],
                                     const double constraint_max[2])
 {
     int i, j;
-    long timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+    auto timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
 
     for (i = 0; i < NMD_NUM_KNOBS; i++)
     {
