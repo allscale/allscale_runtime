@@ -64,7 +64,7 @@ struct optstepresult
 	double threads;
 	/* index to frequency vector for freq parameter to set for sampling*/
 	int freq_idx;
-
+	
 	/******VV: Cache stuff******/
 	double objectives[3]; // (time, energy, resource)
 	// VV: _cache_expires denotes dt (in ms) after _cache_timestamp

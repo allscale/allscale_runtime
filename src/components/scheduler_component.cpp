@@ -86,6 +86,7 @@ scheduler::scheduler(std::uint64_t rank)
 #endif
       ,
       nr_opt_steps(0),
+      last_objective_score(-1.0),
       uselopt(false)
   {
   allscale_monitor = &allscale::monitor::get();
@@ -203,10 +204,6 @@ void scheduler::init() {
 #ifdef MEASURE_
   last_measure_power = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
   last_measure_threads = last_measure_power;
-// update_active_osthreads(0);
-// #ifdef ALLSCALE_HAVE_CPUFREQ
-//   update_power_consumption(hardware_reconf::read_system_power(), 1);
-// #endif
 #endif
 
   rp_ = &hpx::resource::get_partitioner();
@@ -683,6 +680,7 @@ void scheduler::optimize_locally(work_item const& work)
             long elapsedTimeMs = t_duration_now - last_objective_measurement_timestamp_;
 
             auto dt_power = t_duration_now - last_measure_power;
+            last_measure_power = t_duration_now;
             update_power_consumption(power_sum/last_power_usage, dt_power);
 
             if (elapsedTimeMs > objective_measurement_period_ms){
@@ -698,11 +696,14 @@ void scheduler::optimize_locally(work_item const& work)
 #endif
                     current_avg_iter_time = 0.0;
                 }
-
+                double last_objectives[] = {current_avg_iter_time,power_sum/(last_power_usage*monitor_c->get_max_power()),
+                        active_threads};
                 lopt_.measureObjective(current_avg_iter_time,power_sum/(last_power_usage*monitor_c->get_max_power()),
                         active_threads);
                 last_power_usage=0;
                 power_sum=0;
+
+                last_objective_score = lopt_.evaluate_score(last_objectives);
             }
 
             elapsedTimeMs = t_duration_now - last_optimization_timestamp_;
@@ -729,7 +730,7 @@ void scheduler::optimize_locally(work_item const& work)
 
 #ifdef DEBUG_MULTIOBJECTIVE_
                     std::cout << "[SCHEDULER|INFO]: Active Threads = " << active_threads << " out of " << lopt_.getmaxthreads() 
-                    << " , target threads = " << act_temp.threads << ", set threads to " << active_threads << std::endl;
+                    << " , target threads = " << act_temp.threads << std::endl;
 #endif
             }
         } 
@@ -992,10 +993,6 @@ unsigned int scheduler::suspend_threads(std::size_t suspendthreads) {
   std::cout << "total active PUs: " << active_threads_ << "\n";
 #endif
 
-// #ifdef MEASURE_
-//   update_active_osthreads(active_threads_-active_threads);
-// #endif
-
   active_threads = active_threads_;
 
   growing = false;
@@ -1057,9 +1054,6 @@ unsigned int scheduler::suspend_threads(std::size_t suspendthreads) {
             )
         );
   }
-// #ifdef MEASURE_
-//   update_active_osthreads(-1 * suspend_threads.size());
-// #endif
 
   active_threads = active_threads - suspend_threads.size();
 
@@ -1178,10 +1172,6 @@ unsigned int scheduler::resume_threads(std::size_t resumethreads) {
   std::cout << "total active PUs: " << active_threads_ << "\n";
 #endif
 
-// #ifdef MEASURE_
-//   update_active_osthreads(active_threads_-active_threads);
-// #endif
-
   active_threads = active_threads_;
   // if no thread is suspended, nothing to do
   if (domain_blocked_threads == 0) {
@@ -1237,9 +1227,6 @@ unsigned int scheduler::resume_threads(std::size_t resumethreads) {
             )
         );
   }
-// #ifdef MEASURE_
-//   update_active_osthreads(resume_threads.size());
-// #endif
   active_threads = active_threads + resume_threads.size();
 #ifdef DEBUG_THREADSTATUS_
   std::cout << "[SCHEDULER|INFO]: Thread Resume - Newly Active Threads: " << active_threads
@@ -1368,6 +1355,7 @@ void scheduler::update_active_osthreads(std::size_t threads, int64_t delta_time)
 
   meas_active_threads_count += delta_time;
   meas_active_threads_sum += active_threads * delta_time;
+  std::cout <<"REGISTERING THREADS " << threads << " for " << delta_time << std::endl;
 }
 
 void scheduler::update_power_consumption(std::size_t power_sample, int64_t delta_time)

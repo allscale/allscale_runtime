@@ -70,7 +70,6 @@ namespace allscale { namespace dashboard
         state.max_power = monitor_c->get_max_power();
         state.power = state.cur_power / state.max_power;
 #endif
-
         return state;
     }
 }}
@@ -169,9 +168,15 @@ namespace allscale { namespace dashboard
 
     float system_state::score() const
     {
+#ifdef ALLSCALE_HAVE_CPUFREQ
+        return std::exp(speed * speed_exponent) *
+                std::exp(efficiency * efficiency_exponent ) *
+                std::exp(power * power_exponent);
+#else
         return std::pow(speed, speed_exponent) *
                std::pow(efficiency, efficiency_exponent) *
                std::pow(1 - power, power_exponent);
+#endif
     }
 
     template void node_state::serialize<hpx::serialization::input_archive>(hpx::serialization::input_archive& ar, unsigned);

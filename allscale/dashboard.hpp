@@ -89,7 +89,7 @@ namespace allscale { namespace dashboard
 
         // current power usage / max power usage \in [0..1]
         float power = 0;
-
+        
         std::string to_json() const;
 
         template <typename Archive>

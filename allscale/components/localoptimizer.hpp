@@ -76,7 +76,7 @@ struct localoptimizer
 			srand(std::time(NULL));
 	}
 	bool isConverged();
-
+	double evaluate_score(const double objectives[]);
 	void setPolicy(searchPolicy pol)
 	{
 		optmethod_ = pol;

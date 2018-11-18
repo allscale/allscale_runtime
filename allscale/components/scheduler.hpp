@@ -72,6 +72,10 @@ namespace allscale { namespace components {
         void get_local_optimizer_weights(double *time_weight, 
                                          double *energy_weight,
                                          double *resource_weight);
+        
+        double get_last_objective_score() {
+                return last_objective_score;
+        }
     private:
 
         std::size_t get_num_numa_nodes();
@@ -101,6 +105,7 @@ namespace allscale { namespace components {
         void update_active_osthreads(std::size_t threads, int64_t delta_time);
         void update_power_consumption(std::size_t power_sample, int64_t delta_time);
 #endif
+        double last_objective_score;
         int64_t last_measure_power, last_measure_threads;
 
         void fix_allcores_frequencies(int index);

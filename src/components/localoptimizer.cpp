@@ -24,6 +24,15 @@ namespace allscale
 {
 namespace components
 {
+
+double localoptimizer::evaluate_score(const double objectives[])
+{
+	if ( mo_initialized ) {
+		return nmd.evaluate_score(objectives, nullptr);
+	}
+
+	return -1.0;
+}
 void localoptimizer::setobjectives(double time_weight, 
 								   double energy_weight, 
 								   double resource_weight)
