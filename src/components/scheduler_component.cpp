@@ -202,6 +202,7 @@ void scheduler::init() {
 
 #ifdef MEASURE_
   last_measure_power = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+  last_measure_threads = last_measure_power;
 // update_active_osthreads(0);
 // #ifdef ALLSCALE_HAVE_CPUFREQ
 //   update_power_consumption(hardware_reconf::read_system_power(), 1);
@@ -667,29 +668,6 @@ void scheduler::optimize_locally(work_item const& work)
 
 #endif
 
-#ifdef MEASURE_
-        auto timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-        auto dt = timestamp_now - last_measure_power;
-
-        if (dt >= 5000)
-        {
-          
-          dt = dt > 0 ? dt : 1 ;
-
-          last_measure_power = timestamp_now;
-          
-          update_active_osthreads(active_threads, dt);
-#ifdef ALLSCALE_HAVE_CPUFREQ
-          allscale::components::monitor *monitor_c = &allscale::monitor::get();
-          auto measurement = monitor_c->get_current_power();
-          if ( measurement <= 10000 ) {
-            update_power_consumption(measurement, dt);
-          }
-#endif
-        }
-
-#endif
-
 #ifdef ALLSCALE_HAVE_CPUFREQ
         if (uselopt && !lopt_.isConverged()) {
             last_power_usage++;
@@ -703,6 +681,9 @@ void scheduler::optimize_locally(work_item const& work)
             long t_duration_now = t_value.count();
 
             long elapsedTimeMs = t_duration_now - last_objective_measurement_timestamp_;
+
+            auto dt_power = t_duration_now - last_measure_power;
+            update_power_consumption(power_sum/last_power_usage, dt_power);
 
             if (elapsedTimeMs > objective_measurement_period_ms){
                 last_objective_measurement_timestamp_= t_duration_now;
@@ -718,7 +699,7 @@ void scheduler::optimize_locally(work_item const& work)
                     current_avg_iter_time = 0.0;
                 }
 
-                lopt_.measureObjective(current_avg_iter_time,power_sum/last_power_usage,
+                lopt_.measureObjective(current_avg_iter_time,power_sum/(last_power_usage*monitor_c->get_max_power()),
                         active_threads);
                 last_power_usage=0;
                 power_sum=0;
@@ -733,8 +714,9 @@ void scheduler::optimize_locally(work_item const& work)
 #ifdef DEBUG_MULTIOBJECTIVE_
                 lopt_.printverbosesteps(act_temp);
 #endif
-                // amend threads if signaled
-                
+                auto dt_threads = t_duration_now - last_measure_threads;
+                update_active_osthreads(active_threads, dt_threads);
+                last_measure_threads = t_duration_now;
                 if (act_temp.threads < active_threads){
                     suspend_threads(active_threads-act_temp.threads);
                 }
@@ -750,7 +732,20 @@ void scheduler::optimize_locally(work_item const& work)
                     << " , target threads = " << act_temp.threads << ", set threads to " << active_threads << std::endl;
 #endif
             }
-        } // uselopt
+        } 
+    #ifdef MEASURE_
+        else {
+          auto timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+          auto dt = timestamp_now - last_measure_power;
+          if ( dt >= 1000 ) {
+            allscale::components::monitor *monitor_c = &allscale::monitor::get();
+            auto cur_power = monitor_c->get_current_power();
+
+            update_power_consumption(cur_power, dt);
+            last_measure_power = timestamp_now;
+          }
+        }
+    #endif
 #endif
     }
 }
@@ -1377,6 +1372,9 @@ void scheduler::update_active_osthreads(std::size_t threads, int64_t delta_time)
 
 void scheduler::update_power_consumption(std::size_t power_sample, int64_t delta_time)
 {
+  if ( power_sample > 10000)
+    return;
+  
   if (meas_power_max==0 || meas_power_max < power_sample)
     meas_power_max=power_sample;
 
@@ -1457,16 +1455,19 @@ void scheduler::stop() {
 #ifdef DEBUG_MULTIOBJECTIVE_
 #ifdef MEASURE_
   auto timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-  auto dt = timestamp_now - last_measure_power;
-  last_measure_power = timestamp_now;
+  auto dt_threads = timestamp_now - last_measure_threads;
+  auto dt_power = timestamp_now - last_measure_power;
 
-  update_active_osthreads(active_threads, dt);
+  last_measure_power = timestamp_now;
+  last_measure_threads = timestamp_now;
+
+  update_active_osthreads(active_threads, dt_threads);
 #ifdef ALLSCALE_HAVE_CPUFREQ
   allscale::components::monitor *monitor_c = &allscale::monitor::get();
 
   auto measurement = monitor_c->get_current_power();
   if ( measurement <= 10000 ) {
-    update_power_consumption(measurement, dt);
+    update_power_consumption(measurement, dt_power);
   }
 #endif
 

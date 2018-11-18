@@ -37,8 +37,8 @@ NelderMead::NelderMead(double eps)
     itr = 0;
     state_ = warmup;
     
-    max_power_ = 900.;
-    max_time_ = 3.2;
+    max_power_ = 1.0;
+    max_time_ = 30.0;
 
     warming_up_step = 0;
     convergence_reevaluating = false;
@@ -253,8 +253,8 @@ double NelderMead::evaluate_score(const double objectives[], const double *weigh
     // VV: [time, energy/power, resources]
     double scale[] = {1.0, 1.0, 1.0};
     
-    max_time_ = max_time_ > objectives[0] ? max_time_ : objectives[0];
-    max_power_ = max_power_ > objectives[2] ? max_power_ : objectives[2];
+    // max_time_ = max_time_ > objectives[0] ? max_time_ : objectives[0];
+    // max_power_ = max_power_ > objectives[2] ? max_power_ : objectives[2];
 
     scale[0] = max_time_;
     scale[1] = max_power_;
@@ -910,7 +910,7 @@ optstepresult NelderMead::step(const double objectives[])
         // VV: Make sure that we actually profiled what we meant to
         int profiled_threads = objectives[2];
 
-        if ( warming_up_step > 0 && warming_up_step < NMD_NUM_KNOBS + 1) {
+        if ( warming_up_step > 0 && warming_up_step <= NMD_NUM_KNOBS + 1) {
             if ( (int) v[warming_up_step-1][0] != profiled_threads ) {
                 std::cout << "[NelderMead|WARN] Meant to profile " 
                         << v[warming_up_step-1][0] << " threads "

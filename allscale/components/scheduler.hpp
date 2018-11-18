@@ -101,7 +101,7 @@ namespace allscale { namespace components {
         void update_active_osthreads(std::size_t threads, int64_t delta_time);
         void update_power_consumption(std::size_t power_sample, int64_t delta_time);
 #endif
-        int64_t last_measure_power;
+        int64_t last_measure_power, last_measure_threads;
 
         void fix_allcores_frequencies(int index);
 
