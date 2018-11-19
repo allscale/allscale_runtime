@@ -1462,7 +1462,11 @@ void scheduler::stop() {
     update_power_consumption(measurement, dt_power);
   }
 #endif
-
+  if ( meas_active_threads_count == 0 )
+    meas_active_threads_count = 1;
+  if ( meas_power_count == 0 )
+    meas_power_count = 1;
+  
   std::cout << "\n****************************************************\n" << std::flush;
   std::cout << "Measured Metrics of Application Execution:\n"
 

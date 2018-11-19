@@ -586,7 +586,7 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                                             (float)previous_num_nodes);
                     auto node_fewer_tasks = 1ul;
 
-                    for (auto node_id = 0ul; node_id < previous_num_nodes; ++node_id)
+                    for (auto node_id = 0ul; node_id < num_active_nodes; ++node_id)
                     {
                         auto &node = node_to_tasks[node_id];
                         while (node.size() > prev_avg_tasks)
@@ -689,6 +689,23 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                             }
 
                         }
+                        // VV: Some of the nodes might be dead, convert the virtual name
+                        //     to the physical name
+                        auto virtual_to_physical = std::vector<std::size_t>();
+
+                        std::size_t cur_node = 0ul;
+
+                        for (const auto &physical:active_nodes_) {
+                            if ( physical ) {
+                                std::cout << "Node " << cur_node << " is alive!" << std::endl;
+                                virtual_to_physical.push_back(cur_node);
+                            }
+                            cur_node ++;
+                        }
+
+                        for (auto i = 0ul;  i< new_mapping.size(); ++i)
+                            new_mapping[i] = virtual_to_physical[new_mapping[i]];
+
                         previous_num_nodes = new_num_nodes;
                         hpx::lcos::broadcast_apply<allscale_optimizer_update_policy_action_ino>(localities_, new_mapping);
                     }
