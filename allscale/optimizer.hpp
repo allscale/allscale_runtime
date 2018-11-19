@@ -110,6 +110,8 @@ namespace allscale {
         hpx::future<void> balance_ino(const std::vector<std::size_t> &old_mapping);
         hpx::future<void> balance_ino_nmd(const std::vector<std::size_t> &old_mapping);
         hpx::future<void> decide_random_mapping(const std::vector<std::size_t> &old_mapping);
+        
+        void signal_objective_changed();
 
         bool may_rebalance();
 

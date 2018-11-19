@@ -23,6 +23,9 @@
 #include <boost/asio.hpp>
 
 
+// VV: Define this to use time/energy/resources instead of speed/energy/efficiency
+#define ALTERNATIVE_SCORE 
+
 namespace allscale { namespace dashboard
 {
     node_state get_state()
@@ -57,7 +60,7 @@ namespace allscale { namespace dashboard
 
         state.productive_cycles_per_second = float(state.cur_frequency) * (1.f - state.idle_rate);  // freq to Hz
 
-#ifdef ALLSCALE_HAVE_CPUFREQ
+#if defined(ALLSCALE_HAVE_CPUFREQ) || defined(ALTERNATIVE_SCORE)
         state.speed = monitor_c->get_avg_time_last_iterations(100);
         state.efficiency = active_cores;
 #else
@@ -168,7 +171,7 @@ namespace allscale { namespace dashboard
 
     float system_state::score() const
     {
-#ifdef ALLSCALE_HAVE_CPUFREQ
+#if defined(ALLSCALE_HAVE_CPUFREQ) || defined(ALTERNATIVE_SCORE)
         return std::exp(speed * speed_exponent) *
                 std::exp(efficiency * efficiency_exponent ) *
                 std::exp(power * power_exponent);

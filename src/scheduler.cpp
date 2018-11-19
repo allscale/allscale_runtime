@@ -379,6 +379,8 @@ namespace allscale
         {
             std::lock_guard<mutex_type> l(optimizer_.mtx_);
             optimizer_.objective_.speed_exponent = exp;
+            optimizer_.signal_objective_changed();
+
             double time_weight, energy_weight, resource_weight;
 
             auto &&local_scheduler = scheduler::get();
@@ -397,6 +399,8 @@ namespace allscale
         {
             std::lock_guard<mutex_type> l(optimizer_.mtx_);
             optimizer_.objective_.efficiency_exponent = exp;
+            optimizer_.signal_objective_changed();
+
             double time_weight, energy_weight, resource_weight;
 
             auto &&local_scheduler = scheduler::get();
@@ -415,6 +419,7 @@ namespace allscale
         {
             std::lock_guard<mutex_type> l(optimizer_.mtx_);
             optimizer_.objective_.power_exponent = exp;
+            optimizer_.signal_objective_changed();
             double time_weight, energy_weight, resource_weight;
             
             auto &&local_scheduler = scheduler::get();

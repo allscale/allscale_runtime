@@ -239,6 +239,20 @@ global_optimizer::global_optimizer()
     }
 }
 
+void global_optimizer::signal_objective_changed()
+{
+    const double new_weights[3] = {
+        objective_.speed_exponent,
+        objective_.power_exponent,
+        objective_.efficiency_exponent
+    };
+
+    nmd.set_weights(new_weights);
+
+    if ( nmd_initialized )
+        nmd_initialized = 0;
+}
+
 void global_optimizer::tune(std::vector<optimizer_state> const &state)
 {
     allscale::components::monitor *monitor_c = &allscale::monitor::get();
