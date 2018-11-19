@@ -90,6 +90,7 @@ class NelderMead
 {
 
   public:
+	NelderMead(const NelderMead &other);
 	NelderMead(double);
 	// VV: For the time being 
 	//     weights = [ W_time, W_energy/power, W_resources ]

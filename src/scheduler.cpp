@@ -175,6 +175,7 @@ namespace allscale
                  * ALLSCALE_RESOURCE_LEEWAY = (0.0, 1.0) // extra percentage allowed to explore
                  */
                 ino,
+                ino_nmd,
                 random,
                 truly_random
             };
@@ -194,6 +195,8 @@ namespace allscale
                         return "tuned";
                     case ino:
                         return "ino";
+                    case ino_nmd:
+                        return "ino_nmd";
                     case random:
                         return "random";
                     case truly_random:
@@ -231,6 +234,12 @@ namespace allscale
             {
                 return {
                     replacable_policy::ino,
+                    tree_scheduling_policy::create_uniform(allscale::get_num_localities())
+                };
+            }
+            if (policy == "ino_nmd" ) {
+                return {
+                    replacable_policy::ino_nmd,
                     tree_scheduling_policy::create_uniform(allscale::get_num_localities())
                 };
             }
@@ -343,8 +352,8 @@ namespace allscale
         void apply_new_mapping(const std::vector<std::size_t> &new_mapping)
         {
             std::lock_guard<mutex_type> l(mtx_);
-            policy_.policy_ = tree_scheduling_policy::from_mapping(*policy_.policy_,
-                                                                    new_mapping);
+            policy_.policy_ = 
+                tree_scheduling_policy::from_mapping(*policy_.policy_, new_mapping);
         }
 
         void toggle_node(std::size_t locality_id)
@@ -493,6 +502,11 @@ namespace allscale
                 tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(*policy_.policy_);
                 optimizer_.balance_ino(old.task_distribution_mapping());
             }
+            
+            if ( policy_.value_ == replacable_policy::ino_nmd) {
+                tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(*policy_.policy_);
+                optimizer_.balance_ino_nmd(old.task_distribution_mapping());
+            }
 
             if (policy_.value_ == replacable_policy::truly_random) {
                 tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(*policy_.policy_);
@@ -512,7 +526,7 @@ namespace allscale
 
         void schedule(work_item work)
         {
-            if (is_root_ && work.id().is_root() && work.id().id % 20 == 0)
+            if (is_root_ && work.id().is_root() && work.id().id % 5 == 0)
             {
                 balance();
             }

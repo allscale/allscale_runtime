@@ -423,10 +423,12 @@ void scheduler::init() {
   }
 #if defined(ALLSCALE_HAVE_CPUFREQ)
 else {
+    /*
     using hardware_reconf = allscale::components::util::hardware_reconf;
     auto  freqs = hardware_reconf::get_frequencies(0);
     // VV: Set maximum frequency
     fix_allcores_frequencies(freqs[freqs.size()-1]);
+    */
 }
 #endif
 }
@@ -1354,8 +1356,10 @@ void scheduler::update_active_osthreads(std::size_t threads, int64_t delta_time)
     meas_active_threads_min=threads;
 
   meas_active_threads_count += delta_time;
-  meas_active_threads_sum += active_threads * delta_time;
-  std::cout <<"REGISTERING THREADS " << threads << " for " << delta_time << std::endl;
+  meas_active_threads_sum += threads * delta_time;
+
+  std::cout <<"REGISTERING THREADS " << threads << " for " << delta_time << 
+  " current average " << (meas_active_threads_sum/meas_active_threads_count) << std::endl;
 }
 
 void scheduler::update_power_consumption(std::size_t power_sample, int64_t delta_time)

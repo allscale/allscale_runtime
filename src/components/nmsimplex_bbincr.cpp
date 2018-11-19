@@ -26,6 +26,45 @@ namespace allscale
 namespace components
 {
 
+
+NelderMead::NelderMead(const NelderMead &other)
+{
+    EPSILON = other.EPSILON;
+    state_ = other.state_;
+    max_power_ = other.max_power_;
+    max_time_ = other.max_time_;
+    
+    cache_.insert(other.cache_.begin(), other.cache_.end());
+    warming_up_step = other.warming_up_step;
+    convergence_reevaluating = other.convergence_reevaluating;
+
+    fc = other.fc;
+    fe = other.fe;
+    vs = other.vs;
+    vg = other.vg;
+    vh = other.vh;
+
+    for (auto i=0; i<NMD_NUM_KNOBS; ++i) {
+        constraint_max[i] = other.constraint_max[i];
+        constraint_min[i] = other.constraint_min[i];
+        vr[i] = other.vr[i];
+        ve[i] = other.ve[i];
+        vm[i] = other.vm[i];
+    }
+
+    for ( auto i=0; i<NMD_NUM_OBJECTIVES; ++i )
+        opt_weights[i] = other.opt_weights[i];
+
+    for (auto i=0; i<NMD_NUM_KNOBS+1; ++i )
+    {
+        for ( auto j=0; j<NMD_NUM_KNOBS; ++j ) {
+            v[i][j] = other.v[i][j];
+            initial_configurations[i][j] = other.initial_configurations[i][j];
+        }
+    }
+}
+
+
 //NelderMead::NelderMead(double (*objfunc)(double[]),double eps){
 NelderMead::NelderMead(double eps)
 {
@@ -311,6 +350,32 @@ void NelderMead::initialize_simplex(const double weights[3],
     warming_up_step = 0;
     convergence_reevaluating = false;
     cache_.clear();
+
+    for (i=0; i<NMD_NUM_KNOBS+1; ++i) {
+        int is_ok = 1;
+        do {
+            
+            for (j=0; j<NMD_NUM_KNOBS; ++j)
+                initial_configurations[i][j] = constraint_min[j] + rand() % (int) (constraint_max[j] - constraint_min[j]+1);
+            
+            is_ok = 1;
+
+            for (auto c=0; c<i && is_ok == 1; ++c)
+            {
+                is_ok = 0;
+                for ( j=0; j<NMD_NUM_KNOBS; ++j )
+                    is_ok |= (initial_configurations[c][j] != initial_configurations[i][j]);
+            }
+
+        } while (is_ok == 0);
+
+        OUT_DEBUG(
+            std::cout << "[NelderMead|DEBUG] Random initial simplex [" << i << "]: ";
+            for ( j =0; j<NMD_NUM_KNOBS; ++j) 
+                std::cout << initial_configurations[i][j] << " ";
+            std::cout << std::endl;
+        )
+    }
 }
 
 /* FIXME: generalize */
@@ -907,6 +972,20 @@ optstepresult NelderMead::step(const double objectives[])
             std::cout << "[NelderMead|DEBUG] State = Warmup " 
                       << warming_up_step << std::endl;
         #endif
+
+        OUT_DEBUG(
+            if ( warming_up_step == 0 ) {
+                std::cout << "[NelderMead|DEBUG] Initial exploration" << std::endl;
+
+                for ( auto i =0; i<NMD_NUM_KNOBS+1; ++i ) {
+                    std::cout << "Simplex[" << i <<"]:";
+                    for ( auto j=0; j<NMD_NUM_KNOBS; ++j )
+                        std::cout << " " << initial_configurations[i][j];
+                    std::cout << std::endl;
+                }
+            }
+        )
+
         // VV: Make sure that we actually profiled what we meant to
         int profiled_threads = objectives[2];
 

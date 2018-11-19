@@ -66,11 +66,11 @@ struct localoptimizer
 		  frequency_param_(0),
 #endif
 		  converged_(false),
-		  convergence_threshold_(0.01),
+		  convergence_threshold_(0.005),
 		  time_weight(0.0),
 		  energy_weight(0.0),
 		  resource_weight(0.0),
-		  nmd(0.01)
+		  nmd(0.005)
 	{
 		if (optmethod_ == random)
 			srand(std::time(NULL));

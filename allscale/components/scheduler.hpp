@@ -65,6 +65,10 @@ namespace allscale { namespace components {
         {
             return active_threads;
         }
+
+        std::size_t get_total_threads() const {
+                return os_thread_count;
+        }
         
         void set_local_optimizer_weights(double time_weight, 
                                          double energy_weight,
