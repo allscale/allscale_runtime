@@ -203,9 +203,11 @@ void localoptimizer::reset_accumulated_measurements()
 	pending_num_times = 0;
 }
 
-actuation localoptimizer::step()
+actuation localoptimizer::step(std::size_t active_threads)
 {
 	actuation act;
+	// VV: Possibly amend erroneous information
+	threads_param_  = active_threads;
 	act.threads = threads_param_;
 #ifdef ALLSCALE_HAVE_CPUFREQ
 	act.frequency_idx = frequency_param_;
@@ -232,7 +234,14 @@ actuation localoptimizer::step()
 		reset_accumulated_measurements();
 
 		if ( explore_knob_domain ){
-			optstepresult nmd_res = nmd.step(latest_measurements);
+			optstepresult nmd_res = nmd.step(latest_measurements,
+											 active_threads,
+#ifdef ALLSCALE_HAVE_CPUFREQ
+											 frequency_param_
+#else
+											0
+#endif
+											 );
 
 #ifdef DEBUG_MULTIOBJECTIVE_
 			std::cout << "[LOCALOPTIMIZER|DEBUG] New Vertex to try:";
@@ -290,6 +299,11 @@ validate_act:
 		act.frequency_idx = frequency_param_;
 	else if (act.frequency_idx > frequencies_param_allowed_.size() - 1)
 		act.frequency_idx = frequencies_param_allowed_.size() - 1;
+#endif
+	
+	threads_param_ = act.threads;
+#ifdef ALLSCALE_HAVE_CPUFREQ
+	frequency_param_ = act.frequency_idx;
 #endif
 	return act;
 }

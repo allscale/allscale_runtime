@@ -158,7 +158,7 @@ struct localoptimizer
 	void setmaxthreads(std::size_t threads);
 
 	/* executes one step of multi-objective optimization */
-	actuation step();
+	actuation step(std::size_t active_threads);
 
 	/* adds a measurement sample to the specified objective */
 	void measureObjective(double iter_time, double power, double threads);

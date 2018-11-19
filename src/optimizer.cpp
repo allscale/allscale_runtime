@@ -37,7 +37,7 @@ namespace allscale
             my_time = -1.f;
 
         allscale::components::monitor *monitor_c = &allscale::monitor::get();
-        float power_now = 100.f;
+        float power_now = 0.001f;
 #if defined(POWER_ESTIMATE) || defined(ALLSCALE_HAVE_CPUFREQ)
         power_now = monitor_c->get_current_power() / monitor_c->get_max_power();
 #endif
@@ -503,7 +503,9 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                     nmd_initialized = 1;
                 }
 
-                auto action = nmd.step(measurements);
+                auto action = nmd.step(measurements, 
+                                        previous_num_nodes,
+                                        avg_threads * previous_num_nodes);
                 // VV: Todo do something with the action
                 //     assume that .threads = nodes and .freq_idx = threads per node
                 int new_num_nodes = action.threads;
@@ -552,13 +554,34 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                             }
                         }
                     */
+                    // VV: Some of the nodes might be dead, convert the virtual name
+                    //     to the physical name
+                    std::size_t num_active_nodes = std::count(active_nodes_.begin(),                                active_nodes_.end(), true);
+                    auto virtual_to_physical = std::vector<std::size_t>();
+
+                    std::size_t cur_node = 0ul;
+
+                    for (const auto &physical:active_nodes_) {
+                        if ( physical ) {
+                            std::cout << "Node " << cur_node << " is alive!" << std::endl;
+                            virtual_to_physical.push_back(cur_node);
+                        }
+                        cur_node ++;
+                    }
+
+                    if ( new_num_nodes > num_active_nodes )
+                        new_num_nodes = num_active_nodes;
+                    
+                    if ( previous_num_nodes > num_active_nodes )
+                        previous_num_nodes = num_active_nodes;
+                    
                     auto new_avg_tasks = (std::size_t) std::ceil(old_mapping.size()/
                                                                  (float)new_num_nodes);
                     auto new_mapping = std::vector<std::size_t>(old_mapping.size(), 0ul);
                     auto node_to_tasks = std::map<std::size_t, std::vector<std::size_t> >();
                     // VV: node_to_tasks maps node id to list of tasks that it's running
                     std::size_t task_id = 0;
-                    std::size_t num_active_nodes = std::count(active_nodes_.begin(),                                active_nodes_.end(), true);
+                    
 
                     for (auto i=0ul; i<num_active_nodes; ++i)
                         node_to_tasks.insert(std::make_pair(i, std::vector<std::size_t>()));
@@ -689,20 +712,6 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                             }
 
                         }
-                        // VV: Some of the nodes might be dead, convert the virtual name
-                        //     to the physical name
-                        auto virtual_to_physical = std::vector<std::size_t>();
-
-                        std::size_t cur_node = 0ul;
-
-                        for (const auto &physical:active_nodes_) {
-                            if ( physical ) {
-                                std::cout << "Node " << cur_node << " is alive!" << std::endl;
-                                virtual_to_physical.push_back(cur_node);
-                            }
-                            cur_node ++;
-                        }
-
                         for (auto i = 0ul;  i< new_mapping.size(); ++i)
                             new_mapping[i] = virtual_to_physical[new_mapping[i]];
 

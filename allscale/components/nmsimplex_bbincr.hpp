@@ -129,7 +129,8 @@ class NelderMead
 	double evaluate_score(const double objectives[], const double *weights);
 	void set_weights(const double weights[]);
 
-	optstepresult step(const double objectives[]);
+	optstepresult step(const double objectives[], 
+			double knob1, double knob2);
 
   private:
 	int warming_up_step;
@@ -148,10 +149,14 @@ class NelderMead
 	MapCache_t cache_;
 
 	optstepresult do_step_start();
-	optstepresult do_step_reflect(const double objectives[]);
-	optstepresult do_step_expand(const double objectives[]);
-	optstepresult do_step_contract(const double objectives[]);
-	optstepresult do_step_shrink(const double objectives[]);
+	optstepresult do_step_reflect(const double objectives[], 
+			double knob1, double knob2);
+	optstepresult do_step_expand(const double objectives[], 
+			double knob1, double knob2);
+	optstepresult do_step_contract(const double objectives[], 
+			double knob1, double knob2);
+	optstepresult do_step_shrink(const double objectives[], 
+			double knob1, double knob2);
 
 	void sort_vertices(void);
 	void my_constraints(double *);

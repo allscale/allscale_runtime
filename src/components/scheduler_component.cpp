@@ -713,7 +713,7 @@ void scheduler::optimize_locally(work_item const& work)
             if (elapsedTimeMs > optimization_period_ms || nr_opt_steps == 0){
                 last_optimization_timestamp_= t_duration_now;
                 nr_opt_steps++;
-                actuation act_temp = lopt_.step();
+                actuation act_temp = lopt_.step(active_threads);
 #ifdef DEBUG_MULTIOBJECTIVE_
                 lopt_.printverbosesteps(act_temp);
 #endif

@@ -11,6 +11,8 @@
  */
 
 #include <allscale/components/nmsimplex_bbincr.hpp>
+#include <cmath>
+
 #define NMD_DEBUG_ 1
 #define NMD_INFO_ 1
 
@@ -183,6 +185,9 @@ void NelderMead::generate_new(F &gen)
     max_nested_level *=2;
     auto timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
 
+    // VV: Restrict search-grid to a maximum block of 5x5
+    int retries = 0;
+    const int retries_threshold = 5*5;
     int is_same;
     do
     {
@@ -197,10 +202,12 @@ void NelderMead::generate_new(F &gen)
             auto dt = timestamp_now - entry->second._cache_timestamp;
             is_same = dt <= entry->second._cache_expires_dt;
         }
-
+        
+        ++ retries;
         if ( ( level < max_level +1) 
              && is_same 
-             && max_combinations > (NMD_NUM_KNOBS + 1))
+             && max_combinations > (NMD_NUM_KNOBS + 1)
+             && retries < retries_threshold )
         {
             # if 0
             extra[0] = rand() % (int)(constraint_max[0] - constraint_min[0]) 
@@ -219,12 +226,20 @@ void NelderMead::generate_new(F &gen)
             #endif
             OUT_DEBUG(
                 std::cout << "[NelderMead|Debug] Rejecting " 
-                    << new_set[0] << " " << new_set[1] <<  std::endl;
+                    << new_set[0] << " " << new_set[1] 
+                    << " will try offset " << extra[0] << " " << extra[1] <<  std::endl;
             )
         } else {
             break;
         }
     } while ( 1 );
+
+    if ( retries >= retries_threshold ) {
+        extra[0] = 0;
+        extra[1] = 0;
+
+        gen(extra);
+    }
 }
 
 void NelderMead::my_constraints(double x[])
@@ -312,7 +327,7 @@ double NelderMead::evaluate_score(const double objectives[], const double *weigh
     #else 
     score = 1.0;
     for ( auto i=0; i<NMD_NUM_OBJECTIVES; ++ i) {
-        score *= exp(weights[i]*objectives[i]/scale[i]);
+        score *= std::exp(weights[i]*objectives[i]/scale[i]);
     }
     #endif
     return score;
@@ -611,33 +626,43 @@ optstepresult NelderMead::do_step_start()
 
         if (dt < entry->second._cache_expires_dt)
         {
-            return do_step_reflect(entry->second.objectives);
+            return do_step_reflect(entry->second.objectives,
+                    entry->second.threads,
+                    entry->second.freq_idx);
         }
     }
 
     return res;
 }
 
-optstepresult NelderMead::do_step_reflect(const double objectives[])
+optstepresult NelderMead::do_step_reflect(const double objectives[], 
+            double knob1, double knob2)
 {
     optstepresult res;
 #ifdef NMD_DEBUG_
     std::cout << "[NelderMead DEBUG] State = Reflection" << std::endl;
 #endif
     // VV: Make sure that we actually profiled what we meant to
-    int profiled_threads = objectives[2];
+    double profiled[] = {knob1, knob2};
+    my_constraints(profiled);
 
-    if ( (int) vr[0] != profiled_threads ) {
-        std::cout << "[NelderMead|WARN] Meant to profile " << vr[0] << " threads "
-                     "but ended up using " << profiled_threads << std::endl;
+    if ( vr[0] != profiled[0] || vr[1] != profiled[1] ) {
+        std::cout << "[NelderMead|WARN] Meant to profile " << vr[0] << " knob1 "
+                     "but ended up using " << profiled[0] << std::endl;
+        std::cout << "[NelderMead|WARN] Meant to profile " << vr[1] << " knob2 "
+                     "but ended up using " << profiled[1] << std::endl;
         
         auto key = std::make_pair((int)vr[0], (int)vr[1]);
         auto iter = cache_.find(key);
         if ( iter != cache_.end() ) {
-            iter->second.threads = profiled_threads;
+            iter->second.threads = profiled[0];
+            iter->second.freq_idx = profiled[1];
         }
 
-        vr[0] = profiled_threads;
+        vr[0] = profiled[0];
+        vr[1] = profiled[1];
+
+        cache_update((int)vr[0], (int)vr[1], objectives, true);
     }
 
     fr = evaluate_score(objectives, opt_weights);
@@ -695,7 +720,9 @@ optstepresult NelderMead::do_step_reflect(const double objectives[])
 
             if (dt < entry->second._cache_expires_dt)
             {
-                return do_step_expand(entry->second.objectives);
+                return do_step_expand(entry->second.objectives,
+                    entry->second.threads,
+                    entry->second.freq_idx);
             }
         }
 
@@ -732,7 +759,9 @@ optstepresult NelderMead::do_step_reflect(const double objectives[])
 
             if (dt < entry->second._cache_expires_dt)
             {
-                return do_step_contract(entry->second.objectives);
+                return do_step_contract(entry->second.objectives,
+                    entry->second.threads,
+                    entry->second.freq_idx);
             }
         }
 
@@ -768,7 +797,9 @@ optstepresult NelderMead::do_step_reflect(const double objectives[])
 
             if (dt < entry->second._cache_expires_dt)
             {
-                return do_step_contract(entry->second.objectives);
+                return do_step_contract(entry->second.objectives,
+                    entry->second.threads,
+                    entry->second.freq_idx);
             }
         }
 
@@ -776,27 +807,34 @@ optstepresult NelderMead::do_step_reflect(const double objectives[])
     }
 }
 
-optstepresult NelderMead::do_step_expand(const double objectives[])
+optstepresult NelderMead::do_step_expand(const double objectives[],
+    double knob1, double knob2)
 {
 #ifdef NMD_DEBUG_
     std::cout << "[NelderMead DEBUG] State = Expansion" << std::endl;
 #endif
     fe = evaluate_score(objectives, nullptr);
 
-    // VV: Make sure that we actually profiled what we meant to
-    int profiled_threads = objectives[2];
+    double profiled[] = {knob1, knob2};
+    my_constraints(profiled);
 
-    if ( (int) ve[0] != profiled_threads ) {
-        std::cout << "[NelderMead|WARN] Meant to profile " << ve[0] << " threads "
-                     "but ended up using " << profiled_threads << std::endl;
+    if ( ve[0] != profiled[0] || ve[1] != profiled[1] ) {
+        std::cout << "[NelderMead|WARN] Meant to profile expand " << ve[0] << " knob1 "
+                     "but ended up using " << profiled[0] << std::endl;
+        std::cout << "[NelderMead|WARN] Meant to profile expand " << ve[1] << " knob2 "
+                     "but ended up using " << profiled[1] << std::endl;
         
         auto key = std::make_pair((int)ve[0], (int)ve[1]);
         auto iter = cache_.find(key);
         if ( iter != cache_.end() ) {
-            iter->second.threads = profiled_threads;
+            iter->second.threads = profiled[0];
+            iter->second.freq_idx = profiled[1];
         }
 
-        ve[0] = profiled_threads;
+        ve[0] = profiled[0];
+        ve[1] = profiled[1];
+
+        cache_update((int)ve[0], (int)ve[1], objectives, true);
     }
 
     if (fe < fr)
@@ -827,7 +865,8 @@ optstepresult NelderMead::do_step_expand(const double objectives[])
     return do_step_start();
 }
 
-optstepresult NelderMead::do_step_contract(const double objectives[])
+optstepresult NelderMead::do_step_contract(const double objectives[],
+    double knob1, double knob2)
 {
     int j;
 #ifdef NMD_DEBUG_
@@ -835,20 +874,26 @@ optstepresult NelderMead::do_step_contract(const double objectives[])
 #endif
     fc = evaluate_score(objectives, nullptr);
 
-    // VV: Make sure that we actually profiled what we meant to
-    int profiled_threads = objectives[2];
+    double profiled[] = {knob1, knob2};
+    my_constraints(profiled);
 
-    if ( (int) vc[0] != profiled_threads ) {
-        std::cout << "[NelderMead|WARN] Meant to profile " << vc[0] << " threads "
-                     "but ended up using " << profiled_threads << std::endl;
+    if ( vc[0] != profiled[0] || vc[1] != profiled[1] ) {
+        std::cout << "[NelderMead|WARN] Meant to profile contract " << vc[0] << " knob1 "
+                     "but ended up using " << profiled[0] << std::endl;
+        std::cout << "[NelderMead|WARN] Meant to profile contract " << vc[1] << " knob2 "
+                     "but ended up using " << profiled[1] << std::endl;
         
         auto key = std::make_pair((int)vc[0], (int)vc[1]);
         auto iter = cache_.find(key);
         if ( iter != cache_.end() ) {
-            iter->second.threads = profiled_threads;
+            iter->second.threads = profiled[0];
+            iter->second.freq_idx = profiled[1];
         }
 
-        vc[0] = profiled_threads;
+        vc[0] = profiled[0];
+        vc[1] = profiled[1];
+
+        cache_update((int)vc[0], (int)vc[1], objectives, true);
     }
 
     if (fc <= fr)
@@ -904,7 +949,9 @@ optstepresult NelderMead::do_step_contract(const double objectives[])
 
             if (dt < entry->second._cache_expires_dt)
             {
-                return do_step_shrink(entry->second.objectives);
+                return do_step_shrink(entry->second.objectives, 
+                                        entry->second.threads, 
+                                        entry->second.freq_idx);
             }
         }
 
@@ -912,21 +959,34 @@ optstepresult NelderMead::do_step_contract(const double objectives[])
     }
 }
 
-optstepresult NelderMead::do_step_shrink(const double objectives[])
+optstepresult NelderMead::do_step_shrink(const double objectives[], 
+            double knob1, double knob2)
 {
 #ifdef NMD_DEBUG_
     std::cout << "[NelderMead|DEBUG] State = Shrink" << std::endl;
 #endif
     f[vh] = evaluate_score(objectives, nullptr);
 
-    // VV: Make sure that we actually profiled what we meant to
-    int profiled_threads = objectives[2];
+    double profiled[] = {knob1, knob2};
+    my_constraints(profiled);
 
-    if ( (int) v[vh][0] != profiled_threads ) {
-        std::cout << "[NelderMead|WARN] Meant to profile " << v[vh][0] << " threads "
-                     "but ended up using " << profiled_threads << std::endl;
+    if ( v[vh][0] != profiled[0] || v[vh][1] != profiled[1] ) {
+        std::cout << "[NelderMead|WARN] Meant to profile shrink " << v[vh][0] << " knob1 "
+                     "but ended up using " << profiled[0] << std::endl;
+        std::cout << "[NelderMead|WARN] Meant to profile shrink " << v[vh][1] << " knob2 "
+                     "but ended up using " << profiled[1] << std::endl;
         
-        v[vh][0] = profiled_threads;
+        auto key = std::make_pair((int)v[vh][0], (int)v[vh][1]);
+        auto iter = cache_.find(key);
+        if ( iter != cache_.end() ) {
+            iter->second.threads = profiled[0];
+            iter->second.freq_idx = profiled[1];
+        }
+
+        v[vh][0] = profiled[0];
+        v[vh][1] = profiled[1];
+
+        cache_update((int)v[vh][0], (int)v[vh][1], objectives, true);
     }
 
     const int threads = (int)(v[vh][0]);
@@ -937,7 +997,8 @@ optstepresult NelderMead::do_step_shrink(const double objectives[])
     return do_step_start();
 }
 
-optstepresult NelderMead::step(const double objectives[])
+optstepresult NelderMead::step(const double objectives[], 
+            double knob1, double knob2)
 {
     int i, j;
 
@@ -987,25 +1048,37 @@ optstepresult NelderMead::step(const double objectives[])
         )
 
         // VV: Make sure that we actually profiled what we meant to
-        int profiled_threads = objectives[2];
-
         if ( warming_up_step > 0 && warming_up_step <= NMD_NUM_KNOBS + 1) {
-            if ( (int) v[warming_up_step-1][0] != profiled_threads ) {
-                std::cout << "[NelderMead|WARN] Meant to profile " 
-                        << v[warming_up_step-1][0] << " threads "
-                        "but ended up using " << profiled_threads << std::endl;
-                v[warming_up_step-1][0] = profiled_threads;
+            double profiled[] = {knob1, knob2};
+            my_constraints(profiled);
+
+            if ( v[warming_up_step-1][0] != profiled[0] || v[warming_up_step-1][1] != profiled[1] ) {
+                std::cout << "[NelderMead|WARN] Meant to profile expand " << v[warming_up_step-1][0] << " knob1 "
+                            "but ended up using " << profiled[0] << std::endl;
+                std::cout << "[NelderMead|WARN] Meant to profile expand " << v[warming_up_step-1][1] << " knob2 "
+                            "but ended up using " << profiled[1] << std::endl;
+                
+                auto key = std::make_pair((int)v[warming_up_step-1][0], (int)v[warming_up_step-1][1]);
+                auto iter = cache_.find(key);
+                if ( iter != cache_.end() ) {
+                    iter->second.threads = profiled[0];
+                    iter->second.freq_idx = profiled[1];
+                }
+
+                v[warming_up_step-1][0] = profiled[0];
+                v[warming_up_step-1][1] = profiled[1];
             }
+            
             // VV: Record results of last warming up step
             f[warming_up_step-1] = evaluate_score(objectives, nullptr);
-            cache_update(profiled_threads, v[warming_up_step-1][1], 
+            cache_update(v[warming_up_step-1][0], v[warming_up_step-1][1], 
                          objectives, true);
         } 
 
         if ( warming_up_step == NMD_NUM_KNOBS + 1) {
             // VV: We need not explore the knob_set space anymore
             state_ = start;
-            return step(objectives);
+            return step(objectives, knob1, knob2);
         } else if (warming_up_step > NMD_NUM_KNOBS + 1) {
             std::cout << "[NelderMead|Warn] Unknown warmup step " << warming_up_step << std::endl;
         }
@@ -1031,16 +1104,16 @@ optstepresult NelderMead::step(const double objectives[])
         res = do_step_start();
         break;
     case reflection:
-        res = do_step_reflect(objectives);
+        res = do_step_reflect(objectives, knob1, knob2);
         break;
     case expansion:
-        res = do_step_expand(objectives);
+        res = do_step_expand(objectives, knob1, knob2);
         break;
     case contraction:
-        res = do_step_contract(objectives);
+        res = do_step_contract(objectives, knob1, knob2);
         break;
     case shrink:
-        res = do_step_shrink(objectives);
+        res = do_step_shrink(objectives, knob1, knob2);
         break;
     default:
         std::cout << "Unknown NelderMead state (" << state_ << ")" << std::endl;
