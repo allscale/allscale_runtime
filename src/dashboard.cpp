@@ -503,13 +503,18 @@ namespace allscale { namespace dashboard
                         total_efficiency += cur.efficiency;
                         cur_power += cur.cur_power;
                     }
+
                     max_power += cur.max_power;
                 }
 
                 state.speed = total_speed / client.localities_.size();
 //                 state.speed = std::pow(total_speed, 1.f/client.localities_.size());
-
+#if defined(ALLSCALE_HAVE_CPUFREQ) || defined(ALTERNATIVE_SCORE)
+                // VV: This is the number of active threads
+                state.efficiency = total_efficiency;
+#else
                 state.efficiency = total_efficiency / client.localities_.size();
+#endif
                 state.power = (max_power > 0) ? cur_power/max_power : 0;
 
                 auto exponents = scheduler::get_optimizer_exponents();

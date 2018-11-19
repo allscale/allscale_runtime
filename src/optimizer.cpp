@@ -26,6 +26,16 @@
 
 #define TRULY_RANDOM_DEBUG
 
+#define DEBUG_NMD_INO 1
+
+#ifdef DEBUG_NMD_INO
+#define OUT_DEBUG(X) X
+#else
+#define OUT_DEBUG(X) \
+    {                \
+    }
+#endif
+
 namespace allscale
 {
     optimizer_state get_optimizer_state()
@@ -472,12 +482,7 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                     }
                     avg_energy += s.energy_;
                     avg_threads += s.active_cores_per_node_ / (float) s.cores_per_node_;
-                    std::cout << "From " << from_node 
-                        << " t:" << s.avg_time_
-                        << " e:" << s.energy_
-                        << " h:" << s.active_cores_per_node_ / (float) s.cores_per_node_
-                        << " (" << s.active_cores_per_node_ << ", " 
-                        <<s.cores_per_node_ << std::endl;
+
                     ++from_node;
                 }
                 
@@ -502,13 +507,7 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                                                       (double) threads_min};
                     const double constraint_max[] = {(double) nodes_max, 
                                                     (double) threads_max};
-                    for ( auto i=0; i<2; ++i ) {
-                        std::cout << "NMD Constraints[" << i << "]: "
-                                    << constraint_min[0] << " -> " 
-                                    << constraint_max[0] << " and "
-                                    << constraint_min[1] << " -> " 
-                                    << constraint_max[1] << std::endl;
-                    }
+
                     nmd.initialize_simplex(weights, 
                                             nullptr,
                                             constraint_min,
@@ -577,7 +576,9 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
 
                     for (const auto &physical:active_nodes_) {
                         if ( physical ) {
-                            std::cout << "Node " << cur_node << " is alive!" << std::endl;
+                            OUT_DEBUG(
+                                std::cout << "[Ino_NMD] Node " << cur_node << " is alive!" << std::endl;
+                            )
                             virtual_to_physical.push_back(cur_node);
                         }
                         cur_node ++;
@@ -603,20 +604,22 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                     for ( const auto &node_id:old_mapping )
                         node_to_tasks[node_id].push_back(task_id++);
 
+                    OUT_DEBUG(
+                        std::cout << "[Ino_NMD] Rebalancing (original):" << std::endl;
 
-                    std::cout << "[GLOBAL OPTIMIZER] Rebalancing (original):" << std::endl;
-
-                    for ( const auto &node: node_to_tasks ) {
-                        std::cout << "node " << node.first << ": ";
-                        for ( const auto &task:node.second)
-                            std::cout << " " << task;
-                        std::cout << std::endl;
-                    }
+                        for ( const auto &node: node_to_tasks ) {
+                            std::cout << "node " << node.first << ": ";
+                            for ( const auto &task:node.second)
+                                std::cout << " " << task;
+                            std::cout << std::endl;
+                        }
+                    )
 
                     // VV: Something else is setting the scheduling policy too
                     //     try to redistribute tasks to all @previous_num_nodes
-
-                    std::cout << "[GLOBAL OPTIMIZER] Re-balancing previous nodes" << std::endl;
+                    OUT_DEBUG(
+                        std::cout << "[GLOBAL OPTIMIZER] Re-balancing previous nodes" << std::endl;
+                    )
 
                     auto prev_avg_tasks =
                     (std::size_t) std::ceil(old_mapping.size() /
@@ -641,23 +644,27 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                         }
                     }
 
-                    std::cout << "[GLOBAL OPTIMIZER] Rebalanced (still original):" << std::endl;
+                    OUT_DEBUG(
+                        std::cout << "[GLOBAL OPTIMIZER] Rebalanced (still original):" << std::endl;
 
-                    for ( const auto &node: node_to_tasks ) {
-                        std::cout << "node " << node.first << ": ";
-                        for ( const auto &task:node.second)
-                            std::cout << " " << task;
-                        std::cout << std::endl;
-                    }
+                        for ( const auto &node: node_to_tasks ) {
+                            std::cout << "node " << node.first << ": ";
+                            for ( const auto &task:node.second)
+                                std::cout << " " << task;
+                            std::cout << std::endl;
+                        }
 
 
-                    std::cout << "[GLOBAL OPTIMIZER] Changing nodes from "
-                              << previous_num_nodes
-                              << " to " << new_num_nodes << std::endl;
+                        std::cout << "[GLOBAL OPTIMIZER] Changing nodes from "
+                                << previous_num_nodes
+                                << " to " << new_num_nodes << std::endl;
+                    )
 
                     if (new_num_nodes < previous_num_nodes)
                     {
-                        std::cout << "[GLOBAL OPTIMIZER] Decreasing nodes" << std::endl;
+                        OUT_DEBUG(
+                            std::cout << "[GLOBAL OPTIMIZER] Decreasing nodes" << std::endl;
+                        )
                         auto lost_node = new_num_nodes;
 
                         while (lost_node < previous_num_nodes && node_to_tasks[lost_node].size())
@@ -689,7 +696,9 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                     }
                     else if (new_num_nodes > previous_num_nodes)
                     {
-                        std::cout << "[GLOBAL OPTIMIZER] Increasing nodes" << std::endl;
+                        OUT_DEBUG(
+                            std::cout << "[GLOBAL OPTIMIZER] Increasing nodes" << std::endl;
+                        )
                         auto new_node = previous_num_nodes - 1;
                         for (auto node_id = 0ul; node_id < previous_num_nodes; ++node_id)
                         {
@@ -711,11 +720,13 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                     }
                     else
                     {
-                        std::cout << "[GLOBAL OPTIMIZER] Did not modify mapping" << std::endl;
+                        OUT_DEBUG(
+                            std::cout << "[GLOBAL OPTIMIZER] Did not modify mapping" << std::endl;
+                        )
                     }
 
                     if (previous_num_nodes != new_num_nodes ){
-                        {
+                        OUT_DEBUG(
                             std::cout << "[GLOBAL OPTIMIZER] Rebalancing (NEW):" << std::endl;
 
                             for ( const auto &node: node_to_tasks ) {
@@ -724,8 +735,8 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                                     std::cout << " " << task;
                                 std::cout << std::endl;
                             }
+                        )
 
-                        }
                         for (auto i = 0ul;  i< new_mapping.size(); ++i)
                             new_mapping[i] = virtual_to_physical[new_mapping[i]];
 
