@@ -226,18 +226,6 @@ namespace allscale { namespace dashboard
 
             const char* host_env = std::getenv(ENVVAR_DASHBOARD_IP);
             const char* port_env = std::getenv(ENVVAR_DASHBOARD_PORT);
-            char *const c_policy = std::getenv("ALLSCALE_SCHEDULING_POLICY");
-            std::string input_objective_str = hpx::get_config_entry("allscale.objective", "");
-
-            if (c_policy && strcasecmp(c_policy, "ino") == 0 )
-                use_gopt = true;
-            else
-                use_gopt = false;
-            
-            if ( input_objective_str == "allscale" )
-                use_lopt = true;
-            else
-                use_lopt = false;
             
             std::string host;
             if (host_env)

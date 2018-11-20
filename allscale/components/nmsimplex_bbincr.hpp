@@ -138,6 +138,9 @@ class NelderMead
 	void invalidate_cache();
 	void reevaluate_scores();
 
+	void update_constraints(const double constraint_min[NMD_NUM_KNOBS],
+							const double constraint_max[NMD_NUM_KNOBS]);
+
   private:
 	int warming_up_step;
 	bool should_invalidate_cache, should_reevaluate_scores;
@@ -241,6 +244,10 @@ class NelderMead
 	double constraint_max[2];
 
 	double opt_weights[NMD_NUM_OBJECTIVES];
+
+	double next_constraint_min[NMD_NUM_KNOBS],
+			next_constraint_max[NMD_NUM_KNOBS];
+	bool should_update_constraints = false;
 };
 
 } // namespace components

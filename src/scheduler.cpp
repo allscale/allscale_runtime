@@ -304,6 +304,8 @@ namespace allscale
           , right_id_(std::move(other.right_id_))
           , is_root_(other.is_root_)
           , optimizer_(std::move(other.optimizer_))
+          , use_gopt(other.use_gopt)
+          , use_lopt(other.use_lopt)
         {
             HPX_ASSERT(false);
         }
@@ -316,6 +318,20 @@ namespace allscale
           , parent_(here_.getParent())
           , is_root_(here_ == root_)
         {
+            char *const c_policy = std::getenv("ALLSCALE_SCHEDULING_POLICY");
+            std::string input_objective_str = hpx::get_config_entry("allscale.objective", "");
+
+            if (c_policy && strcasecmp(c_policy, "ino") == 0 )
+                use_gopt = true;
+            else
+                use_gopt = false;
+            
+            if ( input_objective_str == "allscale" )
+                use_lopt = true;
+            else
+                use_lopt = false;
+
+
             if (parent_.getRank() != scheduler::rank())
             {
                 parent_id_ = hpx::naming::get_id_from_locality_id(
@@ -343,7 +359,7 @@ namespace allscale
 
             if (is_root_) run();
         }
-
+        
         std::string policy()
         {
             return policy_.policy();
@@ -354,6 +370,11 @@ namespace allscale
             std::lock_guard<mutex_type> l(mtx_);
             policy_.policy_ = 
                 tree_scheduling_policy::from_mapping(*policy_.policy_, new_mapping);
+        }
+
+        void update_max_threads(std::size_t max_threads) {
+            auto &&local_scheduler = scheduler::get();
+            local_scheduler.update_max_threads(max_threads);
         }
 
         void toggle_node(std::size_t locality_id)
@@ -455,6 +476,7 @@ namespace allscale
             );
         }
 
+        bool use_gopt, use_lopt;
 
         void set_policy(std::string policy)
         {
@@ -842,6 +864,16 @@ namespace allscale
         );
 
         monitor::get().set_cur_freq(freq);
+    }
+
+    void scheduler::update_max_threads(std::size_t max_threads)
+    {
+        runtime::HierarchicalOverlayNetwork::forAllLocal<scheduler_service>(
+            [&](scheduler_service& sched)
+            {
+                sched.update_max_threads(max_threads);
+            }
+        );
     }
 
     void scheduler::apply_new_mapping(const std::vector<std::size_t> &new_mapping)

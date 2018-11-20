@@ -88,7 +88,7 @@ void localoptimizer::printobjectives()
 {
 	std::cout << "[LocalOptimizer|DEBUG] Weights=[time:" << time_weight
 			  << ", energy:" << energy_weight
-			  << ", resource:" << resource_weight << "]" << std::endl;
+			  << ", resource:" << resource_weight << "]" << std::endl << std::flush;
 }
 #endif
 
@@ -166,25 +166,73 @@ void localoptimizer::setmaxthreads(std::size_t threads)
 	#else 
 		threads_dt = 1.;
 	#endif
-}
+	
+	if ( mo_initialized ) {
+		if ( converged_ == false ) {
+			initialize_nmd(true);
+		} else {
+			double factor;
+			int min_freq = 0;
+			int max_freq = frequencies_param_allowed_.size() - 1;
 
+			if ( time_weight >= energy_weight + resource_weight) {
+				factor = 0.5;
+				min_freq = frequencies_param_allowed_.size() / 4;
+			}		
+			else {
+				factor = 0.25;
+				max_freq = max_freq / 2;
+			}
+
+			int min_threads = factor * max_threads_/((double)threads_dt);
+
+			if ( min_threads < 1 )
+				min_threads = 1;
+			
+			double constraint_min[] = {min_threads, min_freq};
+			#if defined(ALLSCALE_HAVE_CPUFREQ)
+			double constraint_max[] = {ceil(max_threads_/(double)threads_dt),
+									(double)max_freq};
+			#else 
+			std::cout << "Allowed frequencies: " << frequencies_param_allowed_.size() << std::endl;
+			double constraint_max[] = {ceil(max_threads_/(double)threads_dt),
+									0.0};
+			#endif
+
+			nmd.update_constraints(constraint_min, constraint_max);
+		}
+	}
+}
 
 void localoptimizer::initialize_nmd(bool from_scratch)
 {
 	// VV: Place constraints to #threads and cpu_freq tunable knobs
-	int min_threads = 0.25 * max_threads_/((double)threads_dt);
+	double factor;
+	int min_freq = 0;
+	int max_freq = frequencies_param_allowed_.size() - 1;
+
+	if ( time_weight >= energy_weight + resource_weight) {
+		factor = 0.5;
+		min_freq = frequencies_param_allowed_.size() / 4;
+	}		
+	else {
+		factor = 0.25;
+		max_freq = max_freq / 2;
+	}
+
+	int min_threads = factor * max_threads_/((double)threads_dt);
 
 	if ( min_threads < 1 )
 		min_threads = 1;
 	
-	double constraint_min[] = {1, 0};
+	double constraint_min[] = {min_threads, min_freq};
 	#if defined(ALLSCALE_HAVE_CPUFREQ)
 	double constraint_max[] = {ceil(max_threads_/(double)threads_dt),
-							   (double)frequencies_param_allowed_.size() - 1};
+							(double)max_freq};
 	#else 
 	std::cout << "Allowed frequencies: " << frequencies_param_allowed_.size() << std::endl;
 	double constraint_max[] = {ceil(max_threads_/(double)threads_dt),
-						       0.0};
+							0.0};
 	#endif
 	const double opt_weights[] = { time_weight, energy_weight, resource_weight };
 
@@ -274,7 +322,7 @@ actuation localoptimizer::step(std::size_t active_threads)
 											pending_threads};
 		reset_accumulated_measurements();
 
-		if ( explore_knob_domain ){
+		if ( converged_ == false ){
 			optstepresult nmd_res = nmd.step(latest_measurements,
 											 active_threads,
 											 frequency_param_);
@@ -300,7 +348,6 @@ actuation localoptimizer::step(std::size_t active_threads)
 				act.frequency_idx = minimization_point[1];
 				
 				// VV: Stop searching for new knob_set
-				explore_knob_domain = false;
 				converged_ = true;
 			} else {
 				// VV: Have not converged yet, keep exploring

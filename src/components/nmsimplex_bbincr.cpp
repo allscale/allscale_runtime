@@ -64,6 +64,8 @@ NelderMead::NelderMead(const NelderMead &other)
             initial_configurations[i][j] = other.initial_configurations[i][j];
         }
     }
+
+    should_update_constraints = true;
 }
 
 //NelderMead::NelderMead(double (*objfunc)(double[]),double eps){
@@ -437,6 +439,17 @@ void NelderMead::initialize_simplex(const double weights[3],
 }
 #endif
 
+void NelderMead::update_constraints(const double constraint_min[NMD_NUM_KNOBS],
+							    const double constraint_max[NMD_NUM_KNOBS])
+{
+    for (auto i=0; i<NMD_NUM_KNOBS; ++i) {
+        next_constraint_min[i] = constraint_min[i];
+        next_constraint_max[i] = constraint_max[i];
+    }
+
+    should_update_constraints = true;
+}
+
 /* FIXME: generalize */
 void NelderMead::initialize_simplex(const double weights[3],
                                     const double initial_simplex[][NMD_NUM_KNOBS],
@@ -446,11 +459,7 @@ void NelderMead::initialize_simplex(const double weights[3],
     int i, j;
     long timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
 
-    for (i = 0; i < NMD_NUM_KNOBS; i++)
-    {
-        this->constraint_min[i] = constraint_min[i];
-        this->constraint_max[i] = constraint_max[i];
-    }
+    update_constraints(constraint_min, constraint_max);
 
     OUT_DEBUG(
         std::cout << "[NelderMead|Debug] Initialize contraints " << std::endl;
@@ -459,7 +468,7 @@ void NelderMead::initialize_simplex(const double weights[3],
         std::cout << constraint_min[1] 
                     << ":" << constraint_max[1] << std::endl;
     )
-    
+
     set_weights(weights);
     state_ = warmup;
     itr = 0;
@@ -554,6 +563,7 @@ void NelderMead::print_initial_simplex()
                      << e->second.objectives[2] << " "
                      << std::endl;
         }
+        std::cout << std::flush;
     }
 }
 
@@ -1073,6 +1083,15 @@ optstepresult NelderMead::step(const double objectives[],
             << objectives[2] << " score " << score << std::endl;
     )
     
+    if ( should_update_constraints ) {
+        for (i=0; i<NMD_NUM_KNOBS; ++i )
+        {
+           constraint_min[i] = next_constraint_min[i];
+           constraint_max[i] = next_constraint_max[i];
+        }
+        should_update_constraints = false;
+    }
+
     std::size_t tested_combinations = cache_.size();
     
     #if 0

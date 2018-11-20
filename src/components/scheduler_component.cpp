@@ -220,6 +220,7 @@ void scheduler::init() {
      allscale policy is the default */
     std::string input_optpolicy_str =
       hpx::get_config_entry("allscale.policy", "none");
+    uselopt=false;
 #ifdef DEBUG_MULTIOBJECTIVE_
     std::cout << "[Local Optimizer|INFO] Optimization Policy Active = " << input_optpolicy_str << std::endl;
 #endif
@@ -229,10 +230,19 @@ void scheduler::init() {
       lopt_.setPolicy(random);
   else if (input_optpolicy_str=="manual")
       lopt_.setPolicy(manual);
+  else if ( input_optpolicy_str == "none") {
+      char *c_optpolicy = std::getenv("ALLSCALE_LOCAL_OPTIMIZER");
+      if ( c_optpolicy && strcmp(c_optpolicy, "allscale") == 0 ) {
+          lopt_.setPolicy(allscale);
+          uselopt=true;
+      }
+  }
 	else if ( input_optpolicy_str != "none" ) {
 		HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init", 
 							"unknown allscale.policy");
 	}
+
+
 #ifdef MEASURE_MANUAL_
   std::string input_osthreads_str =
       hpx::get_config_entry("allscale.osthreads", "");
@@ -253,6 +263,12 @@ void scheduler::init() {
                             "error in reading fixed frequency index");
   }
 #endif
+
+  if (input_objective_str.empty() ){
+    char *c_opt_objective = std::getenv("ALLSCALE_LOCAL_OBJECTIVE");
+    if ( c_opt_objective )
+      input_objective_str = std::string(c_opt_objective);
+  }
 
   if (!input_objective_str.empty()) {
     uselopt=true;
@@ -709,6 +725,18 @@ void scheduler::optimize_locally(work_item const& work)
         }
     #endif
   }
+}
+
+
+void scheduler::update_max_threads(std::size_t max_threads)
+{
+  std::cout << "Will try to set max threads to " << max_threads <<std::endl;
+  if (uselopt)
+    lopt_.setmaxthreads(max_threads);
+  else if (active_threads > max_threads )
+    suspend_threads(active_threads - max_threads);
+  else if ( active_threads < max_threads )
+    resume_threads(max_threads - active_threads);
 }
 
 void scheduler::set_local_optimizer_weights(double time_weight, 

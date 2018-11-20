@@ -79,6 +79,8 @@ namespace allscale { namespace components {
                                          double *energy_weight,
                                          double *resource_weight);
         
+        void update_max_threads(std::size_t max_threads);
+
         double get_last_objective_score() {
                 return last_objective_score;
         }

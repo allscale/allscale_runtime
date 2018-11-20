@@ -64,7 +64,7 @@ struct localoptimizer
 	}
 	void initialize_nmd(bool from_scratch);
 	searchPolicy getPolicy() { return optmethod_; }
-
+	
 	// VV: Modifying the objectives triggers restarting the optimizer
 	void setobjectives(double time_weight, 
 						double energy_weight, 

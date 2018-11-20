@@ -100,11 +100,15 @@ namespace allscale
         scheduler::apply_new_mapping(new_mapping);
     }
 
+    void optimizer_update_max_threads(std::size_t max_threads) {
+        scheduler::update_max_threads(max_threads);
+    }
 } // namespace allscale
 
 HPX_PLAIN_DIRECT_ACTION(allscale::get_optimizer_state, allscale_get_optimizer_state_action);
 HPX_PLAIN_DIRECT_ACTION(allscale::optimizer_update_policy, allscale_optimizer_update_policy_action);
 HPX_PLAIN_DIRECT_ACTION(allscale::optimizer_update_policy_ino, allscale_optimizer_update_policy_action_ino);
+HPX_PLAIN_DIRECT_ACTION(allscale::optimizer_update_max_threads, allscale_optimizer_update_max_threads);
 
 namespace allscale
 {
@@ -757,7 +761,7 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                         )
                     }
 
-                    if (previous_num_nodes != new_num_nodes ){
+                    if (previous_num_nodes != new_num_nodes ) {
                         OUT_DEBUG(
                             std::cout << "[GLOBAL OPTIMIZER] Rebalancing (NEW):" << std::endl;
 
@@ -775,6 +779,7 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                         previous_num_nodes = new_num_nodes;
                         hpx::lcos::broadcast_apply<allscale_optimizer_update_policy_action_ino>(localities_, new_mapping);
                     }
+                    hpx::lcos::broadcast_apply<allscale_optimizer_update_max_threads>(localities_, new_threads_per_node);
                 }
             });
 }
