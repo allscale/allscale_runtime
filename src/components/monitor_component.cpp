@@ -358,7 +358,7 @@ namespace allscale { namespace components {
 
    float monitor::get_current_power()
    {
-#ifdef ALLSCALE_HAVE_CPUFREQ
+      #ifdef ALLSCALE_HAVE_CPUFREQ
       /*VV: Read potentially multiple measurements of power within the span of 
             POWER_MEASUREMENT_PERIOD_MS milliseconds. Each time this function
             is invoked it returns the running average of power.*/
@@ -388,9 +388,9 @@ namespace allscale { namespace components {
       }
 
       return ret;
-#else
+      #else
       return allscale::power::estimate_power(get_current_freq(0)) * num_cpus_;
-#endif
+      #endif
    }
 
 
@@ -406,7 +406,7 @@ namespace allscale { namespace components {
 #elif defined(POWER_ESTIMATE)
       return allscale::power::estimate_power(get_max_freq(0)) * num_cpus_;
 #else
-      return 0.0;
+      return 125.0;
 #endif
    }
 

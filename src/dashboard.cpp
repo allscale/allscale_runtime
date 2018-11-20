@@ -60,7 +60,7 @@ namespace allscale { namespace dashboard
 
         state.productive_cycles_per_second = float(state.cur_frequency) * (1.f - state.idle_rate);  // freq to Hz
 
-#if defined(ALLSCALE_HAVE_CPUFREQ) || defined(ALTERNATIVE_SCORE)
+#if defined(ALTERNATIVE_SCORE)
         state.speed = monitor_c->get_avg_time_last_iterations(100);
         state.efficiency = active_cores;
 #else
@@ -71,8 +71,12 @@ namespace allscale { namespace dashboard
 #if defined(POWER_ESTIMATE) || defined(ALLSCALE_HAVE_CPUFREQ)
         state.cur_power = monitor_c->get_current_power();
         state.max_power = monitor_c->get_max_power();
-        state.power = state.cur_power / state.max_power;
+#else
+        state.max_power = 1.0;
+        state.cur_power = 1.0;
 #endif
+        state.power = state.cur_power / state.max_power;
+        
         return state;
     }
 }}
@@ -171,7 +175,7 @@ namespace allscale { namespace dashboard
 
     float system_state::score() const
     {
-#if defined(ALLSCALE_HAVE_CPUFREQ) || defined(ALTERNATIVE_SCORE)
+#if defined(ALTERNATIVE_SCORE)
         return std::exp(speed * speed_exponent) *
                 std::exp(efficiency * efficiency_exponent ) *
                 std::exp(power * power_exponent);
@@ -509,7 +513,7 @@ namespace allscale { namespace dashboard
 
                 state.speed = total_speed / client.localities_.size();
 //                 state.speed = std::pow(total_speed, 1.f/client.localities_.size());
-#if defined(ALLSCALE_HAVE_CPUFREQ) || defined(ALTERNATIVE_SCORE)
+#if defined(ALTERNATIVE_SCORE)
                 // VV: This is the number of active threads
                 state.efficiency = total_efficiency;
 #else

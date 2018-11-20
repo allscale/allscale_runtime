@@ -41,10 +41,6 @@ void localoptimizer::setobjectives(double time_weight,
 	this->energy_weight = energy_weight;
 	this->resource_weight = resource_weight;
 
-#ifdef ALLSCALE_HAVE_CPUFREQ
-	setCurrentFrequencyIdx(0);
-#endif
-
 	// VV: Modifying the objectives triggers restarting the optimizer
 	//     from scratch
 	
@@ -56,10 +52,8 @@ void localoptimizer::reset(int threads, int freq_idx)
 {
 	threads_param_ = threads;
 	thread_param_values_.clear();
-#ifdef ALLSCALE_HAVE_CPUFREQ
+
 	frequency_param_ = freq_idx;
-	frequency_param_values_.clear();
-#endif
 	converged_ = false;
 };
 
@@ -104,14 +98,11 @@ void localoptimizer::printverbosesteps(actuation act)
 		std::cout << "Allscale ";
 	}
 	std::cout << "Scheduler Step: Setting OS Threads to " << threads_param_;
-#ifdef ALLSCALE_HAVE_CPUFREQ
+
 	if (act.frequency_idx >= 0)
 		last_frequency_idx = act.frequency_idx;
 	std::cout << " , CPU Frequency to " << frequencies_param_allowed_[last_frequency_idx]
 			  << std::endl;
-#else
-	std::cout << std::endl;
-#endif
 }
 
 void localoptimizer::accumulate_objective_measurements()
@@ -150,14 +141,20 @@ void localoptimizer::setmaxthreads(std::size_t threads)
 	#endif
 }
 
-#ifdef ALLSCALE_HAVE_CPUFREQ
+
 void localoptimizer::initialize_nmd(bool from_scratch)
 {
 	// VV: Place constraints to #threads and cpu_freq tunable knobs
 
 	double constraint_min[] = {1, 0};
+	#if defined(ALLSCALE_HAVE_CPUFREQ)
 	double constraint_max[] = {ceil(max_threads_/(double)threads_dt),
 							   (double)frequencies_param_allowed_.size() - 1};
+	#else 
+	std::cout << "Allowed frequencies: " << frequencies_param_allowed_.size() << std::endl;
+	double constraint_max[] = {ceil(max_threads_/(double)threads_dt),
+						       0.0};
+	#endif
 	const double opt_weights[] = { time_weight, energy_weight, resource_weight };
 
 	if( from_scratch == false ){
@@ -180,7 +177,6 @@ void localoptimizer::initialize_nmd(bool from_scratch)
 	explore_knob_domain = true;
 	converged_ = false;
 }
-#endif
 
 void localoptimizer::measureObjective(double iter_time, double power, double threads)
 {
@@ -209,18 +205,15 @@ actuation localoptimizer::step(std::size_t active_threads)
 	// VV: Possibly amend erroneous information
 	threads_param_  = active_threads;
 	act.threads = threads_param_;
-#ifdef ALLSCALE_HAVE_CPUFREQ
+
 	act.frequency_idx = frequency_param_;
-#endif
+
 	/* random optimization step */
 	if (optmethod_ == random)
 	{
 		act.threads = (rand() % max_threads_);
-#ifdef ALLSCALE_HAVE_CPUFREQ
 		act.frequency_idx = rand() % frequencies_param_allowed_.size();
-#endif
 	}
-#ifdef ALLSCALE_HAVE_CPUFREQ
 	else if (optmethod_ == allscale)
 	{
 		// VV: Keep track of dirty objectives
@@ -236,12 +229,7 @@ actuation localoptimizer::step(std::size_t active_threads)
 		if ( explore_knob_domain ){
 			optstepresult nmd_res = nmd.step(latest_measurements,
 											 active_threads,
-#ifdef ALLSCALE_HAVE_CPUFREQ
-											 frequency_param_
-#else
-											0
-#endif
-											 );
+											 frequency_param_);
 
 #ifdef DEBUG_MULTIOBJECTIVE_
 			std::cout << "[LOCALOPTIMIZER|DEBUG] New Vertex to try:";
@@ -262,6 +250,7 @@ actuation localoptimizer::step(std::size_t active_threads)
 #endif
 				act.threads = minimization_point[0];
 				act.frequency_idx = minimization_point[1];
+				
 				// VV: Stop searching for new knob_set
 				explore_knob_domain = false;
 				converged_ = true;
@@ -281,8 +270,6 @@ actuation localoptimizer::step(std::size_t active_threads)
 #endif
 		}
 	}
-#endif // ALLSCALE_HAVE_CPUFREQ
-
 validate_act:
 
 	if (act.threads > max_threads_)
@@ -293,18 +280,16 @@ validate_act:
 	{
 		act.threads = getCurrentThreads();
 	}
-#ifdef ALLSCALE_HAVE_CPUFREQ
+
 	// VV: If freq_idx is -1 then set it to last used frequency (frequency_param_)
 	if (act.frequency_idx < 0)
 		act.frequency_idx = frequency_param_;
 	else if (act.frequency_idx > frequencies_param_allowed_.size() - 1)
 		act.frequency_idx = frequencies_param_allowed_.size() - 1;
-#endif
-	
+
 	threads_param_ = act.threads;
-#ifdef ALLSCALE_HAVE_CPUFREQ
 	frequency_param_ = act.frequency_idx;
-#endif
+
 	return act;
 }
 } // namespace components

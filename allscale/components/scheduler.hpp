@@ -170,18 +170,12 @@ namespace allscale { namespace components {
         unsigned long long last_power_usage;
         unsigned long long power_sum;
         unsigned long long power_count;
+
 #if defined(ALLSCALE_HAVE_CPUFREQ)
         cpufreq_policy policy;
         hardware_reconf::hw_topology topo;
-        std::vector<unsigned long> cpu_freqs;
-        // Indices correspond to the freq id in cpu_freqs, and
-        // each pair holds energy usage and execution time
-        std::vector<std::pair<unsigned long long, double>> freq_times;
-        
-        unsigned int freq_step;
-        bool target_freq_found;
 #endif
-        bool target_resource_found;
+        std::vector<unsigned long> cpu_freqs;
 
         mutable mutex_type throttle_mtx_;
         mutable mutex_type resize_mtx_;

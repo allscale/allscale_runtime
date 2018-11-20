@@ -44,14 +44,7 @@ enum searchPolicy
 struct actuation
 {
 	unsigned int threads;
-
-#if defined(ALLSCALE_HAVE_CPUFREQ)
-	/* index to the global cpu-supported frequencies vector pointing to
-           the new frequency to be set. If set to -1, frequency will stay
-           unchanged */
 	int frequency_idx;
-	int previous_frequency_idx;
-#endif
 };
 
 struct localoptimizer
@@ -62,9 +55,7 @@ struct localoptimizer
 		  pending_time(0.),
 		  pending_num_times(0.),
 		  mo_initialized(false),
-#if defined(ALLSCALE_HAVE_CPUFREQ)
 		  frequency_param_(0),
-#endif
 		  converged_(false),
 		  convergence_threshold_(0.005),
 		  time_weight(0.0),
@@ -87,9 +78,7 @@ struct localoptimizer
 				  << std::endl;
 #endif
 	}
-#ifdef ALLSCALE_HAVE_CPUFREQ
 	void initialize_nmd(bool from_scratch);
-#endif
 	searchPolicy getPolicy() { return optmethod_; }
 
 	// VV: Modifying the objectives triggers restarting the optimizer
@@ -113,7 +102,7 @@ struct localoptimizer
 
 	void setCurrentThreads(std::size_t threads) { threads_param_ = threads; }
 
-#if defined(ALLSCALE_HAVE_CPUFREQ)
+
 	unsigned int getCurrentFrequencyIdx()
 	{
 		return frequency_param_;
@@ -149,7 +138,7 @@ struct localoptimizer
 		//  std::cout << "***>>>> " << el << std::endl;
 		return frequencies_param_allowed_;
 	}
-#endif
+
 	std::size_t getmaxthreads()
 	{
 		return max_threads_;
@@ -226,19 +215,12 @@ struct localoptimizer
 	/* maximum number of OS threads supported by the runtime */
 	std::size_t max_threads_;
 
-#if defined(ALLSCALE_HAVE_CPUFREQ)
 	/* active optimization parameter - current CPU frequency index */
 	unsigned int frequency_param_;
-
-	/* ordered set of frequency values that the CPU has been set to by
-           the optimization algorithm. The most recent value is stored at the
-           end of the vector */
-	std::vector<unsigned long> frequency_param_values_;
 
 	/* vector containing sorted list of frequencies supported by the
            processor */
 	std::vector<unsigned long> frequencies_param_allowed_;
-#endif
 
 	/* threshold (percentage in [0,1]) to decide convergence of optimization
            steps */

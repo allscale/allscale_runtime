@@ -50,14 +50,7 @@ scheduler::scheduler(std::uint64_t rank)
       current_power_usage(0),
       last_power_usage(0),
       power_sum(0),
-      power_count(0)
-
-#if defined(ALLSCALE_HAVE_CPUFREQ)
-      ,
-      target_freq_found(false)
-#endif
-      ,
-      target_resource_found(false),
+      power_count(0),
       sampling_interval(10),
       current_avg_iter_time(0.0),
       multi_objectives(false),
@@ -103,8 +96,9 @@ scheduler::scheduler(std::uint64_t rank)
 #endif
 #ifdef ALLSCALE_HAVE_CPUFREQ
   std::cout << "ALLSCALE_HAVE_CPUFREQ is defined" << std::endl << std::flush;
+#else
+  std::cout << "ALLSCALE_HAVE_CPUFREQ is not defined. No real power measurements or CPU frequency scaling" << std::endl << std::flush;
 #endif
-
 }
 
 /**
@@ -229,15 +223,11 @@ void scheduler::init() {
 #ifdef DEBUG_MULTIOBJECTIVE_
     std::cout << "[Local Optimizer|INFO] Optimization Policy Active = " << input_optpolicy_str << std::endl;
 #endif
-#if ALLSCALE_HAVE_CPUFREQ
-    if (input_optpolicy_str=="allscale") {
+  if (input_optpolicy_str=="allscale")
 		lopt_.setPolicy(allscale);
-	}
-    else 
-#endif
-	if (input_optpolicy_str=="random")
+  else 	if (input_optpolicy_str=="random")
       lopt_.setPolicy(random);
-    else if (input_optpolicy_str=="manual")
+  else if (input_optpolicy_str=="manual")
       lopt_.setPolicy(manual);
 	else if ( input_optpolicy_str != "none" ) {
 		HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init", 
@@ -350,10 +340,9 @@ void scheduler::init() {
     executors_.emplace_back(pool_name);
   }
 
-#if defined(ALLSCALE_HAVE_CPUFREQ)
   if (multi_objectives) {
 
-#ifdef DEBUG_INIT_
+    #ifdef DEBUG_INIT_
     std::cout << "\n****************************************************\n" << std::flush;
     std::cout << "Policy selected: multi-objective set with time=" << time_weight
               << ", energy=" << energy_weight 
@@ -367,18 +356,16 @@ void scheduler::init() {
               "\tMulti-objective: " << multi_objectives <<
               "\n" << std::flush;
     std::cout << "****************************************************\n" << std::flush;
-#endif
+    #endif
   }
 
   if (energy_requested)
     initialize_cpu_frequencies();
 
-#ifdef MEASURE_MANUAL_
+  #ifdef MEASURE_MANUAL_
   if (manual_input_provided && input_objective_str.empty())
       fix_allcores_frequencies(temp_idx);
-#endif
-
-#endif
+  #endif
 
   initialized_ = true;
 #ifdef DEBUG_INIT_
@@ -398,7 +385,7 @@ void scheduler::init() {
 
     lopt_.setmaxthreads(os_thread_count);
 
- #if defined(ALLSCALE_HAVE_CPUFREQ)
+    #if defined(ALLSCALE_HAVE_CPUFREQ)
     using hardware_reconf = allscale::components::util::hardware_reconf;
     auto  freqs = hardware_reconf::get_frequencies(0);
 
@@ -409,28 +396,18 @@ void scheduler::init() {
     }
     // VV: Set to max number of threads and max frequency
     lopt_.reset(os_thread_count, freqs.size()-1);
-#else
+    #else
     // VV: Max number of threads, and an arbitrary frequency index
     lopt_.reset(os_thread_count,0);
-#endif
+    #endif
     
     // VV: Set objectives after setting all constraints to
     //     trigger the initialization of nmd
     lopt_.setobjectives(time_weight, energy_weight, resource_weight);
-#ifdef DEBUG_
+    #ifdef DEBUG_
     lopt_.printobjectives();
-#endif
+    #endif
   }
-#if defined(ALLSCALE_HAVE_CPUFREQ)
-else {
-    /*
-    using hardware_reconf = allscale::components::util::hardware_reconf;
-    auto  freqs = hardware_reconf::get_frequencies(0);
-    // VV: Set maximum frequency
-    fix_allcores_frequencies(freqs[freqs.size()-1]);
-    */
-}
-#endif
 }
 
 /**
@@ -442,16 +419,13 @@ else {
  * potential.
  *
 */
-void scheduler::initialize_cpu_frequencies() {
 #if defined(ALLSCALE_HAVE_CPUFREQ)
+void scheduler::initialize_cpu_frequencies() 
+{
   using hardware_reconf = allscale::components::util::hardware_reconf;
   cpu_freqs = hardware_reconf::get_frequencies(0);
-  freq_step = 8; // cpu_freqs.size() / 2;
-  freq_times.resize(cpu_freqs.size());
-
-#ifdef MEASURE_
-#ifdef ALLSCALE_HAVE_CPUFREQ
-#ifdef DEBUG_INIT_
+  
+  #if defined(MEASURE_) && defined(DEBUG_INIT)
   unsigned long temp_transition_latency=hardware_reconf::get_cpu_transition_latency(1);
   if (temp_transition_latency==0)
     std::cout << "[INFO] Transition Latency Unavailable" <<
@@ -460,45 +434,37 @@ void scheduler::initialize_cpu_frequencies() {
     std::cout << "[INFO] Core-1 Frequency Transition Latency = " <<
       hardware_reconf::get_cpu_transition_latency(2)/1000 <<
       " milliseconds\n" << std::flush;
-#endif
-#endif
-#endif
 
-#ifdef DEBUG_INIT_
+  #endif
+
+  #ifdef DEBUG_INIT_
   std::cout << "[INFO] Governors available on the system: " <<
       "\n" << std::flush;
-#ifdef ALLSCALE_HAVE_CPUFREQ
   std::vector<std::string> temp_governors = hardware_reconf::get_governors(0);
   for (std::vector<std::string>::const_iterator i = temp_governors.begin(); i != temp_governors.end(); ++i)
     std::cout << "[INFO]\t" << *i << "\n" << std::flush;
-#endif
   std::cout << "\n" << std::flush;
-#endif
 
-#ifdef DEBUG_INIT_
   std::cout << "Server Processor Available Frequencies (size = " << cpu_freqs.size() << ")";
   for (auto &ind : cpu_freqs) {
     std::cout << ind << " ";
   }
   std::cout << "\n" << std::flush;
-#endif
+  #endif
 
   auto min_max_freqs = std::minmax_element(cpu_freqs.begin(), cpu_freqs.end());
   min_freq = *min_max_freqs.first;
   max_freq = *min_max_freqs.second;
-
-#ifdef DEBUG_INIT_
-  std::cout << "Min freq:  " << min_freq << ", Max freq: " << max_freq << "\n"
-            << std::flush;
-#endif
   // TODO: verify that nbpus == all pus of the system, not just the online
   // ones
   size_t nbpus = topo_->get_number_of_pus();
-#ifdef DEBUG_INIT_
-  std::cout << "nbpus known to topo_:  " << nbpus << "\n" << std::flush;
-#endif
 
-#ifdef ALLSCALE_HAVE_CPUFREQ
+  #ifdef DEBUG_INIT_
+  std::cout << "Min freq:  " << min_freq << ", Max freq: " << max_freq << "\n"
+            << std::flush;
+  std::cout << "nbpus known to topo_:  " << nbpus << "\n" << std::flush;
+  #endif
+
   hardware_reconf::make_cpus_online(0, nbpus);
   hardware_reconf::topo_init();
   // We have to set CPU governors to userpace in order to change frequencies
@@ -509,13 +475,12 @@ void scheduler::initialize_cpu_frequencies() {
 
   topo = hardware_reconf::read_hw_topology();
   // first reinitialize to a normal setup
-  for (unsigned int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id++) {
+  for (unsigned int cpu_id = 0; cpu_id < topo.num_logical_cores; cpu_id++){
     hardware_reconf::set_freq_policy(cpu_id, policy);
-#ifdef DEBUG_INIT_
-    std::cout << "cpu_id " << cpu_id << " back to on-demand. ret=  " << res
-              << "\n"
-              << std::flush;
-#endif
+    #ifdef DEBUG_INIT_
+    std::cout << "cpu_id " << cpu_id << " back to on-demand. ret=  " 
+              << res << std::endl;
+    #endif
   }
 
   governor = "userspace";
@@ -523,8 +488,10 @@ void scheduler::initialize_cpu_frequencies() {
   policy.min = min_freq;
   policy.max = max_freq;
 
-  for (unsigned int cpu_id = 0; cpu_id < topo.num_logical_cores;
-       cpu_id += topo.num_hw_threads) {
+  for (unsigned int cpu_id = 0; 
+       cpu_id < topo.num_logical_cores;
+       cpu_id += topo.num_hw_threads) 
+  {
     int res = hardware_reconf::set_freq_policy(cpu_id, policy);
     if (res) {
       HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init",
@@ -533,34 +500,29 @@ void scheduler::initialize_cpu_frequencies() {
 
       return;
     }
-#ifdef DEBUG_INIT_
+  #ifdef DEBUG_INIT_
     std::cout << "cpu_id " << cpu_id
               << " initial freq policy setting. ret=  " << res << "\n"
               << std::flush;
-#endif
+  #endif
   }
-#endif
-
   // Set frequency of all threads to max when we start
 
-  {
-    // set freq to all PUs used by allscale
-    for (std::size_t i = 0; i != thread_pools_.size(); ++i) {
-      std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
-      for (std::size_t j = 0; j < thread_count; j++) {
-        std::size_t pu_num =
-            rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
+  // set freq to all PUs used by allscale
+  for (std::size_t i = 0; i != thread_pools_.size(); ++i) {
+    std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
+    for (std::size_t j = 0; j < thread_count; j++) {
+      std::size_t pu_num =
+          rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
 
-#ifdef ALLSCALE_HAVE_CPUFREQ
-        if (!cpufreq_cpu_exists(pu_num)) {
-          hardware_reconf::set_frequency(pu_num, 1, cpu_freqs[0]);
-#ifdef DEBUG_INIT_
-          std::cout << "Setting cpu " << pu_num << " to freq  " << cpu_freqs[0]
-                    << ", (ret= " << res << ")\n"
-                    << std::flush;
-#endif
-        }
-#endif
+
+      if (!cpufreq_cpu_exists(pu_num)) {
+        hardware_reconf::set_frequency(pu_num, 1, cpu_freqs[0]);
+        #ifdef DEBUG_INIT_
+        std::cout << "Setting cpu " << pu_num << " to freq  " << cpu_freqs[0]
+                  << ", (ret= " << res << ")\n"
+                  << std::flush;
+        #endif
       }
     }
   }
@@ -571,35 +533,31 @@ void scheduler::initialize_cpu_frequencies() {
   std::cout << "topo.num_logical_cores: " << topo.num_logical_cores
             << " topo.num_hw_threads" << topo.num_hw_threads << "\n"
             << std::flush;
-  {
-    // check status of Pus frequency
-#ifdef ALLSCALE_HAVE_CPUFREQ
-    for (std::size_t i = 0; i != thread_pools_.size(); ++i) {
-      unsigned long hardware_freq = 0;
-      std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
-      for (std::size_t j = 0; j < thread_count; j++) {
-        std::size_t pu_num =
-            rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
+      // check status of Pus frequency
+    
+  for (std::size_t i = 0; i != thread_pools_.size(); ++i) {
+    unsigned long hardware_freq = 0;
+    std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
+    for (std::size_t j = 0; j < thread_count; j++) {
+      std::size_t pu_num =
+          rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
 
-        if (!cpufreq_cpu_exists(pu_num)) {
-          do {
-            hardware_freq = hardware_reconf::get_hardware_freq(pu_num);
-#ifdef DEBUG_INIT_
-            std::cout << "current freq on cpu " << pu_num << " is "
-                      << hardware_freq << " (target freq is " << cpu_freqs[0]
-                      << " )\n"
-                      << std::flush;
+      if (!cpufreq_cpu_exists(pu_num)) {
+        do {
+          hardware_freq = hardware_reconf::get_hardware_freq(pu_num);
+        #ifdef DEBUG_INIT_
+          std::cout << "current freq on cpu " << pu_num << " is "
+                    << hardware_freq << " (target freq is " << cpu_freqs[0]
+                    << " )\n"
+                    << std::flush;
+        #endif
 
-#endif
-
-          } while (hardware_freq != cpu_freqs[0]);
-        }
+        } while (hardware_freq != cpu_freqs[0]);
       }
     }
-#endif
   }
 
-#ifdef ALLSCALE_USE_CORE_OFFLINING
+  #ifdef ALLSCALE_USE_CORE_OFFLINING
   // offline unused cpus
   for (unsigned int cpu_id = 0; cpu_id < topo.num_logical_cores;
        cpu_id += topo.num_hw_threads) {
@@ -612,25 +570,23 @@ void scheduler::initialize_cpu_frequencies() {
     }
 
     if (!found_it) {
-#ifdef DEBUG_INIT_
+      #ifdef DEBUG_INIT_
       std::cout << " setting cpu_id " << cpu_id << " offline \n" << std::flush;
-#endif
+      #endif
 
-#ifdef ALLSCALE_HAVE_CPUFREQ
       hardware_reconf::make_cpus_offline(cpu_id, cpu_id + topo.num_hw_threads);
-#endif
     }
   }
-#endif
-
-#else
-  // should we really abort or should we reset energy to 1 ?
-  HPX_THROW_EXCEPTION(
-      hpx::bad_request, "scheduler::init",
-      "Requesting energy objective without having compiled with cpufreq");
-#endif
+  #endif
 }
-
+#else
+void scheduler::initialize_cpu_frequencies() 
+{
+    cpu_freqs.clear();
+    // VV: Bogus frequency
+    cpu_freqs.push_back(1000*1024);
+}
+#endif
 
 /**
  *
@@ -667,7 +623,6 @@ void scheduler::optimize_locally(work_item const& work)
 
 #endif
 
-#ifdef ALLSCALE_HAVE_CPUFREQ
         if (uselopt && !lopt_.isConverged()) {
             last_power_usage++;
             allscale::components::monitor *monitor_c = &allscale::monitor::get();
@@ -749,8 +704,7 @@ void scheduler::optimize_locally(work_item const& work)
           }
         }
     #endif
-#endif
-    }
+  }
 }
 
 void scheduler::set_local_optimizer_weights(double time_weight, 
@@ -1258,9 +1212,9 @@ void scheduler::fix_allcores_frequencies(int frequency_idx){
   // ones
 
   size_t nbpus = topo_->get_number_of_pus();
-#ifdef DEBUG_FREQSCALING_
+  #ifdef DEBUG_FREQSCALING_
   std::cout << "nbpus known to topo_:  " << nbpus << "\n" << std::flush;
-#endif
+  #endif
 
   hardware_reconf::make_cpus_online(0, nbpus);
   hardware_reconf::topo_init();
@@ -1281,68 +1235,69 @@ void scheduler::fix_allcores_frequencies(int frequency_idx){
                           "set cpu frequency");
       return;
     }
-#ifdef DEBUG_FREQSCALING_
+  #ifdef DEBUG_FREQSCALING_
     std::cout << "cpu_id " << cpu_id
               << " initial freq policy setting. ret=  " << res << "\n"
               << std::flush;
-#endif
+  #endif
+  }
+
+  // set freq of all cores used to min
+  for (std::size_t i = 0; i != thread_pools_.size(); ++i) {
+    std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
+    for (std::size_t j = 0; j < thread_count; j++) {
+      std::size_t pu_num =
+          rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
+
+      if (!cpufreq_cpu_exists(pu_num)) {
+        //int res = hardware_reconf::set_frequency(pu_num, 1, cpu_freqs[cpu_freqs[.size()-1]]);
+        int res = hardware_reconf::set_frequency(pu_num, 1, cpu_freqs[frequency_idx]);
+        (void)res;
+        #if defined(MEASURE_MANUAL_)
+        fixed_frequency_ = cpu_freqs[frequency_idx];
+        #endif
+        #ifdef DEBUG_FREQSCALING_
+        //std::cout << "Setting cpu " << pu_num << " to freq  " << cpu_freqs[cpu_freqs.size()-1]
+        std::cout << "Setting cpu " << pu_num << " to freq  " << cpu_freqs[frequency_idx]
+                  << ", (ret= " << res << ")\n"
+                  << std::flush;
+        #endif
+      }
+    }
   }
 
 
-  {
-    // set freq of all cores used to min
-    for (std::size_t i = 0; i != thread_pools_.size(); ++i) {
-      std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
-      for (std::size_t j = 0; j < thread_count; j++) {
-        std::size_t pu_num =
-            rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
 
-        if (!cpufreq_cpu_exists(pu_num)) {
-          //int res = hardware_reconf::set_frequency(pu_num, 1, cpu_freqs[cpu_freqs[.size()-1]]);
-          int res = hardware_reconf::set_frequency(pu_num, 1, cpu_freqs[frequency_idx]);
-          (void)res;
-#if defined(MEASURE_MANUAL_)
-          fixed_frequency_ = cpu_freqs[frequency_idx];
-#endif
-#ifdef DEBUG_FREQSCALING_
-          //std::cout << "Setting cpu " << pu_num << " to freq  " << cpu_freqs[cpu_freqs.size()-1]
-          std::cout << "Setting cpu " << pu_num << " to freq  " << cpu_freqs[frequency_idx]
-                    << ", (ret= " << res << ")\n"
+  // check status of Pus frequency
+  for (std::size_t i = 0; i != thread_pools_.size(); ++i) {
+    unsigned long hardware_freq = 0;
+    std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
+    for (std::size_t j = 0; j < thread_count; j++) {
+      std::size_t pu_num =
+          rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
+
+      if (!cpufreq_cpu_exists(pu_num)) {
+        do {
+          hardware_freq = hardware_reconf::get_hardware_freq(pu_num);
+          #ifdef DEBUG_FREQSCALING_
+          std::cout << "current freq on cpu " << pu_num << " is "
+                    //<< hardware_freq << " (target freq is " << cpu_freqs[cpu_freqs.size()-1]
+                    << hardware_freq << " (target freq is " << cpu_freqs[frequency_idx]
+                    << " )\n"
+
                     << std::flush;
-#endif
-        }
+            #endif
+        //} while (hardware_freq != cpu_freqs[cpu_freqs.size()-1]);
+        } while (hardware_freq != cpu_freqs[frequency_idx]);
       }
     }
   }
-
-  {
-    // check status of Pus frequency
-    for (std::size_t i = 0; i != thread_pools_.size(); ++i) {
-      unsigned long hardware_freq = 0;
-      std::size_t thread_count = thread_pools_[i]->get_os_thread_count();
-      for (std::size_t j = 0; j < thread_count; j++) {
-        std::size_t pu_num =
-            rp_->get_pu_num(j + thread_pools_[i]->get_thread_offset());
-
-        if (!cpufreq_cpu_exists(pu_num)) {
-          do {
-            hardware_freq = hardware_reconf::get_hardware_freq(pu_num);
-#ifdef DEBUG_FREQSCALING_
-            std::cout << "current freq on cpu " << pu_num << " is "
-                      //<< hardware_freq << " (target freq is " << cpu_freqs[cpu_freqs.size()-1]
-                      << hardware_freq << " (target freq is " << cpu_freqs[frequency_idx]
-                      << " )\n"
-
-                      << std::flush;
-
-#endif
-
-          //} while (hardware_freq != cpu_freqs[cpu_freqs.size()-1]);
-          } while (hardware_freq != cpu_freqs[frequency_idx]);
-        }
-      }
-    }
-  }
+  
+}
+#else
+void scheduler::fix_allcores_frequencies(int frequency_idx)
+{
+    // VV: This is a stub
 }
 #endif
 
@@ -1404,44 +1359,7 @@ void scheduler::stop() {
       ++pool_idx;
     }
   }
-
-  /*
-
-  if (energy_requested) {
-#if defined(ALLSCALE_HAVE_CPUFREQ)
-
-    for (int cpu_id = 0; cpu_id < topo.num_logical_cores;
-         cpu_id += topo.num_hw_threads) {
-      bool found_it = false;
-      for (std::size_t i = 0; i != thread_pools_.size(); i++) {
-        if (hpx::threads::test(initial_masks_[i], cpu_id))
-          found_it = true;
-      }
-
-      if (!found_it) {
-#ifdef DEBUG_
-        std::cout << " setting cpu_id " << cpu_id << " back online \n"
-                  << std::flush;
-#endif
-
-        hardware_reconf::make_cpus_online(cpu_id, cpu_id + topo.num_hw_threads);
-      }
-    }
-
-    std::string governor = "ondemand";
-    policy.governor = const_cast<char *>(governor.c_str());
-    std::cout << "Set CPU governors back to " << governor << std::endl;
-    for (int cpu_id = 0; cpu_id < topo.num_logical_cores;
-         cpu_id += topo.num_hw_threads)
-      int res = hardware_reconf::set_freq_policy(cpu_id, policy);
-#endif
-  }
-  */
-
   stopped_ = true;
-  //         work_queue_cv_.notify_all();
-  //         std::cout << "rank(" << rank_ << "): scheduled " << count_ << "\n";
-
 
   /* Output all measured metrics */
 #ifdef DEBUG_MULTIOBJECTIVE_
@@ -1454,14 +1372,13 @@ void scheduler::stop() {
   last_measure_threads = timestamp_now;
 
   update_active_osthreads(active_threads, dt_threads);
-#ifdef ALLSCALE_HAVE_CPUFREQ
-  allscale::components::monitor *monitor_c = &allscale::monitor::get();
+    allscale::components::monitor *monitor_c = &allscale::monitor::get();
 
   auto measurement = monitor_c->get_current_power();
   if ( measurement <= 10000 ) {
     update_power_consumption(measurement, dt_power);
   }
-#endif
+  
   if ( meas_active_threads_count == 0 )
     meas_active_threads_count = 1;
   if ( meas_power_count == 0 )
@@ -1469,7 +1386,6 @@ void scheduler::stop() {
   
   std::cout << "\n****************************************************\n" << std::flush;
   std::cout << "Measured Metrics of Application Execution:\n"
-
             << "\tTotal number of tasks scheduled locally (#taskslocal) = "
             << nr_tasks_scheduled << std::endl
 
@@ -1502,5 +1418,6 @@ void scheduler::stop() {
 #endif
 
 }
-}
-}
+
+} // components
+} // allscale
