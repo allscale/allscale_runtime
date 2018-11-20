@@ -66,6 +66,7 @@ NelderMead::NelderMead(const NelderMead &other)
     }
 
     should_update_constraints = true;
+    times_used_cached = 0;
 }
 
 //NelderMead::NelderMead(double (*objfunc)(double[]),double eps){
@@ -551,13 +552,13 @@ void NelderMead::print_initial_simplex()
         const int freq_idx = (int) v[j][1];
 
         auto e = cache_.find(std::make_pair(threads, freq_idx));
-        std::cout << " Objective value = " << f[j];
+        std::cout << " Objective value = "<< std::flush << f[j] << std::flush;
 
         if ( e == cache_.end() )
         {
-            std::cout << " (not in cache)" << std::endl;
+            std::cout << " (not in cache)" << std::flush << std::endl;
         } else {
-            std::cout << " OBJs: "
+            std::cout << " OBJs: " << std::flush
                      << e->second.objectives[0] << " "
                      << e->second.objectives[1] << " "
                      << e->second.objectives[2] << " "
@@ -598,10 +599,10 @@ void NelderMead::centroid()
     int j, m;
     double cent;
 
-    for (j = 0; j <= n - 1; j++)
+    for (j = 0; j < NMD_NUM_KNOBS; j++)
     {
         cent = 0.0;
-        for (m = 0; m <= n; m++)
+        for (m = 0; m < NMD_NUM_KNOBS +1; m++)
         {
             if (m != vg)
             {
@@ -610,6 +611,8 @@ void NelderMead::centroid()
         }
         vm[j] = cent / n;
     }
+
+    my_constraints(vm);
 
     OUT_DEBUG (
         std::cout << "[NelderMead|DEBUG] New Centroid: " 
@@ -621,7 +624,7 @@ void NelderMead::sort_vertices()
 {
     // VV: -1 is used for padding because the index to this map will never evaluate to 0
     int map_to_index[] = {
-        -1, 0, 1, 0, 2, 0, 0, 0};
+        0, 0, 1, 0, 2, 0, 0, 0};
 
     vg = vs = vh = 0;
 
@@ -650,6 +653,7 @@ void NelderMead::sort_vertices()
 optstepresult NelderMead::do_step_start()
 {
     optstepresult res;
+    times_used_cached ++;
 
     OUT_DEBUG(
         std::cout << "[NelderMead DEBUG] State = Start" << std::endl;
@@ -687,7 +691,8 @@ optstepresult NelderMead::do_step_start()
 
     auto entry = cache_.find(key);
 
-    if (entry != cache_.end())
+    //VV: Fixme, remove recursion due to cache
+    if (entry != cache_.end() && times_used_cached < 15)
     {
         auto timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
         auto dt = timestamp_now - entry->second._cache_timestamp;
@@ -1073,6 +1078,7 @@ optstepresult NelderMead::step(const double objectives[],
     optstepresult res;
     res.threads = 0;
     res.freq_idx = -1;
+    times_used_cached = 0;
 
     OUT_DEBUG(
         auto score = evaluate_score(objectives, nullptr);
@@ -1171,7 +1177,6 @@ optstepresult NelderMead::step(const double objectives[],
             std::cout << "[NelderMead|Warn] Unknown warmup step " << warming_up_step << std::endl;
         }
 
-        optstepresult res;
         res.objectives[0] = -1;
         res.objectives[1] = -1;
         res.objectives[2] = -1;
@@ -1184,7 +1189,7 @@ optstepresult NelderMead::step(const double objectives[],
         v[warming_up_step][1] = res.freq_idx;
         warming_up_step++;
 
-        return res;
+        break;
     }
     break;
     case start:
@@ -1209,16 +1214,29 @@ optstepresult NelderMead::step(const double objectives[],
         return res;
     }
 
-    res.converged = testConvergence(tested_combinations);
-
-    if (res.converged == true)
+    if ( state_ != warmup )
     {
-        res.threads = v[vs][0];
-        res.freq_idx = v[vs][1];
-        OUT_DEBUG(
-            std::cout << "[NelderMead|DEBUG] Converged to " << res.threads << " " << res.freq_idx << std::endl;
-        )
+        res.converged = testConvergence(tested_combinations);
+
+        if (res.converged == true)
+        {
+            res.threads = v[vs][0];
+            res.freq_idx = v[vs][1];
+            OUT_DEBUG(
+                std::cout << "[NelderMead|DEBUG] Converged to " << res.threads << " " << res.freq_idx << std::endl;
+            )
+        }
     }
+    
+    if ( res.threads > constraint_max[0])
+        res.threads = (int) constraint_max[0];
+    else if ( res.threads < constraint_min[0])
+        res.threads = (int) constraint_min[0];
+
+    if ( res.freq_idx > constraint_max[1])
+        res.freq_idx = (int) constraint_max[1];
+    else if ( res.freq_idx < constraint_min[1])
+        res.freq_idx = (int) constraint_min[1];
 
     std::cout << "Stop step with "
                 << objectives[0] << " " 

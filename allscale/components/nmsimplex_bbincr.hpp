@@ -248,6 +248,8 @@ class NelderMead
 	double next_constraint_min[NMD_NUM_KNOBS],
 			next_constraint_max[NMD_NUM_KNOBS];
 	bool should_update_constraints = false;
+
+	int times_used_cached;
 };
 
 } // namespace components
