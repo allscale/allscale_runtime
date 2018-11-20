@@ -375,6 +375,17 @@ namespace allscale
             }
         }
 
+        double get_local_objective() {
+            auto &&local_scheduler = scheduler::get();
+            return local_scheduler.get_last_objective_score();
+        }
+
+        double get_last_objective_score()
+        {
+            auto &&local_scheduler = scheduler::get();
+            return local_scheduler.get_last_objective_score();    
+        }
+
         void set_speed_exponent(float exp)
         {
             std::lock_guard<mutex_type> l(optimizer_.mtx_);
@@ -734,6 +745,23 @@ namespace allscale
                 sched.set_speed_exponent(exp);
             }
         );
+    }
+
+    double get_last_objective_score()
+    {
+        std::vector<double> scores;
+
+        runtime::HierarchicalOverlayNetwork::forAllLocal<scheduler_service>(
+            [&](scheduler_service& sched)
+            {
+                scores.push_back(sched.get_last_objective_score());
+            }
+        );
+
+        std::cout << "GET_LAST_OBJETIVE_SCORE (SCHED): got " << scores.size() << " values" << std::endl;
+        for (const auto &score: scores ) {
+            std::cout << score  << std::endl;
+        }
     }
 
     void set_efficiency_exponent_broadcast(float exp)

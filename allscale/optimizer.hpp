@@ -99,6 +99,8 @@ namespace allscale {
           , threads_min(other.threads_min)
           , threads_max(other.threads_max)
           , previous_num_nodes(other.previous_num_nodes)
+          , use_lopt(other.use_lopt)
+          , last_optimization_score(other.last_optimization_score)
         {
             objectives_scale[0] = other.objectives_scale[0];
             objectives_scale[1] = other.objectives_scale[1];
@@ -109,6 +111,8 @@ namespace allscale {
         {
             return active_;
         }
+
+        double get_optimization_score();
 
         hpx::future<void> balance(bool);
         hpx::future<void> balance_ino(const std::vector<std::size_t> &old_mapping);
@@ -145,8 +149,9 @@ namespace allscale {
         components::internode_optimizer_t o_ino;
 
         components::NelderMead nmd;
-
+        double last_optimization_score;
         double objectives_scale[3];
+        bool use_lopt;
     };
 }
 

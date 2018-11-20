@@ -331,6 +331,9 @@ void NelderMead::do_reevaluate_scores()
     }
 
     should_reevaluate_scores = false;
+
+    sort_vertices();
+    centroid();
 }
 
 void NelderMead::set_scale(const double scale[NMD_NUM_OBJECTIVES])
@@ -377,7 +380,7 @@ void NelderMead::set_weights(const double weights[3])
                 << opt_weights[2] << std::endl;
     )
 }
-
+#if 0
 void NelderMead::initialize_simplex(const double weights[3],
                                     const double constraint_min[2],
                                     const double constraint_max[2])
@@ -390,6 +393,14 @@ void NelderMead::initialize_simplex(const double weights[3],
         this->constraint_min[i] = constraint_min[i];
         this->constraint_max[i] = constraint_max[i];
     }
+
+    OUT_DEBUG(
+        std::cout << "[NelderMead|Debug] Initialize contraints " << std::endl;
+        std::cout << constraint_min[0] 
+                    << ":" << constraint_max[0] << std::endl;
+        std::cout << constraint_min[1] 
+                    << ":" << constraint_max[1] << std::endl;
+    )
 
     set_weights(weights);
     state_ = warmup;
@@ -424,6 +435,7 @@ void NelderMead::initialize_simplex(const double weights[3],
         )
     }
 }
+#endif
 
 /* FIXME: generalize */
 void NelderMead::initialize_simplex(const double weights[3],
@@ -440,6 +452,14 @@ void NelderMead::initialize_simplex(const double weights[3],
         this->constraint_max[i] = constraint_max[i];
     }
 
+    OUT_DEBUG(
+        std::cout << "[NelderMead|Debug] Initialize contraints " << std::endl;
+        std::cout << constraint_min[0] 
+                    << ":" << constraint_max[0] << std::endl;
+        std::cout << constraint_min[1] 
+                    << ":" << constraint_max[1] << std::endl;
+    )
+    
     set_weights(weights);
     state_ = warmup;
     itr = 0;
@@ -580,6 +600,11 @@ void NelderMead::centroid()
         }
         vm[j] = cent / n;
     }
+
+    OUT_DEBUG (
+        std::cout << "[NelderMead|DEBUG] New Centroid: " 
+        << vm[0] << " " << vm[1] << std::endl;
+    )
 }
 
 void NelderMead::sort_vertices()
@@ -1041,7 +1066,7 @@ optstepresult NelderMead::step(const double objectives[],
 
     OUT_DEBUG(
         auto score = evaluate_score(objectives, nullptr);
-        
+
         std::cout << "[NelderMead|DEBUG] Starting step with "
             << objectives[0] << " " 
             << objectives[1] << " " 
@@ -1253,6 +1278,25 @@ bool NelderMead::testConvergence(std::size_t tested_combinations)
     }
 
     if ( ret == true && convergence_reevaluating == true ) {
+        // VV: Now find the best result from cache
+        sort_vertices();
+
+        double best_knobs[NMD_NUM_KNOBS] = { v[vs][0], v[vs][1]};
+        double best_score = f[vs];
+
+        for ( const auto & entry: cache_ ) {
+            auto cur_score = evaluate_score(entry.second.objectives, nullptr);
+            if ( cur_score < best_score) {
+                best_knobs[0] = entry.second.threads;
+                best_knobs[1] = entry.second.freq_idx;
+
+                best_score = cur_score;
+            }
+        }
+
+        v[vs][0] = best_knobs[0];
+        v[vs][1] = best_knobs[1];
+        f[vs] = best_score;
         return true;
     } else if ( ret == true ) {
         // VV: Do another final run to make sure that the objective scores still hold up

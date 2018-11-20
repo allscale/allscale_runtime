@@ -51,7 +51,7 @@ scheduler::scheduler(std::uint64_t rank)
       last_power_usage(0),
       power_sum(0),
       power_count(0),
-      sampling_interval(10),
+      sampling_interval(3),
       current_avg_iter_time(0.0),
       multi_objectives(false),
       time_requested(false),
@@ -661,6 +661,10 @@ void scheduler::optimize_locally(work_item const& work)
                 power_sum=0;
 
                 last_objective_score = lopt_.evaluate_score(last_objectives);
+
+                auto power_dt = t_duration_now - last_measure_power;
+                update_power_consumption(power_sum/last_power_usage, power_dt);
+                last_measure_power = t_duration_now;
             }
 
             elapsedTimeMs = t_duration_now - last_optimization_timestamp_;

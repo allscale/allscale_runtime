@@ -200,9 +200,17 @@ global_optimizer::global_optimizer()
     f_resource_max(-1.0f), f_resource_leeway(-1.0f), 
     nmd(0.005),
     nmd_initialized(0),
-    nodes_min(1), nodes_max(localities_.size()), threads_min(0), threads_max(0)
+    nodes_min(1), nodes_max(localities_.size()), threads_min(0), threads_max(0),
+    last_optimization_score(1.0)
 {
     char *const c_policy = std::getenv("ALLSCALE_SCHEDULING_POLICY");
+    std::string input_objective_str =
+      hpx::get_config_entry("allscale.objective", "");
+    
+    if ( input_objective_str == "allscale" )
+        use_lopt = true;
+    else
+        use_lopt = false;
     previous_num_nodes = localities_.size();
 
     if (c_policy && strcasecmp(c_policy, "ino") == 0 )
@@ -252,6 +260,11 @@ global_optimizer::global_optimizer()
     objectives_scale[0] = 0.5;
     objectives_scale[1] = 1.0;
     objectives_scale[2] = 1.0;
+}
+
+double global_optimizer::get_optimization_score()
+{
+    return last_optimization_score;
 }
 
 void global_optimizer::signal_objective_changed()
@@ -536,6 +549,9 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                 auto action = nmd.step(measurements, 
                                         previous_num_nodes,
                                         avg_threads * previous_num_nodes);
+                
+                last_optimization_score = nmd.evaluate_score(measurements, nullptr);
+
                 // VV: Todo do something with the action
                 //     assume that .threads = nodes and .freq_idx = threads per node
                 int new_num_nodes = action.threads;

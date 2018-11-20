@@ -91,6 +91,8 @@ namespace allscale { namespace dashboard
         float power = 0;
         
         std::string to_json() const;
+        
+        float last_local_score;
 
         template <typename Archive>
         void serialize(Archive& ar, unsigned);

@@ -172,7 +172,11 @@ void localoptimizer::setmaxthreads(std::size_t threads)
 void localoptimizer::initialize_nmd(bool from_scratch)
 {
 	// VV: Place constraints to #threads and cpu_freq tunable knobs
+	int min_threads = 0.25 * max_threads_/((double)threads_dt);
 
+	if ( min_threads < 1 )
+		min_threads = 1;
+	
 	double constraint_min[] = {1, 0};
 	#if defined(ALLSCALE_HAVE_CPUFREQ)
 	double constraint_max[] = {ceil(max_threads_/(double)threads_dt),
@@ -225,7 +229,7 @@ void localoptimizer::measureObjective(double iter_time, double power, double thr
 			  << power << " "
 			  << threads << std::endl;
 	if ( objectives_scale[0] < iter_time ) {
-		objectives_scale[0] = iter_time * 2.0;
+		objectives_scale[0] = iter_time * 1.1;
 		set_objectives_scale(objectives_scale);
 	}
 

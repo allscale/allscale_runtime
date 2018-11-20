@@ -57,7 +57,7 @@ namespace allscale { namespace dashboard
         state.max_frequency = monitor_c->get_max_freq(0);
 
         std::size_t active_cores = scheduler::get().get_active_threads();
-
+        state.last_local_score = scheduler::get().get_last_objective_score();
         state.productive_cycles_per_second = float(state.cur_frequency) * (1.f - state.idle_rate);  // freq to Hz
 
 #if defined(ALTERNATIVE_SCORE)
@@ -76,7 +76,7 @@ namespace allscale { namespace dashboard
         state.cur_power = 1.0;
 #endif
         state.power = state.cur_power / state.max_power;
-        
+
         return state;
     }
 }}
@@ -110,6 +110,7 @@ namespace allscale { namespace dashboard
         ar & speed;
         ar & efficiency;
         ar & power;
+        ar & last_local_score;
     }
 
     std::string node_state::to_json() const
@@ -225,7 +226,19 @@ namespace allscale { namespace dashboard
 
             const char* host_env = std::getenv(ENVVAR_DASHBOARD_IP);
             const char* port_env = std::getenv(ENVVAR_DASHBOARD_PORT);
+            char *const c_policy = std::getenv("ALLSCALE_SCHEDULING_POLICY");
+            std::string input_objective_str = hpx::get_config_entry("allscale.objective", "");
 
+            if (c_policy && strcasecmp(c_policy, "ino") == 0 )
+                use_gopt = true;
+            else
+                use_gopt = false;
+            
+            if ( input_objective_str == "allscale" )
+                use_lopt = true;
+            else
+                use_lopt = false;
+            
             std::string host;
             if (host_env)
             {
@@ -315,11 +328,11 @@ namespace allscale { namespace dashboard
             buffers[0] = boost::asio::buffer(&m->msg_size, sizeof(std::uint64_t));
             buffers[1] = boost::asio::buffer(m->json.data(), m->json.length());
 
-/*
+            /*
              std::cout << "Sending -----------------------------------\n";
              std::cout << m->json << '\n';
              std::cout << "Sending done ------------------------------\n";
-*/
+            */
             boost::asio::async_write(socket_, buffers,
                 [f = std::move(f), m](boost::system::error_code ec, std::size_t /*length*/)
                 {
@@ -448,6 +461,7 @@ namespace allscale { namespace dashboard
         std::vector<hpx::id_type> localities_;
         std::uint64_t time = 0;
         bool enabled_;
+        double use_gopt, use_lopt;
     };
 
     dashboard_client& dashboard_client::get()

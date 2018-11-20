@@ -100,10 +100,11 @@ class NelderMead
 							const double initial_simplex[][NMD_NUM_KNOBS],
 							const double constraint_min[NMD_NUM_KNOBS],
 							const double constraint_max[NMD_NUM_KNOBS]);
-	
+	/*
 	void initialize_simplex(const double weights[NMD_NUM_OBJECTIVES],
 							const double constraint_min[NMD_NUM_KNOBS],
 							const double constraint_max[NMD_NUM_KNOBS]);
+	*/
 
 	void print_initial_simplex();
 	void print_iteration();

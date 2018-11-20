@@ -46,6 +46,8 @@ namespace allscale { namespace components {
             HPX_ASSERT(false);
         }
 
+        bool get_optimization_score();
+
         scheduler(std::uint64_t rank);
         void init();
 
