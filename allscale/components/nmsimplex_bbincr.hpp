@@ -108,6 +108,8 @@ class NelderMead
 	void print_initial_simplex();
 	void print_iteration();
 
+	void set_scale(const double scale[NMD_NUM_OBJECTIVES]);
+
 	double *getMinVertices()
 	{
 		return v[vs];
@@ -132,9 +134,12 @@ class NelderMead
 	optstepresult step(const double objectives[], 
 			double knob1, double knob2);
 
+	void invalidate_cache();
+	void reevaluate_scores();
+
   private:
 	int warming_up_step;
-
+	bool should_invalidate_cache, should_reevaluate_scores;
 	double max_power_, max_time_;
 
 	// VV: Utility to make sure that we generate new values and not something that already
@@ -147,6 +152,9 @@ class NelderMead
 
 	//VV: objective_type: { <threads, cpu-freq>: optstepresult }
 	MapCache_t cache_;
+
+	void do_invalidate_cache();
+	void do_reevaluate_scores();
 
 	optstepresult do_step_start();
 	optstepresult do_step_reflect(const double objectives[], 
@@ -170,7 +178,7 @@ class NelderMead
 
 	bool convergence_reevaluating;
 	int initial_configurations[NMD_NUM_KNOBS+1][NMD_NUM_KNOBS];
-	
+	double scale[NMD_NUM_OBJECTIVES];
 	/* vertex with smallest value */
 	int vs;
 

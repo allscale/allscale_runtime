@@ -99,7 +99,11 @@ namespace allscale {
           , threads_min(other.threads_min)
           , threads_max(other.threads_max)
           , previous_num_nodes(other.previous_num_nodes)
-        {}
+        {
+            objectives_scale[0] = other.objectives_scale[0];
+            objectives_scale[1] = other.objectives_scale[1];
+            objectives_scale[2] = other.objectives_scale[2];
+        }
 
         bool active() const
         {
@@ -141,6 +145,8 @@ namespace allscale {
         components::internode_optimizer_t o_ino;
 
         components::NelderMead nmd;
+
+        double objectives_scale[3];
     };
 }
 

@@ -25,6 +25,32 @@ namespace allscale
 namespace components
 {
 
+localoptimizer::localoptimizer()
+
+		: pending_threads(0.),
+		  pending_energy(0.),
+		  pending_time(0.),
+		  pending_num_times(0.),
+		  mo_initialized(false),
+		  frequency_param_(0),
+		  converged_(false),
+		  convergence_threshold_(0.005),
+		  time_weight(0.0),
+		  energy_weight(0.0),
+		  resource_weight(0.0),
+		  nmd(0.005)
+	{
+		if (optmethod_ == random)
+			srand(std::time(NULL));
+		
+		// VV: Start with 500ms as the guestimation of max iteration time
+		objectives_scale[0] = 0.5;
+		objectives_scale[1] = 1.0;
+		objectives_scale[2] = 1.0;
+
+		nmd.set_scale(objectives_scale);
+	}
+
 double localoptimizer::evaluate_score(const double objectives[])
 {
 	if ( mo_initialized ) {
@@ -120,6 +146,7 @@ void localoptimizer::setmaxthreads(std::size_t threads)
 {
 	max_threads_=threads;
 	threads_param_=threads;
+
 	#if 0
 	double threads_tick = threads / 5.;
 
@@ -157,6 +184,8 @@ void localoptimizer::initialize_nmd(bool from_scratch)
 	#endif
 	const double opt_weights[] = { time_weight, energy_weight, resource_weight };
 
+	nmd.set_scale(objectives_scale);
+
 	if( from_scratch == false ){
 		double prev_simplex[NMD_NUM_KNOBS+1][NMD_NUM_KNOBS];
 	
@@ -178,16 +207,31 @@ void localoptimizer::initialize_nmd(bool from_scratch)
 	converged_ = false;
 }
 
+void localoptimizer::set_objectives_scale(const double objectives_scale[3]) 
+{
+	for (auto i=0ul; i<NMD_NUM_OBJECTIVES; ++i )
+		this->objectives_scale[i] = objectives_scale[i];
+	
+	nmd.set_scale(objectives_scale);
+}
+
 void localoptimizer::measureObjective(double iter_time, double power, double threads)
 {
+	// VV: iter_time has no bound, threads has bound @max_threads_
+	//     and power 1.0
+
 	std::cout << "Measuring objective: "
 			  << iter_time << " "
 			  << power << " "
 			  << threads << std::endl;
+	if ( objectives_scale[0] < iter_time ) {
+		objectives_scale[0] = iter_time * 2.0;
+		set_objectives_scale(objectives_scale);
+	}
 
 	pending_time += iter_time;
 	pending_energy += power;
-	pending_threads += threads;
+	pending_threads += threads / max_threads_;
 	pending_num_times++;
 }
 

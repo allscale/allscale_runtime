@@ -33,8 +33,6 @@ NelderMead::NelderMead(const NelderMead &other)
 {
     EPSILON = other.EPSILON;
     state_ = other.state_;
-    max_power_ = other.max_power_;
-    max_time_ = other.max_time_;
     
     cache_.insert(other.cache_.begin(), other.cache_.end());
     warming_up_step = other.warming_up_step;
@@ -54,8 +52,10 @@ NelderMead::NelderMead(const NelderMead &other)
         vm[i] = other.vm[i];
     }
 
-    for ( auto i=0; i<NMD_NUM_OBJECTIVES; ++i )
+    for ( auto i=0; i<NMD_NUM_OBJECTIVES; ++i ) {
         opt_weights[i] = other.opt_weights[i];
+        scale[i] = other.scale[i];
+    }
 
     for (auto i=0; i<NMD_NUM_KNOBS+1; ++i )
     {
@@ -65,7 +65,6 @@ NelderMead::NelderMead(const NelderMead &other)
         }
     }
 }
-
 
 //NelderMead::NelderMead(double (*objfunc)(double[]),double eps){
 NelderMead::NelderMead(double eps)
@@ -78,11 +77,11 @@ NelderMead::NelderMead(double eps)
     itr = 0;
     state_ = warmup;
     
-    max_power_ = 1.0;
-    max_time_ = 30.0;
-
     warming_up_step = 0;
     convergence_reevaluating = false;
+
+    for (auto i=0ul; i<NMD_NUM_OBJECTIVES; ++i)
+        scale[i] = 1.0;
 }
 
 std::pair<int, NelderMead::direction> NelderMead::explore_next_extra(double *extra, int level, 
@@ -301,19 +300,52 @@ bool NelderMead::cache_update(int threads, int freq_idx,
     return false;
 }
 
+void NelderMead::invalidate_cache()
+{
+    should_invalidate_cache = true;
+}
+
+void NelderMead::reevaluate_scores()
+{
+    should_reevaluate_scores = true;
+}
+
+void NelderMead::do_invalidate_cache()
+{
+    cache_.clear();
+    should_invalidate_cache = false;
+}
+
+void NelderMead::do_reevaluate_scores()
+{
+    auto timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+
+    for (auto i=0ul; i<NMD_NUM_KNOBS+1; ++i )
+    {
+        auto key = std::make_pair( (int)v[i][0], (int)v[i][1] );
+        auto entry = cache_.find(key);
+
+        if ( entry != cache_.end() ) {
+            f[i] = evaluate_score(entry->second.objectives, opt_weights);
+        }
+    }
+
+    should_reevaluate_scores = false;
+}
+
+void NelderMead::set_scale(const double scale[NMD_NUM_OBJECTIVES])
+{
+    for ( auto i=0ul; i<NMD_NUM_OBJECTIVES; ++i )
+        this->scale[i] = scale[i];
+    
+    reevaluate_scores();
+}
+
 double NelderMead::evaluate_score(const double objectives[], const double *weights)
 {
     double score;
     // VV: [time, energy/power, resources]
-    double scale[] = {1.0, 1.0, 1.0};
     
-    // max_time_ = max_time_ > objectives[0] ? max_time_ : objectives[0];
-    // max_power_ = max_power_ > objectives[2] ? max_power_ : objectives[2];
-
-    scale[0] = max_time_;
-    scale[1] = max_power_;
-    scale[2] = (double)constraint_max[0];
-
     if (weights == nullptr)
         weights = opt_weights;
 
@@ -476,8 +508,9 @@ void NelderMead::initialize_simplex(const double weights[3],
 void NelderMead::print_initial_simplex()
 {
     int i, j;
-    std::cout << "[NelderMead DEBUG] Initial Values\n";
-    
+    std::cout << "[NelderMead DEBUG] Initial Values (Order indices:" 
+        << vs << ", " << vh << ", " << vg << ")" << std::endl;
+
     for (j = 0; j < NMD_NUM_KNOBS + 1; j++)
     {
         
@@ -1005,15 +1038,19 @@ optstepresult NelderMead::step(const double objectives[],
     optstepresult res;
     res.threads = 0;
     res.freq_idx = -1;
+
     OUT_DEBUG(
+        auto score = evaluate_score(objectives, nullptr);
+        
         std::cout << "[NelderMead|DEBUG] Starting step with "
             << objectives[0] << " " 
             << objectives[1] << " " 
-            << objectives[2] << std::endl;
+            << objectives[2] << " score " << score << std::endl;
     )
     
     std::size_t tested_combinations = cache_.size();
-
+    
+    #if 0
     evaluate_score(objectives, nullptr);
 
     for (i=0; i<NMD_NUM_KNOBS+1; ++i) {
@@ -1024,7 +1061,14 @@ optstepresult NelderMead::step(const double objectives[],
             f[i] = evaluate_score(entry->second.objectives, nullptr);
         }
     }
+    #endif
 
+    if ( should_invalidate_cache )
+        do_invalidate_cache();
+    
+    if ( should_reevaluate_scores )
+        do_reevaluate_scores();
+    
     switch (state_)
     {
     case warmup:

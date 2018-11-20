@@ -247,6 +247,11 @@ global_optimizer::global_optimizer()
         if ( c_threads_max )
             threads_max = atoi(c_threads_max);
     }
+
+    // VV: Guestimate that max iter time is 500 ms (will be refined over time)
+    objectives_scale[0] = 0.5;
+    objectives_scale[1] = 1.0;
+    objectives_scale[2] = 1.0;
 }
 
 void global_optimizer::signal_objective_changed()
@@ -466,6 +471,7 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
         .then(
             [this, old_mapping](hpx::future<std::vector<optimizer_state> > future_state) {
                 std::lock_guard<mutex_type> l(mtx_);
+                std::size_t num_active_nodes = std::count(active_nodes_.begin(),                                active_nodes_.end(), true);
                 
                 auto state = future_state.get();
                 float avg_time = 0;
@@ -476,10 +482,15 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                 std::size_t num_avg_time = 0ul;
 
                 for (const auto &s:state) {
+                    // VV: Only keep track of nodes that were selected by last step
+                    if ( from_node++ == previous_num_nodes )
+                        break;
+
                     if ( s.avg_time_ > 0.0) {
                         avg_time += s.avg_time_;
                         num_avg_time ++;
                     }
+
                     avg_energy += s.energy_;
                     avg_threads += s.active_cores_per_node_ / (float) s.cores_per_node_;
 
@@ -491,14 +502,19 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                 else
                     avg_time = 0.0;
 
-                avg_energy /= state.size();
-                avg_threads /= state.size();
+                avg_energy /= num_active_nodes;
+                avg_threads /= num_active_nodes;
 
                 // VV: First record current state
                 double measurements[3] = {avg_time, 
-                                        avg_energy, 
-                                        avg_threads * previous_num_nodes};
+                                          avg_energy, 
+                                          avg_threads};
                 
+                if ( objectives_scale[0] < avg_time ) {
+                    objectives_scale[0] = avg_time * 2.0;
+                    nmd.set_scale(objectives_scale);
+                }
+
                 if ( nmd_initialized == 0 ) {
                     double weights[] = {(double) objective_.speed_exponent, 
                                         (double) objective_.efficiency_exponent,
@@ -507,6 +523,7 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                                                       (double) threads_min};
                     const double constraint_max[] = {(double) nodes_max, 
                                                     (double) threads_max};
+                    nmd.set_scale(objectives_scale);
 
                     nmd.initialize_simplex(weights, 
                                             nullptr,
@@ -569,7 +586,6 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                     */
                     // VV: Some of the nodes might be dead, convert the virtual name
                     //     to the physical name
-                    std::size_t num_active_nodes = std::count(active_nodes_.begin(),                                active_nodes_.end(), true);
                     auto virtual_to_physical = std::vector<std::size_t>();
 
                     std::size_t cur_node = 0ul;

@@ -49,23 +49,7 @@ struct actuation
 
 struct localoptimizer
 {
-	localoptimizer()
-		: pending_threads(0.),
-		  pending_energy(0.),
-		  pending_time(0.),
-		  pending_num_times(0.),
-		  mo_initialized(false),
-		  frequency_param_(0),
-		  converged_(false),
-		  convergence_threshold_(0.005),
-		  time_weight(0.0),
-		  energy_weight(0.0),
-		  resource_weight(0.0),
-		  nmd(0.005)
-	{
-		if (optmethod_ == random)
-			srand(std::time(NULL));
-	}
+	localoptimizer();
 	bool isConverged();
 	double evaluate_score(const double objectives[]);
 	void setPolicy(searchPolicy pol)
@@ -98,10 +82,11 @@ struct localoptimizer
 			*resource_weight = this->resource_weight;
 	}
 
+	void set_objectives_scale(const double objectives_scale[3]);
+
 	std::size_t getCurrentThreads() { return threads_param_; }
 
 	void setCurrentThreads(std::size_t threads) { threads_param_ = threads; }
-
 
 	unsigned int getCurrentFrequencyIdx()
 	{
@@ -233,6 +218,8 @@ struct localoptimizer
 
 	/* set to true if local optimizer has converged over all objectives */
 	bool converged_;
+
+	double objectives_scale[3];
 };
 } // namespace components
 } // namespace allscale
