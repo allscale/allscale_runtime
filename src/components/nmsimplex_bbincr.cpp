@@ -9,7 +9,8 @@
  * function with complex analytical evaluation)
  *
  */
-
+#include <vector>
+#include <algorithm>
 #include <allscale/components/nmsimplex_bbincr.hpp>
 #include <cmath>
 
@@ -323,19 +324,48 @@ void NelderMead::do_reevaluate_scores()
 {
     auto timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
 
-    for (auto i=0ul; i<NMD_NUM_KNOBS+1; ++i )
-    {
-        auto key = std::make_pair( (int)v[i][0], (int)v[i][1] );
-        auto entry = cache_.find(key);
-
-        if ( entry != cache_.end() ) {
-            f[i] = evaluate_score(entry->second.objectives, opt_weights);
-        }
-    }
-
+    std::vector<optstepresult> fresh;
     should_reevaluate_scores = false;
 
-    sort_vertices();
+    for ( const auto &entry: cache_ ) {
+        auto dt = timestamp_now - entry.second._cache_timestamp;
+        if ( dt <= entry.second._cache_expires_dt )
+            fresh.push_back(entry.second);
+    }
+
+    if ( fresh.size() >= NMD_NUM_KNOBS +1 ) {
+        std::sort(fresh.begin(), fresh.end(), 
+            [this](const optstepresult &l, const optstepresult &r) mutable -> int {
+                return evaluate_score(l.objectives, nullptr) < 
+                        evaluate_score(r.objectives, nullptr);
+            });
+        
+        for (auto i=0ul; i<NMD_NUM_KNOBS+1; ++i ) {
+            v[i][0] = fresh[i].threads;
+            v[i][1] = fresh[i].freq_idx;
+        }
+
+        vs = 0;
+        vh = 1;
+        vg = 2;
+    }
+    else
+    {
+        for (auto i=0ul; i<NMD_NUM_KNOBS+1; ++i )
+        {
+            auto key = std::make_pair( (int)v[i][0], (int)v[i][1] );
+            auto entry = cache_.find(key);
+
+            if ( entry != cache_.end() ) {
+                f[i] = evaluate_score(entry->second.objectives, opt_weights);
+            }
+        }
+        sort_vertices();
+    }
+    OUT_DEBUG(
+            std::cout << "[NelderMead|DEBUG] Re-Evaluated all scores" << std::endl;
+            print_initial_simplex();
+        )
     centroid();
 }
 
