@@ -220,6 +220,13 @@ void scheduler::init() {
      allscale policy is the default */
     std::string input_optpolicy_str =
       hpx::get_config_entry("allscale.policy", "none");
+      if ( input_optpolicy_str == "none" ){
+        char *c_optpolicy = std::getenv("ALLSCALE_LOCAL_OPTIMIZER");
+        if ( c_optpolicy) 
+          input_optpolicy_str = std::string(c_optpolicy);
+      }
+
+
     uselopt=false;
 #ifdef DEBUG_MULTIOBJECTIVE_
     std::cout << "[Local Optimizer|INFO] Optimization Policy Active = " << input_optpolicy_str << std::endl;
@@ -230,14 +237,7 @@ void scheduler::init() {
       lopt_.setPolicy(random);
   else if (input_optpolicy_str=="manual")
       lopt_.setPolicy(manual);
-  else if ( input_optpolicy_str == "none") {
-      char *c_optpolicy = std::getenv("ALLSCALE_LOCAL_OPTIMIZER");
-      if ( c_optpolicy && strcmp(c_optpolicy, "allscale") == 0 ) {
-          lopt_.setPolicy(allscale);
-          uselopt=true;
-      }
-  }
-	else if ( input_optpolicy_str != "none" ) {
+ 	else if ( input_optpolicy_str != "none" ) {
 		HPX_THROW_EXCEPTION(hpx::bad_request, "scheduler::init", 
 							"unknown allscale.policy");
 	}
@@ -317,6 +317,7 @@ void scheduler::init() {
                   << std::flush;
 #endif
       } else {
+        std::cout << "TRIED PARSING \"" << obj << "\"" << std::endl;
         HPX_THROW_EXCEPTION(
             hpx::bad_request, "scheduler::init",
             boost::str(
@@ -415,6 +416,7 @@ void scheduler::init() {
     #else
     // VV: Max number of threads, and an arbitrary frequency index
     lopt_.reset(os_thread_count,0);
+    auto freq_temp = lopt_.setfrequencies({0});
     #endif
     
     // VV: Set objectives after setting all constraints to
