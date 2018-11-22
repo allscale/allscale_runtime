@@ -779,7 +779,9 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                         previous_num_nodes = new_num_nodes;
                         hpx::lcos::broadcast_apply<allscale_optimizer_update_policy_action_ino>(localities_, new_mapping);
                     }
-                    hpx::lcos::broadcast_apply<allscale_optimizer_update_max_threads>(localities_, new_threads_per_node);
+
+                    if ( threads_min != threads_max )
+                        hpx::lcos::broadcast_apply<allscale_optimizer_update_max_threads>(localities_, new_threads_per_node);
                 }
             });
 }

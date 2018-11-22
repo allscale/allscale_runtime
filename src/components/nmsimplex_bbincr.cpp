@@ -227,11 +227,13 @@ void NelderMead::generate_new(F &gen)
             dir = logistics.second;
 
             #endif
+            /*
             OUT_DEBUG(
                 std::cout << "[NelderMead|Debug] Rejecting " 
                     << new_set[0] << " " << new_set[1] 
                     << " will try offset " << extra[0] << " " << extra[1] <<  std::endl;
             )
+            */
         } else {
             break;
         }
@@ -395,7 +397,7 @@ double NelderMead::evaluate_score(const double objectives[], const double *weigh
     #else 
     score = 1.0;
     for ( auto i=0; i<NMD_NUM_OBJECTIVES; ++ i) {
-        score *= std::exp(weights[i]*objectives[i]/scale[i]);
+        score *= std::exp((objectives[i]/scale[i]) * weights[i]);
     }
     #endif
     return score;
@@ -490,7 +492,11 @@ void NelderMead::initialize_simplex(const double weights[3],
     int i, j;
     long timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
 
-    update_constraints(constraint_min, constraint_max);
+    for (i=0; i<NMD_NUM_KNOBS; ++i )
+    {
+        this->constraint_min[i] = constraint_min[i];
+        this->constraint_max[i] = constraint_max[i];
+    }
 
     OUT_DEBUG(
         std::cout << "[NelderMead|Debug] Initialize contraints " << std::endl;
@@ -541,13 +547,6 @@ void NelderMead::initialize_simplex(const double weights[3],
                 }
 
             } while (is_ok == 0);
-
-            OUT_DEBUG(
-                std::cout << "[NelderMead|DEBUG] Random initial simplex [" << i << "]: ";
-                for ( j =0; j<NMD_NUM_KNOBS; ++j) 
-                    std::cout << initial_configurations[i][j] << " ";
-                std::cout << std::endl;
-            )
         }
         #endif
     } else {
@@ -562,6 +561,15 @@ void NelderMead::initialize_simplex(const double weights[3],
             }
         }
     }
+
+    OUT_DEBUG(
+        for (auto i=0; i<NMD_NUM_KNOBS+1; ++i) {
+            std::cout << "[NelderMead|DEBUG] (initialize) initial simplex [" << i << "]: ";
+            for ( j =0; j<NMD_NUM_KNOBS; ++j) 
+                std::cout << initial_configurations[i][j] << " ";
+            std::cout << std::endl;
+        }
+    )
 }
 
 /* print out the initial values */

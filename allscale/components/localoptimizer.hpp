@@ -35,7 +35,8 @@ enum searchPolicy
 {
 	allscale,
 	random,
-	manual
+	manual,
+	none
 };
 
 
@@ -187,7 +188,7 @@ struct localoptimizer
 	NelderMead nmd;
 
 	/* single objective optimization method used */
-	searchPolicy optmethod_ = random;
+	searchPolicy optmethod_ = none;
 
 	/* active optimization parameter - nr of OS threads active */
 	int threads_param_;
