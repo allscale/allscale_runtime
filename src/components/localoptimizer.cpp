@@ -252,7 +252,7 @@ void localoptimizer::initialize_nmd(bool from_scratch)
 		if ( time_weight >= energy_weight + resource_weight ) {
 			double initial_simplex[3][2] = {
 				{min_threads, constraint_min[1]},
-				{max_threads, constraint_max[1]},
+				{max_threads/2.0, (constraint_min[1]+constraint_max[1])/2.0},
 				{(min_threads+max_threads)/2., constraint_max[1]}
 			};
 			nmd.initialize_simplex(opt_weights,
@@ -262,7 +262,7 @@ void localoptimizer::initialize_nmd(bool from_scratch)
 		} else {
 			double initial_simplex[3][2] = {
 				{min_threads, constraint_min[1]},
-				{max_threads, constraint_min[1]},
+				{max_threads/2.0, (constraint_min[1]+constraint_max[1])/2.0},
 				{(min_threads+max_threads)/2., constraint_max[1]}
 			};
 
