@@ -1382,14 +1382,36 @@ bool NelderMead::testConvergence(std::size_t tested_combinations)
         warming_up_step = 0;
         itr --;
         convergence_reevaluating = true;
+        std::vector<optstepresult> fresh;
+
+        for ( const auto &entry: cache_ ) {
+            fresh.push_back(entry.second);
+        }
+
         cache_.clear();
+
+        std::sort(fresh.begin(), fresh.end(), 
+            [this](const optstepresult &l, const optstepresult &r) mutable -> int {
+                return evaluate_score(l.objectives, nullptr) < 
+                        evaluate_score(r.objectives, nullptr);
+            });
+
+        for (auto i=0ul; i<NMD_NUM_KNOBS+1; ++i ) {
+            v[i][0] = fresh[i].threads;
+            v[i][1] = fresh[i].freq_idx;
+        }
+
+        vs = 0;
+        vh = 1;
+        vg = 2;
 
         for (auto i=0; i<NMD_NUM_KNOBS+1; ++i ) {
             for (auto j=0; j<NMD_NUM_KNOBS; ++j) {
                 initial_configurations[i][j] = v[i][j];
             }
         }
-
+        centroid();
+        
         OUT_DEBUG (
             print_initial_simplex();
         )
