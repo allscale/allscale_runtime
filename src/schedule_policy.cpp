@@ -405,8 +405,8 @@ namespace allscale {
 //         float margin = 3.291f * std::sqrt(var / task_costs.size()); // ... 99.9%
 //         float margin = 2.807f * std::sqrt(var / task_costs.size()); // ... 99.5%
 //         float margin = 2.576f * std::sqrt(var / task_costs.size()); // ... 99%
-        float margin = 1.96f * std::sqrt(var / task_costs.size()); // ... 95%
-//         float margin = 1.282f * std::sqrt(var / task_costs.size()); // ... 80%
+//         float margin = 1.96f * std::sqrt(var / task_costs.size()); // ... 95%
+        float margin = 1.282f * std::sqrt(var / task_costs.size()); // ... 80%
         float lower = avg - margin;
         float upper = avg + margin;
 
@@ -438,6 +438,7 @@ namespace allscale {
                 if (node_avg[node + 1] < node_avg[node] - margin)
                 {
                     target_node = node + 1;
+                    // advance to node that hasn't been disabled...
                     node_contribution[node]--;
                     node_contribution[target_node]++;
                     update_mapping = true;
@@ -449,6 +450,7 @@ namespace allscale {
                 if (node_avg[node - 1] < node_avg[node] - margin)
                 {
                     target_node = node - 1;
+                    // advance to node that hasn't been disabled...
                     node_contribution[node]--;
                     node_contribution[target_node]++;
                     update_mapping = true;
@@ -461,6 +463,7 @@ namespace allscale {
                 if (node_avg[node - 1] < node_avg[node] - margin)
                 {
                     target_node = node - 1;
+                    // advance to node that hasn't been disabled...
                     node_contribution[node]--;
                     node_contribution[target_node]++;
                     update_mapping = true;
@@ -471,6 +474,7 @@ namespace allscale {
                 if (node_avg[node + 1] < node_avg[node] - margin)
                 {
                     target_node = node + 1;
+                    // advance to node that hasn't been disabled...
                     node_contribution[node]--;
                     node_contribution[target_node]++;
                     update_mapping = true;
@@ -487,6 +491,7 @@ namespace allscale {
                 if (node_avg[node + 1] > node_avg[node] + margin)
                 {
                     target_node = node + 1;
+                    // advance to node that hasn't been disabled...
                     node_contribution[node]++;
                     node_contribution[target_node]--;
                     update_mapping = true;
@@ -499,6 +504,7 @@ namespace allscale {
                 if (node_avg[node - 1] > node_avg[node] + margin)
                 {
                     target_node = node - 1;
+                    // advance to node that hasn't been disabled...
                     node_contribution[node]++;
                     node_contribution[target_node]--;
                     update_mapping = true;
@@ -512,6 +518,7 @@ namespace allscale {
                 if (node_avg[node + 1] > node_avg[node] + margin)
                 {
                     target_node = node + 1;
+                    // advance to node that hasn't been disabled...
                     node_contribution[node]++;
                     node_contribution[target_node]--;
                     update_mapping = true;
@@ -523,16 +530,17 @@ namespace allscale {
                 if (node_avg[node - 1] > node_avg[node] + margin)
                 {
                     target_node = node - 1;
+                    // advance to node that hasn't been disabled...
                     node_contribution[node]++;
                     node_contribution[target_node]--;
                     update_mapping = true;
                 }
             }
         };
-        if (var < 0.01f)
-        {
-        }
-        else
+//         if (var < 0.01f)
+//         {
+//         }
+//         else
         {
             // Go over all node averages
             for (std::size_t i = 0; i != node_avg.size(); ++i)

@@ -89,6 +89,7 @@ namespace allscale { namespace data_item_manager {
 
                 if(!missing.empty())
                 {
+                    entry.resize_fragment(req, missing, true);
                     HPX_ASSERT(req.allowance.empty());
 
                     hpx::future<void> update_cache =
@@ -99,6 +100,7 @@ namespace allscale { namespace data_item_manager {
                     return hpx::dataflow(hpx::launch::sync,
                         [req, addr](hpx::future<location_info> infof, hpx::future<void> cache_update) ->hpx::future<void>
                         {
+                            cache_update.get();
                             auto info = infof.get();
                             if (info.regions.empty()) return hpx::make_ready_future();
 

@@ -12,6 +12,10 @@
 ///////////////////////////////////////////////////////////////////////////
 
 namespace allscale {
+    namespace detail
+    {
+        std::uint32_t create_data_item_id();
+    }
     struct data_item_id
     {
         std::uint32_t locality_;
@@ -40,11 +44,12 @@ namespace allscale {
             ar & id_;
         }
 
+
         static data_item_id create()
         {
-            static hpx::util::atomic_count id(0);
-            return {hpx::get_locality_id(), static_cast<std::uint32_t>(++id - 1)};
+            return {hpx::get_locality_id(), detail::create_data_item_id()};
         }
+
     };
 
     template<typename DataItemType>
@@ -130,7 +135,6 @@ namespace allscale {
 
         // a transient cache for the referenced fragment
         mutable std::atomic<fragment_type*> cache;
-
     };
 }
 

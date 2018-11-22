@@ -33,7 +33,7 @@ namespace allscale { namespace data_item_manager {
             {
                 entry.add_full(req.allowance);
                 if (isLeaf)
-                    entry.resize_fragment(req, req.region, true);
+                    entry.resize_fragment(req, req.allowance, true);
             }
             else
             {

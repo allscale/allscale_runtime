@@ -452,15 +452,20 @@ namespace allscale { namespace dashboard
 
         auto start = std::chrono::steady_clock::now();
 
-        auto f = client.get_system_state();
-        f.then(
-        [&client](hpx::future<std::vector<node_state>> nodes)
+        auto f = client.get_system_state().then(
+        [&client, start](hpx::future<std::vector<node_state>> nodes)
         {
             system_state state;
 
             auto next_update =
-                []()
-                {};
+                [start]()
+                {
+                    using namespace std::chrono_literals;
+                    auto duration = std::chrono::steady_clock::now() - start;
+                    if (duration < 1s)
+                        std::this_thread::sleep_for(1s - duration);
+                    update();
+                };
 
             try
             {
@@ -507,12 +512,6 @@ namespace allscale { namespace dashboard
                 next_update();
             }
         });
-
-        using namespace std::chrono_literals;
-        auto duration = std::chrono::steady_clock::now() - start;
-        if (duration < 1s)
-            std::this_thread::sleep_for(1s - duration);
-        hpx::apply(update);
     }
 
     void get_commands()
