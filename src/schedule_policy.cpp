@@ -230,7 +230,7 @@ namespace allscale {
 
     namespace {
 
-        std::unique_ptr<scheduling_policy> rebalance_tasks(tree_scheduling_policy const& old, const std::vector<float>& task_costs, std::vector<bool> const& mask)
+        std::unique_ptr<scheduling_policy> rebalance_tasks(tree_scheduling_policy const& old, const std::vector<float>& task_costs, std::vector<bool> const& mask, bool output)
         {
             // check input...
             std::size_t mapping_size = 1 << old.get_granularity();
@@ -250,28 +250,36 @@ namespace allscale {
             float total_costs = std::accumulate(task_costs.begin(), task_costs.end(), 0.0f);
             float share = total_costs / available_nodes;
 
+//             if (output)
+//                 std::cout << total_costs << " " << share << "\n";
+
             float cur_costs = 0;
             float next_goal = share;
 
             std::size_t cur_node = 0;
             while (!mask[cur_node]) cur_node++;
 
-            std::vector<std::size_t> new_mapping(mapping_size);
+            std::vector<std::size_t> new_mapping(old.task_distribution_mapping());
             for (std::size_t i = 0; i < mapping_size; ++i)
             {
                 // compute next costs
                 auto next_costs = cur_costs + task_costs[i];
+//                 if (output)
+//                     std::cout << i << " " << cur_node << " " << next_costs << " " << next_goal << "\n";
 
                 // if we cross a boundary
-                if (cur_node < num_nodes - 1)
+                if (cur_node <= num_nodes)
                 {
-                    if (next_costs > next_goal)
-//                     if (std::abs(cur_costs - next_goal) < std::abs(next_goal - next_costs))
+//                     if (next_costs > next_goal)
+                    if (std::abs(cur_costs - next_goal) < std::abs(next_goal - next_costs))
                     {
+//                         if (i > 0 && new_mapping[i-1] == cur_node)
+                        {
 //                         std::cout << "advance to node " << cur_node+1 << '\n';
-                        cur_node++;
-                        while (!mask[cur_node]) cur_node++;
-                        next_goal += share;
+                            cur_node++;
+                            while (!mask[cur_node]) cur_node++;
+                            next_goal += share;
+                        }
                     }
                 }
 
@@ -355,7 +363,7 @@ namespace allscale {
             task_costs[i] = costs[mapping[i]];
         }
 
-        return rebalance_tasks(old, task_costs, mask);
+        return rebalance_tasks(old, task_costs, mask, false);
     }
 
     namespace {
@@ -378,214 +386,224 @@ namespace allscale {
     {
         tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(old_base);
 
-        // extract task cost vector...
-        std::size_t mapping_size = 1 << old.get_granularity();
-        std::vector<float> task_costs(mapping_size);
+        // extract task cost vector from task times
+		std::size_t mappingSize = 1 << old.granularity_;
+		std::vector<float> taskCosts(mappingSize);
 
-        // sample measured times
-        sample_task_costs(times, task_id::task_path::root(), old.get_granularity(), task_costs);
+		// sample measured times
+		sample_task_costs(times, task_id::task_path::root(), old.granularity_, taskCosts);
 
-        std::vector<std::size_t> mapping = old.task_distribution_mapping();
+		// compute new schedule
+        return rebalance_tasks(old, taskCosts, mask, output);
 
-        std::vector<float> node_avg(mask.size(), 0.f);
-        std::vector<std::size_t> node_contribution(mask.size(), 0);
-
-        auto total = std::accumulate(task_costs.begin(), task_costs.end(), 0.0f);
-        auto avg =  total / task_costs.size();
-        float sum_dist = 0.f;
-        for(std::size_t i=0; i<task_costs.size(); i++)
-        {
-            float dist = task_costs[i] - avg;
-            sum_dist +=  dist * dist;
-        }
-        float var = sum_dist / task_costs.size();
-
-
-        // we use a confidence intervall of ...
-//         float margin = 3.291f * std::sqrt(var / task_costs.size()); // ... 99.9%
-//         float margin = 2.807f * std::sqrt(var / task_costs.size()); // ... 99.5%
-//         float margin = 2.576f * std::sqrt(var / task_costs.size()); // ... 99%
-//         float margin = 1.96f * std::sqrt(var / task_costs.size()); // ... 95%
-        float margin = 1.282f * std::sqrt(var / task_costs.size()); // ... 80%
-        float lower = avg - margin;
-        float upper = avg + margin;
-
-        // Calculate the average per node, and its contribution inside the
-        // mapping
-        for (std::size_t i = 0; i < mapping.size(); ++i)
-        {
-            std::size_t node = mapping[i];
-            node_avg[node] += task_costs[i];
-            ++node_contribution[node];
-        }
-
-        for (std::size_t node = 0; node != node_avg.size(); ++node)
-        {
-            node_avg[node] /= node_contribution[node];
-        }
-
-        // Figure out in which direction we need to balance towards
-        // Select the node with the smallest average
-        bool update_mapping = false;
-        auto eligable_max = [&node_avg, &node_contribution, &update_mapping, margin](std::size_t node)
-        {
-            std::size_t target_node = std::size_t(-1);
-
-            if (node_contribution[node] == 1) return;
-
-            if (node == 0)
-            {
-                if (node_avg[node + 1] < node_avg[node] - margin)
-                {
-                    target_node = node + 1;
-                    // advance to node that hasn't been disabled...
-                    node_contribution[node]--;
-                    node_contribution[target_node]++;
-                    update_mapping = true;
-                }
-                return;
-            }
-            if (node == node_avg.size() - 1)
-            {
-                if (node_avg[node - 1] < node_avg[node] - margin)
-                {
-                    target_node = node - 1;
-                    // advance to node that hasn't been disabled...
-                    node_contribution[node]--;
-                    node_contribution[target_node]++;
-                    update_mapping = true;
-                }
-                return;
-            }
-
-            if (node_avg[node - 1] < node_avg[node + 1])
-            {
-                if (node_avg[node - 1] < node_avg[node] - margin)
-                {
-                    target_node = node - 1;
-                    // advance to node that hasn't been disabled...
-                    node_contribution[node]--;
-                    node_contribution[target_node]++;
-                    update_mapping = true;
-                }
-            }
-            else
-            {
-                if (node_avg[node + 1] < node_avg[node] - margin)
-                {
-                    target_node = node + 1;
-                    // advance to node that hasn't been disabled...
-                    node_contribution[node]--;
-                    node_contribution[target_node]++;
-                    update_mapping = true;
-                }
-            }
-        };
-
-        auto eligable_min = [&node_avg, &node_contribution, &update_mapping, margin](std::size_t node)
-        {
-            std::size_t target_node = std::size_t(-1);
-            if (node == 0)
-            {
-                if (node_contribution[node + 1] == 1) return;
-                if (node_avg[node + 1] > node_avg[node] + margin)
-                {
-                    target_node = node + 1;
-                    // advance to node that hasn't been disabled...
-                    node_contribution[node]++;
-                    node_contribution[target_node]--;
-                    update_mapping = true;
-                }
-                return;
-            }
-            if (node == node_avg.size() -1)
-            {
-                if (node_contribution[node - 1] == 1) return;
-                if (node_avg[node - 1] > node_avg[node] + margin)
-                {
-                    target_node = node - 1;
-                    // advance to node that hasn't been disabled...
-                    node_contribution[node]++;
-                    node_contribution[target_node]--;
-                    update_mapping = true;
-                }
-                return;
-            }
-
-            if (node_avg[node - 1] < node_avg[node + 1])
-            {
-                if (node_contribution[node + 1] == 1) return;
-                if (node_avg[node + 1] > node_avg[node] + margin)
-                {
-                    target_node = node + 1;
-                    // advance to node that hasn't been disabled...
-                    node_contribution[node]++;
-                    node_contribution[target_node]--;
-                    update_mapping = true;
-                }
-            }
-            else
-            {
-                if (node_contribution[node - 1] == 1) return;
-                if (node_avg[node - 1] > node_avg[node] + margin)
-                {
-                    target_node = node - 1;
-                    // advance to node that hasn't been disabled...
-                    node_contribution[node]++;
-                    node_contribution[target_node]--;
-                    update_mapping = true;
-                }
-            }
-        };
-//         if (var < 0.01f)
+//         // extract task cost vector...
+//         std::size_t mapping_size = 1 << old.get_granularity();
+//         std::vector<float> task_costs(mapping_size);
+//
+//         // sample measured times
+//         sample_task_costs(times, task_id::task_path::root(), old.get_granularity(), task_costs);
+//
+//         std::vector<std::size_t> mapping = old.task_distribution_mapping();
+//
+//         std::vector<float> node_avg(mask.size(), 0.f);
+//         std::vector<std::size_t> node_contribution(mask.size(), 0);
+//
+//         auto total = std::accumulate(task_costs.begin(), task_costs.end(), 0.0f);
+//         auto avg =  total / task_costs.size();
+//         float sum_dist = 0.f;
+//         for(std::size_t i=0; i<task_costs.size(); i++)
 //         {
+//             float dist = task_costs[i] - avg;
+//             sum_dist +=  dist * dist;
 //         }
-//         else
-        {
-            // Go over all node averages
-            for (std::size_t i = 0; i != node_avg.size(); ++i)
-            {
-    //             if(output) std::cout << node_avg[i] << " " << lower << " " << upper << " " << avg << " " << margin << '\n';
-                // If this node has higher load than the confidence interval,
-                // put the work to our neighbors
-                if (node_avg[i] > upper)
-                {
-    //                 if (output) std::cout << "new max?\n";
-                    eligable_max(i);
-                }
-                // If this node has lower load than the confidence interval,
-                // put the work to our neighbors
-                if (node_avg[i] < lower)
-                {
-    //                 if (output) std::cout << "new min?\n";
-                    eligable_min(i);
-                }
-            }
-        }
-//         if (output) std::cout << "\n";
-
-        if (update_mapping)
-        {
-            // Generating new mapping by using the node_contribution.
-            auto jt = mapping.begin();
-            for (std::size_t i = 0; i != node_avg.size(); ++i)
-            {
-                for (std::size_t j = 0; j != node_contribution[i]; ++j)
-                {
-                    *jt = i;
-                    ++jt;
-                }
-            }
-        }
-
-//         if (output) std::cout << mapping << '\n';
-
-        // create new scheduling policy
-        auto log2 = old.root().getLayer();
-
-        return std::unique_ptr<scheduling_policy>(new tree_scheduling_policy(
-                old.root(), old.get_granularity(),
-                toDecisionTree((1<<log2), mapping)));
+//         float var = sum_dist / task_costs.size();
+//
+//
+//         // we use a confidence intervall of ...
+// //         float margin = 3.291f * std::sqrt(var / task_costs.size()); // ... 99.9%
+// //         float margin = 2.807f * std::sqrt(var / task_costs.size()); // ... 99.5%
+// //         float margin = 2.576f * std::sqrt(var / task_costs.size()); // ... 99%
+// //         float margin = 1.96f * std::sqrt(var / task_costs.size()); // ... 95%
+//         float margin = 1.282f * std::sqrt(var / task_costs.size()); // ... 80%
+//         float lower = avg - margin;
+//         float upper = avg + margin;
+//
+//         // Calculate the average per node, and its contribution inside the
+//         // mapping
+//         for (std::size_t i = 0; i < mapping.size(); ++i)
+//         {
+//             std::size_t node = mapping[i];
+//             node_avg[node] += task_costs[i];
+//             ++node_contribution[node];
+//         }
+//
+//         for (std::size_t node = 0; node != node_avg.size(); ++node)
+//         {
+//             node_avg[node] /= node_contribution[node];
+//         }
+//
+//         // Figure out in which direction we need to balance towards
+//         // Select the node with the smallest average
+//         bool update_mapping = false;
+//         auto eligable_max = [&node_avg, &node_contribution, &update_mapping, margin](std::size_t node)
+//         {
+//             std::size_t target_node = std::size_t(-1);
+//
+//             if (node_contribution[node] == 1) return;
+//
+//             if (node == 0)
+//             {
+//                 if (node_avg[node + 1] < node_avg[node] - margin)
+//                 {
+//                     target_node = node + 1;
+//                     // advance to node that hasn't been disabled...
+//                     node_contribution[node]--;
+//                     node_contribution[target_node]++;
+//                     update_mapping = true;
+//                 }
+//                 return;
+//             }
+//             if (node == node_avg.size() - 1)
+//             {
+//                 if (node_avg[node - 1] < node_avg[node] - margin)
+//                 {
+//                     target_node = node - 1;
+//                     // advance to node that hasn't been disabled...
+//                     node_contribution[node]--;
+//                     node_contribution[target_node]++;
+//                     update_mapping = true;
+//                 }
+//                 return;
+//             }
+//
+//             if (node_avg[node - 1] < node_avg[node + 1])
+//             {
+//                 if (node_avg[node - 1] < node_avg[node] - margin)
+//                 {
+//                     target_node = node - 1;
+//                     // advance to node that hasn't been disabled...
+//                     node_contribution[node]--;
+//                     node_contribution[target_node]++;
+//                     update_mapping = true;
+//                 }
+//             }
+//             else
+//             {
+//                 if (node_avg[node + 1] < node_avg[node] - margin)
+//                 {
+//                     target_node = node + 1;
+//                     // advance to node that hasn't been disabled...
+//                     node_contribution[node]--;
+//                     node_contribution[target_node]++;
+//                     update_mapping = true;
+//                 }
+//             }
+//         };
+//
+//         auto eligable_min = [&node_avg, &node_contribution, &update_mapping, margin](std::size_t node)
+//         {
+//             std::size_t target_node = std::size_t(-1);
+//             if (node == 0)
+//             {
+//                 if (node_contribution[node + 1] == 1) return;
+//                 if (node_avg[node + 1] > node_avg[node] + margin)
+//                 {
+//                     target_node = node + 1;
+//                     // advance to node that hasn't been disabled...
+//                     node_contribution[node]++;
+//                     node_contribution[target_node]--;
+//                     update_mapping = true;
+//                 }
+//                 return;
+//             }
+//             if (node == node_avg.size() -1)
+//             {
+//                 if (node_contribution[node - 1] == 1) return;
+//                 if (node_avg[node - 1] > node_avg[node] + margin)
+//                 {
+//                     target_node = node - 1;
+//                     // advance to node that hasn't been disabled...
+//                     node_contribution[node]++;
+//                     node_contribution[target_node]--;
+//                     update_mapping = true;
+//                 }
+//                 return;
+//             }
+//
+//             if (node_avg[node - 1] < node_avg[node + 1])
+//             {
+//                 if (node_contribution[node + 1] == 1) return;
+//                 if (node_avg[node + 1] > node_avg[node] + margin)
+//                 {
+//                     target_node = node + 1;
+//                     // advance to node that hasn't been disabled...
+//                     node_contribution[node]++;
+//                     node_contribution[target_node]--;
+//                     update_mapping = true;
+//                 }
+//             }
+//             else
+//             {
+//                 if (node_contribution[node - 1] == 1) return;
+//                 if (node_avg[node - 1] > node_avg[node] + margin)
+//                 {
+//                     target_node = node - 1;
+//                     // advance to node that hasn't been disabled...
+//                     node_contribution[node]++;
+//                     node_contribution[target_node]--;
+//                     update_mapping = true;
+//                 }
+//             }
+//         };
+// //         if (var < 0.01f)
+// //         {
+// //         }
+// //         else
+//         {
+//             // Go over all node averages
+//             for (std::size_t i = 0; i != node_avg.size(); ++i)
+//             {
+//     //             if(output) std::cout << node_avg[i] << " " << lower << " " << upper << " " << avg << " " << margin << '\n';
+//                 // If this node has higher load than the confidence interval,
+//                 // put the work to our neighbors
+//                 if (node_avg[i] > upper)
+//                 {
+//     //                 if (output) std::cout << "new max?\n";
+//                     eligable_max(i);
+//                 }
+//                 // If this node has lower load than the confidence interval,
+//                 // put the work to our neighbors
+//                 if (node_avg[i] < lower)
+//                 {
+//     //                 if (output) std::cout << "new min?\n";
+//                     eligable_min(i);
+//                 }
+//             }
+//         }
+// //         if (output) std::cout << "\n";
+//
+//         if (update_mapping)
+//         {
+//             // Generating new mapping by using the node_contribution.
+//             auto jt = mapping.begin();
+//             for (std::size_t i = 0; i != node_avg.size(); ++i)
+//             {
+//                 for (std::size_t j = 0; j != node_contribution[i]; ++j)
+//                 {
+//                     *jt = i;
+//                     ++jt;
+//                 }
+//             }
+//         }
+//
+// //         if (output) std::cout << mapping << '\n';
+//
+//         // create new scheduling policy
+//         auto log2 = old.root().getLayer();
+//
+//         return std::unique_ptr<scheduling_policy>(new tree_scheduling_policy(
+//                 old.root(), old.get_granularity(),
+//                 toDecisionTree((1<<log2), mapping)));
     }
 
     std::unique_ptr<scheduling_policy>

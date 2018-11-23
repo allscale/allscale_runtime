@@ -55,7 +55,7 @@ namespace allscale { namespace dashboard
         float weighted_task_throughput = 0.0f;
 
         // percentage of time being idle
-        float idle_rate = 0.0f;
+        float idle_rate = 100.0f;
 
         // -- network I/O --
 

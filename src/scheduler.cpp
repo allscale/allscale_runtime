@@ -744,6 +744,11 @@ namespace allscale
             }
         );
 
+        std::lock_guard<mutex_type> l(active_mtx_);
+        {
+            active_ = mask[hpx::get_locality_id()];
+        }
+
         monitor::get().set_cur_freq(freq);
     }
 

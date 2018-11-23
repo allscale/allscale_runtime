@@ -33,13 +33,15 @@ namespace allscale { namespace dashboard
         state.online = true;
         state.active = scheduler::active();
 
+
+        state.ownership = data_item_manager::get_ownership_json();
+        if (!state.active) return state;
+
         allscale::components::monitor *monitor_c = &allscale::monitor::get();
 
         // FIXME: add proper metrics here...
         state.num_cores = monitor_c->get_num_cpus();
         state.cpu_load = monitor_c->get_cpu_load();
-
-        state.ownership = data_item_manager::get_ownership_json();
 
         state.total_memory = monitor_c->get_node_total_memory();
         state.memory_load = monitor_c->get_consumed_memory();
@@ -57,8 +59,8 @@ namespace allscale { namespace dashboard
 
         state.productive_cycles_per_second = float(state.cur_frequency) * (1.f - state.idle_rate);  // freq to Hz
 
-        state.speed = 1.f - state.idle_rate;
-        state.efficiency = state.speed * (float(state.cur_frequency * active_cores) / float(state.max_frequency * state.num_cores));
+        state.efficiency = 1.f - state.idle_rate;
+        state.speed = state.efficiency * (float(state.cur_frequency * active_cores) / float(state.max_frequency * state.num_cores));
 
 #ifdef POWER_ESTIMATE
         state.cur_power = monitor_c->get_current_power();
@@ -479,6 +481,7 @@ namespace allscale { namespace dashboard
 
                 float max_power = 0.f;
                 float cur_power = 0.f;
+                std::size_t active_nodes = 0;
 
                 for (auto const& cur: state.nodes)
                 {
@@ -489,6 +492,7 @@ namespace allscale { namespace dashboard
 //                         speeds[cur.rank] = cur.speed;
                         total_efficiency += cur.efficiency;
                         cur_power += cur.cur_power;
+                        active_nodes++;
                     }
                     max_power += cur.max_power;
                 }
@@ -496,7 +500,7 @@ namespace allscale { namespace dashboard
                 state.speed = total_speed / client.localities_.size();
 //                 state.speed = std::pow(total_speed, 1.f/client.localities_.size());
 
-                state.efficiency = total_efficiency / client.localities_.size();
+                state.efficiency = total_efficiency / active_nodes;
                 state.power = (max_power > 0) ? cur_power/max_power : 0;
 
                 auto exponents = scheduler::get_optimizer_exponents();

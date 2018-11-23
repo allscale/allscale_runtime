@@ -170,7 +170,9 @@ float estimate_power(float frequency)
 
 global_optimizer::global_optimizer()
     : u_balance_every(10), u_steps_till_rebalance(u_balance_every),
-    active_nodes_(allscale::get_num_localities(), true), tuner_(new simple_coordinate_descent(tuner_configuration{active_nodes_, allscale::monitor::get().get_current_freq(0)})),
+    active_nodes_(allscale::get_num_localities(), true),
+    active_frequency_(allscale::monitor::get().get_current_freq(0)),
+    tuner_(new simple_coordinate_descent(tuner_configuration{active_nodes_, allscale::monitor::get().get_current_freq(0)})),
     objective_(get_default_objective()),
     active_(true), localities_(hpx::find_all_localities()),
     f_resource_max(-1.0f), f_resource_leeway(-1.0f)
@@ -216,7 +218,8 @@ void global_optimizer::tune(std::vector<optimizer_state> const &state)
     allscale::components::monitor *monitor_c = &allscale::monitor::get();
     std::uint64_t max_frequency = monitor_c->get_max_freq(0);
 
-    std::size_t num_active_nodes = std::count(active_nodes_.begin(), active_nodes_.end(), true);
+    std::size_t num_active_nodes = 0;
+    for (bool x : active_nodes_) if (x) num_active_nodes++;
 
     // compute overall speed
 
@@ -230,8 +233,8 @@ void global_optimizer::tune(std::vector<optimizer_state> const &state)
     {
         if (i < num_active_nodes)
         {
-            total_speed += state[i].load_;
-            total_efficiency += state[i].load_ * (float(state[i].active_frequency_ * state[i].cores_per_node_) / float(max_frequency * state[i].cores_per_node_));;
+            total_efficiency += state[i].load_;
+            total_speed += state[i].load_ * (float(state[i].active_frequency_ * state[i].cores_per_node_) / float(max_frequency * state[i].cores_per_node_));;
             used_power += state[i].energy_;
         }
 #ifdef POWER_ESTIMATE
@@ -242,7 +245,7 @@ void global_optimizer::tune(std::vector<optimizer_state> const &state)
     tuner_state tune_state;
 
     tune_state.speed = total_speed / active_nodes_.size();
-    tune_state.efficiency = total_efficiency / active_nodes_.size();
+    tune_state.efficiency = total_efficiency / num_active_nodes;
     tune_state.power = used_power / max_power;
 
     tune_state.score = objective_.score(tune_state.speed, tune_state.efficiency, tune_state.power);
@@ -281,7 +284,8 @@ void global_optimizer::tune(std::vector<optimizer_state> const &state)
                         // compute the load variance
                         float avg_load = 0.0f;
 
-                        std::size_t num_active_nodes = std::count(active_nodes_.begin(), active_nodes_.end(), true);
+                        std::size_t num_active_nodes = 0;
+                        for (bool x : active_nodes_) if (x) num_active_nodes++;
                         std::for_each(state.begin(), state.end(),
                             [&times, &avg_load](optimizer_state const& s)
                             {

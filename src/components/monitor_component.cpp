@@ -55,6 +55,7 @@ namespace allscale { namespace components {
 
    monitor::monitor(std::uint64_t rank)
      : last_task_times_sample_(std::chrono::high_resolution_clock::now())
+     , start_time_(std::chrono::high_resolution_clock::now())
      , idle_rate_idx_(0)
      , rank_(rank)
      , num_localities_(0)
@@ -144,25 +145,40 @@ namespace allscale { namespace components {
 
    double monitor::get_idle_rate()
    {
-       std::lock_guard<mutex_type> l(task_times_mtx_);
-       auto now = std::chrono::high_resolution_clock::now();
-
-       auto process_time = process_time_;
-
-       auto d1 = std::chrono::duration_cast<task_times::time_t>(process_time - process_time_buffer_.oldest_data());
-       auto d2 = std::chrono::duration_cast<task_times::time_t>(now - process_time_buffer_.oldest_time());
-
-
-       double cur_idle_rate = 1. - static_cast<double>(d1.count())/(static_cast<double>(d2.count()) * num_cpus_);
-
-       idle_rates_[idle_rate_idx_] = cur_idle_rate;
-       idle_rate_idx_ = (idle_rate_idx_ + 1) % idle_rate_history_count;
-
-       // aggregate process time...
-       process_time_buffer_.push(process_time, now);
-
-       // calucalate the mean idle rate over all as the result
-       return std::accumulate(idle_rates_.begin(), idle_rates_.end(), 0.0) / idle_rate_history_count;
+       task_times::time_t process_time;
+       task_times::time_t duration;
+       {
+           std::lock_guard<mutex_type> l(task_times_mtx_);
+           auto now = std::chrono::high_resolution_clock::now();
+           process_time = process_time_;
+           duration = now - start_time_;
+           // Reset each 10 seconds...
+           using namespace std::chrono_literals;
+           if (duration > 10s)
+           {
+               process_time_ = task_times::time_t();
+               start_time_ = std::chrono::high_resolution_clock::now();
+           }
+       }
+       return static_cast<double>(process_time.count()) / (duration.count() * num_cpus_);
+//        auto now = std::chrono::high_resolution_clock::now();
+//
+//        auto process_time = process_time_;
+//
+//        auto d1 = std::chrono::duration_cast<task_times::time_t>(process_time - process_time_buffer_.oldest_data());
+//        auto d2 = std::chrono::duration_cast<task_times::time_t>(now - process_time_buffer_.oldest_time());
+//
+//
+//        double cur_idle_rate = 1. - static_cast<double>(d1.count())/(static_cast<double>(d2.count()) * num_cpus_);
+//
+//        idle_rates_[idle_rate_idx_] = cur_idle_rate;
+//        idle_rate_idx_ = (idle_rate_idx_ + 1) % idle_rate_history_count;
+//
+//        // aggregate process time...
+//        process_time_buffer_.push(process_time, now);
+//
+//        // calucalate the mean idle rate over all as the result
+//        return std::accumulate(idle_rates_.begin(), idle_rates_.end(), 0.0) / idle_rate_history_count;
    }
 
 #ifdef REALTIME_VIZ
