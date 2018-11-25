@@ -613,13 +613,19 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
                     for (const auto &physical:active_nodes_) {
                         if ( physical ) {
                             OUT_DEBUG(
-                                std::cout << "[Ino_NMD] Node " << cur_node << " is alive!" << std::endl;
+                                std::cout << "[Ino_NMD] Node " << cur_node << " is was used last time" << std::endl;
                             )
-                            virtual_to_physical.push_back(cur_node);
+                        } else {
+                            OUT_DEBUG(
+                                std::cout << "[Ino_NMD] Node " << cur_node << " was not used last time" << std::endl;
+                            )
                         }
+
+                        virtual_to_physical.push_back(cur_node);
                         cur_node ++;
                     }
-
+                    num_active_nodes = active_nodes_.size();
+                    
                     if ( new_num_nodes > num_active_nodes )
                         new_num_nodes = num_active_nodes;
                     
@@ -778,6 +784,12 @@ hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_
 
                         previous_num_nodes = new_num_nodes;
                         hpx::lcos::broadcast_apply<allscale_optimizer_update_policy_action_ino>(localities_, new_mapping);
+
+                        for (auto i=0u; i<new_num_nodes; ++i ) {
+                            active_nodes_[i] = true;
+                        }
+                        for ( auto i=new_num_nodes ;i<active_nodes_.size(); ++i)
+                            active_nodes_[i] = false;
                     }
 
                     if ( threads_min != threads_max )
