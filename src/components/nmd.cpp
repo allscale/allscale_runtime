@@ -7,8 +7,8 @@
 #include <allscale/components/nmd.hpp>
 
 
-#define NMD_DEBUG_
-#define NMD_INFO_
+//#define NMD_DEBUG_
+//#define NMD_INFO_
 
 #ifdef NMD_DEBUG_
 #define OUT_DEBUG(X) X

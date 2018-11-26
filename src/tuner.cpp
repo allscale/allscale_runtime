@@ -235,7 +235,6 @@ namespace allscale {
     {
         tuner_configuration res;
         auto action = std::vector<std::size_t>();
-        std::cout << "Initializing NMD" << std::endl;
 
         const double weights[] = {
                 obj.speed_exponent, obj.efficiency_exponent, obj.power_exponent

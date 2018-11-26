@@ -14,8 +14,7 @@
 #include <allscale/components/nmsimplex_bbincr.hpp>
 #include <cmath>
 
-#define NMD_DEBUG_ 1
-#define NMD_INFO_ 1
+//#define NMD_DEBUG_ 1
 
 #ifdef NMD_DEBUG_
 #define OUT_DEBUG(X) X
