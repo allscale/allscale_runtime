@@ -189,7 +189,7 @@ void localoptimizer::setmaxthreads(std::size_t threads)
 			if ( min_threads < 1 )
 				min_threads = 1;
 			
-			double constraint_min[] = {min_threads, min_freq};
+			double constraint_min[] = {(double) min_threads, (double) min_freq};
 			#if defined(ALLSCALE_HAVE_CPUFREQ)
 			double constraint_max[] = {ceil(max_threads_/(double)threads_dt),
 									(double)max_freq};
@@ -226,7 +226,7 @@ void localoptimizer::initialize_nmd(bool from_scratch)
 		min_threads = 1;
 	int max_threads = max_threads_;
 
-	double constraint_min[] = {min_threads, min_freq};
+	double constraint_min[] = { (double) min_threads, (double) min_freq};
 	#if defined(ALLSCALE_HAVE_CPUFREQ)
 	double constraint_max[] = {ceil(max_threads_/(double)threads_dt),
 							(double)max_freq};
@@ -251,7 +251,7 @@ void localoptimizer::initialize_nmd(bool from_scratch)
 	} else {
 		if ( time_weight >= energy_weight + resource_weight ) {
 			double initial_simplex[3][2] = {
-				{min_threads, constraint_min[1]},
+				{(double) min_threads, constraint_min[1]},
 				{max_threads/2.0, (constraint_min[1]+constraint_max[1])/2.0},
 				{(min_threads+max_threads)/2., constraint_max[1]}
 			};
@@ -261,7 +261,7 @@ void localoptimizer::initialize_nmd(bool from_scratch)
 									constraint_max);
 		} else {
 			double initial_simplex[3][2] = {
-				{min_threads, constraint_min[1]},
+				{(double) min_threads, constraint_min[1]},
 				{max_threads/2.0, (constraint_min[1]+constraint_max[1])/2.0},
 				{(min_threads+max_threads)/2., constraint_max[1]}
 			};

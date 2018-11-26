@@ -198,7 +198,7 @@ float estimate_power(float frequency)
 
 global_optimizer::global_optimizer()
     : u_balance_every(10), u_steps_till_rebalance(u_balance_every),
-    active_nodes_(allscale::get_num_localities(), true), tuner_(new simple_coordinate_descent(tuner_configuration{active_nodes_, allscale::monitor::get().get_current_freq(0)})),
+    active_nodes_(allscale::get_num_localities(), true),
     objective_(get_default_objective()),
     active_(true), localities_(hpx::find_all_localities()),
     f_resource_max(-1.0f), f_resource_leeway(-1.0f), 
@@ -208,6 +208,8 @@ global_optimizer::global_optimizer()
     last_optimization_score(1.0)
 {
     char *const c_policy = std::getenv("ALLSCALE_SCHEDULING_POLICY");
+    char *const c_tuner = std::getenv("ALLSCALE_TUNER");
+
     std::string input_objective_str =
       hpx::get_config_entry("allscale.objective", "");
     
@@ -237,11 +239,12 @@ global_optimizer::global_optimizer()
             f_resource_max = atof(c_resource_max);
         
         nodes_min = f_resource_leeway * localities_.size();
-        nodes_max = localities_.size();
-
-        if ( nodes_min < 1 )
-            nodes_min = 1;
     }
+
+    nodes_max = localities_.size();
+
+    if ( nodes_min < 1 )
+        nodes_min = 1;
 
     if ( c_policy && strcasecmp(c_policy, "ino"))
         o_ino = allscale::components::internode_optimizer_t(localities_.size(),
@@ -264,6 +267,15 @@ global_optimizer::global_optimizer()
     objectives_scale[0] = 0.5;
     objectives_scale[1] = 1.0;
     objectives_scale[2] = 1.0;
+
+    if (c_policy && strcasecmp(c_policy, "neldermead")) {
+        std::cout << "Choosing NelderMead Optimizer for global optimization" << std::endl;
+        tuner_ = std::make_unique<nmd_optimizer>(nodes_min, nodes_max);
+    }
+    else {
+        std::cout << "Choosing Coordinate Descent Optimizer for global optimization" << std::endl;
+        tuner_ = std::make_unique<simple_coordinate_descent>(tuner_configuration{active_nodes_, allscale::monitor::get().get_current_freq(0)});
+    }
 }
 
 double global_optimizer::get_optimization_score()

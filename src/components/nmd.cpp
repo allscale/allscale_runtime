@@ -7,8 +7,8 @@
 #include <allscale/components/nmd.hpp>
 
 
-// #define NMD_DEBUG_
-// #define NMD_INFO_
+#define NMD_DEBUG_
+#define NMD_INFO_
 
 #ifdef NMD_DEBUG_
 #define OUT_DEBUG(X) X
@@ -68,35 +68,30 @@ max_iters(max_iters)
     weights = new double [num_objectives];
 }
 
-NmdGeneric::NmdGeneric(const NmdGeneric& other)
-{
-
-}
-
 double NmdGeneric::score(const double measurements[]) const
 {
-    double ret = std::pow(measurements[0], weights[0]) *
-                std::pow(measurements[1], weights[1]) *
-                std::pow((1-measurements[2]), weights[2]);
-    
-    if ( std::isfinite(ret) == 0  || ret > 1.0 ) {
-        ret = 1.0;
-    }
-    return 1.0 - ret;
+    return (*score_function)(measurements, weights);
 }
 
-void NmdGeneric::initialize(std::size_t constraint_min[], std::size_t constraint_max[],
-                    std::size_t *initial_config[], double weights[])
+void NmdGeneric::initialize(const std::size_t constraint_min[], 
+                            const std::size_t constraint_max[],
+                            const std::size_t *initial_config[], 
+                            const double weights[], double (*score_function)(const double[], const double []))
 {
     for (auto i=0ul; i<num_objectives; ++i)
         this->weights[i] = weights[i];
+    
+    this->score_function = score_function;
 
     set_constraints_now(constraint_min, constraint_max);
 
     iteration = 0;
-
     if ( initial_config == nullptr ) {
         std::set<std::vector<std::size_t> > fake;
+        
+        OUT_INFO(
+            std::cout << "[NMD|Info] Generating initial config for " << num_knobs << std::endl;
+        )
 
         for (auto i=0ul; i<num_knobs+1; ++i ) {
             for ( auto j=0ul; j<num_knobs; ++j ) {
@@ -104,7 +99,7 @@ void NmdGeneric::initialize(std::size_t constraint_min[], std::size_t constraint
                 this->initial_config[i][j] = std::rand() % width + constraint_min[j];
             }
 
-            generate_unique(this->initial_config[i], true, &fake);
+            generate_unique(this->initial_config[i], false, &fake);
             auto new_key = std::vector<std::size_t>();
             new_key.assign(this->initial_config[i], this->initial_config[i]+num_knobs);
             fake.insert(new_key);
@@ -131,8 +126,8 @@ void NmdGeneric::initialize(std::size_t constraint_min[], std::size_t constraint
     times_reentered_start = 0;
 }
 
-void NmdGeneric::set_constraints_now(std::size_t constraint_min[],
-                                    std::size_t constraint_max[])
+void NmdGeneric::set_constraints_now(const std::size_t constraint_min[],
+                                    const std::size_t constraint_max[])
 {
     for (auto i=0ul; i<num_knobs; ++i ){
         this->constraint_max[i] = constraint_max[i];
@@ -170,6 +165,11 @@ void NmdGeneric::generate_unique(std::size_t initial[], bool accept_stale=false,
                 if ( entry == cache.end() ) {
                     candidates.insert(key);
                 } else {
+                    std::cout << "Found ";
+                    for (auto i=0ul; i<num_knobs; ++i ) {
+                        std::cout << key[i] << " ";
+                    }
+                    std::cout << std::endl;
                     auto dt = ts_now - entry->second.cache_ts;
                     if (accept_stale==false || 
                         (dt >= entry->second.cache_dt && cache_expire_dt_ms > 0) ) {
@@ -366,7 +366,7 @@ std::vector<std::size_t> NmdGeneric::do_start(bool consult_cache=true)
         std::cout << "[NMD|Dbg]  INNER start" << std::endl;
     )
     iteration ++;
-    sort_simplex(consult_cache);
+    sort_simplex(false);
     compute_centroid();
     double temp[num_knobs];
 
@@ -457,7 +457,7 @@ std::vector<std::size_t> NmdGeneric::do_shrink()
 }
 
 std::vector<std::size_t> NmdGeneric::do_contract_out(const double measurements[], 
-                            std::size_t observed_knobs[])
+                            const std::size_t observed_knobs[])
 {
     ensure_profile_consistency(point_contract, observed_knobs);
     score_contract = score(measurements);
@@ -494,7 +494,7 @@ std::vector<std::size_t> NmdGeneric::do_contract_out(const double measurements[]
 }
 
 std::vector<std::size_t> NmdGeneric::do_contract_in(const double measurements[], 
-                            std::size_t observed_knobs[])
+                            const std::size_t observed_knobs[])
 {
     ensure_profile_consistency(point_contract, observed_knobs);
     score_contract = score(measurements);
@@ -532,7 +532,7 @@ std::vector<std::size_t> NmdGeneric::do_contract_in(const double measurements[],
 
 
 std::vector<std::size_t> NmdGeneric::do_expand(const double measurements[], 
-                            std::size_t observed_knobs[])
+                            const std::size_t observed_knobs[])
 {
     ensure_profile_consistency(point_expand, observed_knobs);
     score_expand = score(measurements);
@@ -571,7 +571,7 @@ std::vector<std::size_t> NmdGeneric::do_expand(const double measurements[],
 }
 
 std::vector<std::size_t> NmdGeneric::do_reflect(const double measurements[], 
-                            std::size_t observed_knobs[])
+                            const std::size_t observed_knobs[])
 {
     ensure_profile_consistency(point_reflect, observed_knobs);
     score_reflect = score(measurements);
@@ -688,7 +688,7 @@ std::vector<std::size_t> NmdGeneric::do_reflect(const double measurements[],
 }
 
 std::vector<std::size_t> NmdGeneric::do_warmup(const double measurements[], 
-                            std::size_t observed_knobs[])
+                            const std::size_t observed_knobs[])
 {
     std::vector<std::size_t> ret;
     OUT_DEBUG(
@@ -757,7 +757,7 @@ std::vector<std::size_t> NmdGeneric::do_warmup(const double measurements[],
 }
 
 std::pair<std::vector<std::size_t>, bool> NmdGeneric::get_next(const double measurements[], 
-                            std::size_t observed_knobs[])
+                            const std::size_t observed_knobs[])
 {
     std::vector<std::size_t> ret;
     #if defined(NMD_DEBUG_) || defined(NMD_INFO_)
@@ -817,8 +817,10 @@ std::pair<std::vector<std::size_t>, bool> NmdGeneric::get_next(const double meas
         converged = test_convergence();
     }
 
-    if ( converged )
+    if ( converged ) {
+        sort_simplex(true);
         ret.assign(simplex[0], simplex[0] + num_knobs);
+    }
 
     return std::make_pair(ret, converged);
 }

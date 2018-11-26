@@ -857,7 +857,7 @@ optstepresult NelderMead::do_step_reflect(const double objectives[],
         res.threads = vc[0];
         res.freq_idx = vc[1];
 
-        state_ = contraction;
+        state_ = contraction_out;
 
         auto key = std::make_pair(res.threads, res.freq_idx);
 
@@ -870,7 +870,7 @@ optstepresult NelderMead::do_step_reflect(const double objectives[],
 
             if (dt < entry->second._cache_expires_dt)
             {
-                return do_step_contract(entry->second.objectives,
+                return do_step_contract_out(entry->second.objectives,
                     entry->second.threads,
                     entry->second.freq_idx);
             }
@@ -896,7 +896,7 @@ optstepresult NelderMead::do_step_reflect(const double objectives[],
         res.threads = vc[0];
         res.freq_idx = vc[1];
 
-        state_ = contraction;
+        state_ = contraction_in;
         auto key = std::make_pair(res.threads, res.freq_idx);
 
         auto entry = cache_.find(key);
@@ -908,7 +908,7 @@ optstepresult NelderMead::do_step_reflect(const double objectives[],
 
             if (dt < entry->second._cache_expires_dt)
             {
-                return do_step_contract(entry->second.objectives,
+                return do_step_contract_in(entry->second.objectives,
                     entry->second.threads,
                     entry->second.freq_idx);
             }
@@ -976,12 +976,66 @@ optstepresult NelderMead::do_step_expand(const double objectives[],
     return do_step_start();
 }
 
-optstepresult NelderMead::do_step_contract(const double objectives[],
+optstepresult NelderMead::do_step_contract_in(const double objectives[],
     double knob1, double knob2)
 {
     int j;
 #ifdef NMD_DEBUG_
-    std::cout << "[NelderMead|DEBUG] State = Contraction" << std::endl;
+    std::cout << "[NelderMead|DEBUG] State = ContractionIN" << std::endl;
+#endif
+    fc = evaluate_score(objectives, nullptr);
+
+    double profiled[] = {knob1, knob2};
+    my_constraints(profiled);
+
+    if ( vc[0] != profiled[0] || vc[1] != profiled[1] ) {
+        std::cout << "[NelderMead|WARN] Meant to profile contract " << vc[0] << " knob1 "
+                     "but ended up using " << profiled[0] << std::endl;
+        std::cout << "[NelderMead|WARN] Meant to profile contract " << vc[1] << " knob2 "
+                     "but ended up using " << profiled[1] << std::endl;
+        
+        auto key = std::make_pair((int)vc[0], (int)vc[1]);
+        auto iter = cache_.find(key);
+        if ( iter != cache_.end() ) {
+            iter->second.threads = profiled[0];
+            iter->second.freq_idx = profiled[1];
+        }
+
+        vc[0] = profiled[0];
+        vc[1] = profiled[1];
+
+        cache_update((int)vc[0], (int)vc[1], objectives, true);
+    }
+
+    if (fc <= f[NMD_NUM_KNOBS])
+    {
+        // VV: CONTRACTED_I is better than WORST
+        //     Replace WORST with CONTRACTED_I
+        for (j = 0; j < NMD_NUM_KNOBS; j++)
+        {
+            v[vg][j] = vc[j];
+        }
+        f[vg] = fc;
+
+        const int threads = (int)(v[vg][0]);
+        const int freq_idx = (int)(v[vg][1]);
+
+        cache_update(threads, freq_idx, objectives, true);
+        return do_step_start();
+    }
+    else
+    {
+        state_ = shrink;
+        return do_step_shrink();
+    }
+}
+
+optstepresult NelderMead::do_step_contract_out(const double objectives[],
+    double knob1, double knob2)
+{
+    int j;
+#ifdef NMD_DEBUG_
+    std::cout << "[NelderMead|DEBUG] State = ContractionOUT" << std::endl;
 #endif
     fc = evaluate_score(objectives, nullptr);
 
@@ -1011,7 +1065,7 @@ optstepresult NelderMead::do_step_contract(const double objectives[],
     {
         // VV: CONTRACTED_O is better than REFLECTED
         //     Replace WORST with CONTRACTED_O
-        for (j = 0; j <= n - 1; j++)
+        for (j = 0; j < NMD_NUM_KNOBS; j++)
         {
             v[vg][j] = vc[j];
         }
@@ -1025,87 +1079,105 @@ optstepresult NelderMead::do_step_contract(const double objectives[],
     }
     else
     {
-        // VV: Replace SECOND BEST
-        double new_vh[NMD_NUM_KNOBS];
-        
-        auto gen_new = [this, &new_vh](double *extra) mutable -> double* {
-            for (auto j = 0; j < NMD_NUM_KNOBS; j++)
-                new_vh[j] = v[vs][j] + DELTA * (v[vh][j] - v[vs][j]) - extra[j];
-                
-            my_constraints(new_vh);
-
-            return new_vh;
-        };
-
-        generate_new(gen_new);
-
-        for (j = 0; j < NMD_NUM_KNOBS; j++)
-            v[vh][j] = new_vh[j];
-
-        // VV: Now evaluate SHRINK
-
-        optstepresult res;
-        res.threads = v[vh][0];
-        res.freq_idx = v[vh][1];
         state_ = shrink;
-
-        auto key = std::make_pair(res.threads, res.freq_idx);
-
-        auto entry = cache_.find(key);
-
-        if (entry != cache_.end())
-        {
-            auto timestamp_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-            auto dt = timestamp_now - entry->second._cache_timestamp;
-
-            if (dt < entry->second._cache_expires_dt)
-            {
-                return do_step_shrink(entry->second.objectives, 
-                                        entry->second.threads, 
-                                        entry->second.freq_idx);
-            }
-        }
-
-        return res;
+        return do_step_shrink();
     }
 }
 
-optstepresult NelderMead::do_step_shrink(const double objectives[], 
-            double knob1, double knob2)
+optstepresult NelderMead::do_step_shrink()
 {
 #ifdef NMD_DEBUG_
     std::cout << "[NelderMead|DEBUG] State = Shrink" << std::endl;
 #endif
-    f[vh] = evaluate_score(objectives, nullptr);
-
-    double profiled[] = {knob1, knob2};
-    my_constraints(profiled);
-
-    if ( v[vh][0] != profiled[0] || v[vh][1] != profiled[1] ) {
-        std::cout << "[NelderMead|WARN] Meant to profile shrink " << v[vh][0] << " knob1 "
-                     "but ended up using " << profiled[0] << std::endl;
-        std::cout << "[NelderMead|WARN] Meant to profile shrink " << v[vh][1] << " knob2 "
-                     "but ended up using " << profiled[1] << std::endl;
+    for (auto i=0ul; i<NMD_NUM_KNOBS+1; ++i) {
+        auto gen_new = [this, i](double *extra) mutable -> double* {      
+            for (j = 0; j < NMD_NUM_KNOBS; j++)
+                vr[j] = vm[j] + DELTA * (v[i][j] - vm[j]) - extra[j];
         
-        auto key = std::make_pair((int)v[vh][0], (int)v[vh][1]);
-        auto iter = cache_.find(key);
-        if ( iter != cache_.end() ) {
-            iter->second.threads = profiled[0];
-            iter->second.freq_idx = profiled[1];
-        }
+            my_constraints(vr);
 
-        v[vh][0] = profiled[0];
-        v[vh][1] = profiled[1];
-
-        cache_update((int)v[vh][0], (int)v[vh][1], objectives, true);
+            return vr;
+        };
+        
+        generate_new(gen_new);
     }
 
-    const int threads = (int)(v[vh][0]);
-    const int freq_idx = (int)(v[vh][1]);
+    state_ = warmup;
+    warming_up_step = 0;
+    return do_step_warmup({}, 0, 0);
+}
 
-    cache_update(threads, freq_idx, objectives, true);
+optstepresult NelderMead::do_step_warmup(const double objectives[],
+            double knob1, double knob2)
+{
+    #ifdef NMD_DEBUG_
+        std::cout << "[NelderMead|DEBUG] State = Warmup " 
+                    << warming_up_step << std::endl;
+    #endif
 
-    return do_step_start();
+    OUT_DEBUG(
+        if ( warming_up_step == 0 ) {
+            std::cout << "[NelderMead|DEBUG] Initial exploration" << std::endl;
+
+            for ( auto i =0; i<NMD_NUM_KNOBS+1; ++i ) {
+                std::cout << "Simplex[" << i <<"]:";
+                for ( auto j=0; j<NMD_NUM_KNOBS; ++j )
+                    std::cout << " " << initial_configurations[i][j];
+                std::cout << std::endl;
+            }
+        }
+    )
+
+    // VV: Make sure that we actually profiled what we meant to
+    if ( warming_up_step > 0 && warming_up_step <= NMD_NUM_KNOBS + 1) {
+        double profiled[] = {knob1, knob2};
+        my_constraints(profiled);
+
+        if ( v[warming_up_step-1][0] != profiled[0] || v[warming_up_step-1][1] != profiled[1] ) {
+            std::cout << "[NelderMead|WARN] Meant to profile expand " << v[warming_up_step-1][0] << " knob1 "
+                        "but ended up using " << profiled[0] << std::endl;
+            std::cout << "[NelderMead|WARN] Meant to profile expand " << v[warming_up_step-1][1] << " knob2 "
+                        "but ended up using " << profiled[1] << std::endl;
+            
+            auto key = std::make_pair((int)v[warming_up_step-1][0], (int)v[warming_up_step-1][1]);
+            auto iter = cache_.find(key);
+            if ( iter != cache_.end() ) {
+                iter->second.threads = profiled[0];
+                iter->second.freq_idx = profiled[1];
+            }
+
+            v[warming_up_step-1][0] = profiled[0];
+            v[warming_up_step-1][1] = profiled[1];
+        }
+        
+        // VV: Record results of last warming up step
+        f[warming_up_step-1] = evaluate_score(objectives, nullptr);
+        cache_update(v[warming_up_step-1][0], v[warming_up_step-1][1], 
+                        objectives, true);
+    } 
+
+    if ( warming_up_step == NMD_NUM_KNOBS + 1) {
+        // VV: We need not explore the knob_set space anymore
+        state_ = start;
+        return step(objectives, knob1, knob2);
+    } else if (warming_up_step > NMD_NUM_KNOBS + 1) {
+        std::cout << "[NelderMead|Warn] Unknown warmup step " << warming_up_step << std::endl;
+    }
+    optstepresult res;
+    
+    res.objectives[0] = -1;
+    res.objectives[1] = -1;
+    res.objectives[2] = -1;
+    res.converged = false;
+
+    res.threads = initial_configurations[warming_up_step][0];
+    res.freq_idx = initial_configurations[warming_up_step][1];
+    
+    v[warming_up_step][0] = res.threads;
+    v[warming_up_step][1] = res.freq_idx;
+    warming_up_step++;
+
+    return res;
 }
 
 optstepresult NelderMead::step(const double objectives[], 
@@ -1161,72 +1233,7 @@ optstepresult NelderMead::step(const double objectives[],
     {
     case warmup:
     {
-        #ifdef NMD_DEBUG_
-            std::cout << "[NelderMead|DEBUG] State = Warmup " 
-                      << warming_up_step << std::endl;
-        #endif
-
-        OUT_DEBUG(
-            if ( warming_up_step == 0 ) {
-                std::cout << "[NelderMead|DEBUG] Initial exploration" << std::endl;
-
-                for ( auto i =0; i<NMD_NUM_KNOBS+1; ++i ) {
-                    std::cout << "Simplex[" << i <<"]:";
-                    for ( auto j=0; j<NMD_NUM_KNOBS; ++j )
-                        std::cout << " " << initial_configurations[i][j];
-                    std::cout << std::endl;
-                }
-            }
-        )
-
-        // VV: Make sure that we actually profiled what we meant to
-        if ( warming_up_step > 0 && warming_up_step <= NMD_NUM_KNOBS + 1) {
-            double profiled[] = {knob1, knob2};
-            my_constraints(profiled);
-
-            if ( v[warming_up_step-1][0] != profiled[0] || v[warming_up_step-1][1] != profiled[1] ) {
-                std::cout << "[NelderMead|WARN] Meant to profile expand " << v[warming_up_step-1][0] << " knob1 "
-                            "but ended up using " << profiled[0] << std::endl;
-                std::cout << "[NelderMead|WARN] Meant to profile expand " << v[warming_up_step-1][1] << " knob2 "
-                            "but ended up using " << profiled[1] << std::endl;
-                
-                auto key = std::make_pair((int)v[warming_up_step-1][0], (int)v[warming_up_step-1][1]);
-                auto iter = cache_.find(key);
-                if ( iter != cache_.end() ) {
-                    iter->second.threads = profiled[0];
-                    iter->second.freq_idx = profiled[1];
-                }
-
-                v[warming_up_step-1][0] = profiled[0];
-                v[warming_up_step-1][1] = profiled[1];
-            }
-            
-            // VV: Record results of last warming up step
-            f[warming_up_step-1] = evaluate_score(objectives, nullptr);
-            cache_update(v[warming_up_step-1][0], v[warming_up_step-1][1], 
-                         objectives, true);
-        } 
-
-        if ( warming_up_step == NMD_NUM_KNOBS + 1) {
-            // VV: We need not explore the knob_set space anymore
-            state_ = start;
-            return step(objectives, knob1, knob2);
-        } else if (warming_up_step > NMD_NUM_KNOBS + 1) {
-            std::cout << "[NelderMead|Warn] Unknown warmup step " << warming_up_step << std::endl;
-        }
-
-        res.objectives[0] = -1;
-        res.objectives[1] = -1;
-        res.objectives[2] = -1;
-        res.converged = false;
-
-        res.threads = initial_configurations[warming_up_step][0];
-        res.freq_idx = initial_configurations[warming_up_step][1];
-        
-        v[warming_up_step][0] = res.threads;
-        v[warming_up_step][1] = res.freq_idx;
-        warming_up_step++;
-
+        res = do_step_warmup(objectives, knob1, knob2);
         break;
     }
     break;
@@ -1240,11 +1247,11 @@ optstepresult NelderMead::step(const double objectives[],
     case expansion:
         res = do_step_expand(objectives, knob1, knob2);
         break;
-    case contraction:
-        res = do_step_contract(objectives, knob1, knob2);
+    case contraction_in:
+        res = do_step_contract_in(objectives, knob1, knob2);
         break;
-    case shrink:
-        res = do_step_shrink(objectives, knob1, knob2);
+    case contraction_out:
+        res = do_step_contract_out(objectives, knob1, knob2);
         break;
     default:
         std::cout << "Unknown NelderMead state (" << state_ << ")" << std::endl;

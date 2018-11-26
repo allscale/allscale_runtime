@@ -81,7 +81,8 @@ enum iterationstates
 	start,
 	reflection,
 	expansion,
-	contraction,
+	contraction_in,
+	contraction_out,
 	shrink
 };
 
@@ -165,9 +166,12 @@ class NelderMead
 			double knob1, double knob2);
 	optstepresult do_step_expand(const double objectives[], 
 			double knob1, double knob2);
-	optstepresult do_step_contract(const double objectives[], 
+	optstepresult do_step_contract_in(const double objectives[], 
 			double knob1, double knob2);
-	optstepresult do_step_shrink(const double objectives[], 
+	optstepresult do_step_contract_out(const double objectives[], 
+			double knob1, double knob2);
+	optstepresult do_step_shrink();
+	optstepresult do_step_warmup(const double objectives[], 
 			double knob1, double knob2);
 
 	void sort_vertices(void);

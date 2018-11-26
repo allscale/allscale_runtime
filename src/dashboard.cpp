@@ -24,7 +24,7 @@
 
 
 // VV: Define this to use time/energy/resources instead of speed/energy/efficiency
-#define ALTERNATIVE_SCORE 
+// #define ALTERNATIVE_SCORE 
 
 namespace allscale { namespace dashboard
 {

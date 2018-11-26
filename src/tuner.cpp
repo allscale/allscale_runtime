@@ -4,6 +4,8 @@
 #include <allscale/components/monitor.hpp>
 #include <allscale/utils/printer/vectors.h>
 #include <allscale/utils/optional.h>
+#include <algorithm>
+
 
 namespace allscale {
     std::ostream& operator<<(std::ostream& os, tuner_configuration const& cfg)
@@ -203,5 +205,106 @@ namespace allscale {
 
         // print a status message
         std::cerr << "New search direction: " << (dim == num_nodes ? "#nodes" : "frequency") << " " << (dir == up ? "up" : "down") << "\n";
+    }
+
+    nmd_optimizer::nmd_optimizer(std::size_t nodes_min, 
+                                 std::size_t nodes_max)
+    : nmd(2, 3, 0.01, 2000, 50ul)
+    , converged(false)
+    {
+        constraint_min[0] = nodes_min;
+        constraint_max[0] = nodes_max;
+
+        avail_freqs = monitor::get().get_available_freqs(0);
+        std::sort(avail_freqs.begin(), avail_freqs.end());
+
+        if ( avail_freqs.size() ) {
+            constraint_min[1] = 0;
+            constraint_max[1] = avail_freqs.size() - 1;
+        } else {
+            constraint_min[1] = 0;
+            constraint_max[1] = 0;
+        }
+
+        previous_weights[0] = 0;
+        previous_weights[1] = 0;
+        previous_weights[2] = 0;
+    }
+
+    tuner_configuration nmd_optimizer::next(tuner_configuration const& current_cfg, tuner_state const& current_state, tuning_objective obj)
+    {
+        tuner_configuration res;
+        auto action = std::vector<std::size_t>();
+        std::cout << "Initializing NMD" << std::endl;
+
+        const double weights[] = {
+                obj.speed_exponent, obj.efficiency_exponent, obj.power_exponent
+        };
+
+        double diff = 0.0;
+
+        for (auto i=0ul; i<3; ++i)
+            diff += abs(previous_weights[i] - weights[i]);
+
+        if ( diff > 0.01 ) {
+            // VV: Enforce exploration
+            initialized = false;
+            this->converged = false;
+        }
+
+        for (auto i=0ul; i<3; ++i)
+            previous_weights[i] = weights[i];
+
+        if ( initialized == false ){
+            nmd.initialize(constraint_min, 
+                            constraint_max, 
+                            nullptr, 
+                            weights,
+                            &nmd.score_speed_efficiency_power);
+            initialized = true;
+        }
+        
+        if ( this->converged == false ) {
+            double measurements[3] = {current_state.speed, current_state.efficiency, current_state.power};
+
+            std::size_t num_active_nodes = std::count(current_cfg.node_mask.begin(),
+                        current_cfg.node_mask.end(), 
+                        true);
+            std::size_t freq_idx;
+            auto e = std::find(avail_freqs.begin(), avail_freqs.end(), current_cfg.frequency);
+
+            if ( e == avail_freqs.end() )
+                freq_idx = 0;
+            else
+                freq_idx = e - avail_freqs.begin();
+
+            const std::size_t observed[] = {num_active_nodes, freq_idx};
+            auto ret = nmd.get_next(measurements, observed);
+            action.assign(ret.first.begin(), ret.first.end());
+            auto converged = ret.second;
+
+            if (converged) {
+                best.assign(action.begin(), action.end());
+                this->converged = true;
+            }
+        } else {
+            action.assign(best.begin(), best.end());
+        }
+
+        res.node_mask.assign(current_cfg.node_mask.begin(), 
+                            current_cfg.node_mask.end());
+        
+        for (auto i=0ul; i<action[0]; ++i)
+                res.node_mask[i] = true;
+        for (auto i=action[0]; i<res.node_mask.size(); ++i)
+            res.node_mask[i] = false;
+        
+        res.frequency = action[1];
+
+        if ( avail_freqs.size() ) {
+            res.frequency = avail_freqs[action[1]];
+        }
+
+        return res;
     }
 }

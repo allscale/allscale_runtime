@@ -18,10 +18,12 @@ N=2, 3, 4. Each edge may be at most @max_distance_long (see generate_unique) for
 author: vasiliadis.vasilis@gmail.com
 */
 #ifndef ALLSCALE_NMD_HEADER
+#define ALLSCALE_NMD_HEADER
 #include <cstddef>
 #include <map>
 #include <set>
 #include <vector>
+#include <cmath>
 
 namespace allscale {
 namespace components {
@@ -46,32 +48,51 @@ public:
     NmdGeneric(std::size_t num_knobs, std::size_t num_objectives,
                double conv_threshold, int64_t cache_expire_dt_ms,
                std::size_t max_iters);
-    NmdGeneric(const NmdGeneric& other);
 
-    void initialize(std::size_t constraint_min[], std::size_t constraint_max[],
-                    std::size_t *initial_config[], double weights[]);
+    static double score_speed_efficiency_power(const double measurements[], const double weights[])
+    {
+        double ret = std::pow(measurements[0], weights[0]) *
+                    std::pow(measurements[1], weights[1]) *
+                    std::pow((1-measurements[2]), weights[2]);
+        
+        if ( std::isfinite(ret) == 0  || ret > 1.0 ) {
+            ret = 1.0;
+        }
+        
+        return 1.0 - ret;
+    }
+
+    void initialize(const std::size_t constraint_min[], const std::size_t constraint_max[],
+                    const std::size_t *initial_config[], const double weights[],
+                    double (*score_function)(const double[], const double []));
 
     void ensure_profile_consistency(std::size_t expected[], const std::size_t observed[]) const;
 
-    void set_constraints_now(std::size_t constraint_min[], std::size_t constraint_max[]);
+    void set_constraints_now(const std::size_t constraint_min[], 
+                             const std::size_t constraint_max[]);
 
     double score(const double measurements[]) const;
 
     std::pair<std::vector<std::size_t>, bool> get_next(const double measurements[], 
-                            std::size_t observed_knobs[]);
+                            const std::size_t observed_knobs[]);
 
-// protected:
+protected:
     bool test_convergence();
+
+    // VV: (measurements, weights) returns value in range [0.0, infinite)
+    //     0.0 means perfect score (i.e. the larger the score, the worse it is)
+    double (*score_function)(const double[], const double []);
+
     std::vector<std::size_t> do_warmup(const double measurements[], 
-                            std::size_t observed_knobs[]);
+                            const std::size_t observed_knobs[]);
     std::vector<std::size_t> do_reflect(const double measurements[], 
-                            std::size_t observed_knobs[]);
+                            const std::size_t observed_knobs[]);
     std::vector<std::size_t> do_expand(const double measurements[], 
-                            std::size_t observed_knobs[]);
+                            const std::size_t observed_knobs[]);
     std::vector<std::size_t> do_contract_in(const double measurements[], 
-                            std::size_t observed_knobs[]);
-        std::vector<std::size_t> do_contract_out(const double measurements[], 
-                            std::size_t observed_knobs[]);
+                            const std::size_t observed_knobs[]);
+    std::vector<std::size_t> do_contract_out(const double measurements[], 
+                            const std::size_t observed_knobs[]);
     std::vector<std::size_t> do_shrink();
     std::vector<std::size_t> do_start(bool consult_cache);
 

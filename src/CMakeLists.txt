@@ -25,6 +25,7 @@ set(_srcs
     components/util/graph_colouring.cpp
     components/localoptimizer.cpp
     components/nmsimplex_bbincr.cpp
+    components/nmd.cpp
 )
 
 if(CPUFREQ_FOUND)
