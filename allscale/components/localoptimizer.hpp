@@ -15,9 +15,9 @@
 #include <string>
 
 //#define MEASURE_MANUAL_ 1
-#define MEASURE_ 1
-#define DEBUG_ 1
-#define DEBUG_MULTIOBJECTIVE_ 1
+// #define MEASURE_ 1
+// #define DEBUG_ 1
+// #define DEBUG_MULTIOBJECTIVE_ 1
 
 namespace allscale
 {

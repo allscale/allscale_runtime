@@ -10,12 +10,12 @@
 #include <stdlib.h>
 #include <stdexcept>
 
-#define DEBUG_ 1
+//#define DEBUG_ 1
 //#define DEBUG_INIT_ 1 // define to generate output during scheduler initialization
-#define DEBUG_MULTIOBJECTIVE_ 1
-#define DEBUG_CONVERGENCE_ 1
+//#define DEBUG_MULTIOBJECTIVE_ 1
+//#define DEBUG_CONVERGENCE_ 1
 //#define MEASURE_MANUAL 1 // define to generate output consumed by the regression test
-#define MEASURE_ 1
+//#define MEASURE_ 1
 // only meant to be defined if one needs to measure the efficacy
 // of the scheduler
 //#define ALLSCALE_HAVE_CPUFREQ 1
@@ -111,7 +111,7 @@ bool localoptimizer::isConverged()
 	#endif 
 	return converged_; 
 }
-
+#ifdef DEBUG_
 void localoptimizer::printverbosesteps(actuation act)
 {
 	static int last_frequency_idx = 0;
@@ -130,6 +130,7 @@ void localoptimizer::printverbosesteps(actuation act)
 	std::cout << " , CPU Frequency to " << frequencies_param_allowed_[last_frequency_idx]
 			  << std::endl;
 }
+#endif
 
 void localoptimizer::accumulate_objective_measurements()
 {
