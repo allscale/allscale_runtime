@@ -75,7 +75,7 @@ namespace allscale
 
         std::string input_objective_str = hpx::get_config_entry("allscale.objective", "none");
 //         std::cerr << "  Scheduler objective is " << input_objective_str << "\n";
-        bool enable_elasticity = true;
+        bool enable_elasticity = false;
         if ( !input_objective_str.empty() )
         {
             std::istringstream iss_leeways(input_objective_str);
@@ -93,6 +93,8 @@ namespace allscale
                     leeway = std::stod( objective_str.substr(idx + 1) );
                 }
             }
+            
+            enable_elasticity = true;
         }
 
         rp.set_default_pool_name("allscale-numa-0");
