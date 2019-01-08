@@ -5,8 +5,10 @@
 #include <allscale/work_item.hpp>
 #include <allscale/components/treeture_buffer.hpp>
 #include <allscale/components/localoptimizer.hpp>
+
 #if defined(ALLSCALE_HAVE_CPUFREQ)
 #include <allscale/util/hardware_reconf.hpp>
+#else
 #endif
 
 #include <hpx/include/components.hpp>
@@ -44,6 +46,8 @@ namespace allscale { namespace components {
             HPX_ASSERT(false);
         }
 
+        bool get_optimization_score();
+
         scheduler(std::uint64_t rank);
         void init();
 
@@ -64,6 +68,22 @@ namespace allscale { namespace components {
             return active_threads;
         }
 
+        std::size_t get_total_threads() const {
+                return os_thread_count;
+        }
+        
+        void set_local_optimizer_weights(double time_weight, 
+                                         double energy_weight,
+                                         double resource_weight);
+        void get_local_optimizer_weights(double *time_weight, 
+                                         double *energy_weight,
+                                         double *resource_weight);
+        
+        void update_max_threads(std::size_t max_threads);
+
+        double get_last_objective_score() {
+                return last_objective_score;
+        }
     private:
 
         std::size_t get_num_numa_nodes();
@@ -82,18 +102,19 @@ namespace allscale { namespace components {
         bool do_split(work_item const& work, std::size_t numa_node);
 
         bool collect_counters();
-        //try to suspend resource_step threads, return number of threads which received a new suspend order;
-        // REM unsigned int suspend_threads();
-        unsigned int suspend_threads(std::size_t);
-        //try to resume resource_step threads, return number of threads which received a new resume order;
-        // REM         unsigned int resume_threads();
-        unsigned int resume_threads(std::size_t);
+        //try to suspend threads, return number of threads which received a new suspend order;
+                unsigned int suspend_threads(std::size_t);
+        
+        //try to resume threads, return number of threads which received a new resume order;
+                unsigned int resume_threads(std::size_t);
 
 #ifdef MEASURE_
         // convenience methods to update measured metrics of interest
-        void update_active_osthreads(std::size_t);
-        void update_power_consumption(std::size_t);
+        void update_active_osthreads(std::size_t threads, int64_t delta_time);
+        void update_power_consumption(std::size_t power_sample, int64_t delta_time);
 #endif
+        double last_objective_score;
+        int64_t last_measure_power, last_measure_threads;
 
         void fix_allcores_frequencies(int index);
 
@@ -108,7 +129,7 @@ namespace allscale { namespace components {
         long last_optimization_timestamp_;
 
         /* periodicity in milliseconds to invoke the optimizer */
-        const long optimization_period_ms = 5;
+        const long optimization_period_ms = 1000;
 
         /* captures absolute timestamp of the last time optimization
            objective value have been measured (sampled) */
@@ -117,7 +138,7 @@ namespace allscale { namespace components {
         long last_objective_measurement_timestamp_;
 
         /* periodicity in milliseconds to invoke objective sampling */
-        const long objective_measurement_period_ms = 1;
+        const long objective_measurement_period_ms = 500;
 
         //extra masks to better handle suspending/resuming threads
         std::vector<hpx::threads::thread_pool_base*> thread_pools_;
@@ -153,19 +174,12 @@ namespace allscale { namespace components {
         unsigned long long last_power_usage;
         unsigned long long power_sum;
         unsigned long long power_count;
+
 #if defined(ALLSCALE_HAVE_CPUFREQ)
         cpufreq_policy policy;
         hardware_reconf::hw_topology topo;
-        std::vector<unsigned long> cpu_freqs;
-        // Indices correspond to the freq id in cpu_freqs, and
-        // each pair holds energy usage and execution time
-        std::vector<std::pair<unsigned long long, double>> freq_times;
-        std::vector<std::vector<std::pair<unsigned long long, double>>> objectives_status;
-        unsigned int freq_step;
-        bool target_freq_found;
 #endif
-        unsigned int resource_step;
-        bool target_resource_found;
+        std::vector<unsigned long> cpu_freqs;
 
         mutable mutex_type throttle_mtx_;
         mutable mutex_type resize_mtx_;
@@ -186,9 +200,9 @@ namespace allscale { namespace components {
         bool resource_requested;
         bool energy_requested;
 
-        double time_leeway;
-        double resource_leeway;
-        double energy_leeway;
+        double time_weight;
+        double resource_weight;
+        double energy_weight;
         unsigned int period_for_time;
         unsigned int period_for_resource;
         unsigned int period_for_power;

@@ -11,6 +11,8 @@
 #include <hpx/lcos/future.hpp>
 #include <hpx/traits/is_bitwise_serializable.hpp>
 
+#include <allscale/components/nmsimplex_bbincr.hpp>
+
 #include <iosfwd>
 #include <vector>
 
@@ -23,6 +25,7 @@ namespace allscale {
         float avg_time_;
         unsigned long long energy_;
         std::uint64_t active_frequency_;
+        std::size_t active_cores_per_node_;
         std::size_t cores_per_node_;
 
         template <typename Archive>
@@ -33,6 +36,7 @@ namespace allscale {
             ar & avg_time_;
             ar & energy_;
             ar & active_frequency_;
+            ar & active_cores_per_node_;
             ar & cores_per_node_;
         }
     };
@@ -87,16 +91,35 @@ namespace allscale {
           , f_resource_max(other.f_resource_max)
           , f_resource_leeway(other.f_resource_leeway)
           , o_ino(std::move(o_ino))
-        {}
+          // VV: Used by balance_ino_nmd
+          , nmd_initialized(other.nmd_initialized)
+          , nmd(other.nmd)
+          , nodes_min(other.nodes_min)
+          , nodes_max(other.nodes_max)
+          , threads_min(other.threads_min)
+          , threads_max(other.threads_max)
+          , previous_num_nodes(other.previous_num_nodes)
+          , use_lopt(other.use_lopt)
+          , last_optimization_score(other.last_optimization_score)
+        {
+            objectives_scale[0] = other.objectives_scale[0];
+            objectives_scale[1] = other.objectives_scale[1];
+            objectives_scale[2] = other.objectives_scale[2];
+        }
 
         bool active() const
         {
             return active_;
         }
 
+        double get_optimization_score();
+
         hpx::future<void> balance(bool);
         hpx::future<void> balance_ino(const std::vector<std::size_t> &old_mapping);
+        hpx::future<void> balance_ino_nmd(const std::vector<std::size_t> &old_mapping);
         hpx::future<void> decide_random_mapping(const std::vector<std::size_t> &old_mapping);
+        
+        void signal_objective_changed();
 
         bool may_rebalance();
 
@@ -104,7 +127,7 @@ namespace allscale {
         std::size_t u_steps_till_rebalance;
 
         void tune(std::vector<optimizer_state> const& state);
-
+        int nmd_initialized;
         std::vector<bool> active_nodes_;
         std::uint64_t active_frequency_;
 
@@ -118,9 +141,17 @@ namespace allscale {
 
         std::vector<hpx::id_type> localities_;
 
+        // VV: balance_ino and balance_global data
         float f_resource_max, f_resource_leeway;
+        std::size_t previous_num_nodes;
+        int nodes_min, nodes_max, threads_min, threads_max;
 
         components::internode_optimizer_t o_ino;
+
+        components::NelderMead nmd;
+        double last_optimization_score;
+        double objectives_scale[3];
+        bool use_lopt;
     };
 }
 

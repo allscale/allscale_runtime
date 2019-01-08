@@ -23,6 +23,9 @@
 #include <boost/asio.hpp>
 
 
+// VV: Define this to use time/energy/resources instead of speed/energy/efficiency
+// #define ALTERNATIVE_SCORE 
+
 namespace allscale { namespace dashboard
 {
     node_state get_state()
@@ -54,17 +57,25 @@ namespace allscale { namespace dashboard
         state.max_frequency = monitor_c->get_max_freq(0);
 
         std::size_t active_cores = scheduler::get().get_active_threads();
-
+        state.last_local_score = scheduler::get().get_last_objective_score();
         state.productive_cycles_per_second = float(state.cur_frequency) * (1.f - state.idle_rate);  // freq to Hz
 
+#if defined(ALTERNATIVE_SCORE)
+        state.speed = monitor_c->get_avg_time_last_iterations(100);
+        state.efficiency = active_cores;
+#else
         state.speed = 1.f - state.idle_rate;
         state.efficiency = state.speed * (float(state.cur_frequency * active_cores) / float(state.max_frequency * state.num_cores));
+#endif
 
-#ifdef POWER_ESTIMATE
+#if defined(POWER_ESTIMATE) || defined(ALLSCALE_HAVE_CPUFREQ)
         state.cur_power = monitor_c->get_current_power();
         state.max_power = monitor_c->get_max_power();
-        state.power = state.cur_power / state.max_power;
+#else
+        state.max_power = 1.0;
+        state.cur_power = 1.0;
 #endif
+        state.power = state.cur_power / state.max_power;
 
         return state;
     }
@@ -99,6 +110,7 @@ namespace allscale { namespace dashboard
         ar & speed;
         ar & efficiency;
         ar & power;
+        ar & last_local_score;
     }
 
     std::string node_state::to_json() const
@@ -164,9 +176,15 @@ namespace allscale { namespace dashboard
 
     float system_state::score() const
     {
+#if defined(ALTERNATIVE_SCORE)
+        return std::exp(speed * speed_exponent) *
+                std::exp(efficiency * efficiency_exponent ) *
+                std::exp(power * power_exponent);
+#else
         return std::pow(speed, speed_exponent) *
                std::pow(efficiency, efficiency_exponent) *
                std::pow(1 - power, power_exponent);
+#endif
     }
 
     template void node_state::serialize<hpx::serialization::input_archive>(hpx::serialization::input_archive& ar, unsigned);
@@ -208,7 +226,7 @@ namespace allscale { namespace dashboard
 
             const char* host_env = std::getenv(ENVVAR_DASHBOARD_IP);
             const char* port_env = std::getenv(ENVVAR_DASHBOARD_PORT);
-
+            
             std::string host;
             if (host_env)
             {
@@ -298,11 +316,11 @@ namespace allscale { namespace dashboard
             buffers[0] = boost::asio::buffer(&m->msg_size, sizeof(std::uint64_t));
             buffers[1] = boost::asio::buffer(m->json.data(), m->json.length());
 
-/*
+            /*
              std::cout << "Sending -----------------------------------\n";
              std::cout << m->json << '\n';
              std::cout << "Sending done ------------------------------\n";
-*/
+            */
             boost::asio::async_write(socket_, buffers,
                 [f = std::move(f), m](boost::system::error_code ec, std::size_t /*length*/)
                 {
@@ -431,6 +449,7 @@ namespace allscale { namespace dashboard
         std::vector<hpx::id_type> localities_;
         std::uint64_t time = 0;
         bool enabled_;
+        double use_gopt, use_lopt;
     };
 
     dashboard_client& dashboard_client::get()
@@ -485,13 +504,18 @@ namespace allscale { namespace dashboard
                         total_efficiency += cur.efficiency;
                         cur_power += cur.cur_power;
                     }
+
                     max_power += cur.max_power;
                 }
 
                 state.speed = total_speed / client.localities_.size();
 //                 state.speed = std::pow(total_speed, 1.f/client.localities_.size());
-
+#if defined(ALTERNATIVE_SCORE)
+                // VV: This is the number of active threads
+                state.efficiency = total_efficiency;
+#else
                 state.efficiency = total_efficiency / client.localities_.size();
+#endif
                 state.power = (max_power > 0) ? cur_power/max_power : 0;
 
                 auto exponents = scheduler::get_optimizer_exponents();

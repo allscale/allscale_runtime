@@ -17,6 +17,7 @@
 #include <cmath>
 #include <iostream>
 #include <iomanip>
+#include <map>
 
 #include <sys/types.h>
 #include <unistd.h>
@@ -25,11 +26,20 @@
 
 #define TRULY_RANDOM_DEBUG
 
+#define DEBUG_NMD_INO 1
+
+#ifdef DEBUG_NMD_INO
+#define OUT_DEBUG(X) X
+#else
+#define OUT_DEBUG(X) \
+    {                \
+    }
+#endif
+
 namespace allscale
 {
     optimizer_state get_optimizer_state()
     {
-        static float last_energy = 0.f;
         float load = 1.f - monitor::get().get_idle_rate();
         float my_time = monitor::get().get_avg_time_last_iterations(HISTORY_ITERATIONS);
 
@@ -37,18 +47,19 @@ namespace allscale
             my_time = -1.f;
 
         allscale::components::monitor *monitor_c = &allscale::monitor::get();
-        float energy = 100.f;
-#ifdef POWER_ESTIMATE
-        energy = monitor_c->get_current_power();
+        float power_now = 0.001f;
+#if defined(POWER_ESTIMATE) || defined(ALLSCALE_HAVE_CPUFREQ)
+        power_now = monitor_c->get_current_power() / monitor_c->get_max_power();
 #endif
-
+        // VV: Use power as if it were energy
         return {
             load,
             monitor::get().get_task_times(),
             my_time,
-            energy,
+            power_now,
             float(monitor_c->get_current_freq(0)),
-            scheduler::get().get_active_threads()
+            scheduler::get().get_active_threads(),
+            scheduler::get().get_total_threads()
         };
     }
 // optimizer_state get_optimizer_state()
@@ -89,11 +100,15 @@ namespace allscale
         scheduler::apply_new_mapping(new_mapping);
     }
 
+    void optimizer_update_max_threads(std::size_t max_threads) {
+        scheduler::update_max_threads(max_threads);
+    }
 } // namespace allscale
 
 HPX_PLAIN_DIRECT_ACTION(allscale::get_optimizer_state, allscale_get_optimizer_state_action);
 HPX_PLAIN_DIRECT_ACTION(allscale::optimizer_update_policy, allscale_optimizer_update_policy_action);
 HPX_PLAIN_DIRECT_ACTION(allscale::optimizer_update_policy_ino, allscale_optimizer_update_policy_action_ino);
+HPX_PLAIN_DIRECT_ACTION(allscale::optimizer_update_max_threads, allscale_optimizer_update_max_threads);
 
 namespace allscale
 {
@@ -127,6 +142,19 @@ tuning_objective get_default_objective()
         return tuning_objective::efficiency();
     if (obj == "power")
         return tuning_objective::power();
+    if ( obj == "local") {
+        double time_weight, energy_weight, resource_weight;
+        
+        auto &&local_scheduler = scheduler::get();
+
+        local_scheduler.get_local_optimizer_weights(&time_weight,
+                                                    &energy_weight,
+                                                    &resource_weight);
+        // VV: If the local-optimizer is used too then copy its objectives
+        return tuning_objective(time_weight, 
+                                resource_weight, 
+                                energy_weight);
+    }
 
     float speed = 0.0f;
     float efficiency = 0.0f;
@@ -170,14 +198,28 @@ float estimate_power(float frequency)
 
 global_optimizer::global_optimizer()
     : u_balance_every(10), u_steps_till_rebalance(u_balance_every),
-    active_nodes_(allscale::get_num_localities(), true), tuner_(new simple_coordinate_descent(tuner_configuration{active_nodes_, allscale::monitor::get().get_current_freq(0)})),
+    active_nodes_(allscale::get_num_localities(), true),
     objective_(get_default_objective()),
     active_(true), localities_(hpx::find_all_localities()),
-    f_resource_max(-1.0f), f_resource_leeway(-1.0f)
+    f_resource_max(-1.0f), f_resource_leeway(-1.0f), 
+    nmd(0.005),
+    nmd_initialized(0),
+    nodes_min(1), nodes_max(localities_.size()), threads_min(0), threads_max(0),
+    last_optimization_score(1.0)
 {
     char *const c_policy = std::getenv("ALLSCALE_SCHEDULING_POLICY");
+    char *const c_tuner = std::getenv("ALLSCALE_TUNER");
 
-    if (c_policy && strncasecmp(c_policy, "ino", 3) == 0 )
+    std::string input_objective_str =
+      hpx::get_config_entry("allscale.objective", "");
+    
+    if ( input_objective_str == "allscale" )
+        use_lopt = true;
+    else
+        use_lopt = false;
+    previous_num_nodes = localities_.size();
+
+    if (c_policy && strcasecmp(c_policy, "ino") == 0 )
     {
         char *const c_resource_max = std::getenv("ALLSCALE_RESOURCE_MAX");
         char *const c_resource_leeway = std::getenv("ALLSCALE_RESOURCE_LEEWAY");
@@ -195,20 +237,64 @@ global_optimizer::global_optimizer()
             f_resource_max = 0.75f;
         else
             f_resource_max = atof(c_resource_max);
+        
+        nodes_min = f_resource_leeway * localities_.size();
+    }
 
+    nodes_max = localities_.size();
+
+    if ( nodes_min < 1 )
+        nodes_min = 1;
+
+    if ( c_policy && strcasecmp(c_policy, "ino"))
         o_ino = allscale::components::internode_optimizer_t(localities_.size(),
                                                             (double) f_resource_max,
                                                             (double) f_resource_leeway,
                                                             INO_DEFAULT_FORGET_AFTER);
+    
+    if ( c_policy && strcasecmp(c_policy, "ino_nmd")) {       
+        char *const c_threads_min = std::getenv("ALLSCALE_GINO_THREADS_MIN");
+        char *const c_threads_max = std::getenv("ALLSCALE_GINO_THREADS_MAX");
+        
+        if ( c_threads_min )
+            threads_min = atoi(c_threads_min);
+        
+        if ( c_threads_max )
+            threads_max = atoi(c_threads_max);
     }
-//     else if ( strncasecmp(c_policy, "truly_random", 12) == 0 ) {
-//         char *const c_balance_every = std::getenv("ALLSCALE_TRULY_RANDOM_BALANCE_EVERY");
-//
-//         if ( c_balance_every ) {
-//             u_balance_every = (std::size_t) atoi(c_balance_every);
-//             u_steps_till_rebalance = u_balance_every;
-//         }
-//     }
+
+    // VV: Guestimate that max iter time is 500 ms (will be refined over time)
+    objectives_scale[0] = 0.5;
+    objectives_scale[1] = 1.0;
+    objectives_scale[2] = 1.0;
+
+    if (c_policy && strcasecmp(c_policy, "neldermead")) {
+        std::cout << "Choosing NelderMead Optimizer for global optimization" << std::endl;
+        tuner_ = std::make_unique<nmd_optimizer>(nodes_min, nodes_max);
+    }
+    else {
+        std::cout << "Choosing Coordinate Descent Optimizer for global optimization" << std::endl;
+        tuner_ = std::make_unique<simple_coordinate_descent>(tuner_configuration{active_nodes_, allscale::monitor::get().get_current_freq(0)});
+    }
+}
+
+double global_optimizer::get_optimization_score()
+{
+    return last_optimization_score;
+}
+
+void global_optimizer::signal_objective_changed()
+{
+    const double new_weights[3] = {
+        objective_.speed_exponent,
+        objective_.power_exponent,
+        objective_.efficiency_exponent
+    };
+
+    nmd.set_weights(new_weights);
+
+    if ( nmd_initialized )
+        nmd_initialized = 0;
 }
 
 void global_optimizer::tune(std::vector<optimizer_state> const &state)
@@ -234,7 +320,7 @@ void global_optimizer::tune(std::vector<optimizer_state> const &state)
             total_efficiency += state[i].load_ * (float(state[i].active_frequency_ * state[i].cores_per_node_) / float(max_frequency * state[i].cores_per_node_));;
             used_power += state[i].energy_;
         }
-#ifdef POWER_ESTIMATE
+#if defined(POWER_ESTIMATE) || defined(ALLSCALE_HAVE_CPUFREQ)
         max_power += monitor_c->get_max_power();
 #endif
     }
@@ -364,7 +450,7 @@ hpx::future<void> global_optimizer::decide_random_mapping(const std::vector<std:
         #ifdef TRULY_RANDOM_DEBUG
         std::cerr << "Will exclude " << how_many_to_exclude << " out of " << num_localities << std::endl;
         #endif
-
+        #if 1
         for (auto i=0ul; i<how_many_to_exclude; ++i) {
             auto new_exclude = get_random_node();
             exclude.push_back(new_exclude);
@@ -373,6 +459,15 @@ hpx::future<void> global_optimizer::decide_random_mapping(const std::vector<std:
             std::cerr << "Excluded: " << new_exclude << std::endl;
             #endif
         }
+        #else
+        for ( auto i=num_localities-how_many_to_exclude; i<num_localities; ++i) {
+            exclude.push_back(num_localities-i-1);
+
+            #ifdef TRULY_RANDOM_DEBUG
+            std::cerr << "Excluded: " << i << std::endl;
+            #endif
+        }
+        #endif
     }
 
     u_steps_till_rebalance = u_balance_every;
@@ -396,6 +491,323 @@ hpx::future<void> global_optimizer::decide_random_mapping(const std::vector<std:
                 hpx::lcos::broadcast_apply<allscale_optimizer_update_policy_action_ino>(localities_, new_mapping);
             }
         );
+}
+
+hpx::future<void> global_optimizer::balance_ino_nmd(const std::vector<std::size_t> &old_mapping)
+{
+    u_steps_till_rebalance = u_balance_every;
+    return hpx::lcos::broadcast<allscale_get_optimizer_state_action>(localities_)
+        .then(
+            [this, old_mapping](hpx::future<std::vector<optimizer_state> > future_state) {
+                std::lock_guard<mutex_type> l(mtx_);
+                std::size_t num_active_nodes = std::count(active_nodes_.begin(),                                active_nodes_.end(), true);
+                
+                auto state = future_state.get();
+                float avg_time = 0;
+                float avg_energy = 0;
+                float avg_threads = 0;
+                int from_node = 0;
+
+                std::size_t num_avg_time = 0ul;
+
+                for (const auto &s:state) {
+                    // VV: Only keep track of nodes that were selected by last step
+                    if ( from_node++ == previous_num_nodes )
+                        break;
+
+                    if ( s.avg_time_ > 0.0) {
+                        avg_time += s.avg_time_;
+                        num_avg_time ++;
+                    }
+
+                    avg_energy += s.energy_;
+                    avg_threads += s.active_cores_per_node_ / (float) s.cores_per_node_;
+
+                    ++from_node;
+                }
+                
+                if ( num_avg_time )
+                    avg_time /= num_avg_time;
+                else
+                    avg_time = 0.0;
+
+                avg_energy /= num_active_nodes;
+                avg_threads /= num_active_nodes;
+
+                // VV: First record current state
+                double measurements[3] = {avg_time, 
+                                          avg_energy, 
+                                          avg_threads};
+                
+                if ( objectives_scale[0] < avg_time ) {
+                    objectives_scale[0] = avg_time * 2.0;
+                    nmd.set_scale(objectives_scale);
+                }
+
+                if ( nmd_initialized == 0 ) {
+                    double weights[] = {(double) objective_.speed_exponent, 
+                                        (double) objective_.efficiency_exponent,
+                                        (double) objective_.power_exponent};
+                    const double constraint_min[] = {(double) nodes_min, 
+                                                      (double) threads_min};
+                    const double constraint_max[] = {(double) nodes_max, 
+                                                    (double) threads_max};
+                    nmd.set_scale(objectives_scale);
+
+                    nmd.initialize_simplex(weights, 
+                                            nullptr,
+                                            constraint_min,
+                                            constraint_max);
+                    
+                    nmd_initialized = 1;
+                }
+
+                auto action = nmd.step(measurements, 
+                                        previous_num_nodes,
+                                        avg_threads * previous_num_nodes);
+                
+                last_optimization_score = nmd.evaluate_score(measurements, nullptr);
+
+                // VV: Todo do something with the action
+                //     assume that .threads = nodes and .freq_idx = threads per node
+                int new_num_nodes = action.threads;
+                int new_threads_per_node = action.freq_idx;
+
+                if ( new_num_nodes != previous_num_nodes ) {
+                    // VV: Need to redistribute tasks to nodes.
+                    //     Try to move as few as possible tasks
+                    /* VV: Balancing algorithm:
+                        new_avg_tasks = ceil(total_tasks / new_num_nodes)
+                        node_to_tasks{} = find out which tasks each node is computing()
+                        
+                        if ( new_num_nodes < previous_nodes ) {
+                            // VV: Evenly distribute all now orphaned tasks to remaining nodes
+                            orphaned_tasks = those which were running on the now unused nodes
+                            for ( node:new_used_nodes ) {
+                                old_tasks = size(node_to_tasks[node])
+                                added_to_node = 0;
+                                while (remaining_orphaned 
+                                        && added_to_node < new_avg_tasks-old_tasks) {
+                                    orphan = orphaned.pop()
+                                    node.tasks.push_back(orphan)
+                                    added_to_node ++;
+                                }
+                            }
+                        } else if ( new_num_nodes > previous_node ) {
+                            num_need_to_move = new_avg_tasks;
+                            node_to_move = previous_nodes;
+
+                            // VV: Redistribute last tasks from overflowed nodes to new ones
+                            while ( num_need_to_move > 0 && node_to_move < new_num_nodes ) {
+                                for ( node:new_used_nodes ) {
+                                    if ( num_need_to_move == 0 ) {
+                                        if ( node_to_move < new_num_nodes) {
+                                            node_to_move ++;
+                                            num_need_to_move = new_avg_tasks;
+                                        } else {
+                                            break;
+                                        }
+                                    }
+
+                                    task = node.tasks[-1]
+                                    node_to_tasks[node_to_move].tasks.push_back(task)
+                                    num_need_to_move --
+                                }
+                            }
+                        }
+                    */
+                    // VV: Some of the nodes might be dead, convert the virtual name
+                    //     to the physical name
+                    auto virtual_to_physical = std::vector<std::size_t>();
+
+                    std::size_t cur_node = 0ul;
+
+                    for (const auto &physical:active_nodes_) {
+                        if ( physical ) {
+                            OUT_DEBUG(
+                                std::cout << "[Ino_NMD] Node " << cur_node << " is was used last time" << std::endl;
+                            )
+                        } else {
+                            OUT_DEBUG(
+                                std::cout << "[Ino_NMD] Node " << cur_node << " was not used last time" << std::endl;
+                            )
+                        }
+
+                        virtual_to_physical.push_back(cur_node);
+                        cur_node ++;
+                    }
+                    num_active_nodes = active_nodes_.size();
+                    
+                    if ( new_num_nodes > num_active_nodes )
+                        new_num_nodes = num_active_nodes;
+                    
+                    if ( previous_num_nodes > num_active_nodes )
+                        previous_num_nodes = num_active_nodes;
+                    
+                    auto new_avg_tasks = (std::size_t) std::ceil(old_mapping.size()/
+                                                                 (float)new_num_nodes);
+                    auto new_mapping = std::vector<std::size_t>(old_mapping.size(), 0ul);
+                    auto node_to_tasks = std::map<std::size_t, std::vector<std::size_t> >();
+                    // VV: node_to_tasks maps node id to list of tasks that it's running
+                    std::size_t task_id = 0;
+                    
+
+                    for (auto i=0ul; i<num_active_nodes; ++i)
+                        node_to_tasks.insert(std::make_pair(i, std::vector<std::size_t>()));
+
+                    for ( const auto &node_id:old_mapping )
+                        node_to_tasks[node_id].push_back(task_id++);
+
+                    OUT_DEBUG(
+                        std::cout << "[Ino_NMD] Rebalancing (original):" << std::endl;
+
+                        for ( const auto &node: node_to_tasks ) {
+                            std::cout << "node " << node.first << ": ";
+                            for ( const auto &task:node.second)
+                                std::cout << " " << task;
+                            std::cout << std::endl;
+                        }
+                    )
+
+                    // VV: Something else is setting the scheduling policy too
+                    //     try to redistribute tasks to all @previous_num_nodes
+                    OUT_DEBUG(
+                        std::cout << "[GLOBAL OPTIMIZER] Re-balancing previous nodes" << std::endl;
+                    )
+
+                    auto prev_avg_tasks =
+                    (std::size_t) std::ceil(old_mapping.size() /
+                                            (float)previous_num_nodes);
+                    auto node_fewer_tasks = 1ul;
+
+                    for (auto node_id = 0ul; node_id < num_active_nodes; ++node_id)
+                    {
+                        auto &node = node_to_tasks[node_id];
+                        while (node.size() > prev_avg_tasks)
+                        {
+                            while (node_to_tasks[node_fewer_tasks].size() >= prev_avg_tasks)
+                                if (++node_fewer_tasks == previous_num_nodes)
+                                    break;
+
+                            if (node_fewer_tasks == previous_num_nodes)
+                                break;
+
+                            auto task = node.back();
+                            node.pop_back();
+                            node_to_tasks[node_fewer_tasks].push_back(task);
+                        }
+                    }
+
+                    OUT_DEBUG(
+                        std::cout << "[GLOBAL OPTIMIZER] Rebalanced (still original):" << std::endl;
+
+                        for ( const auto &node: node_to_tasks ) {
+                            std::cout << "node " << node.first << ": ";
+                            for ( const auto &task:node.second)
+                                std::cout << " " << task;
+                            std::cout << std::endl;
+                        }
+
+
+                        std::cout << "[GLOBAL OPTIMIZER] Changing nodes from "
+                                << previous_num_nodes
+                                << " to " << new_num_nodes << std::endl;
+                    )
+
+                    if (new_num_nodes < previous_num_nodes)
+                    {
+                        OUT_DEBUG(
+                            std::cout << "[GLOBAL OPTIMIZER] Decreasing nodes" << std::endl;
+                        )
+                        auto lost_node = new_num_nodes;
+
+                        while (lost_node < previous_num_nodes && node_to_tasks[lost_node].size())
+                        {
+                            for (auto node_id = 0ul; node_id < new_num_nodes; ++node_id)
+                            {
+                                auto &node = node_to_tasks[node_id];
+                                auto old_tasks = node.size();
+                                for (auto new_tasks = old_tasks;
+                                     lost_node < previous_num_nodes && new_tasks < new_avg_tasks;
+                                     new_tasks++)
+                                {
+                                    // VV: Move next orphaned task to @node
+                                    while (node_to_tasks[lost_node].size() == 0)
+                                    {
+                                        if (++lost_node == previous_num_nodes)
+                                            break;
+                                    }
+
+                                    if (lost_node == previous_num_nodes)
+                                        break;
+
+                                    std::size_t task = node_to_tasks[lost_node].back();
+                                    node_to_tasks[lost_node].pop_back();
+                                    node.push_back(task);
+                                }
+                            }
+                        }
+                    }
+                    else if (new_num_nodes > previous_num_nodes)
+                    {
+                        OUT_DEBUG(
+                            std::cout << "[GLOBAL OPTIMIZER] Increasing nodes" << std::endl;
+                        )
+                        auto new_node = previous_num_nodes - 1;
+                        for (auto node_id = 0ul; node_id < previous_num_nodes; ++node_id)
+                        {
+                            auto &node = node_to_tasks[node_id];
+                            while (node.size() > new_avg_tasks)
+                            {
+                                while (node_to_tasks[new_node].size() >= new_avg_tasks)
+                                    if (++new_node == new_num_nodes)
+                                        break;
+
+                                if (new_node == new_num_nodes)
+                                    break;
+
+                                auto task = node.back();
+                                node.pop_back();
+                                node_to_tasks[new_node].push_back(task);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        OUT_DEBUG(
+                            std::cout << "[GLOBAL OPTIMIZER] Did not modify mapping" << std::endl;
+                        )
+                    }
+
+                    if (previous_num_nodes != new_num_nodes ) {
+                        OUT_DEBUG(
+                            std::cout << "[GLOBAL OPTIMIZER] Rebalancing (NEW):" << std::endl;
+
+                            for ( const auto &node: node_to_tasks ) {
+                                std::cout << "node " << node.first << ": ";
+                                for ( const auto &task:node.second)
+                                    std::cout << " " << task;
+                                std::cout << std::endl;
+                            }
+                        )
+
+                        for (auto i = 0ul;  i< new_mapping.size(); ++i)
+                            new_mapping[i] = virtual_to_physical[new_mapping[i]];
+
+                        previous_num_nodes = new_num_nodes;
+                        hpx::lcos::broadcast_apply<allscale_optimizer_update_policy_action_ino>(localities_, new_mapping);
+
+                        for (auto i=0u; i<new_num_nodes; ++i ) {
+                            active_nodes_[i] = true;
+                        }
+                        for ( auto i=new_num_nodes ;i<active_nodes_.size(); ++i)
+                            active_nodes_[i] = false;
+                    }
+
+                    if ( threads_min != threads_max )
+                        hpx::lcos::broadcast_apply<allscale_optimizer_update_max_threads>(localities_, new_threads_per_node);
+                }
+            });
 }
 
 hpx::future<void> global_optimizer::balance_ino(const std::vector<std::size_t> &old_mapping)
@@ -475,6 +887,7 @@ hpx::future<void> global_optimizer::balance_ino(const std::vector<std::size_t> &
                     #ifdef INO_DEBUG_DECIDE_SCHEDULE
                     std::cerr << "Ino picked a schedule" << std::endl;
                     #endif
+
                     for (auto node_wis : ino_schedule)
                         for (auto wi : node_wis.second.v_work_items)
                             new_mapping[wi] = node_wis.first;

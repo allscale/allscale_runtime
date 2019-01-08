@@ -26,6 +26,11 @@
 
 #include <hpx/lcos/gather.hpp>
 
+#ifdef ALLSCALE_HAVE_CPUFREQ
+#define POWER_MEASUREMENT_PERIOD_MS 100
+#include <allscale/util/hardware_reconf.hpp>
+#endif
+
 #ifdef HAVE_PAPI
 #include <boost/tokenizer.hpp>
 #include <string.h>
@@ -353,16 +358,55 @@ namespace allscale { namespace components {
 
    float monitor::get_current_power()
    {
+      #ifdef ALLSCALE_HAVE_CPUFREQ
+      /*VV: Read potentially multiple measurements of power within the span of 
+            POWER_MEASUREMENT_PERIOD_MS milliseconds. Each time this function
+            is invoked it returns the running average of power.*/
+      static mutex_type power_mtx;
+      static unsigned long long times_read_power=0;
+      static unsigned long long power_sum = 0ull;
+      static long timestamp_reset_power = 0;
+
+      int64_t t_now, dt;
+      float ret;
+
+      std::lock_guard<mutex_type> lock(power_mtx);
+      
+      t_now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+ 
+      dt = t_now - timestamp_reset_power;
+      times_read_power ++;
+
+      power_sum += util::hardware_reconf::read_system_power();
+
+      ret = power_sum / (float)(times_read_power);
+
+      if ( dt >= POWER_MEASUREMENT_PERIOD_MS ) {
+            times_read_power = 0;
+            power_sum = 0ull;
+            timestamp_reset_power = t_now;
+      }
+
+      return ret;
+      #else
       return allscale::power::estimate_power(get_current_freq(0)) * num_cpus_;
+      #endif
    }
 
 
    float monitor::get_max_power()
    {
-#ifdef POWER_ESTIMATE
+#if defined(ALLSCALE_HAVE_CPUFREQ)
+      // VV: report 1100 Watts
+      //  ( redbox paper 5283 for 8335-GTA indicates 1875 for the 
+      //   whole node but I've noticed up to ~1100 Watts, for
+      //   the time being this is a good enough figure )
+      //  ( this should be dynamically configured/discovered )
+      return 1100.0;
+#elif defined(POWER_ESTIMATE)
       return allscale::power::estimate_power(get_max_freq(0)) * num_cpus_;
 #else
-      return 0.0;
+      return 125.0;
 #endif
    }
 

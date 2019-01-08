@@ -92,18 +92,9 @@ namespace allscale
                     obj = objective_str.substr(0, idx);
                     leeway = std::stod( objective_str.substr(idx + 1) );
                 }
-
-                if (obj == "time")
-                {
-                    enable_elasticity = true;
-                    break;
-                }
-                else if (obj == "resource")
-                {
-                    enable_elasticity = true;
-                    break;
-                }
             }
+            
+            enable_elasticity = true;
         }
 
         rp.set_default_pool_name("allscale-numa-0");
@@ -175,6 +166,7 @@ namespace allscale
                  * ALLSCALE_RESOURCE_LEEWAY = (0.0, 1.0) // extra percentage allowed to explore
                  */
                 ino,
+                ino_nmd,
                 random,
                 truly_random
             };
@@ -194,8 +186,12 @@ namespace allscale
                         return "tuned";
                     case ino:
                         return "ino";
+                    case ino_nmd:
+                        return "ino_nmd";
                     case random:
                         return "random";
+                    case truly_random:
+                        return "truly_random";
                     default:
                         return "unknown";
                 }
@@ -229,6 +225,19 @@ namespace allscale
             {
                 return {
                     replacable_policy::ino,
+                    tree_scheduling_policy::create_uniform(allscale::get_num_localities())
+                };
+            }
+            if (policy == "ino_nmd" ) {
+                return {
+                    replacable_policy::ino_nmd,
+                    tree_scheduling_policy::create_uniform(allscale::get_num_localities())
+                };
+            }
+            if (policy == "truly_random")
+            {
+                return {
+                    replacable_policy::truly_random,
                     tree_scheduling_policy::create_uniform(allscale::get_num_localities())
                 };
             }
@@ -286,6 +295,8 @@ namespace allscale
           , right_id_(std::move(other.right_id_))
           , is_root_(other.is_root_)
           , optimizer_(std::move(other.optimizer_))
+          , use_gopt(other.use_gopt)
+          , use_lopt(other.use_lopt)
         {
             HPX_ASSERT(false);
         }
@@ -298,6 +309,20 @@ namespace allscale
           , parent_(here_.getParent())
           , is_root_(here_ == root_)
         {
+            char *const c_policy = std::getenv("ALLSCALE_SCHEDULING_POLICY");
+            std::string input_objective_str = hpx::get_config_entry("allscale.objective", "");
+
+            if (c_policy && strcasecmp(c_policy, "ino") == 0 )
+                use_gopt = true;
+            else
+                use_gopt = false;
+            
+            if ( input_objective_str == "allscale" )
+                use_lopt = true;
+            else
+                use_lopt = false;
+
+
             if (parent_.getRank() != scheduler::rank())
             {
                 parent_id_ = hpx::naming::get_id_from_locality_id(
@@ -325,7 +350,7 @@ namespace allscale
 
             if (is_root_) run();
         }
-
+        
         std::string policy()
         {
             return policy_.policy();
@@ -334,8 +359,13 @@ namespace allscale
         void apply_new_mapping(const std::vector<std::size_t> &new_mapping)
         {
             std::lock_guard<mutex_type> l(mtx_);
-            policy_.policy_ = tree_scheduling_policy::from_mapping(*policy_.policy_,
-                                                                    new_mapping);
+            policy_.policy_ = 
+                tree_scheduling_policy::from_mapping(*policy_.policy_, new_mapping);
+        }
+
+        void update_max_threads(std::size_t max_threads) {
+            auto &&local_scheduler = scheduler::get();
+            local_scheduler.update_max_threads(max_threads);
         }
 
         void toggle_node(std::size_t locality_id)
@@ -357,22 +387,74 @@ namespace allscale
             }
         }
 
+        double get_local_objective() {
+            auto &&local_scheduler = scheduler::get();
+            return local_scheduler.get_last_objective_score();
+        }
+
+        double get_last_objective_score()
+        {
+            auto &&local_scheduler = scheduler::get();
+            return local_scheduler.get_last_objective_score();    
+        }
+
         void set_speed_exponent(float exp)
         {
             std::lock_guard<mutex_type> l(optimizer_.mtx_);
             optimizer_.objective_.speed_exponent = exp;
+            optimizer_.signal_objective_changed();
+
+            double time_weight, energy_weight, resource_weight;
+
+            auto &&local_scheduler = scheduler::get();
+
+            local_scheduler.get_local_optimizer_weights(&time_weight,
+                                                        &energy_weight,
+                                                        &resource_weight);
+            time_weight = (double) exp;
+
+            local_scheduler.set_local_optimizer_weights(time_weight,
+                                                        energy_weight,
+                                                        resource_weight);
         }
 
         void set_efficiency_exponent(float exp)
         {
             std::lock_guard<mutex_type> l(optimizer_.mtx_);
             optimizer_.objective_.efficiency_exponent = exp;
+            optimizer_.signal_objective_changed();
+
+            double time_weight, energy_weight, resource_weight;
+
+            auto &&local_scheduler = scheduler::get();
+
+            local_scheduler.get_local_optimizer_weights(&time_weight,
+                                                        &energy_weight,
+                                                        &resource_weight);
+            resource_weight = (double) exp;
+
+            local_scheduler.set_local_optimizer_weights(time_weight,
+                                                        energy_weight,
+                                                        resource_weight);
         }
 
         void set_power_exponent(float exp)
         {
             std::lock_guard<mutex_type> l(optimizer_.mtx_);
             optimizer_.objective_.power_exponent = exp;
+            optimizer_.signal_objective_changed();
+            double time_weight, energy_weight, resource_weight;
+            
+            auto &&local_scheduler = scheduler::get();
+
+            local_scheduler.get_local_optimizer_weights(&time_weight,
+                                                        &energy_weight,
+                                                        &resource_weight);
+            energy_weight = (double) exp;
+
+            local_scheduler.set_local_optimizer_weights(time_weight,
+                                                        energy_weight,
+                                                        resource_weight);
         }
 
         hpx::util::tuple<float, float, float> get_optimizer_exponents()
@@ -385,6 +467,7 @@ namespace allscale
             );
         }
 
+        bool use_gopt, use_lopt;
 
         void set_policy(std::string policy)
         {
@@ -448,6 +531,16 @@ namespace allscale
                 tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(*policy_.policy_);
                 optimizer_.balance_ino(old.task_distribution_mapping());
             }
+            
+            if ( policy_.value_ == replacable_policy::ino_nmd) {
+                tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(*policy_.policy_);
+                optimizer_.balance_ino_nmd(old.task_distribution_mapping());
+            }
+
+            if (policy_.value_ == replacable_policy::truly_random) {
+                tree_scheduling_policy const& old = static_cast<tree_scheduling_policy const&>(*policy_.policy_);
+                optimizer_.decide_random_mapping(old.task_distribution_mapping());
+            }
 
             return true;
         }
@@ -462,7 +555,7 @@ namespace allscale
 
         void schedule(work_item work)
         {
-            if (is_root_ && work.id().is_root() && work.id().id % 20 == 0)
+            if (is_root_ && work.id().is_root() && work.id().id % 5 == 0)
             {
                 balance();
             }
@@ -667,6 +760,23 @@ namespace allscale
         );
     }
 
+    double get_last_objective_score()
+    {
+        std::vector<double> scores;
+
+        runtime::HierarchicalOverlayNetwork::forAllLocal<scheduler_service>(
+            [&](scheduler_service& sched)
+            {
+                scores.push_back(sched.get_last_objective_score());
+            }
+        );
+
+        std::cout << "GET_LAST_OBJETIVE_SCORE (SCHED): got " << scores.size() << " values" << std::endl;
+        for (const auto &score: scores ) {
+            std::cout << score  << std::endl;
+        }
+    }
+
     void set_efficiency_exponent_broadcast(float exp)
     {
         runtime::HierarchicalOverlayNetwork::forAllLocal<scheduler_service>(
@@ -745,6 +855,16 @@ namespace allscale
         );
 
         monitor::get().set_cur_freq(freq);
+    }
+
+    void scheduler::update_max_threads(std::size_t max_threads)
+    {
+        runtime::HierarchicalOverlayNetwork::forAllLocal<scheduler_service>(
+            [&](scheduler_service& sched)
+            {
+                sched.update_max_threads(max_threads);
+            }
+        );
     }
 
     void scheduler::apply_new_mapping(const std::vector<std::size_t> &new_mapping)

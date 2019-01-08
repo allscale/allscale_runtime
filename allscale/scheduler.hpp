@@ -48,6 +48,7 @@ namespace allscale
 
         static HPX_EXPORT void update_policy(task_times const& times, std::vector<bool> mask, std::uint64_t frequency);
         static void apply_new_mapping(const std::vector<std::size_t> &new_mapping);
+        static void update_max_threads(std::size_t max_threads);
 
         static HPX_EXPORT void schedule(work_item&& work);
         static HPX_EXPORT components::scheduler* run(std::size_t rank);

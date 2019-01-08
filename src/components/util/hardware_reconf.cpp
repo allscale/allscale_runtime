@@ -5,6 +5,7 @@
 #include <memory>
 #include <mutex>
 #include <cpufreq.h>
+#include <algorithm>    // std::sort
 
 #include <boost/format.hpp>
 
@@ -25,6 +26,7 @@ namespace allscale { namespace components { namespace util {
         if (available_frequencies != nullptr)
             cpufreq_put_available_frequencies(available_frequencies);
 
+        std::sort(frequencies.begin(), frequencies.end());
         return frequencies;
     }
 
