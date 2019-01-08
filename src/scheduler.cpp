@@ -75,7 +75,7 @@ namespace allscale
 
         std::string input_objective_str = hpx::get_config_entry("allscale.objective", "none");
 //         std::cerr << "  Scheduler objective is " << input_objective_str << "\n";
-        bool enable_elasticity = false;
+        bool enable_elasticity = true;
         if ( !input_objective_str.empty() )
         {
             std::istringstream iss_leeways(input_objective_str);
@@ -91,17 +91,6 @@ namespace allscale
                 {
                     obj = objective_str.substr(0, idx);
                     leeway = std::stod( objective_str.substr(idx + 1) );
-                }
-
-                if (obj == "time")
-                {
-                    enable_elasticity = true;
-                    break;
-                }
-                else if (obj == "resource")
-                {
-                    enable_elasticity = true;
-                    break;
                 }
             }
         }
